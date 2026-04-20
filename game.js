@@ -45,12 +45,14 @@ class Game {
     }
 
     startWave() {
+        let expFactor = Math.pow(1.03, this.wave);
+        
         if (this.wave > 0 && this.wave % 5 === 0) {
             this.currentWaveDef = {
                 count: Math.floor((15 + this.wave) * 1.3),
                 type: 'air',
                 spawnRate: 30,
-                hpMult: (1.0 + (this.wave / 10)) * 1.47
+                hpMult: (1.0 + (this.wave / 10)) * 1.47 * expFactor
             };
             this.enemiesSpawned = 0;
             this.spawnTimer = 60;
@@ -67,7 +69,7 @@ class Game {
             count: Math.floor(def.count * 1.3),
             type: def.type,
             spawnRate: Math.max(10, def.spawnRate - loops * 5),
-            hpMult: def.hpMult * extraMult * 1.47
+            hpMult: def.hpMult * extraMult * 1.47 * expFactor
         };
         
         this.enemiesSpawned = 0;
