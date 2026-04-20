@@ -101,7 +101,7 @@ const SoundFX = {
         
         // Dynamically reduce sound effect volume if game speed is high to avoid clipping
         if (typeof gameSpeed !== 'undefined' && gameSpeed > 1) {
-            vol = vol / (1 + Math.log2(gameSpeed) * 0.5);
+            vol = vol / gameSpeed;
         }
         
         const osc = audioCtx.createOscillator();
@@ -132,7 +132,7 @@ const SoundFX = {
         
         // Dynamically reduce noise volume if game speed is high
         if (typeof gameSpeed !== 'undefined' && gameSpeed > 1) {
-            vol = vol / (1 + Math.log2(gameSpeed) * 0.5);
+            vol = vol / gameSpeed;
         }
         
         const bufferSize = audioCtx.sampleRate * duration; 
