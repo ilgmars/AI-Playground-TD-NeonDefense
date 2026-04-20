@@ -65,7 +65,18 @@
                 <div id="game-over" class="hidden overlay">
                     <h2>GAME OVER</h2>
                     <p>Waves Survived: <span id="final-wave"></span></p>
-                    <button id="game-over-restart">RESTART</button>
+                    
+                    <div id="score-entry" style="margin-top: 20px; display: none; flex-direction: column; align-items: center; gap: 10px;">
+                        <input type="text" id="player-name" maxlength="3" placeholder="AAA" style="text-transform: uppercase; text-align: center; font-size: 1.5rem; font-family: monospace; width: 80px; padding: 5px; background: rgba(0,0,0,0.5); border: 1px solid var(--accent); color: white; border-radius: 4px;">
+                        <button id="submit-score" style="padding: 8px 16px; font-size: 0.9rem;">SAVE SCORE</button>
+                    </div>
+
+                    <div id="scoreboard" style="margin-top: 20px; width: 250px; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+                        <h3 style="text-align: center; font-size: 1rem; color: var(--accent); margin-bottom: 10px; letter-spacing: 2px;">TOP SCORES</h3>
+                        <div id="scores-list" style="font-family: monospace; font-size: 1.1rem;"></div>
+                    </div>
+
+                    <button id="game-over-restart" style="margin-top: 20px;">RESTART</button>
                 </div>
 
                 <div id="restart-confirm" class="hidden overlay">

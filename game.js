@@ -50,7 +50,7 @@ class Game {
                 count: 15 + this.wave,
                 type: 'air',
                 spawnRate: 40,
-                hpMult: 1.0 + (this.wave / 10)
+                hpMult: (1.0 + (this.wave / 10)) * 1.15
             };
             this.enemiesSpawned = 0;
             this.spawnTimer = 60;
@@ -67,7 +67,7 @@ class Game {
             count: def.count,
             type: def.type,
             spawnRate: Math.max(10, def.spawnRate - loops * 5),
-            hpMult: def.hpMult * extraMult
+            hpMult: def.hpMult * extraMult * 1.15
         };
         
         this.enemiesSpawned = 0;
@@ -115,16 +115,17 @@ class Game {
         const options = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'flak', 'electric', 'silo'];
         const costs = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400 };
         
-        let isAirImminent = (this.waveCooldown > 0 && (this.wave + 1) % 5 === 0) || (this.currentWaveDef && this.currentWaveDef.type === 'air');
+        let isAirImminent = (this.wave % 5 === 4) || (this.waveCooldown > 0 && (this.wave + 1) % 5 === 0) || (this.currentWaveDef && this.currentWaveDef.type === 'air');
         
         let targetType;
-        if (isAirImminent && counts['flak'] < Math.floor(this.wave / 3) + 1) {
+        if (isAirImminent && counts['flak'] < Math.floor(this.wave / 5) + 1) {
             targetType = 'flak';
         } else {
             let minCount = Math.min(...options.map(t => counts[t]));
             let neededTypes = options.filter(t => counts[t] === minCount);
             neededTypes.sort((a, b) => costs[a] - costs[b]); 
-            targetType = neededTypes[0];
+            let pool = neededTypes.slice(0, 3);
+            targetType = pool[Math.floor(Math.random() * pool.length)];
         }
         
         let preferBuild = this.towers.length < 5 || Math.random() < 0.6;
@@ -383,7 +384,7 @@ class Game {
             if (t.c === c && t.r === r) return false;
         }
 
-        const costs = { basic: 50, sniper: 100, rapid: 150, laser: 200, rocket: 250, electric: 300, silo: 400 };
+        const costs = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400 };
         let cost = costs[type];
 
         if (this.money >= cost) {
@@ -499,5 +500,8 @@ class Game {
         this.state = 'gameover';
         document.getElementById('game-over').classList.remove('hidden');
         document.getElementById('final-wave').textContent = this.wave;
+        document.getElementById('score-entry').style.display = 'flex';
+        document.getElementById('player-name').value = '';
+        if (window.loadScores) window.loadScores();
     }
 }
