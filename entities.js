@@ -284,7 +284,7 @@ class Tower {
         }
 
         let target = null;
-        let bestScore = -999;
+        let bestScore = -999999;
 
         for (let enemy of enemies) {
             if (!enemy.active) continue;
