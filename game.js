@@ -47,10 +47,10 @@ class Game {
     startWave() {
         if (this.wave > 0 && this.wave % 5 === 0) {
             this.currentWaveDef = {
-                count: 15 + this.wave,
+                count: Math.floor((15 + this.wave) * 1.3),
                 type: 'air',
-                spawnRate: 40,
-                hpMult: (1.0 + (this.wave / 10)) * 1.15
+                spawnRate: 30,
+                hpMult: (1.0 + (this.wave / 10)) * 1.47
             };
             this.enemiesSpawned = 0;
             this.spawnTimer = 60;
@@ -64,10 +64,10 @@ class Game {
         let extraMult = 1 + loops * 2;
         
         this.currentWaveDef = {
-            count: def.count,
+            count: Math.floor(def.count * 1.3),
             type: def.type,
             spawnRate: Math.max(10, def.spawnRate - loops * 5),
-            hpMult: def.hpMult * extraMult * 1.15
+            hpMult: def.hpMult * extraMult * 1.47
         };
         
         this.enemiesSpawned = 0;
@@ -113,16 +113,17 @@ class Game {
         }
 
         const options = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'flak', 'electric', 'silo'];
+        const generalOptions = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'electric', 'silo'];
         const costs = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400 };
         
         let isAirImminent = (this.wave % 5 === 4) || (this.waveCooldown > 0 && (this.wave + 1) % 5 === 0) || (this.currentWaveDef && this.currentWaveDef.type === 'air');
         
         let targetType;
-        if (isAirImminent && counts['flak'] < Math.floor(this.wave / 5) + 1) {
+        if (isAirImminent && counts['flak'] < Math.floor(this.wave / 6) + 1) {
             targetType = 'flak';
         } else {
-            let minCount = Math.min(...options.map(t => counts[t]));
-            let neededTypes = options.filter(t => counts[t] === minCount);
+            let minCount = Math.min(...generalOptions.map(t => counts[t]));
+            let neededTypes = generalOptions.filter(t => counts[t] === minCount);
             neededTypes.sort((a, b) => costs[a] - costs[b]); 
             let pool = neededTypes.slice(0, 3);
             targetType = pool[Math.floor(Math.random() * pool.length)];
