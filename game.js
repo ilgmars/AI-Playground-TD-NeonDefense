@@ -115,7 +115,8 @@ class Game {
         const options = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'flak', 'electric', 'silo'];
         const costs = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400 };
         
-        let isAirImminent = (this.waveCooldown > 0 && (this.wave + 1) % 5 === 0) || (this.currentWaveDef && this.currentWaveDef.type === 'air');
+        // Anticipate air wave during the entire wave prior (e.g. wave 4, 9, 14) as well as during the cooldown and the air wave itself
+        let isAirImminent = (this.wave % 5 === 4) || (this.waveCooldown > 0 && (this.wave + 1) % 5 === 0) || (this.currentWaveDef && this.currentWaveDef.type === 'air');
         
         let targetType;
         if (isAirImminent && counts['flak'] < Math.floor(this.wave / 3) + 1) {
