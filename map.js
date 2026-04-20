@@ -8,6 +8,7 @@ class GameMap {
     }
 
     generateMap() {
+        // Initialize empty grid
         this.grid = [];
         for (let r = 0; r < ROWS; r++) {
             let row = [];
@@ -26,7 +27,8 @@ class GameMap {
         this.startPoint = {c, r};
         
         while (c < COLS - 1) {
-            let stepRight = Math.floor(Math.random() * 3) + 2; 
+            // Move right
+            let stepRight = Math.floor(Math.random() * 3) + 2; // 2 to 4 steps
             if (c + stepRight >= COLS - 1) {
                 stepRight = (COLS - 1) - c;
             }
@@ -38,6 +40,7 @@ class GameMap {
             
             if (c === COLS - 1) break; 
             
+            // Move vertical
             let canUp = r > 2;
             let canDown = r < ROWS - 3;
             
@@ -53,7 +56,7 @@ class GameMap {
             }
             
             let maxDist = dir === 1 ? ROWS - 2 - r : r - 2;
-            if (maxDist < 2) continue; 
+            if (maxDist < 2) continue; // Minimum vertical step is 2
             
             let dist = Math.floor(Math.random() * (maxDist - 1)) + 2;
             
@@ -65,6 +68,7 @@ class GameMap {
         
         this.endPoint = this.path[this.path.length - 1];
         
+        // Write path to grid
         for (let i = 0; i < this.path.length; i++) {
             let p = this.path[i];
             if (i === 0) {
@@ -75,7 +79,6 @@ class GameMap {
                 this.grid[p.r][p.c] = 1; // Path
             }
         }
-        this.paths = [this.path]; // fallback for game.js if needed
     }
 
     draw(ctx) {

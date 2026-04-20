@@ -120,39 +120,6 @@ function init() {
     document.getElementById('confirm-yes').addEventListener('click', restartGame);
     document.getElementById('game-over-restart').addEventListener('click', restartGame);
 
-    const scoresList = document.getElementById('scores-list');
-    const playerNameInput = document.getElementById('player-name');
-    const submitScoreBtn = document.getElementById('submit-score');
-
-    window.loadScores = function() {
-        let scores = JSON.parse(localStorage.getItem('neonDefenseScores') || '[]');
-        scores.sort((a, b) => b.wave - a.wave);
-        scoresList.innerHTML = '';
-        if (scores.length === 0) {
-            scoresList.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.9rem;">NO DATA YET</div>';
-        }
-        scores.slice(0, 5).forEach((s, i) => {
-            let div = document.createElement('div');
-            div.style.display = 'flex';
-            div.style.justifyContent = 'space-between';
-            div.style.padding = '4px 0';
-            div.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
-            div.innerHTML = `<span style="color:#fff;">#${i+1} ${s.name}</span> <span style="color:#a3e635;">WAVE ${s.wave}</span>`;
-            scoresList.appendChild(div);
-        });
-    }
-
-    submitScoreBtn.addEventListener('click', () => {
-        let name = playerNameInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        if (name.length > 0 && name.length <= 3 && game.state === 'gameover') {
-            let scores = JSON.parse(localStorage.getItem('neonDefenseScores') || '[]');
-            scores.push({ name: name, wave: game.wave });
-            localStorage.setItem('neonDefenseScores', JSON.stringify(scores));
-            document.getElementById('score-entry').style.display = 'none';
-            window.loadScores();
-        }
-    });
-
     document.getElementById('confirm-no').addEventListener('click', () => {
         document.getElementById('restart-confirm').classList.add('hidden');
         game.state = 'playing';
