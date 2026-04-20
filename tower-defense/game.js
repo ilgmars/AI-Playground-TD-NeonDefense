@@ -45,6 +45,18 @@ class Game {
     }
 
     startWave() {
+        if (this.wave > 0 && this.wave % 5 === 0) {
+            this.currentWaveDef = {
+                count: 15 + this.wave,
+                type: 'air',
+                spawnRate: 40,
+                hpMult: 1.0 + (this.wave / 10)
+            };
+            this.enemiesSpawned = 0;
+            this.spawnTimer = 60;
+            return;
+        }
+
         let idx = (this.wave - 1) % this.waveData.length;
         let def = this.waveData[idx];
         
@@ -72,7 +84,7 @@ class Game {
     }
 
     runAutopilot() {
-        let counts = { basic: 0, sniper: 0, rapid: 0, laser: 0, rocket: 0, electric: 0, silo: 0 };
+        let counts = { basic: 0, sniper: 0, rapid: 0, laser: 0, rocket: 0, flak: 0, electric: 0, silo: 0 };
         for (let t of this.towers) counts[t.type]++;
 
         let spots = [];
@@ -100,8 +112,8 @@ class Game {
             }
         }
 
-        const options = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'electric', 'silo'];
-        const costs = { basic: 50, sniper: 100, rapid: 150, laser: 200, rocket: 250, electric: 300, silo: 400 };
+        const options = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'flak', 'electric', 'silo'];
+        const costs = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400 };
         
         let minCount = Math.min(...options.map(t => counts[t]));
         let neededTypes = options.filter(t => counts[t] === minCount);
@@ -220,16 +232,27 @@ class Game {
                 let aliveEnemies = this.enemies.filter(e => e.active);
                 if (aliveEnemies.length === 0) {
                     this.currentWaveDef = null;
-                    this.waveCooldown = 180; 
+                    this.waveCooldown = ((this.wave + 1) % 5 === 0) ? 300 : 180; 
                     this.money += 20 + this.wave * 5; 
+                    
+                    if ((this.wave + 1) % 5 === 0) {
+                        SoundFX.siren();
+                    }
                 }
             }
         } else {
             if (this.waveCooldown > 0) {
                 this.waveCooldown--;
+                if ((this.wave + 1) % 5 === 0) {
+                    this.airWarning = true;
+                } else {
+                    this.airWarning = false;
+                }
+                
                 if (this.waveCooldown === 0) {
                     this.wave++;
                     this.startWave();
+                    this.airWarning = false;
                     this.uiDirty = true; 
                 }
             }
@@ -322,10 +345,21 @@ class Game {
             this.ctx.lineWidth = 2;
             this.ctx.stroke();
         }
+
+        if (this.airWarning) {
+            let alpha = Math.abs(Math.sin(this.waveCooldown / 15));
+            this.ctx.fillStyle = `rgba(239, 68, 68, ${alpha})`;
+            this.ctx.font = 'bold 30px Outfit, sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.shadowColor = '#ef4444';
+            this.ctx.shadowBlur = 10;
+            this.ctx.fillText(`WARNING: AIR WAVE IN ${Math.ceil(this.waveCooldown / 60)}`, (window.COLS * window.TILE_SIZE) / 2, (window.ROWS * window.TILE_SIZE) / 2);
+            this.ctx.shadowBlur = 0;
+        }
     }
 
     canAfford(type) {
-        const costs = { basic: 50, sniper: 100, rapid: 150, laser: 200, rocket: 250, electric: 300, silo: 400 };
+        const costs = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400 };
         return this.money >= costs[type];
     }
 
@@ -364,7 +398,7 @@ class Game {
         if (!this.selectedTower) return;
         let t = this.selectedTower;
         
-        const names = { basic: 'Blaster', sniper: 'Sniper', rapid: 'Pulse', laser: 'Laser', rocket: 'Rocket', electric: 'Tesla', silo: 'Silo' };
+        const names = { basic: 'Blaster', sniper: 'Sniper', rapid: 'Pulse', flak: 'Flak (AA)', laser: 'Laser', rocket: 'Rocket', electric: 'Tesla', silo: 'Silo' };
         document.getElementById('upgrade-type-name').textContent = names[t.type];
         document.getElementById('tower-dmg').textContent = Math.floor(t.damage);
         document.getElementById('tower-rng').textContent = Math.floor(t.range);

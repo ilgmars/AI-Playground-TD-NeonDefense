@@ -73,7 +73,7 @@ function drawEnemy(ctx, x, y, radius, type, healthRatio) {
     ctx.translate(x, y);
     
     // Neon glow
-    let color = type === 'fast' ? '#fde047' : type === 'tank' ? '#f87171' : '#a7f3d0';
+    let color = type === 'fast' ? '#fde047' : type === 'tank' ? '#f87171' : type === 'air' ? '#60a5fa' : '#a7f3d0';
     ctx.shadowColor = color;
     ctx.shadowBlur = 10;
     
@@ -82,7 +82,22 @@ function drawEnemy(ctx, x, y, radius, type, healthRatio) {
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
     
-    if (type === 'fast') {
+    if (type === 'air') {
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.beginPath();
+        ctx.arc(0, 20, radius/2, 0, Math.PI*2);
+        ctx.fill();
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = '#0f172a';
+        
+        ctx.beginPath();
+        ctx.moveTo(0, -radius*1.5);
+        ctx.lineTo(radius, 0);
+        ctx.lineTo(0, radius*1.5);
+        ctx.lineTo(-radius, 0);
+        ctx.closePath();
+    } else if (type === 'fast') {
         // Triangle
         ctx.beginPath();
         ctx.moveTo(radius, 0);
@@ -131,7 +146,7 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
     // Turret rotation
     ctx.rotate(angle);
 
-    let color = type === 'sniper' ? '#f472b6' : type === 'rapid' ? '#a3e635' : type === 'laser' ? '#8b5cf6' : type === 'rocket' ? '#f97316' : type === 'electric' ? '#0ea5e9' : type === 'silo' ? '#ef4444' : '#38bdf8';
+    let color = type === 'sniper' ? '#f472b6' : type === 'rapid' ? '#a3e635' : type === 'laser' ? '#8b5cf6' : type === 'rocket' ? '#f97316' : type === 'electric' ? '#0ea5e9' : type === 'flak' ? '#60a5fa' : type === 'silo' ? '#ef4444' : '#38bdf8';
     
     ctx.shadowColor = color;
     ctx.shadowBlur = 8;
@@ -178,6 +193,14 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
         ctx.fillStyle = color;
         ctx.fillRect(-size/2, -size/6, size/4, size/8);
         ctx.fillRect(-size/2, size/12, size/4, size/8);
+    } else if (type === 'flak') {
+        ctx.beginPath();
+        ctx.arc(0, 0, size/3, 0, Math.PI*2);
+        ctx.stroke();
+        
+        ctx.fillStyle = color;
+        ctx.fillRect(-size/6, -size/2, size/8, size/2); 
+        ctx.fillRect(size/16, -size/2, size/8, size/2);
     } else if (type === 'electric') {
         ctx.rotate(-angle); // Make it static, no rotation
         
@@ -233,8 +256,8 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
 }
 
 function drawProjectile(ctx, x, y, type, angle = 0) {
-    let color = type === 'sniper' ? '#f472b6' : type === 'rapid' ? '#a3e635' : type === 'rocket' ? '#f97316' : '#38bdf8';
-    let size = type === 'sniper' ? 4 : type === 'rapid' ? 2 : type === 'rocket' ? 5 : 3;
+    let color = type === 'sniper' ? '#f472b6' : type === 'rapid' ? '#a3e635' : type === 'rocket' ? '#f97316' : type === 'flak' ? '#60a5fa' : '#38bdf8';
+    let size = type === 'sniper' ? 4 : type === 'rapid' ? 2 : type === 'rocket' ? 5 : type === 'flak' ? 3 : 3;
     
     ctx.save();
     ctx.translate(x, y);

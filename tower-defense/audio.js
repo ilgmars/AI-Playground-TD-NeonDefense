@@ -61,6 +61,30 @@ const SoundFX = {
     shootLaser() { this.playTone(800, 'sine', 0.1, 0.02, 1200); },
     shootRocket() { this.playNoise(0.2, 0.05); this.playTone(150, 'triangle', 0.2, 0.08, 50); },
     shootElectric() { this.playTone(1000, 'sawtooth', 0.1, 0.03, 2000); },
+    shootFlak() { this.playNoise(0.1, 0.05); this.playTone(300, 'square', 0.1, 0.05); },
+    
+    siren() {
+        if (!soundEnabled) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const now = audioCtx.currentTime;
+        for (let i = 0; i < 3; i++) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(400, now + i*1.5);
+            osc.frequency.linearRampToValueAtTime(800, now + i*1.5 + 0.7);
+            osc.frequency.linearRampToValueAtTime(400, now + i*1.5 + 1.5);
+            
+            gain.gain.setValueAtTime(0.1, now + i*1.5);
+            gain.gain.setValueAtTime(0.1, now + i*1.5 + 1.2);
+            gain.gain.linearRampToValueAtTime(0, now + i*1.5 + 1.5);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now + i*1.5);
+            osc.stop(now + i*1.5 + 1.5);
+        }
+    },
     
     explosion() { this.playNoise(0.4, 0.1); },
     hit() { this.playNoise(0.1, 0.05); },
