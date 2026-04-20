@@ -24,6 +24,11 @@ const TOWER_UPGRADES = {
         { name: 'Multi-Shot', desc: 'Fires extra rockets', baseCost: 300, costMult: 2.0, apply: (t) => { t.multiShot = (t.multiShot || 1) + 1; } },
         { name: 'Range', desc: 'Increases targeting range', baseCost: 150, costMult: 1.4, apply: (t) => { t.range += 25; } }
     ],
+    flak: [
+        { name: 'Shrapnel', desc: 'Larger flak explosions', baseCost: 150, costMult: 1.5, apply: (t) => { t.splash += 20; } },
+        { name: 'Radar', desc: 'Increases AA range', baseCost: 100, costMult: 1.4, apply: (t) => { t.range += 50; } },
+        { name: 'Autoloader', desc: 'Fires shells faster', baseCost: 200, costMult: 1.6, apply: (t) => { t.fireRate = Math.max(15, Math.floor(t.fireRate * 0.75)); } }
+    ],
     electric: [
         { name: 'Voltage', desc: 'More chain damage', baseCost: 200, costMult: 1.6, apply: (t) => { t.damage += 15; } },
         { name: 'Conductor', desc: 'Jumps to more enemies', baseCost: 250, costMult: 1.8, apply: (t) => { t.chainCount = (t.chainCount || 3) + 1; } },
@@ -46,6 +51,7 @@ class Enemy {
         this.y = start.r * TILE_SIZE + TILE_SIZE / 2;
         
         this.type = type; 
+        this.isAir = type === 'air';
         this.radius = 12;
         
         let baseHp = 20;
@@ -62,6 +68,11 @@ class Enemy {
             baseSpeed = 0.6;
             baseReward = 10;
             this.radius = 15;
+        } else if (type === 'air') {
+            baseHp = 25;
+            baseSpeed = 0.6; // Much slower
+            baseReward = 8;
+            this.radius = 14;
         }
 
         this.hp = baseHp * hpMultiplier;
@@ -73,10 +84,44 @@ class Enemy {
         this.reachedEnd = false;
         
         this.currentSlow = 1;
+        
+        if (this.isAir) {
+            let endP = path[path.length - 1];
+            this.endX = endP.c * TILE_SIZE + TILE_SIZE / 2;
+            this.endY = endP.r * TILE_SIZE + TILE_SIZE / 2;
+            
+            // Random offset for a wide formation approach
+            let offX = (Math.random() - 0.5) * 200;
+            let offY = (Math.random() - 0.5) * 200;
+            this.x += offX;
+            this.y += offY;
+            
+            // Add slight randomness to destination too so they swarm
+            this.endX += (Math.random() - 0.5) * 50;
+            this.endY += (Math.random() - 0.5) * 50;
+            
+            let dx = this.endX - this.x;
+            let dy = this.endY - this.y;
+            let dist = Math.hypot(dx, dy);
+            this.vx = (dx / dist) * this.speed;
+            this.vy = (dy / dist) * this.speed;
+        }
     }
 
     update() {
         if (!this.active) return;
+        
+        if (this.isAir) {
+            this.x += this.vx * this.currentSlow;
+            this.y += this.vy * this.currentSlow;
+            
+            if (Math.hypot(this.endX - this.x, this.endY - this.y) <= this.speed) {
+                this.reachedEnd = true;
+                this.active = false;
+            }
+            if (this.currentSlow < 1) this.currentSlow = Math.min(1, this.currentSlow + 0.01);
+            return;
+        }
 
         let target = this.path[this.pathIndex];
         let targetX = target.c * TILE_SIZE + TILE_SIZE / 2;
@@ -155,6 +200,12 @@ class Tower {
             this.range = 200;
             this.damage = 30; 
             this.fireRate = 90; 
+        } else if (type === 'flak') {
+            this.baseCost = 150;
+            this.range = 200;
+            this.damage = 15;
+            this.fireRate = 35;
+            this.splash = 50;
         } else if (type === 'electric') {
             this.baseCost = 300;
             this.range = 120;
@@ -233,17 +284,24 @@ class Tower {
         }
 
         let target = null;
-        let minDist = this.range;
+        let bestScore = -999;
 
         for (let enemy of enemies) {
             if (!enemy.active) continue;
+            
             let ex = enemy.x;
             let ey = enemy.y;
             let dist = Math.hypot(ex - (this.x + TILE_SIZE/2), ey - (this.y + TILE_SIZE/2));
             
-            if (dist <= minDist) {
-                minDist = dist;
-                target = enemy;
+            if (dist <= this.range) {
+                let score = -dist; // Closer is better
+                if (this.type === 'flak' && enemy.isAir) score += 1000; // Flak strictly prioritizes Air
+                if (this.type !== 'flak' && enemy.isAir) score -= 1000; // Normal towers strictly prioritize Ground
+                
+                if (score > bestScore) {
+                    bestScore = score;
+                    target = enemy;
+                }
             }
         }
 
@@ -298,6 +356,7 @@ class Tower {
                 if (this.type === 'basic' || this.type === 'rapid') SoundFX.shootBasic();
                 else if (this.type === 'sniper') SoundFX.shootSniper();
                 else if (this.type === 'rocket') SoundFX.shootRocket();
+                else if (this.type === 'flak') SoundFX.shootFlak();
                 
                 let ms = this.multiShot || 1;
                 for (let i = 0; i < ms; i++) {
@@ -370,7 +429,7 @@ class Projectile {
         this.pierce = pierce;
         this.splash = splash;
         
-        this.speed = type === 'sniper' ? 12 : type === 'rapid' ? 6 : type === 'rocket' ? 5 : 8;
+        this.speed = type === 'sniper' ? 12 : type === 'rapid' ? 6 : type === 'rocket' ? 5 : type === 'flak' ? 14 : 8;
         this.active = true;
         
         if (type === 'rocket') {
@@ -455,7 +514,10 @@ class Projectile {
                 if (!e.active) continue;
                 let d = Math.hypot(e.x - this.x, e.y - this.y);
                 if (d <= this.splash) {
-                    e.hp -= this.damage;
+                    let dmg = this.damage;
+                    if (this.type === 'flak' && e.isAir) dmg *= 4; // Flak deals 400% damage to Air
+                    
+                    e.hp -= dmg;
                     if (e.hp <= 0) {
                         e.active = false;
                         SoundFX.explosion();
@@ -465,7 +527,10 @@ class Projectile {
             this.active = false;
         } else {
             if (this.target.active) {
-                this.target.hp -= this.damage;
+                let dmg = this.damage;
+                if (this.type === 'flak' && this.target.isAir) dmg *= 4;
+                
+                this.target.hp -= dmg;
                 SoundFX.hit();
                 if (this.target.hp <= 0) {
                     this.target.active = false;

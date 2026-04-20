@@ -458,6 +458,18 @@ class Game {
         document.getElementById('health-display').textContent = this.health;
         document.getElementById('money-display').textContent = this.money;
         
+        let nextAir = 5 - (this.wave % 5);
+        let airEl = document.getElementById('air-countdown');
+        if (nextAir === 5 && this.wave > 0) {
+            airEl.textContent = '✈ ACTIVE';
+            airEl.style.color = '#ef4444';
+            airEl.style.textShadow = '0 0 5px rgba(239,68,68,0.5)';
+        } else {
+            airEl.textContent = `✈ IN ${nextAir}`;
+            airEl.style.color = '#60a5fa';
+            airEl.style.textShadow = 'none';
+        }
+        
         document.querySelectorAll('.tower-option').forEach(el => {
             let type = el.dataset.type;
             if (this.canAfford(type)) {
