@@ -237,7 +237,8 @@ class Game {
                 if (this.spawnTimer > 0) {
                     this.spawnTimer--;
                 } else {
-                    this.enemies.push(new Enemy(this.map.path, this.currentWaveDef.type, this.currentWaveDef.hpMult));
+                    let pathToUse = this.map.paths[Math.floor(Math.random() * this.map.paths.length)];
+                    this.enemies.push(new Enemy(pathToUse, this.currentWaveDef.type, this.currentWaveDef.hpMult));
                     this.enemiesSpawned++;
                     this.spawnTimer = this.currentWaveDef.spawnRate;
                 }
@@ -383,7 +384,7 @@ class Game {
             if (t.c === c && t.r === r) return false;
         }
 
-        const costs = { basic: 50, sniper: 100, rapid: 150, laser: 200, rocket: 250, electric: 300, silo: 400 };
+        const costs = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400 };
         let cost = costs[type];
 
         if (this.money >= cost) {
@@ -499,5 +500,8 @@ class Game {
         this.state = 'gameover';
         document.getElementById('game-over').classList.remove('hidden');
         document.getElementById('final-wave').textContent = this.wave;
+        document.getElementById('score-entry').style.display = 'flex';
+        document.getElementById('player-name').value = '';
+        if (window.loadScores) window.loadScores();
     }
 }
