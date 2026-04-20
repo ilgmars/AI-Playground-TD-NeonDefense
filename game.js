@@ -238,8 +238,7 @@ class Game {
                 if (this.spawnTimer > 0) {
                     this.spawnTimer--;
                 } else {
-                    let pathToUse = this.map.paths[Math.floor(Math.random() * this.map.paths.length)];
-                    this.enemies.push(new Enemy(pathToUse, this.currentWaveDef.type, this.currentWaveDef.hpMult));
+                    this.enemies.push(new Enemy(this.map.path, this.currentWaveDef.type, this.currentWaveDef.hpMult));
                     this.enemiesSpawned++;
                     this.spawnTimer = this.currentWaveDef.spawnRate;
                 }
