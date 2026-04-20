@@ -18,7 +18,7 @@ class GameMap {
         }
         
         this.paths = []; 
-        let numPaths = Math.random() < 0.6 ? 2 : 1; // 60% chance for 2 paths, 40% for 1
+        let numPaths = Math.random() < 0.6 ? 2 : 1; 
         if (ROWS > 20 && Math.random() < 0.3) numPaths = 3; 
         
         let endR = Math.floor(Math.random() * (ROWS - 6)) + 3;
@@ -55,13 +55,16 @@ class GameMap {
                 }
                 
                 if (c === endC) {
-                    if (r < endR) {
-                        for (let i = 0; i < endR - r; i++) {
+                    let targetR = endR;
+                    if (r < targetR) {
+                        let steps = targetR - r;
+                        for (let i = 0; i < steps; i++) {
                             r++;
                             path.push({c, r});
                         }
-                    } else if (r > endR) {
-                        for (let i = 0; i < r - endR; i++) {
+                    } else if (r > targetR) {
+                        let steps = r - targetR;
+                        for (let i = 0; i < steps; i++) {
                             r--;
                             path.push({c, r});
                         }
@@ -69,24 +72,18 @@ class GameMap {
                     break;
                 }
                 
-                let canUp = r > 2;
-                let canDown = r < ROWS - 3;
-                
-                if (!canUp && !canDown) continue;
-                
-                let dir = 1;
-                if (canUp && canDown) {
-                    dir = Math.random() < 0.5 ? 1 : -1;
-                } else if (canUp) {
-                    dir = -1;
-                } else {
-                    dir = 1;
+                // Smooth vertical movement towards the base to prevent weird U-shapes
+                let dir = (r < endR) ? 1 : -1;
+                // Add a bit of randomness so they don't immediately converge perfectly
+                if (Math.random() < 0.3) {
+                    let canReverse = (dir === 1 && r > 2) || (dir === -1 && r < ROWS - 3);
+                    if (canReverse) dir *= -1;
                 }
                 
                 let maxDist = dir === 1 ? ROWS - 2 - r : r - 2;
                 if (maxDist < 2) continue;
                 
-                let dist = Math.floor(Math.random() * (maxDist - 1)) + 2;
+                let dist = Math.floor(Math.random() * (Math.min(maxDist, 4) - 1)) + 2;
                 for (let i = 0; i < dist; i++) {
                     r += dir;
                     path.push({c, r});
@@ -110,6 +107,7 @@ class GameMap {
                 }
             }
         }
+        this.grid[endR][endC] = 2; // Force base
         this.path = this.paths[0]; 
     }
 
