@@ -115,10 +115,17 @@ class Game {
         const options = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'flak', 'electric', 'silo'];
         const costs = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400 };
         
-        let minCount = Math.min(...options.map(t => counts[t]));
-        let neededTypes = options.filter(t => counts[t] === minCount);
-        neededTypes.sort((a, b) => costs[a] - costs[b]); 
-        let targetType = neededTypes[0];
+        let isAirImminent = (this.waveCooldown > 0 && (this.wave + 1) % 5 === 0) || (this.currentWaveDef && this.currentWaveDef.type === 'air');
+        
+        let targetType;
+        if (isAirImminent && counts['flak'] < Math.floor(this.wave / 3) + 1) {
+            targetType = 'flak';
+        } else {
+            let minCount = Math.min(...options.map(t => counts[t]));
+            let neededTypes = options.filter(t => counts[t] === minCount);
+            neededTypes.sort((a, b) => costs[a] - costs[b]); 
+            targetType = neededTypes[0];
+        }
         
         let preferBuild = this.towers.length < 5 || Math.random() < 0.6;
 
@@ -140,6 +147,10 @@ class Game {
                         let distToCenter = Math.abs(spot.c - COLS/2) + Math.abs(spot.r - ROWS/2);
                         score -= distToCenter * 1;
                         score -= spot.orthoNeighbors * 2; 
+                    } else if (targetType === 'flak') {
+                        let distToCenter = Math.abs(spot.c - COLS/2) + Math.abs(spot.r - ROWS/2);
+                        score -= distToCenter * 0.5; // Central is better
+                        score += 3;
                     } else if (targetType === 'laser' || targetType === 'electric') {
                         score += spot.orthoNeighbors * 2;
                     }
@@ -178,6 +189,8 @@ class Game {
         
         if (upgradableTowers.length > 0) {
             upgradableTowers.sort((a, b) => {
+                if (isAirImminent && a.t.type === 'flak' && b.t.type !== 'flak') return -1;
+                if (isAirImminent && b.t.type === 'flak' && a.t.type !== 'flak') return 1;
                 let lvlA = a.t.upgrades[a.i];
                 let lvlB = b.t.upgrades[b.i];
                 if (lvlA !== lvlB) return lvlA - lvlB;
