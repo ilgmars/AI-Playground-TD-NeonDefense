@@ -199,8 +199,8 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
         ctx.stroke();
         
         ctx.fillStyle = color;
-        ctx.fillRect(-size/6, -size/2, size/8, size/2); 
-        ctx.fillRect(size/16, -size/2, size/8, size/2);
+        ctx.fillRect(0, -size/6, size/2, size/8); 
+        ctx.fillRect(0, size/16, size/2, size/8);
     } else if (type === 'electric') {
         ctx.rotate(-angle); // Make it static, no rotation
         
