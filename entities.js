@@ -305,6 +305,11 @@ class Tower {
                 if (this.type === 'flak' && enemy.isAir) score += 1000; // Flak strictly prioritizes Air
                 if (this.type !== 'flak' && enemy.isAir) score -= 1000; // Normal towers strictly prioritize Ground
                 
+                // Laser should prefer enemies NOT already slowed by another laser
+                if (this.type === 'laser' && enemy.currentSlow < 1) {
+                    score += 500; // Heavily prefer un-slowed targets
+                }
+                
                 if (score > bestScore) {
                     bestScore = score;
                     target = enemy;

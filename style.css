@@ -85,6 +85,13 @@ body {
 #wave-display { color: var(--accent); text-shadow: 0 0 10px rgba(56, 189, 248, 0.4); }
 #speed-display { color: #a3e635; text-shadow: 0 0 10px rgba(163, 230, 53, 0.4); }
 
+#pause-display { color: var(--text-muted); text-shadow: none; transition: all 0.2s; }
+
+#pause-display.paused {
+    color: #ef4444;
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+}
+
 #autopilot-display.on {
     color: var(--accent) !important;
     text-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
@@ -395,3 +402,4 @@ button.danger:hover {
         top: 20px;
     }
 }
+

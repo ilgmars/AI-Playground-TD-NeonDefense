@@ -117,6 +117,7 @@ class Game {
         const options = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'flak', 'electric', 'silo'];
         const generalOptions = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'electric', 'silo'];
         const costs = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400 };
+        const ranges = { basic: 100, sniper: 250, rapid: 80, laser: 150, rocket: 200, flak: 200, electric: 120, silo: 100 };
         
         let isAirImminent = (this.wave % 5 === 4) || (this.waveCooldown > 0 && (this.wave + 1) % 5 === 0) || (this.currentWaveDef && this.currentWaveDef.type === 'air');
         
@@ -138,25 +139,72 @@ class Game {
                 let bestSpot = null;
                 let bestScore = -999;
                 
+                // Count nearby laser towers for synergy bonuses
+                let laserTowers = this.towers.filter(t => t.type === 'laser');
+                
                 for (let spot of spots) {
-                    let score = Math.random() * 2; 
+                    let score = Math.random() * 2;
                     
-                    if (targetType === 'rapid' || targetType === 'basic') {
+                    // Calculate path coverage - how many path cells can this tower cover?
+                    let pathCoverage = 0;
+                    const range = ranges[targetType];
+                    for (let r = 0; r < ROWS; r++) {
+                        for (let c = 0; c < COLS; c++) {
+                            let cell = this.map.grid[r][c];
+                            if (cell === 1 || cell === 2 || cell === 3) {
+                                let dist = Math.hypot(c - spot.c, r - spot.r) * TILE_SIZE;
+                                if (dist <= range) {
+                                    pathCoverage++;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Base: prefer spots with better path coverage
+                    score += pathCoverage * 0.5;
+                    
+                    if (targetType === 'flak') {
+                        // AA: prefer central positioning for maximum air coverage + path adjacency
+                        let distToCenter = Math.abs(spot.c - COLS/2) + Math.abs(spot.r - ROWS/2);
+                        score -= distToCenter * 0.3;
+                        score += pathCoverage * 0.3; // Still want some path presence
+                    } else if (targetType === 'rapid' || targetType === 'basic') {
+                        // Close-range: maximize path neighbors
                         score += spot.orthoNeighbors * 5 + spot.pathNeighbors * 2;
                     } else if (targetType === 'sniper') {
+                        // Long-range: prefer edges, less path neighbor focused
                         let distToCenter = Math.abs(spot.c - COLS/2) + Math.abs(spot.r - ROWS/2);
-                        score -= spot.orthoNeighbors * 5; 
-                        score -= distToCenter * 0.5; 
+                        score -= spot.orthoNeighbors * 5;
+                        score += (distToCenter * 0.3); // Slight preference for edges
+                        score += pathCoverage * 0.3;
                     } else if (targetType === 'rocket') {
+                        // Splash damage: prefer middle positions with good coverage
                         let distToCenter = Math.abs(spot.c - COLS/2) + Math.abs(spot.r - ROWS/2);
-                        score -= distToCenter * 1;
-                        score -= spot.orthoNeighbors * 2; 
-                    } else if (targetType === 'flak') {
-                        let distToCenter = Math.abs(spot.c - COLS/2) + Math.abs(spot.r - ROWS/2);
-                        score -= distToCenter * 0.5; // Central is better
-                        score += 3;
+                        score -= distToCenter * 0.5;
+                        score -= spot.orthoNeighbors * 2;
+                        score += pathCoverage * 0.4;
                     } else if (targetType === 'laser' || targetType === 'electric') {
+                        // Slow/chain: medium range, near path
                         score += spot.orthoNeighbors * 2;
+                        score += pathCoverage * 0.4;
+                    } else if (targetType === 'silo') {
+                        // Stationary: prefer central for coverage
+                        let distToCenter = Math.abs(spot.c - COLS/2) + Math.abs(spot.r - ROWS/2);
+                        score -= distToCenter * 0.5;
+                        score += pathCoverage * 0.3;
+                    }
+                    
+                    // Synergy bonus: non-AA towers near lasers are better (enemies slowed = easier to hit)
+                    if (targetType !== 'flak' && laserTowers.length > 0) {
+                        let nearLaser = false;
+                        for (let laser of laserTowers) {
+                            let dist = Math.hypot(laser.c - spot.c, laser.r - spot.r);
+                            if (dist <= 4) { // Within 4 tiles
+                                nearLaser = true;
+                                break;
+                            }
+                        }
+                        if (nearLaser) score += 100; // Strong bonus for synergy
                     }
                     
                     if (score > bestScore) {
