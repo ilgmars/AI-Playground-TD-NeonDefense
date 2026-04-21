@@ -82,18 +82,19 @@ body {
     flex-direction: column;
     align-items: center;
 }
-}
 
 .stat-box .label {
-    font-size: 0.75rem;
-    font-weight: 500;
+    font-size: 0.7rem;
+    font-weight: 600;
     color: var(--text-muted);
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
+    font-family: 'Outfit', sans-serif;
 }
 
 .stat-box .value {
     font-size: 1.5rem;
     font-weight: 700;
+    font-family: 'Outfit', sans-serif;
     text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
 }
 
@@ -101,8 +102,14 @@ body {
 #money-display { color: var(--money); text-shadow: 0 0 10px rgba(251, 191, 36, 0.4); }
 #wave-display { color: var(--accent); text-shadow: 0 0 10px rgba(56, 189, 248, 0.4); }
 #speed-display { color: #a3e635; text-shadow: 0 0 10px rgba(163, 230, 53, 0.4); }
+#seed-display { color: var(--text-muted); }
+#restart-display { color: var(--health); }
 
-#pause-display { color: var(--text-muted); text-shadow: none; transition: all 0.2s; }
+#pause-display, #autopilot-display, #sound-display { 
+    color: var(--text-muted); 
+    text-shadow: none; 
+    transition: all 0.2s; 
+}
 
 #pause-display.paused {
     color: #ef4444;
@@ -422,3 +429,43 @@ button.danger:hover {
     }
 }
 
+
+/* Tower Tooltip */
+#tower-tooltip {
+    position: fixed;
+    z-index: 1000;
+    background: rgba(15, 23, 42, 0.97);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 10px 14px;
+    min-width: 180px;
+    max-width: 220px;
+    pointer-events: none;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+}
+#tower-tooltip.hidden { display: none; }
+#tt-name {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--accent);
+    margin-bottom: 4px;
+    letter-spacing: 1px;
+}
+#tt-desc {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+#tt-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 0.78rem;
+}
+#tt-stats span {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-main);
+}
+#tt-stats span b { color: var(--money); }

@@ -10,9 +10,9 @@ const TOWER_UPGRADES = {
         { name: 'Ricochet', desc: 'Bullets bounce to next enemy', baseCost: 120, costMult: 1.8, apply: (t) => { t.pierce = (t.pierce || 1) + 1; } }
     ],
     rapid: [
-        { name: 'Buckshot', desc: 'More bullet damage', baseCost: 100, costMult: 1.5, apply: (t) => { t.damage += 3; } },
+        { name: 'Damage', desc: 'More pellet damage', baseCost: 100, costMult: 1.5, apply: (t) => { t.damage += 4; } },
         { name: 'Pellets', desc: 'More pellets per shot', baseCost: 80, costMult: 1.6, apply: (t) => { t.pelletCount = (t.pelletCount || 5) + 3; } },
-        { name: 'Choke', desc: 'Tighter spread & more range', baseCost: 70, costMult: 1.4, apply: (t) => { t.spread = Math.max(0.1, (t.spread || 0.4) - 0.15); t.range += 20; } }
+        { name: 'Penetration', desc: 'Pellets pierce more enemies', baseCost: 120, costMult: 1.7, apply: (t) => { t.pierce = (t.pierce || 2) + 1; } }
     ],
     laser: [
         { name: 'Intensity', desc: 'More continuous damage', baseCost: 150, costMult: 1.5, apply: (t) => { t.damage += 1; } },
@@ -91,25 +91,34 @@ class Enemy {
         this.currentSlow = 1;
         
         if (this.isAir) {
-            let endP = path[path.length - 1];
-            this.endX = endP.c * TILE_SIZE + TILE_SIZE / 2;
-            this.endY = endP.r * TILE_SIZE + TILE_SIZE / 2;
+            // 20% of air enemies follow the path instead of flying straight
+            this.followsPath = Math.random() < 0.2;
             
-            // Random offset for a wide formation approach
-            let offX = (Math.random() - 0.5) * 200;
-            let offY = (Math.random() - 0.5) * 200;
-            this.x += offX;
-            this.y += offY;
-            
-            // Add slight randomness to destination too so they swarm
-            this.endX += (Math.random() - 0.5) * 50;
-            this.endY += (Math.random() - 0.5) * 50;
-            
-            let dx = this.endX - this.x;
-            let dy = this.endY - this.y;
-            let dist = Math.hypot(dx, dy);
-            this.vx = (dx / dist) * this.speed;
-            this.vy = (dy / dist) * this.speed;
+            if (this.followsPath) {
+                // These air enemies follow the ground path
+                this.pathIndex = 0;
+            } else {
+                // 80% fly straight to the end
+                let endP = path[path.length - 1];
+                this.endX = endP.c * TILE_SIZE + TILE_SIZE / 2;
+                this.endY = endP.r * TILE_SIZE + TILE_SIZE / 2;
+                
+                // Random offset for a wide formation approach
+                let offX = (Math.random() - 0.5) * 200;
+                let offY = (Math.random() - 0.5) * 200;
+                this.x += offX;
+                this.y += offY;
+                
+                // Add slight randomness to destination too so they swarm
+                this.endX += (Math.random() - 0.5) * 50;
+                this.endY += (Math.random() - 0.5) * 50;
+                
+                let dx = this.endX - this.x;
+                let dy = this.endY - this.y;
+                let dist = Math.hypot(dx, dy);
+                this.vx = (dx / dist) * this.speed;
+                this.vy = (dy / dist) * this.speed;
+            }
         }
     }
 
@@ -117,14 +126,42 @@ class Enemy {
         if (!this.active) return;
         
         if (this.isAir) {
-            this.x += this.vx * this.currentSlow;
-            this.y += this.vy * this.currentSlow;
-            
-            if (Math.hypot(this.endX - this.x, this.endY - this.y) <= this.speed) {
-                this.reachedEnd = true;
-                this.active = false;
+            if (this.followsPath) {
+                // Air enemy following the path
+                let target = this.path[this.pathIndex];
+                let targetX = target.c * TILE_SIZE + TILE_SIZE / 2;
+                let targetY = target.r * TILE_SIZE + TILE_SIZE / 2;
+
+                let dx = targetX - this.x;
+                let dy = targetY - this.y;
+                let dist = Math.hypot(dx, dy);
+
+                let currentSpeed = this.speed * this.currentSlow;
+                if (this.currentSlow < 1) this.currentSlow = Math.min(1, this.currentSlow + 0.01);
+
+                if (dist < currentSpeed) {
+                    this.x = targetX;
+                    this.y = targetY;
+                    this.pathIndex++;
+                    if (this.pathIndex >= this.path.length) {
+                        this.active = false;
+                        this.reachedEnd = true;
+                    }
+                } else {
+                    this.x += (dx / dist) * currentSpeed;
+                    this.y += (dy / dist) * currentSpeed;
+                }
+            } else {
+                // Air enemy flying straight
+                this.x += this.vx * this.currentSlow;
+                this.y += this.vy * this.currentSlow;
+                
+                if (Math.hypot(this.endX - this.x, this.endY - this.y) <= this.speed) {
+                    this.reachedEnd = true;
+                    this.active = false;
+                }
+                if (this.currentSlow < 1) this.currentSlow = Math.min(1, this.currentSlow + 0.01);
             }
-            if (this.currentSlow < 1) this.currentSlow = Math.min(1, this.currentSlow + 0.01);
             return;
         }
 
@@ -184,12 +221,12 @@ class Tower {
         // mostHp: good for sniper/rocket/silo (burst damage, take out big threats)
         // leastHp: good for laser/electric (finish off weakened enemies efficiently)
         const defaultTargetModes = {
-            basic: 'closest',
+            basic: 'first',
             sniper: 'mostHp',
-            rapid: 'closest',
+            rapid: 'first',
             laser: 'leastHp',
             rocket: 'mostHp',
-            flak: 'closest',
+            flak: 'first',
             electric: 'leastHp',
             silo: 'mostHp'
         };
@@ -208,10 +245,11 @@ class Tower {
         } else if (type === 'rapid') {
             this.baseCost = 150;
             this.range = 80;
-            this.damage = 6;
+            this.damage = 8;
             this.fireRate = 60;
             this.pelletCount = 5;
             this.spread = 0.4;
+            this.pierce = 2; // Pellets pierce through 2 enemies
         } else if (type === 'laser') {
             this.baseCost = 200;
             this.range = 150;
@@ -226,7 +264,7 @@ class Tower {
             this.fireRate = 90; 
         } else if (type === 'flak') {
             this.baseCost = 150;
-            this.range = 200;
+            this.range = 250; // Increased from 200 for better air coverage
             this.damage = 15;
             this.fireRate = 35;
             this.splash = 50;
@@ -335,6 +373,18 @@ class Tower {
                     score = enemy.hp;
                 } else if (this.targetMode === 'leastHp') {
                     score = -enemy.hp;
+                } else if (this.targetMode === 'first') {
+                    if (enemy.isAir) {
+                        if (enemy.followsPath) {
+                            // Air enemy following path - use pathIndex like ground enemies
+                            score = enemy.pathIndex * 1000 - dist;
+                        } else {
+                            // Air enemy flying straight - use distance to destination
+                            score = -Math.hypot(enemy.endX - enemy.x, enemy.endY - enemy.y);
+                        }
+                    } else {
+                        score = enemy.pathIndex * 1000 - dist;
+                    }
                 } else { // 'closest'
                     score = -dist;
                 }
@@ -544,9 +594,25 @@ class Projectile {
                 let dist = Math.hypot(e.x - this.x, e.y - this.y);
                 if (dist < e.radius + 5 && !this.hitEnemies.has(e)) {
                     this.hitEnemies.add(e);
-                    this.target = e; 
-                    this.explode(enemies, particles, projectiles);
-                    if (!this.active) break;
+                    
+                    // Deal damage
+                    let dmg = this.damage;
+                    if (this.type === 'flak' && e.isAir) dmg *= 4;
+                    else if (this.type !== 'flak' && e.isAir) dmg *= 0.4;
+                    
+                    e.hp -= dmg;
+                    SoundFX.hit();
+                    if (e.hp <= 0) {
+                        e.active = false;
+                        SoundFX.explosion();
+                    }
+                    
+                    // Check pierce
+                    this.pierce--;
+                    if (this.pierce <= 0) {
+                        this.active = false;
+                        break;
+                    }
                 }
             }
             return;

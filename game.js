@@ -1,9 +1,10 @@
 class Game {
-    constructor(canvas) {
+    constructor(canvas, seed) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         
-        this.map = new GameMap();
+        this.map = new GameMap(seed);
+        this.seed = this.map.seed;
         this.enemies = [];
         this.towers = [];
         this.projectiles = [];
@@ -47,14 +48,49 @@ class Game {
     }
 
     startWave() {
-        let expFactor = Math.pow(1.03, this.wave);
+        // Calculate total tower power for dynamic difficulty
+        let totalTowerValue = 0;
+        for (let t of this.towers) {
+            totalTowerValue += t.totalSpent;
+        }
         
+        // Investment-based scaling: enemies scale with player power
+        // Every 1500¢ spent = +1.0x difficulty (was 2000, now scales faster)
+        let investmentFactor = 1 + (totalTowerValue / 1500);
+
+        // Wave-based scaling with MUCH gentler curves
+        let baseExpFactor;
+        if (this.wave <= 5) {
+            // Waves 1-5: Very gentle for new players
+            baseExpFactor = 0.8 + this.wave * 0.15; // 0.95, 1.1, 1.25, 1.4, 1.55
+        } else if (this.wave <= 10) {
+            // Waves 6-10: Gentle transition period
+            baseExpFactor = 1.55 * Math.pow(1.06, this.wave - 5); // ~1.55 to ~2.07
+        } else if (this.wave <= 20) {
+            // Waves 11-20: Moderate exponential growth
+            baseExpFactor = 2.07 * Math.pow(1.08, this.wave - 10); // ~2.07 to ~4.47
+        } else {
+            // Waves 21+: Capped logarithmic growth for infinite scaling
+            // HP grows slowly, count grows instead
+            let cap = 5.0; // Maximum base multiplier
+            let lateWaves = this.wave - 20;
+            baseExpFactor = Math.min(cap, 4.47 + Math.log(1 + lateWaves) * 0.3);
+        }
+
+        // Final HP = base wave difficulty × player investment
+        // This keeps difficulty proportional to player power
+        let finalHpMult = baseExpFactor * investmentFactor;
+
         if (this.wave > 0 && this.wave % 5 === 0) {
+            // Air waves: more enemies, slightly tankier
+            let airCount = 15 + this.wave * 0.6; // Slower count growth
+            if (this.wave > 20) airCount += Math.log(this.wave - 19) * 8; // Log scaling after wave 20
+            
             this.currentWaveDef = {
-                count: Math.floor((15 + this.wave) * 1.3),
+                count: Math.floor(airCount),
                 type: 'air',
-                spawnRate: 30,
-                hpMult: (1.0 + (this.wave / 10)) * 1.47 * expFactor
+                spawnRate: Math.max(18, 35 - Math.floor(this.wave / 8)),
+                hpMult: finalHpMult * 1.2 // Air slightly tankier
             };
             this.enemiesSpawned = 0;
             this.spawnTimer = 60;
@@ -63,19 +99,24 @@ class Game {
 
         let idx = (this.wave - 1) % this.waveData.length;
         let def = this.waveData[idx];
-        
+
         let loops = Math.floor((this.wave - 1) / this.waveData.length);
-        let extraMult = 1 + loops * 2;
         
+        // Count scaling: after wave 20, grow count more aggressively instead of HP
+        let countMult = 1 + loops * 0.2;
+        if (this.wave > 20) {
+            countMult += Math.log(this.wave - 19) * 0.4; // Extra count scaling
+        }
+
         this.currentWaveDef = {
-            count: Math.floor(def.count * 1.3),
+            count: Math.floor(def.count * countMult),
             type: def.type,
-            spawnRate: Math.max(10, def.spawnRate - loops * 5),
-            hpMult: def.hpMult * extraMult * 1.47 * expFactor
+            spawnRate: Math.max(12, def.spawnRate - loops * 2),
+            hpMult: def.hpMult * finalHpMult // No extra loop multiplier - HP is capped
         };
-        
+
         this.enemiesSpawned = 0;
-        this.spawnTimer = 60; 
+        this.spawnTimer = 60;
     }
 
     addUpgradeEffect(x, y) {
@@ -115,7 +156,7 @@ class Game {
         }
 
         const costs  = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400, income: 200 };
-        const ranges = { basic: 100, sniper: 250, rapid: 80, laser: 150, rocket: 200, flak: 200, electric: 120, silo: 100, income: 0 };
+        const ranges = { basic: 100, sniper: 250, rapid: 80, laser: 150, rocket: 200, flak: 250, electric: 120, silo: 100, income: 0 };
 
         let isAirWave = this.currentWaveDef && this.currentWaveDef.type === 'air';
         let isAirImminent = isAirWave || (this.wave % 5 >= 3) || (this.wave % 5 === 0);
@@ -124,31 +165,31 @@ class Game {
         // Designed to diversify steadily — each tier unlocks naturally as waves progress.
         let w = this.wave;
         let wanted = {
-            flak:     w >= 10 ? 2 : 1,                          // always 1, 2 from wave 10
-            laser:    w >= 3  ? 1 : 0,                          // 1 laser from wave 3
-            sniper:   w >= 4  ? Math.ceil(w / 8)  : 0,          // 1@4, 2@8, 3@16...
-            rapid:    w >= 2  ? Math.ceil(w / 6)  : 0,          // 1@2, 2@6...
-            rocket:   w >= 5  ? Math.ceil(w / 7)  : 0,          // 1@5, 2@7...
-            electric: w >= 7  ? Math.ceil(w / 9)  : 0,          // 1@7, 2@9...
-            silo:     w >= 10 ? Math.ceil(w / 12) : 0,          // 1@10, 2@12...
-            basic:    Math.ceil(w / 4),                          // steady filler
-            income:   w >= 6  ? Math.floor(w / 6) : 0,          // 1@6, 2@12...
+            basic:    Math.max(2, Math.ceil(w / 3.5)),           // Start with 2, grow slower
+            rapid:    w >= 2  ? Math.ceil(w / 6)  : 0,           // 1@2, 2@6, 3@12... (slower)
+            laser:    w >= 3  ? Math.ceil(w / 4)  : 0,           // 1@3, 2@7, 3@11... (lasers are key)
+            flak:     w >= 4  ? (w >= 10 ? Math.min(3, 2 + Math.floor((w-10)/15)) : 1) : 0, // 1@4, 2@10, 3@25
+            sniper:   w >= 5  ? Math.ceil(w / 8)  : 0,           // 1@5, 2@13... (slower, high value)
+            rocket:   w >= 6  ? Math.ceil(w / 9)  : 0,           // 1@6, 2@15... (slower)
+            electric: w >= 8  ? Math.ceil(w / 12) : 0,           // 1@8, 2@20... (slower)
+            silo:     w >= 12 ? Math.ceil(w / 16) : 0,           // 1@12, 2@28... (very slow, expensive)
+            income:   w >= 10 ? Math.floor(w / 10) : 0,          // 1@10, 2@20... (later, slower)
         };
 
         // Find the highest-priority type we're short on.
-        // Priority order: flak (if air imminent or always short) > laser > sniper > rocket > electric > silo > rapid > income > basic
-        const buildOrder = ['flak', 'laser', 'sniper', 'rocket', 'electric', 'silo', 'rapid', 'income', 'basic'];
+        // Priority order: flak (if air soon) > laser > sniper > rocket > basic > rapid > electric > silo > income
+        const buildOrder = ['flak', 'laser', 'sniper', 'rocket', 'basic', 'rapid', 'electric', 'silo', 'income'];
 
         let targetType = null;
         for (let type of buildOrder) {
             if (counts[type] < wanted[type]) {
-                // Skip flak if air is not imminent and we already have 1
-                if (type === 'flak' && counts['flak'] >= 1 && !isAirImminent) continue;
+                // Prioritize flak heavily when air is coming (wave 4+)
+                if (type === 'flak' && !isAirImminent && counts['flak'] >= 1) continue;
                 targetType = type;
                 break;
             }
         }
-        // Nothing specifically needed — pick the cheapest type we're most behind on
+        // Nothing specifically needed — pick the type we're most behind on
         if (!targetType) {
             let best = null, bestDeficit = -1;
             for (let type of buildOrder) {
@@ -159,9 +200,14 @@ class Game {
         }
 
         let totalTowers = this.towers.length;
-        // Force build when short on flak or have very few towers; otherwise mix build/upgrade
-        let mustBuild = counts['flak'] < wanted['flak'] || totalTowers < 3;
-        let preferBuild = mustBuild || totalTowers < 8 || Math.random() < 0.55;
+        // Force build when short on critical towers or have very few towers
+        let mustBuild = (counts['flak'] < wanted['flak'] && isAirImminent) || 
+                        (counts['laser'] < wanted['laser']) ||
+                        totalTowers < 4;
+        
+        // After wave 15, prefer upgrading over building
+        let buildThreshold = w < 15 ? 12 : (w < 25 ? 15 : 18);
+        let preferBuild = mustBuild || totalTowers < buildThreshold || Math.random() < (w < 15 ? 0.6 : 0.35);
 
         if (preferBuild && spots.length > 0) {
             if (this.money >= costs[targetType]) {
@@ -183,7 +229,26 @@ class Game {
                     score += pathCoverage * 0.5;
 
                     if (targetType === 'flak') {
-                        score -= (Math.abs(spot.c - COLS/2) + Math.abs(spot.r - ROWS/2)) * 0.3;
+                        // Flak should be placed along the air path (between start and end)
+                        // Calculate distance along the path from start to end
+                        let startP = this.map.path[0];
+                        let endP = this.map.path[this.map.path.length - 1];
+                        let midC = (startP.c + endP.c) / 2;
+                        let midR = (startP.r + endP.r) / 2;
+                        
+                        // Prefer spots near the middle of the air path (straight line from start to end)
+                        let distToMid = Math.hypot(spot.c - midC, spot.r - midR);
+                        score += Math.max(0, (15 - distToMid)) * 8; // Closer to middle = much better
+                        
+                        // Also prefer spots that have good coverage of the path
+                        score += pathCoverage * 4;
+                        
+                        // Prefer spots not too close to edges
+                        let edgeDist = Math.min(spot.c, COLS - spot.c, spot.r, ROWS - spot.r);
+                        score += edgeDist * 3;
+                        
+                        // Add large base score to ensure flak gets built
+                        score += 100;
                     } else if (targetType === 'rapid' || targetType === 'basic') {
                         score += spot.orthoNeighbors * 5 + spot.pathNeighbors * 2;
                     } else if (targetType === 'sniper') {
@@ -221,7 +286,7 @@ class Game {
         }
 
         // Upgrade logic — spread evenly, prioritise high-value towers
-        const upgradeValue = { silo: 10, sniper: 9, rocket: 8, electric: 7, laser: 6, flak: 5, rapid: 4, basic: 3, income: 2 };
+        const upgradeValue = { silo: 10, rocket: 9, sniper: 8, electric: 7, laser: 6, flak: 5, rapid: 4, basic: 3, income: 2 };
         let upgradableTowers = [];
         for (let t of this.towers) {
             for (let i = 0; i < 3; i++) {
@@ -232,12 +297,21 @@ class Game {
 
         if (upgradableTowers.length > 0) {
             upgradableTowers.sort((a, b) => {
+                // Prioritize flak upgrades when air is imminent
                 if (isAirImminent) {
                     if (a.t.type === 'flak' && b.t.type !== 'flak') return -1;
                     if (b.t.type === 'flak' && a.t.type !== 'flak') return 1;
                 }
+                
+                // Prioritize laser upgrades (slow effect is crucial)
+                if (a.t.type === 'laser' && b.t.type !== 'laser') return -1;
+                if (b.t.type === 'laser' && a.t.type !== 'laser') return 1;
+                
+                // Spread upgrades evenly across paths
                 let lvlDiff = a.t.upgrades[a.i] - b.t.upgrades[b.i];
                 if (lvlDiff !== 0) return lvlDiff;
+                
+                // Then by tower value
                 return (upgradeValue[b.t.type] || 0) - (upgradeValue[a.t.type] || 0);
             });
             let pick = upgradableTowers[0];
@@ -249,7 +323,7 @@ class Game {
 
         // Buy a potion if health is critical
         let potionCost = this.getPotionCost();
-        if (this.health <= 5 && this.money >= potionCost && this.health < this.maxHealth) {
+        if (this.health <= 3 && this.money >= potionCost && this.health < this.maxHealth) {
             this.buyPotion();
         }
     }
@@ -527,7 +601,7 @@ class Game {
         if (!this.selectedTowers || this.selectedTowers.length === 0) return;
         let t = this.selectedTowers[0];
         
-        const names = { basic: 'Blaster', sniper: 'Sniper', rapid: 'Pulse', flak: 'Flak (AA)', laser: 'Laser', rocket: 'Rocket', electric: 'Tesla', silo: 'Silo', income: 'Relay' };
+        const names = { basic: 'Blaster', sniper: 'Sniper', rapid: 'Shotgun', flak: 'Flak (AA)', laser: 'Laser', rocket: 'Rocket', electric: 'Tesla', silo: 'Silo', income: 'Relay' };
         document.getElementById('upgrade-type-name').textContent = names[t.type] + (this.selectedTowers.length > 1 ? ` (${this.selectedTowers.length})` : '');
         document.getElementById('tower-dmg').textContent = t.type === 'income' ? (t.incomePerWave + '¢') : Math.floor(t.damage);
         document.getElementById('tower-rng').textContent = t.type === 'income' ? 'passive' : Math.floor(t.range);
@@ -542,7 +616,7 @@ class Game {
                 let container = document.createElement('div');
                 container.id = 'targeting-mode';
                 container.style.cssText = 'display:flex; gap:4px; margin-bottom:8px; justify-content:center;';
-                const modes = [['closest','NEAR'],['mostHp','MAX HP'],['leastHp','MIN HP']];
+                const modes = [['first','FIRST'],['closest','NEAR'],['mostHp','MAX HP'],['leastHp','MIN HP']];
                 for (let [mode, label] of modes) {
                     let btn = document.createElement('button');
                     btn.dataset.mode = mode;

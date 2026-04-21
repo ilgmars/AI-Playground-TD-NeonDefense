@@ -34,19 +34,23 @@
                 </div>
                 <div class="stat-box interactive" id="pause-btn">
                     <span class="label">PAUSE</span>
-                    <span id="pause-display" class="value" style="color: var(--text-muted);">OFF</span>
+                    <span id="pause-display" class="value">OFF</span>
                 </div>
                 <div class="stat-box interactive" id="autopilot-btn">
                     <span class="label">AUTO</span>
-                    <span id="autopilot-display" class="value" style="color: var(--text-muted);">OFF</span>
+                    <span id="autopilot-display" class="value">OFF</span>
                 </div>
                 <div class="stat-box interactive" id="sound-btn">
                     <span class="label">SOUND</span>
-                    <span id="sound-display" class="value" style="color: var(--text-muted);">OFF</span>
+                    <span id="sound-display" class="value">OFF</span>
+                </div>
+                <div class="stat-box interactive" id="seed-btn" title="Click to copy seed link">
+                    <span class="label">SEED</span>
+                    <span id="seed-display" class="value">—</span>
                 </div>
                 <div class="stat-box interactive" id="restart-btn">
                     <span class="label">SYS</span>
-                    <span class="value" style="color: var(--health); font-size: 1.2rem; margin-top: 4px;">RST</span>
+                    <span id="restart-display" class="value">RST</span>
                 </div>
             </div>
         </div>
@@ -130,7 +134,7 @@
                 <div class="tower-option" data-type="rapid" onclick="selectTower('rapid')">
                     <div class="tower-icon rapid-icon"></div>
                     <div class="tower-info">
-                        <span class="name">Pulse</span>
+                        <span class="name">Shotgun</span>
                         <span class="cost">150¢</span>
                     </div>
                 </div>
@@ -186,6 +190,12 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <div id="tower-tooltip" class="hidden">
+        <div id="tt-name"></div>
+        <div id="tt-desc"></div>
+        <div id="tt-stats"></div>
     </div>
 
     <script src="audio.js"></script>

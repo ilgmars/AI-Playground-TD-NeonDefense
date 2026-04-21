@@ -1,83 +1,75 @@
+// Seeded PRNG (mulberry32)
+function createRng(seed) {
+    return function() {
+        seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+}
+
 var TILE_SIZE = 40;
 var COLS = 20;
 var ROWS = 15;
 
 class GameMap {
-    constructor() {
+    constructor(seed) {
+        this.seed = seed != null ? seed : Math.floor(Math.random() * 99999) + 1;
         this.generateMap();
     }
 
     generateMap() {
-        // Initialize empty grid
+        let rng = createRng(this.seed);
+
         this.grid = [];
         for (let r = 0; r < ROWS; r++) {
-            let row = [];
-            for (let c = 0; c < COLS; c++) {
-                row.push(0);
-            }
-            this.grid.push(row);
+            this.grid.push(new Array(COLS).fill(0));
         }
-        
+
         this.path = [];
-        
+
         let c = 0;
-        let r = Math.floor(Math.random() * (ROWS - 4)) + 2; 
-        
+        let r = Math.floor(rng() * (ROWS - 4)) + 2;
+
         this.path.push({c, r});
         this.startPoint = {c, r};
-        
+
         while (c < COLS - 1) {
-            // Move right
-            let stepRight = Math.floor(Math.random() * 3) + 2; // 2 to 4 steps
-            if (c + stepRight >= COLS - 1) {
-                stepRight = (COLS - 1) - c;
-            }
-            
+            let stepRight = Math.floor(rng() * 3) + 2;
+            if (c + stepRight >= COLS - 1) stepRight = (COLS - 1) - c;
+
             for (let i = 0; i < stepRight; i++) {
                 c++;
                 this.path.push({c, r});
             }
-            
-            if (c === COLS - 1) break; 
-            
-            // Move vertical
+
+            if (c === COLS - 1) break;
+
             let canUp = r > 2;
             let canDown = r < ROWS - 3;
-            
             if (!canUp && !canDown) continue;
-            
+
             let dir = 1;
-            if (canUp && canDown) {
-                dir = Math.random() < 0.5 ? 1 : -1;
-            } else if (canUp) {
-                dir = -1;
-            } else {
-                dir = 1;
-            }
-            
+            if (canUp && canDown) dir = rng() < 0.5 ? 1 : -1;
+            else if (canUp) dir = -1;
+
             let maxDist = dir === 1 ? ROWS - 2 - r : r - 2;
-            if (maxDist < 2) continue; // Minimum vertical step is 2
-            
-            let dist = Math.floor(Math.random() * (maxDist - 1)) + 2;
-            
+            if (maxDist < 2) continue;
+
+            let dist = Math.floor(rng() * (maxDist - 1)) + 2;
             for (let i = 0; i < dist; i++) {
                 r += dir;
                 this.path.push({c, r});
             }
         }
-        
+
         this.endPoint = this.path[this.path.length - 1];
-        
-        // Write path to grid
+
         for (let i = 0; i < this.path.length; i++) {
             let p = this.path[i];
-            if (i === 0) {
-                this.grid[p.r][p.c] = 3;  // Start
-            } else if (i === this.path.length - 1) {
-                this.grid[p.r][p.c] = 2; // Base
-            } else {
-                this.grid[p.r][p.c] = 1; // Path
-            }
+            if (i === 0) this.grid[p.r][p.c] = 3;
+            else if (i === this.path.length - 1) this.grid[p.r][p.c] = 2;
+            else this.grid[p.r][p.c] = 1;
         }
     }
 

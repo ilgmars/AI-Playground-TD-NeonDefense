@@ -50,10 +50,23 @@ function init() {
     
     resizeCanvas(); // Scale to fit screen and set High-DPI bounds
 
-    game = new Game(canvas);
+    // Read seed from URL hash if present
+    let urlSeed = null;
+    if (window.location.hash) {
+        let parsed = parseInt(window.location.hash.slice(1));
+        if (!isNaN(parsed)) urlSeed = parsed;
+    }
+
+    function updateSeedDisplay() {
+        document.getElementById('seed-display').textContent = game.seed;
+        history.replaceState(null, '', '#' + game.seed);
+    }
+
+    game = new Game(canvas, urlSeed);
 
     game.draw();
     game.updateUI();
+    updateSeedDisplay();
 
     document.getElementById('start-btn').addEventListener('click', () => {
         document.getElementById('start-screen').classList.add('hidden');
@@ -73,13 +86,11 @@ function init() {
         if (game.state === 'playing') {
             game.state = 'paused';
             document.getElementById('pause-display').textContent = 'ON';
-            document.getElementById('pause-display').style.color = '#ef4444';
-            document.getElementById('pause-display').style.textShadow = '0 0 10px rgba(239,68,68,0.4)';
+            document.getElementById('pause-display').classList.add('paused');
         } else if (game.state === 'paused') {
             game.state = 'playing';
             document.getElementById('pause-display').textContent = 'OFF';
-            document.getElementById('pause-display').style.color = 'var(--text-muted)';
-            document.getElementById('pause-display').style.textShadow = 'none';
+            document.getElementById('pause-display').classList.remove('paused');
         }
     }
 
@@ -93,6 +104,16 @@ function init() {
             display.textContent = 'OFF';
             display.classList.remove('on');
         }
+    });
+
+    document.getElementById('seed-btn').addEventListener('click', () => {
+        let url = location.href.split('#')[0] + '#' + game.seed;
+        navigator.clipboard.writeText(url).catch(() => {});
+        let el = document.getElementById('seed-display');
+        let prev = el.textContent;
+        el.textContent = 'COPIED';
+        el.style.color = '#4ade80';
+        setTimeout(() => { el.textContent = prev; el.style.color = 'var(--text-muted)'; }, 1200);
     });
 
     document.getElementById('sound-btn').addEventListener('click', () => {
@@ -114,21 +135,27 @@ function init() {
         }
     });
 
-    function restartGame() {
+    function restartGame(seed) {
         document.getElementById('restart-confirm').classList.add('hidden');
         document.getElementById('game-over').classList.add('hidden');
         document.getElementById('start-screen').classList.add('hidden');
         document.getElementById('upgrade-menu').classList.add('hidden');
-        
+
+        // Remove targeting-mode element so it gets recreated fresh for new game
+        let tm = document.getElementById('targeting-mode');
+        if (tm) tm.remove();
+
         const canvas = document.getElementById('game-canvas');
         resizeCanvas();
 
-        game = new Game(canvas);
+        let useSeed = (typeof seed === 'number') ? seed : null;
+        game = new Game(canvas, useSeed);
         game.start();
-        
+        updateSeedDisplay();
+
         gameSpeed = 1;
         document.getElementById('speed-display').textContent = '1X';
-        
+
         const autoEl = document.getElementById('autopilot-display');
         autoEl.textContent = 'OFF';
         autoEl.classList.remove('on');
@@ -345,6 +372,50 @@ function init() {
     }
 
     requestAnimationFrame(loop);
+
+    // Tower tooltip on build menu hover
+    const TOWER_INFO = {
+        basic:   { name: 'Blaster',   desc: 'Reliable all-rounder. Good DPS at medium range.',         dmg: 10,   rng: 100, spd: 40,  special: null },
+        sniper:  { name: 'Sniper',    desc: 'Extreme range, high single-target damage. Slow fire rate.', dmg: 40,   rng: 250, spd: 100, special: 'Piercing' },
+        rapid:   { name: 'Shotgun',   desc: 'Fires a spread of piercing pellets. Great vs groups.',     dmg: '8×5', rng: 80,  spd: 60,  special: 'Pierce ×2' },
+        laser:   { name: 'Laser',     desc: 'Continuous beam that slows enemies. Weak vs air.',          dmg: '1.5/f', rng: 150, spd: '—', special: 'Slows 20%' },
+        rocket:  { name: 'Rocket',    desc: 'Homing splash damage. Less effective vs air.',              dmg: 30,   rng: 200, spd: 90,  special: 'Splash 70' },
+        flak:    { name: 'Flak (AA)', desc: 'Anti-air specialist. 4× damage vs air, air-only targeting.',dmg: 15,   rng: 250, spd: 35,  special: 'Air only' },
+        electric:{ name: 'Tesla',     desc: 'Chains lightning between nearby enemies.',                   dmg: 25,   rng: 120, spd: 60,  special: 'Chains ×3' },
+        silo:    { name: 'Silo',      desc: 'Builds hovering rockets that auto-launch at enemies.',       dmg: 120,  rng: 100, spd: 80,  special: '3 rockets' },
+        income:  { name: 'Relay',     desc: 'Generates +20¢ at the end of every wave. Passive.',         dmg: '—',  rng: '—', spd: '—', special: '+20¢/wave' },
+        potion:  { name: 'Repair',    desc: 'Restores 5 HP instantly. Cost increases each use.',         dmg: '—',  rng: '—', spd: '—', special: '+5 HP' },
+    };
+
+    const tooltip = document.getElementById('tower-tooltip');
+    document.querySelectorAll('.tower-option').forEach(el => {
+        const type = el.dataset.type || (el.id === 'potion-btn' ? 'potion' : null);
+        if (!type || !TOWER_INFO[type]) return;
+        el.addEventListener('mouseenter', (e) => {
+            const info = TOWER_INFO[type];
+            document.getElementById('tt-name').textContent = info.name;
+            document.getElementById('tt-desc').textContent = info.desc;
+            document.getElementById('tt-stats').innerHTML =
+                `<span>DMG <b>${info.dmg}</b></span>` +
+                `<span>RNG <b>${info.rng}</b></span>` +
+                `<span>SPD <b>${info.spd}</b></span>` +
+                (info.special ? `<span>FX <b>${info.special}</b></span>` : '');
+            tooltip.classList.remove('hidden');
+            positionTooltip(e);
+        });
+        el.addEventListener('mousemove', positionTooltip);
+        el.addEventListener('mouseleave', () => tooltip.classList.add('hidden'));
+    });
+
+    function positionTooltip(e) {
+        const pad = 12;
+        let x = e.clientX - tooltip.offsetWidth - pad;
+        let y = e.clientY + pad;
+        if (x < 4) x = e.clientX + pad;
+        if (y + tooltip.offsetHeight > window.innerHeight - 4) y = e.clientY - tooltip.offsetHeight - pad;
+        tooltip.style.left = x + 'px';
+        tooltip.style.top  = y + 'px';
+    }
 }
 
 window.buyPotion = function() {
