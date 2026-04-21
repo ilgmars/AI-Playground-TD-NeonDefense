@@ -65,6 +65,33 @@ function init() {
         if (gameSpeed > 16) gameSpeed = 1;
         document.getElementById('speed-display').textContent = gameSpeed + 'X';
     });
+    document.getElementById('pause-btn').addEventListener('click', () => {
+        if (game.state === 'playing') {
+            game.state = 'paused';
+            document.getElementById('pause-display').textContent = 'ON';
+            document.getElementById('pause-display').style.color = '#ef4444';
+            document.getElementById('pause-display').style.textShadow = '0 0 10px rgba(239,68,68,0.4)';
+        } else if (game.state === 'paused') {
+            game.state = 'playing';
+            document.getElementById('pause-display').textContent = 'OFF';
+            document.getElementById('pause-display').style.color = 'var(--text-muted)';
+            document.getElementById('pause-display').style.textShadow = 'none';
+        }
+    });
+
+    document.getElementById('pause-btn').addEventListener('click', () => {
+        if (game.state === 'playing') {
+            game.state = 'paused';
+            document.getElementById('pause-display').textContent = 'ON';
+            document.getElementById('pause-display').style.color = '#ef4444';
+            document.getElementById('pause-display').style.textShadow = '0 0 10px rgba(239,68,68,0.4)';
+        } else if (game.state === 'paused') {
+            game.state = 'playing';
+            document.getElementById('pause-display').textContent = 'OFF';
+            document.getElementById('pause-display').style.color = 'var(--text-muted)';
+            document.getElementById('pause-display').style.textShadow = 'none';
+        }
+    });
 
     document.getElementById('autopilot-btn').addEventListener('click', () => {
         game.autopilot = !game.autopilot;
@@ -190,6 +217,34 @@ function init() {
     });
 
     window.addEventListener('keydown', (e) => {
+        // Space to pause/unpause
+        if (e.code === 'Space' && (game.state === 'playing' || game.state === 'paused')) {
+            e.preventDefault();
+            if (game.state === 'playing') {
+                game.state = 'paused';
+                document.getElementById('pause-display').textContent = 'ON';
+                document.getElementById('pause-display').style.color = '#ef4444';
+                document.getElementById('pause-display').style.textShadow = '0 0 10px rgba(239,68,68,0.4)';
+            } else if (game.state === 'paused') {
+                game.state = 'playing';
+                document.getElementById('pause-display').textContent = 'OFF';
+                document.getElementById('pause-display').style.color = 'var(--text-muted)';
+                document.getElementById('pause-display').style.textShadow = 'none';
+            }
+            return;
+        }
+        
+        // ESC to close menus or cancel building
+        if (e.key === 'Escape') {
+            // Close upgrade menu
+            document.getElementById('upgrade-menu').classList.add('hidden');
+            // Cancel tower building
+            if (selectedTowerType) {
+                selectTower(null);
+            }
+            return;
+        }
+        
         if (game.state !== 'playing') return;
         
         // Upgrades 1-3
@@ -231,6 +286,9 @@ function init() {
 
     canvas.addEventListener('pointerdown', (e) => {
         if (game.state !== 'playing') return;
+
+        // Close menus when clicking on canvas
+        document.getElementById('upgrade-menu').classList.add('hidden');
 
         const pos = getCanvasPos(e);
         const c = Math.floor(pos.x / TILE_SIZE);
@@ -324,4 +382,21 @@ window.selectTower = function(type) {
     }
 }
 
+// Close menus when clicking outside of them
+document.addEventListener('click', (e) => {
+    const upgradeMenu = document.getElementById('upgrade-menu');
+    const buildMenu = document.getElementById('build-menu');
+    const canvas = document.getElementById('game-canvas');
+    
+    // If upgrade menu is open and click is outside of it, close it
+    if (!upgradeMenu.classList.contains('hidden')) {
+        if (!upgradeMenu.contains(e.target) && !canvas.contains(e.target)) {
+            upgradeMenu.classList.add('hidden');
+        }
+    }
+});
+
 document.addEventListener('DOMContentLoaded', init);
+
+
+
