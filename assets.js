@@ -68,12 +68,14 @@ function drawSpawnerTile(ctx, x, y, size) {
 
 // Entity drawing
 
-function drawEnemy(ctx, x, y, radius, type, healthRatio) {
+function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false) {
     ctx.save();
     ctx.translate(x, y);
     
     // Neon glow
     let color = type === 'fast' ? '#fde047' : type === 'tank' ? '#f87171' : type === 'air' ? '#60a5fa' : '#a7f3d0';
+    if (isSlowed) color = '#38bdf8'; // Override glow to light blue when frozen
+    
     ctx.shadowColor = color;
     ctx.shadowBlur = 10;
     

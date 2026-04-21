@@ -201,7 +201,7 @@ canvas {
 /* Upgrade Menu */
 #upgrade-menu {
     position: absolute;
-    bottom: 20px;
+    top: 20px;
     left: 20px;
     width: 320px;
     padding: 15px;
@@ -376,11 +376,12 @@ button.danger:hover {
     }
     #build-menu {
         width: 100%;
-        height: 150px;
+        height: 170px;
         flex-direction: row;
         border-left: none;
         border-top: 1px solid var(--border-color);
         padding: 10px;
+        padding-bottom: 30px; /* Lift from bottom edge for mobile UI */
         overflow-x: auto;
         overflow-y: hidden;
     }
@@ -391,6 +392,6 @@ button.danger:hover {
     #upgrade-menu {
         width: calc(100% - 40px);
         left: 20px;
-        bottom: 180px; 
+        top: 20px;
     }
 }

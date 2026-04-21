@@ -158,12 +158,50 @@ function init() {
         game.state = 'playing';
     });
 
-    document.getElementById('sell-btn').addEventListener('click', () => {
-        if (game.selectedTower) {
-            game.money += game.selectedTower.getSellValue();
-            game.towers = game.towers.filter(t => t !== game.selectedTower);
+    let sellTimeout = null;
+    document.getElementById('sell-btn').addEventListener('click', (e) => {
+        if (!game.selectedTowers || game.selectedTowers.length === 0) return;
+        let btn = e.currentTarget;
+        
+        if (btn.dataset.confirm === 'true') {
+            let totalSell = 0;
+            for (let t of game.selectedTowers) {
+                totalSell += t.getSellValue();
+                game.towers = game.towers.filter(tower => tower !== t);
+            }
+            game.money += totalSell;
             game.selectPlacedTower(null);
             game.updateUI();
+            
+            btn.dataset.confirm = 'false';
+            clearTimeout(sellTimeout);
+        } else {
+            btn.dataset.confirm = 'true';
+            btn.innerHTML = 'CONFIRM SELL?';
+            clearTimeout(sellTimeout);
+            sellTimeout = setTimeout(() => {
+                btn.dataset.confirm = 'false';
+                if (game.selectedTowers && game.selectedTowers.length > 0) {
+                    let totalSell = game.selectedTowers.reduce((sum, current) => sum + current.getSellValue(), 0);
+                    btn.innerHTML = `SELL <span class="cost" id="sell-value">${totalSell}¢</span>`;
+                }
+            }, 3000);
+        }
+    });
+
+    window.addEventListener('keydown', (e) => {
+        if (game.state !== 'playing') return;
+        
+        // Upgrades 1-3
+        if (e.key >= '1' && e.key <= '3' && game.selectedTowers && game.selectedTowers.length > 0) {
+            let idx = parseInt(e.key) - 1;
+            game.buyUpgrade(idx);
+        } 
+        // Build 1-8
+        else if (e.key >= '1' && e.key <= '8') {
+            const towers = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'flak', 'electric', 'silo'];
+            let idx = parseInt(e.key) - 1;
+            selectTower(towers[idx]);
         }
     });
 
@@ -186,6 +224,11 @@ function init() {
         mousePos.y = pos.y;
     });
 
+    let lastClickTime = 0;
+    let lastClickedType = null;
+    let lastClickedC = -1;
+    let lastClickedR = -1;
+
     canvas.addEventListener('pointerdown', (e) => {
         if (game.state !== 'playing') return;
 
@@ -201,7 +244,25 @@ function init() {
         } else {
             // Select placed tower
             let clicked = game.towers.find(t => t.c === c && t.r === r);
-            game.selectPlacedTower(clicked || null);
+            let now = Date.now();
+            let isDouble = (now - lastClickTime < 300 && clicked && lastClickedType === clicked.type && lastClickedC === c && lastClickedR === r);
+            
+            lastClickTime = now;
+            
+            if (clicked) {
+                lastClickedType = clicked.type;
+                lastClickedC = c;
+                lastClickedR = r;
+                
+                if (isDouble) {
+                    game.selectAllTowersOfType(clicked.type);
+                } else {
+                    game.selectPlacedTower(clicked);
+                }
+            } else {
+                game.selectPlacedTower(null);
+                lastClickedType = null;
+            }
         }
     });
 

@@ -10,14 +10,14 @@ const TOWER_UPGRADES = {
         { name: 'Ricochet', desc: 'Bullets bounce to next enemy', baseCost: 120, costMult: 1.8, apply: (t) => { t.pierce = (t.pierce || 1) + 1; } }
     ],
     rapid: [
-        { name: 'Damage', desc: 'More bullet damage', baseCost: 100, costMult: 1.5, apply: (t) => { t.damage += 3; } },
-        { name: 'Overclock', desc: 'Insane fire rate', baseCost: 80, costMult: 1.6, apply: (t) => { t.fireRate = Math.max(3, Math.floor(t.fireRate * 0.7)); } },
-        { name: 'Range', desc: 'Increases targeting range', baseCost: 70, costMult: 1.4, apply: (t) => { t.range += 10; } }
+        { name: 'Buckshot', desc: 'More bullet damage', baseCost: 100, costMult: 1.5, apply: (t) => { t.damage += 3; } },
+        { name: 'Pellets', desc: 'More pellets per shot', baseCost: 80, costMult: 1.6, apply: (t) => { t.pelletCount = (t.pelletCount || 5) + 3; } },
+        { name: 'Choke', desc: 'Tighter spread & more range', baseCost: 70, costMult: 1.4, apply: (t) => { t.spread = Math.max(0.1, (t.spread || 0.4) - 0.15); t.range += 20; } }
     ],
     laser: [
         { name: 'Intensity', desc: 'More continuous damage', baseCost: 150, costMult: 1.5, apply: (t) => { t.damage += 1; } },
         { name: 'Range', desc: 'Increases targeting range', baseCost: 100, costMult: 1.4, apply: (t) => { t.range += 20; } },
-        { name: 'Cryo Beam', desc: 'Slows down enemies', baseCost: 200, costMult: 2.0, apply: (t) => { t.slowEffect = Math.min(0.8, (t.slowEffect || 0) + 0.15); } }
+        { name: 'Cryo Beam', desc: 'Slows down enemies', baseCost: 200, costMult: 2.0, apply: (t) => { t.slowEffect = Math.min(0.85, (t.slowEffect || 0.2) + 0.25); } }
     ],
     rocket: [
         { name: 'Payload', desc: 'More dmg & explosion size', baseCost: 200, costMult: 1.6, apply: (t) => { t.damage += 20; t.splash = (t.splash || 70) + 15; } },
@@ -150,7 +150,7 @@ class Enemy {
 
     draw(ctx) {
         if (!this.active) return;
-        drawEnemy(ctx, this.x, this.y, this.radius, this.type, this.hp / this.maxHp);
+        drawEnemy(ctx, this.x, this.y, this.radius, this.type, this.hp / this.maxHp, this.currentSlow < 1);
     }
 }
 
@@ -187,14 +187,17 @@ class Tower {
         } else if (type === 'rapid') {
             this.baseCost = 150;
             this.range = 80;
-            this.damage = 4;
-            this.fireRate = 10;
+            this.damage = 6;
+            this.fireRate = 60;
+            this.pelletCount = 5;
+            this.spread = 0.4;
         } else if (type === 'laser') {
             this.baseCost = 200;
             this.range = 150;
             this.damage = 1.5; 
             this.fireRate = 1; 
             this.laserTarget = null;
+            this.slowEffect = 0.2; 
         } else if (type === 'rocket') {
             this.baseCost = 250;
             this.range = 200;
@@ -214,9 +217,10 @@ class Tower {
         } else if (type === 'silo') {
             this.baseCost = 400;
             this.range = 100;
-            this.damage = 60;
-            this.fireRate = 120;
+            this.damage = 120;
+            this.fireRate = 80;
             this.hoverRockets = [];
+            this.maxHover = 4;
         }
         
         this.totalSpent = this.baseCost;
@@ -289,6 +293,9 @@ class Tower {
         for (let enemy of enemies) {
             if (!enemy.active) continue;
             
+            // Flak strictly cannot target ground enemies
+            if (this.type === 'flak' && !enemy.isAir) continue;
+            
             let ex = enemy.x;
             let ey = enemy.y;
             let dist = Math.hypot(ex - (this.x + TILE_SIZE/2), ey - (this.y + TILE_SIZE/2));
@@ -353,33 +360,58 @@ class Tower {
                     this.cooldown = this.fireRate;
                 }
             } else if (this.cooldown === 0) {
-                if (this.type === 'basic' || this.type === 'rapid') SoundFX.shootBasic();
+                if (this.type === 'basic') SoundFX.shootBasic();
+                else if (this.type === 'rapid') SoundFX.shootBasic(); 
                 else if (this.type === 'sniper') SoundFX.shootSniper();
                 else if (this.type === 'rocket') SoundFX.shootRocket();
                 else if (this.type === 'flak') SoundFX.shootFlak();
                 
-                let ms = this.multiShot || 1;
-                for (let i = 0; i < ms; i++) {
-                    let finalTarget = target;
-                    if (i > 0) {
-                        let altTarget = null;
-                        for (let e of enemies) {
-                            if (e.active && e !== target) {
-                                altTarget = e;
-                                break;
-                            }
-                        }
-                        if (altTarget) finalTarget = altTarget;
+                if (this.type === 'rapid') {
+                    let pc = this.pelletCount || 5;
+                    let baseAngle = Math.atan2(target.y - (this.y + TILE_SIZE/2), target.x - (this.x + TILE_SIZE/2));
+                    let spread = this.spread || 0.4;
+                    for (let i = 0; i < pc; i++) {
+                        let offset = -spread/2 + (spread / Math.max(1, pc - 1)) * i;
+                        if (pc === 1) offset = 0;
+                        let proj = new Projectile(
+                            this.x + TILE_SIZE/2, 
+                            this.y + TILE_SIZE/2, 
+                            null, 
+                            this.damage, 
+                            this.type,
+                            this.pierce,
+                            this.splash
+                        );
+                        proj.isDumbFire = true;
+                        proj.angle = baseAngle + offset;
+                        proj.maxRange = this.range + 30;
+                        proj.travelled = 0;
+                        projectiles.push(proj);
                     }
-                    projectiles.push(new Projectile(
-                        this.x + TILE_SIZE/2, 
-                        this.y + TILE_SIZE/2, 
-                        finalTarget, 
-                        this.damage, 
-                        this.type,
-                        this.pierce,
-                        this.splash
-                    ));
+                } else {
+                    let ms = this.multiShot || 1;
+                    for (let i = 0; i < ms; i++) {
+                        let finalTarget = target;
+                        if (i > 0) {
+                            let altTarget = null;
+                            for (let e of enemies) {
+                                if (e.active && e !== target) {
+                                    altTarget = e;
+                                    break;
+                                }
+                            }
+                            if (altTarget) finalTarget = altTarget;
+                        }
+                        projectiles.push(new Projectile(
+                            this.x + TILE_SIZE/2, 
+                            this.y + TILE_SIZE/2, 
+                            finalTarget, 
+                            this.damage, 
+                            this.type,
+                            this.pierce,
+                            this.splash
+                        ));
+                    }
                 }
                 this.cooldown = this.fireRate;
             }
@@ -428,8 +460,9 @@ class Projectile {
         this.type = type;
         this.pierce = pierce;
         this.splash = splash;
+        this.hitEnemies = new Set();
         
-        this.speed = type === 'sniper' ? 12 : type === 'rapid' ? 6 : type === 'rocket' ? 5 : type === 'flak' ? 14 : 8;
+        this.speed = type === 'sniper' ? 12 : type === 'rapid' ? 8 : type === 'rocket' ? 5 : type === 'flak' ? 14 : 8;
         this.active = true;
         
         if (type === 'rocket') {
@@ -446,6 +479,30 @@ class Projectile {
         
         if (this.x < -200 || this.x > 2000 || this.y < -200 || this.y > 1500) {
             this.active = false;
+            return;
+        }
+
+        if (this.isDumbFire) {
+            this.x += Math.cos(this.angle) * this.speed;
+            this.y += Math.sin(this.angle) * this.speed;
+            this.travelled += this.speed;
+            if (this.travelled > this.maxRange) {
+                this.active = false;
+                return;
+            }
+            for (let e of enemies) {
+                if (!e.active) continue;
+                if (this.type === 'flak' && !e.isAir) continue; 
+                if (this.type !== 'flak' && e.isAir) continue; 
+                
+                let dist = Math.hypot(e.x - this.x, e.y - this.y);
+                if (dist < e.radius + 5 && !this.hitEnemies.has(e)) {
+                    this.hitEnemies.add(e);
+                    this.target = e; 
+                    this.explode(enemies, particles);
+                    if (!this.active) break;
+                }
+            }
             return;
         }
 
