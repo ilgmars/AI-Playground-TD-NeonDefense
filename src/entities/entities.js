@@ -1,99 +1,31 @@
-const TOWER_UPGRADES = {
-    basic: [
-        { name: 'Damage', desc: 'Increases bullet damage', baseCost: 40, costMult: 1.5, apply: (t) => { t.damage += 8; } },
-        { name: 'Speed', desc: 'Shoots faster', baseCost: 30, costMult: 1.4, apply: (t) => { t.fireRate = Math.max(5, Math.floor(t.fireRate * 0.8)); } },
-        { name: 'Range', desc: 'Increases targeting range', baseCost: 30, costMult: 1.3, apply: (t) => { t.range += 15; } }
-    ],
-    sniper: [
-        { name: 'Caliber', desc: 'Huge damage boost', baseCost: 80, costMult: 1.6, apply: (t) => { t.damage += 30; } },
-        { name: 'Scope', desc: 'Increases range', baseCost: 60, costMult: 1.4, apply: (t) => { t.range += 40; } },
-        { name: 'Ricochet', desc: 'Bullets bounce to next enemy', baseCost: 120, costMult: 1.8, apply: (t) => { t.pierce = (t.pierce || 1) + 1; } }
-    ],
-    rapid: [
-        { name: 'Damage', desc: 'More pellet damage', baseCost: 100, costMult: 1.5, apply: (t) => { t.damage += 4; } },
-        { name: 'Pellets', desc: 'More pellets per shot', baseCost: 80, costMult: 1.6, apply: (t) => { t.pelletCount = (t.pelletCount || 5) + 3; } },
-        { name: 'Penetration', desc: 'Pellets pierce more enemies', baseCost: 120, costMult: 1.7, apply: (t) => { t.pierce = (t.pierce || 2) + 1; } }
-    ],
-    laser: [
-        { name: 'Intensity', desc: 'More continuous damage', baseCost: 150, costMult: 1.5, apply: (t) => { t.damage += 1; } },
-        { name: 'Range', desc: 'Increases targeting range', baseCost: 100, costMult: 1.4, apply: (t) => { t.range += 20; } },
-        { name: 'Cryo Beam', desc: 'Slows down enemies', baseCost: 200, costMult: 2.0, apply: (t) => { t.slowEffect = Math.min(0.85, (t.slowEffect || 0.2) + 0.25); } }
-    ],
-    rocket: [
-        { name: 'Payload', desc: 'More dmg & explosion size', baseCost: 200, costMult: 1.6, apply: (t) => { t.damage += 20; t.splash = (t.splash || 70) + 15; } },
-        { name: 'Multi-Shot', desc: 'Fires extra rockets', baseCost: 300, costMult: 2.0, apply: (t) => { t.multiShot = (t.multiShot || 1) + 1; } },
-        { name: 'Range', desc: 'Increases targeting range', baseCost: 150, costMult: 1.4, apply: (t) => { t.range += 25; } }
-    ],
-    flak: [
-        { name: 'Shrapnel', desc: 'Larger flak explosions', baseCost: 150, costMult: 1.5, apply: (t) => { t.splash += 20; } },
-        { name: 'Radar', desc: 'Increases AA range', baseCost: 100, costMult: 1.4, apply: (t) => { t.range += 50; } },
-        { name: 'Autoloader', desc: 'Fires shells faster', baseCost: 200, costMult: 1.6, apply: (t) => { t.fireRate = Math.max(15, Math.floor(t.fireRate * 0.75)); } }
-    ],
-    electric: [
-        { name: 'Voltage', desc: 'More chain damage', baseCost: 200, costMult: 1.6, apply: (t) => { t.damage += 15; } },
-        { name: 'Conductor', desc: 'Jumps to more enemies', baseCost: 250, costMult: 1.8, apply: (t) => { t.chainCount = (t.chainCount || 3) + 1; } },
-        { name: 'Range', desc: 'Increases targeting range', baseCost: 150, costMult: 1.4, apply: (t) => { t.range += 20; } }
-    ],
-    silo: [
-        { name: 'Warhead', desc: 'More dmg & splash radius', baseCost: 300, costMult: 1.6, apply: (t) => { t.damage += 30; t.splash = (t.splash || 40) + 10; } },
-        { name: 'Capacity', desc: 'More max hovering rockets', baseCost: 400, costMult: 2.0, apply: (t) => { t.maxHover = (t.maxHover || 3) + 1; } },
-        { name: 'Assembly', desc: 'Builds rockets faster', baseCost: 250, costMult: 1.5, apply: (t) => { t.fireRate = Math.max(30, Math.floor(t.fireRate * 0.8)); } }
-    ],
-    income: [
-        { name: 'Efficiency', desc: '+10¢ per wave', baseCost: 150, costMult: 1.6, apply: (t) => { t.incomePerWave += 10; } },
-        { name: 'Overcharge', desc: '+15¢ per wave', baseCost: 250, costMult: 1.8, apply: (t) => { t.incomePerWave += 15; } },
-        { name: 'Network', desc: '+5¢ per other Relay', baseCost: 200, costMult: 1.5, apply: (t) => { t.networkBonus = (t.networkBonus || 0) + 1; } }
-    ]
-};
+// TOWER_UPGRADES moved to config.js — it's balance/content, not game logic.
 
 class Enemy {
     constructor(path, type, hpMultiplier) {
         this.path = path;
         this.pathIndex = 0;
-        
+
         const start = path[0];
         this.x = start.c * TILE_SIZE + TILE_SIZE / 2;
         this.y = start.r * TILE_SIZE + TILE_SIZE / 2;
-        
-        this.type = type; 
+
+        this.type = type;
         this.isAir = type === 'air';
-        this.radius = 12;
-        
-        let baseHp = 20;
-        let baseSpeed = 1;
-        let baseReward = 5;
 
-        if (type === 'fast') {
-            baseHp = 10;
-            baseSpeed = 1.8;
-            baseReward = 3;
-            this.radius = 10;
-        } else if (type === 'tank') {
-            baseHp = 60;
-            baseSpeed = 0.6;
-            baseReward = 10;
-            this.radius = 15;
-        } else if (type === 'air') {
-            baseHp = 25;
-            baseSpeed = 0.6; // Much slower
-            baseReward = 8;
-            this.radius = 14;
-        }
-
-        this.hp = baseHp * hpMultiplier;
+        const cfg = ENEMIES[type] || ENEMIES.normal;
+        this.hp = cfg.hp * hpMultiplier;
         this.maxHp = this.hp;
-        this.speed = baseSpeed;
-        this.reward = baseReward;
-        
+        this.speed = cfg.speed;
+        this.reward = cfg.reward;
+        this.radius = cfg.radius;
+
         this.active = true;
         this.reachedEnd = false;
-        
         this.currentSlow = 1;
-        
+
         if (this.isAir) {
-            // 20% of air enemies follow the path instead of flying straight
-            this.followsPath = Math.random() < 0.2;
-            
+            this.followsPath = Math.random() < WAVE_CONFIG.airPathFollowChance;
+
             if (this.followsPath) {
                 // These air enemies follow the ground path
                 this.pathIndex = 0;
@@ -203,92 +135,36 @@ class Tower {
         this.x = c * TILE_SIZE;
         this.y = r * TILE_SIZE;
         this.type = type;
-        
+
         this.angle = 0;
         this.cooldown = 0;
-        
         this.upgrades = [0, 0, 0];
-        
-        this.pierce = 1;
-        this.splash = type === 'rocket' ? 70 : 0;
-        this.multiShot = 1;
-        this.slowEffect = 0;
-        this.chainCount = type === 'electric' ? 3 : 0;
-        this.maxHover = type === 'silo' ? 3 : 0;
 
-        // Default targeting modes per tower type
-        // closest: good for basic/rapid (high DPS, finish off nearby)
-        // mostHp: good for sniper/rocket/silo (burst damage, take out big threats)
-        // leastHp: good for laser/electric (finish off weakened enemies efficiently)
-        const defaultTargetModes = {
-            basic: 'first',
-            sniper: 'mostHp',
-            rapid: 'first',
-            laser: 'leastHp',
-            rocket: 'mostHp',
-            flak: 'first',
-            electric: 'leastHp',
-            silo: 'mostHp'
-        };
-        this.targetMode = defaultTargetModes[type] || 'closest';
+        // Core stats come from config (see config.js: TOWERS).
+        const cfg = TOWERS[type];
+        this.baseCost = cfg.cost;
+        this.range = cfg.range;
+        this.damage = cfg.damage;
+        this.fireRate = cfg.fireRate;
+        this.targetMode = cfg.defaultTargetMode;
 
-        if (type === 'basic') {
-            this.baseCost = 50;
-            this.range = 100;
-            this.damage = 10;
-            this.fireRate = 40; 
-        } else if (type === 'sniper') {
-            this.baseCost = 100;
-            this.range = 250;
-            this.damage = 40;
-            this.fireRate = 100;
-        } else if (type === 'rapid') {
-            this.baseCost = 150;
-            this.range = 80;
-            this.damage = 8;
-            this.fireRate = 60;
-            this.pelletCount = 5;
-            this.spread = 0.4;
-            this.pierce = 2; // Pellets pierce through 2 enemies
-        } else if (type === 'laser') {
-            this.baseCost = 200;
-            this.range = 150;
-            this.damage = 1.5; 
-            this.fireRate = 1; 
-            this.laserTarget = null;
-            this.slowEffect = 0.2; 
-        } else if (type === 'rocket') {
-            this.baseCost = 250;
-            this.range = 200;
-            this.damage = 30; 
-            this.fireRate = 90; 
-        } else if (type === 'flak') {
-            this.baseCost = 150;
-            this.range = 250; // Increased from 200 for better air coverage
-            this.damage = 15;
-            this.fireRate = 35;
-            this.splash = 50;
-        } else if (type === 'electric') {
-            this.baseCost = 300;
-            this.range = 120;
-            this.damage = 25; 
-            this.fireRate = 60; 
-        } else if (type === 'silo') {
-            this.baseCost = 400;
-            this.range = 100;
-            this.damage = 120;
-            this.fireRate = 80;
-            this.hoverRockets = [];
-            this.maxHover = 4;
-            this.splash = 40; // Small splash damage
-        } else if (type === 'income') {
-            this.baseCost = 200;
-            this.range = 0;
-            this.damage = 0;
-            this.fireRate = 0;
-            this.incomePerWave = 20;
-        }
-        
+        // Combat modifiers: start with neutral defaults, then let config override.
+        this.pierce     = cfg.pierce     ?? 1;
+        this.splash     = cfg.splash     ?? 0;
+        this.multiShot  = cfg.multiShot  ?? 1;
+        this.slowEffect = cfg.slowEffect ?? 0;
+        this.chainCount = cfg.chainCount ?? 0;
+        this.maxHover   = cfg.maxHover   ?? 0;
+
+        // Optional per-type extras.
+        if (cfg.pelletCount !== undefined)   this.pelletCount = cfg.pelletCount;
+        if (cfg.spread !== undefined)        this.spread = cfg.spread;
+        if (cfg.incomePerWave !== undefined) this.incomePerWave = cfg.incomePerWave;
+
+        // Per-type runtime state (not config).
+        if (type === 'laser') this.laserTarget = null;
+        if (type === 'silo')  this.hoverRockets = [];
+
         this.totalSpent = this.baseCost;
     }
     
