@@ -53,9 +53,10 @@ body {
 
 #top-bar {
     display: flex;
+    flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 20px;
+    padding: 8px 20px;
     flex-shrink: 0;
     background: var(--panel-bg);
     border-bottom: 1px solid var(--border-color);
@@ -64,13 +65,15 @@ body {
 
 #top-bar-stats {
     display: flex;
-    gap: 40px;
+    flex-direction: row;
+    gap: 30px;
     align-items: center;
 }
 
 #top-bar-controls {
     display: flex;
-    gap: 28px;
+    flex-direction: row;
+    gap: 24px;
     align-items: center;
 }
 
@@ -78,6 +81,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
+}
 }
 
 .stat-box .label {
