@@ -12,22 +12,24 @@
 <body>
     <div id="app">
         <div id="top-bar" class="panel">
-            <div class="stat-box">
-                <span class="label">WAVE</span>
-                <span id="wave-display" class="value">1</span>
-                <span id="air-countdown"
-                    style="font-size: 0.65rem; color: #60a5fa; font-weight: bold; margin-top: -2px; letter-spacing: 1px;">✈
-                    IN 4</span>
+            <div id="top-bar-stats">
+                <div class="stat-box">
+                    <span class="label">WAVE</span>
+                    <span id="wave-display" class="value">1</span>
+                    <span id="air-countdown"
+                        style="font-size: 0.65rem; color: #60a5fa; font-weight: bold; margin-top: -2px; letter-spacing: 1px;">✈
+                        IN 4</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">HEALTH</span>
+                    <span id="health-display" class="value">20</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">CREDITS</span>
+                    <span id="money-display" class="value">100</span>
+                </div>
             </div>
-            <div class="stat-box">
-                <span class="label">HEALTH</span>
-                <span id="health-display" class="value">20</span>
-            </div>
-            <div class="stat-box">
-                <span class="label">CREDITS</span>
-                <span id="money-display" class="value">100</span>
-            </div>
-            <div id="speed-control-block" style="display: flex; gap: 15px;">
+            <div id="top-bar-controls">
                 <div class="stat-box interactive" id="speed-btn">
                     <span class="label">SPEED</span>
                     <span id="speed-display" class="value">1X</span>
@@ -36,18 +38,18 @@
                     <span class="label">PAUSE</span>
                     <span id="pause-display" class="value" style="color: var(--text-muted);">OFF</span>
                 </div>
-            </div>
-            <div class="stat-box interactive" id="autopilot-btn">
-                <span class="label">AUTO</span>
-                <span id="autopilot-display" class="value" style="color: var(--text-muted);">OFF</span>
-            </div>
-            <div class="stat-box interactive" id="sound-btn">
-                <span class="label">SOUND</span>
-                <span id="sound-display" class="value" style="color: var(--text-muted);">OFF</span>
-            </div>
-            <div class="stat-box interactive" id="restart-btn">
-                <span class="label">SYS</span>
-                <span class="value" style="color: var(--health); font-size: 1.2rem; margin-top: 4px;">RST</span>
+                <div class="stat-box interactive" id="autopilot-btn">
+                    <span class="label">AUTO</span>
+                    <span id="autopilot-display" class="value" style="color: var(--text-muted);">OFF</span>
+                </div>
+                <div class="stat-box interactive" id="sound-btn">
+                    <span class="label">SOUND</span>
+                    <span id="sound-display" class="value" style="color: var(--text-muted);">OFF</span>
+                </div>
+                <div class="stat-box interactive" id="restart-btn">
+                    <span class="label">SYS</span>
+                    <span class="value" style="color: var(--health); font-size: 1.2rem; margin-top: 4px;">RST</span>
+                </div>
             </div>
         </div>
 

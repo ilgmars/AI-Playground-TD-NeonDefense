@@ -53,12 +53,25 @@ body {
 
 #top-bar {
     display: flex;
-    justify-content: space-around;
+    justify-content: space-between;
+    align-items: center;
     padding: 10px 20px;
     flex-shrink: 0;
     background: var(--panel-bg);
     border-bottom: 1px solid var(--border-color);
     z-index: 10;
+}
+
+#top-bar-stats {
+    display: flex;
+    gap: 40px;
+    align-items: center;
+}
+
+#top-bar-controls {
+    display: flex;
+    gap: 28px;
+    align-items: center;
 }
 
 .stat-box {
