@@ -171,7 +171,7 @@ class Game {
 
         let wanted = {
             basic:    Math.max(3, Math.ceil(w / 5)),
-            flak:     w >= 3  ? Math.max(1, Math.min(3, 1 + Math.floor(w / 12))) : 0,
+            flak:     w >= 4  ? Math.max(1, Math.min(3, 1 + Math.floor(w / 12))) : 0,
             rapid:    w >= 2  ? Math.ceil(w / 6)   : 0,
             laser:    w >= 3  ? Math.min(4, Math.ceil(w / 8)) : 0,
             sniper:   w >= 5  ? Math.ceil(w / 7)   : 0,
@@ -185,8 +185,9 @@ class Game {
         let totalWanted = Object.values(wanted).reduce((a, b) => a + b, 0);
 
         // Force flak building - but only 1-3 flak towers max
-        let needFlak  = w >= 3 && counts['flak'] < wanted['flak'];
-        let urgentFlak = w >= 4 && w <= 5 && counts['flak'] === 0; // MUST build at least 1 flak before wave 5
+        // Build flak during wave 4 cooldown (after wave 4 ends, before wave 5 starts)
+        let needFlak  = w >= 4 && counts['flak'] < wanted['flak'];
+        let urgentFlak = w === 4 && !this.currentWaveDef && counts['flak'] === 0; // During wave 4 cooldown only
         let needLaser = w >= 3 && counts['laser'] === 0;
 
         // Pick build target - prioritize building all tower types evenly
@@ -293,12 +294,14 @@ class Game {
         let savingCost = 0;
         
         // Check if we should save money for a specific tower
-        if (urgentFlak && this.money < costs['flak']) {
+        if (urgentFlak && this.money < costs['flak'] + 100) {
+            // Save for flak + 100 credits for upgrades before wave 5
             savingForTower = 'flak';
-            savingCost = costs['flak'];
-        } else if (needFlak && counts['flak'] < 1 && this.money < costs['flak']) {
+            savingCost = costs['flak'] + 100;
+        } else if (needFlak && counts['flak'] < 1 && this.money < costs['flak'] + 50) {
+            // Save for flak + 50 credits buffer
             savingForTower = 'flak';
-            savingCost = costs['flak'];
+            savingCost = costs['flak'] + 50;
         } else if (needLaser && this.money < costs['laser']) {
             savingForTower = 'laser';
             savingCost = costs['laser'];
