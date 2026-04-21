@@ -193,8 +193,13 @@ class Game {
         
         if (upgradableTowers.length > 0) {
             upgradableTowers.sort((a, b) => {
-                if (isAirImminent && a.t.type === 'flak' && b.t.type !== 'flak') return -1;
-                if (isAirImminent && b.t.type === 'flak' && a.t.type !== 'flak') return 1;
+                if (isAirImminent) {
+                    if (a.t.type === 'flak' && b.t.type !== 'flak') return -1;
+                    if (b.t.type === 'flak' && a.t.type !== 'flak') return 1;
+                } else {
+                    if (a.t.type === 'flak' && b.t.type !== 'flak') return 1;
+                    if (b.t.type === 'flak' && a.t.type !== 'flak') return -1;
+                }
                 let lvlA = a.t.upgrades[a.i];
                 let lvlB = b.t.upgrades[b.i];
                 if (lvlA !== lvlB) return lvlA - lvlB;
@@ -322,24 +327,26 @@ class Game {
         
         this.map.draw(this.ctx);
 
-        if (this.selectedTower) {
-            this.ctx.beginPath();
-            this.ctx.arc(this.selectedTower.x + TILE_SIZE/2, this.selectedTower.y + TILE_SIZE/2, this.selectedTower.range, 0, Math.PI*2);
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-            this.ctx.fill();
-            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-            this.ctx.lineWidth = 1;
-            this.ctx.stroke();
-            
-            if (this.selectedTower.type === 'silo') {
-                for (let r of this.selectedTower.hoverRockets) {
-                    let rx = this.selectedTower.x + TILE_SIZE/2 + Math.cos(r.angle) * r.dist;
-                    let ry = this.selectedTower.y + TILE_SIZE/2 + Math.sin(r.angle) * r.dist;
-                    this.ctx.beginPath();
-                    this.ctx.arc(rx, ry, r.range, 0, Math.PI*2);
-                    this.ctx.strokeStyle = 'rgba(239, 68, 68, 0.2)'; 
-                    this.ctx.lineWidth = 1;
-                    this.ctx.stroke();
+        if (this.selectedTowers && this.selectedTowers.length > 0) {
+            for (let t of this.selectedTowers) {
+                this.ctx.beginPath();
+                this.ctx.arc(t.x + TILE_SIZE/2, t.y + TILE_SIZE/2, t.range, 0, Math.PI*2);
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+                this.ctx.fill();
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                this.ctx.lineWidth = 1;
+                this.ctx.stroke();
+                
+                if (t.type === 'silo') {
+                    for (let r of t.hoverRockets) {
+                        let rx = t.x + TILE_SIZE/2 + Math.cos(r.angle) * r.dist;
+                        let ry = t.y + TILE_SIZE/2 + Math.sin(r.angle) * r.dist;
+                        this.ctx.beginPath();
+                        this.ctx.arc(rx, ry, r.range, 0, Math.PI*2);
+                        this.ctx.strokeStyle = 'rgba(239, 68, 68, 0.2)'; 
+                        this.ctx.lineWidth = 1;
+                        this.ctx.stroke();
+                    }
                 }
             }
         }
@@ -402,21 +409,62 @@ class Game {
     }
 
     selectPlacedTower(tower) {
-        this.selectedTower = tower;
-        if (tower) {
+        if (!tower) {
+            this.selectedTowers = [];
+            document.getElementById('upgrade-menu').classList.add('hidden');
+        } else {
+            this.selectedTowers = [tower];
             document.getElementById('upgrade-menu').classList.remove('hidden');
             this.updateUpgradeMenu();
+        }
+        
+        let sellBtn = document.getElementById('sell-btn');
+        if (sellBtn) {
+            sellBtn.dataset.confirm = 'false';
+            sellBtn.innerHTML = `SELL <span class="cost" id="sell-value"></span>`;
+        }
+    }
+
+    selectAllTowersOfType(type) {
+        this.selectedTowers = this.towers.filter(t => t.type === type);
+        if (this.selectedTowers.length > 0) {
+            document.getElementById('upgrade-menu').classList.remove('hidden');
+            this.updateUpgradeMenu();
+        }
+        
+        let sellBtn = document.getElementById('sell-btn');
+        if (sellBtn) {
+            sellBtn.dataset.confirm = 'false';
+            sellBtn.innerHTML = `SELL <span class="cost" id="sell-value"></span>`;
+        }
+    }
+
+    buyUpgrade(index) {
+        if (!this.selectedTowers || this.selectedTowers.length === 0) return;
+        let upgradedAny = false;
+        for (let t of this.selectedTowers) {
+            let cost = t.getUpgradeCost(index);
+            if (this.money >= cost && t.upgrades[index] < 3) {
+                this.money -= cost;
+                t.upgrade(index);
+                this.addUpgradeEffect(t.x, t.y);
+                upgradedAny = true;
+            }
+        }
+        if (upgradedAny) {
+            this.uiDirty = true;
+            SoundFX.upgrade();
         } else {
-            document.getElementById('upgrade-menu').classList.add('hidden');
+            SoundFX.error();
         }
     }
 
     updateUpgradeMenu() {
-        if (!this.selectedTower) return;
-        let t = this.selectedTower;
+        if (!this.selectedTowers || this.selectedTowers.length === 0) return;
+        let t = this.selectedTowers[0];
         
         const names = { basic: 'Blaster', sniper: 'Sniper', rapid: 'Pulse', flak: 'Flak (AA)', laser: 'Laser', rocket: 'Rocket', electric: 'Tesla', silo: 'Silo' };
-        document.getElementById('upgrade-type-name').textContent = names[t.type];
+        document.getElementById('upgrade-type-name').textContent = names[t.type] + (this.selectedTowers.length > 1 ? ` (${this.selectedTowers.length})` : '');
         document.getElementById('tower-dmg').textContent = Math.floor(t.damage);
         document.getElementById('tower-rng').textContent = Math.floor(t.range);
         document.getElementById('tower-spd').textContent = t.fireRate;
@@ -449,25 +497,18 @@ class Game {
             let div = list.children[i];
             div.className = 'upgrade-item' + (this.money >= cost ? '' : ' disabled');
             div.querySelector('.upg-name').textContent = def.name;
-            div.querySelector('.upg-level').textContent = 'Lvl ' + lvl;
+            div.querySelector('.upg-level').textContent = this.selectedTowers.length > 1 ? 'Bulk' : ('Lvl ' + lvl);
             div.querySelector('.upg-desc').textContent = def.desc;
-            div.querySelector('.upg-cost').textContent = cost + '¢';
+            div.querySelector('.upg-cost').textContent = cost + '¢' + (this.selectedTowers.length > 1 ? '+' : '');
             
             div.onclick = () => {
-                let currentCost = this.selectedTower.getUpgradeCost(i);
-                if (this.money >= currentCost) {
-                    this.money -= currentCost;
-                    this.selectedTower.upgrade(i);
-                    this.addUpgradeEffect(this.selectedTower.x, this.selectedTower.y);
-                    this.uiDirty = true;
-                    SoundFX.upgrade();
-                } else {
-                    SoundFX.error();
-                }
+                this.buyUpgrade(i);
             };
         }
         
-        document.getElementById('sell-value').textContent = t.getSellValue() + '¢';
+        let totalSell = this.selectedTowers.reduce((sum, current) => sum + current.getSellValue(), 0);
+        let sellVal = document.getElementById('sell-value');
+        if (sellVal) sellVal.textContent = totalSell + '¢';
     }
 
     updateUI() {
