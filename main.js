@@ -286,6 +286,79 @@ function init() {
         mousePos.y = pos.y;
     });
 
+    // --- Mobile drag & drop ---
+    let dragType = null;
+    let dragPos = { x: -999, y: -999 }; // screen coords for ghost
+    let isDragging = false;
+
+    function isMobile() {
+        return window.innerWidth <= 768;
+    }
+
+    // Touch start on a tower option — begin drag
+    document.querySelectorAll('.tower-option[data-type]').forEach(el => {
+        el.addEventListener('touchstart', (e) => {
+            if (!isMobile()) return;
+            if (game.state !== 'playing' && game.state !== 'paused') return;
+            const type = el.dataset.type;
+            if (!game.canAfford(type)) return;
+            e.preventDefault();
+            dragType = type;
+            isDragging = true;
+            el.classList.add('dragging');
+            const t = e.touches[0];
+            dragPos.x = t.clientX;
+            dragPos.y = t.clientY;
+        }, { passive: false });
+    });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!isDragging || !dragType) return;
+        e.preventDefault();
+        const t = e.touches[0];
+        dragPos.x = t.clientX;
+        dragPos.y = t.clientY;
+
+        // Update mousePos so the canvas preview renders
+        const rect = canvas.getBoundingClientRect();
+        const logicalWidth = window.COLS * window.TILE_SIZE;
+        const logicalHeight = window.ROWS * window.TILE_SIZE;
+        mousePos.x = (t.clientX - rect.left) * (logicalWidth / rect.width);
+        mousePos.y = (t.clientY - rect.top) * (logicalHeight / rect.height);
+
+        // Activate tower type for preview rendering
+        if (selectedTowerType !== dragType) {
+            // Silently set without toggling UI selection
+            selectedTowerType = dragType;
+        }
+    }, { passive: false });
+
+    document.addEventListener('touchend', (e) => {
+        if (!isDragging || !dragType) return;
+        isDragging = false;
+
+        const t = e.changedTouches[0];
+        const rect = canvas.getBoundingClientRect();
+
+        // Only place if finger lifted over the canvas
+        if (t.clientX >= rect.left && t.clientX <= rect.right &&
+            t.clientY >= rect.top  && t.clientY <= rect.bottom) {
+            const logicalWidth = window.COLS * window.TILE_SIZE;
+            const logicalHeight = window.ROWS * window.TILE_SIZE;
+            const lx = (t.clientX - rect.left) * (logicalWidth / rect.width);
+            const ly = (t.clientY - rect.top)  * (logicalHeight / rect.height);
+            const c = Math.floor(lx / TILE_SIZE);
+            const r = Math.floor(ly / TILE_SIZE);
+            game.buildTower(c, r, dragType);
+        }
+
+        dragType = null;
+        selectedTowerType = null;
+        document.querySelectorAll('.tower-option').forEach(el => el.classList.remove('selected', 'dragging'));
+    }, { passive: false });
+
+    // --- End drag & drop ---
+
     let lastClickTime = 0;
     let lastClickedType = null;
     let lastClickedC = -1;
@@ -352,7 +425,7 @@ function init() {
             const py = r * TILE_SIZE;
 
             if (game.map.isBuildable(c, r)) {
-                const ranges = { basic: 100, sniper: 250, rapid: 80, laser: 150, rocket: 200, electric: 120, silo: 100, income: 0 };
+                const ranges = { basic: 100, sniper: 250, rapid: 80, laser: 150, rocket: 200, flak: 250, electric: 120, silo: 100, income: 0 };
                 ctx.beginPath();
                 ctx.arc(px + TILE_SIZE/2, py + TILE_SIZE/2, ranges[selectedTowerType], 0, Math.PI*2);
                 ctx.fillStyle = 'rgba(56, 189, 248, 0.1)';
@@ -382,7 +455,7 @@ function init() {
         rocket:  { name: 'Rocket',    desc: 'Homing splash damage. Less effective vs air.',              dmg: 30,   rng: 200, spd: 90,  special: 'Splash 70' },
         flak:    { name: 'Flak (AA)', desc: 'Anti-air specialist. 4× damage vs air, air-only targeting.',dmg: 15,   rng: 250, spd: 35,  special: 'Air only' },
         electric:{ name: 'Tesla',     desc: 'Chains lightning between nearby enemies.',                   dmg: 25,   rng: 120, spd: 60,  special: 'Chains ×3' },
-        silo:    { name: 'Silo',      desc: 'Builds hovering rockets that auto-launch at enemies.',       dmg: 120,  rng: 100, spd: 80,  special: '3 rockets' },
+        silo:    { name: 'Silo',      desc: 'Builds hovering rockets that auto-launch at enemies.',       dmg: 120,  rng: 100, spd: 80,  special: 'Splash 40' },
         income:  { name: 'Relay',     desc: 'Generates +20¢ at the end of every wave. Passive.',         dmg: '—',  rng: '—', spd: '—', special: '+20¢/wave' },
         potion:  { name: 'Repair',    desc: 'Restores 5 HP instantly. Cost increases each use.',         dmg: '—',  rng: '—', spd: '—', special: '+5 HP' },
     };

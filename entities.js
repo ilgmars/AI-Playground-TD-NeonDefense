@@ -35,7 +35,7 @@ const TOWER_UPGRADES = {
         { name: 'Range', desc: 'Increases targeting range', baseCost: 150, costMult: 1.4, apply: (t) => { t.range += 20; } }
     ],
     silo: [
-        { name: 'Warhead', desc: 'More hover rocket dmg', baseCost: 300, costMult: 1.6, apply: (t) => { t.damage += 30; } },
+        { name: 'Warhead', desc: 'More dmg & splash radius', baseCost: 300, costMult: 1.6, apply: (t) => { t.damage += 30; t.splash = (t.splash || 40) + 10; } },
         { name: 'Capacity', desc: 'More max hovering rockets', baseCost: 400, costMult: 2.0, apply: (t) => { t.maxHover = (t.maxHover || 3) + 1; } },
         { name: 'Assembly', desc: 'Builds rockets faster', baseCost: 250, costMult: 1.5, apply: (t) => { t.fireRate = Math.max(30, Math.floor(t.fireRate * 0.8)); } }
     ],
@@ -280,6 +280,7 @@ class Tower {
             this.fireRate = 80;
             this.hoverRockets = [];
             this.maxHover = 4;
+            this.splash = 40; // Small splash damage
         } else if (type === 'income') {
             this.baseCost = 200;
             this.range = 0;

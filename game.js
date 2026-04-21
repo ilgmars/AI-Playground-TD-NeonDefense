@@ -160,108 +160,108 @@ class Game {
 
         let isAirWave = this.currentWaveDef && this.currentWaveDef.type === 'air';
         let isAirImminent = isAirWave || (this.wave % 5 >= 3) || (this.wave % 5 === 0);
-
-        // Target composition: how many of each type we want by this wave.
-        // Designed to diversify steadily — each tier unlocks naturally as waves progress.
         let w = this.wave;
+        let nextAirWave = Math.ceil(w / 5) * 5;
+        let wavesUntilAir = nextAirWave - w;
+
+        // Balanced wanted counts — laser/flak capped, everything else grows evenly
         let wanted = {
-            basic:    Math.max(2, Math.ceil(w / 3.5)),           // Start with 2, grow slower
-            rapid:    w >= 2  ? Math.ceil(w / 6)  : 0,           // 1@2, 2@6, 3@12... (slower)
-            laser:    w >= 3  ? Math.ceil(w / 4)  : 0,           // 1@3, 2@7, 3@11... (lasers are key)
-            flak:     w >= 4  ? (w >= 10 ? Math.min(3, 2 + Math.floor((w-10)/15)) : 1) : 0, // 1@4, 2@10, 3@25
-            sniper:   w >= 5  ? Math.ceil(w / 8)  : 0,           // 1@5, 2@13... (slower, high value)
-            rocket:   w >= 6  ? Math.ceil(w / 9)  : 0,           // 1@6, 2@15... (slower)
-            electric: w >= 8  ? Math.ceil(w / 12) : 0,           // 1@8, 2@20... (slower)
-            silo:     w >= 12 ? Math.ceil(w / 16) : 0,           // 1@12, 2@28... (very slow, expensive)
-            income:   w >= 10 ? Math.floor(w / 10) : 0,          // 1@10, 2@20... (later, slower)
+            basic:    Math.max(2, Math.ceil(w / 6)),
+            rapid:    w >= 2  ? Math.ceil(w / 7)   : 0,
+            laser:    w >= 3  ? Math.min(3, Math.ceil(w / 10)) : 0,
+            flak:     w >= 3  ? Math.min(3, 1 + Math.floor(w / 12)) : 0,
+            sniper:   w >= 5  ? Math.ceil(w / 8)   : 0,
+            rocket:   w >= 6  ? Math.ceil(w / 9)   : 0,
+            electric: w >= 8  ? Math.ceil(w / 11)  : 0,
+            silo:     w >= 12 ? Math.ceil(w / 15)  : 0,
+            income:   w >= 10 ? Math.floor(w / 12) : 0,
         };
 
-        // Find the highest-priority type we're short on.
-        // Priority order: flak (if air soon) > laser > sniper > rocket > basic > rapid > electric > silo > income
-        const buildOrder = ['flak', 'laser', 'sniper', 'rocket', 'basic', 'rapid', 'electric', 'silo', 'income'];
+        let totalTowers = this.towers.length;
+        let totalWanted = Object.values(wanted).reduce((a, b) => a + b, 0);
 
+        const buildOrder = ['flak', 'laser', 'sniper', 'rocket', 'rapid', 'electric', 'silo', 'basic', 'income'];
+
+        // Force critical towers first
         let targetType = null;
-        for (let type of buildOrder) {
-            if (counts[type] < wanted[type]) {
-                // Prioritize flak heavily when air is coming (wave 4+)
-                if (type === 'flak' && !isAirImminent && counts['flak'] >= 1) continue;
-                targetType = type;
-                break;
-            }
-        }
-        // Nothing specifically needed — pick the type we're most behind on
-        if (!targetType) {
-            let best = null, bestDeficit = -1;
+        if (counts['flak'] === 0 && w >= 3) {
+            targetType = 'flak';
+        } else if (counts['laser'] === 0 && w >= 3) {
+            targetType = 'laser';
+        } else if (counts['flak'] < wanted['flak'] && wavesUntilAir <= 2) {
+            targetType = 'flak';
+        } else {
+            // Pick type with biggest deficit
+            let bestDeficit = 0;
             for (let type of buildOrder) {
                 let deficit = wanted[type] - counts[type];
-                if (deficit > bestDeficit) { bestDeficit = deficit; best = type; }
+                if (deficit > bestDeficit) { bestDeficit = deficit; targetType = type; }
             }
-            targetType = best || 'basic';
+            if (!targetType) targetType = 'basic';
         }
 
-        let totalTowers = this.towers.length;
-        // Force build when short on critical towers or have very few towers
-        let mustBuild = (counts['flak'] < wanted['flak'] && isAirImminent) || 
-                        (counts['laser'] < wanted['laser']) ||
-                        totalTowers < 4;
-        
-        // After wave 15, prefer upgrading over building
-        let buildThreshold = w < 15 ? 12 : (w < 25 ? 15 : 18);
-        let preferBuild = mustBuild || totalTowers < buildThreshold || Math.random() < (w < 15 ? 0.6 : 0.35);
+        // mustBuild: force build in critical situations
+        let mustBuild = totalTowers < 3 ||
+                        (counts['flak'] === 0 && w >= 3) ||
+                        (counts['laser'] === 0 && w >= 3) ||
+                        (counts['flak'] < wanted['flak'] && wavesUntilAir <= 2) ||
+                        totalTowers < Math.floor(totalWanted * 0.55);
+
+        let buildChance = w < 10 ? 0.65 : w < 20 ? 0.5 : 0.4;
+        let preferBuild = mustBuild || totalTowers < totalWanted || Math.random() < buildChance;
 
         if (preferBuild && spots.length > 0) {
-            if (this.money >= costs[targetType]) {
-                let bestSpot = null, bestScore = -999;
+            // Can we afford the target?
+            let buildType = targetType;
+            if (this.money < costs[buildType]) {
+                // Try cheaper alternatives that are still needed
+                let affordable = buildOrder.filter(t => this.money >= costs[t] && counts[t] < wanted[t]);
+                if (affordable.length > 0) {
+                    buildType = affordable[0];
+                } else {
+                    // Nothing affordable needed — fall through to upgrade
+                    buildType = null;
+                }
+            }
+
+            if (buildType) {
+                let bestSpot = null, bestScore = -9999;
                 let laserTowers = this.towers.filter(t => t.type === 'laser');
 
                 for (let spot of spots) {
                     let score = Math.random() * 2;
                     let pathCoverage = 0;
-                    const range = ranges[targetType];
+                    const range = ranges[buildType];
                     for (let pr = 0; pr < ROWS; pr++) {
                         for (let pc = 0; pc < COLS; pc++) {
                             let cell = this.map.grid[pr][pc];
-                            if (cell === 1 || cell === 2 || cell === 3) {
-                                if (Math.hypot(pc - spot.c, pr - spot.r) * TILE_SIZE <= range) pathCoverage++;
-                            }
+                            if ((cell === 1 || cell === 2 || cell === 3) &&
+                                Math.hypot(pc - spot.c, pr - spot.r) * TILE_SIZE <= range) pathCoverage++;
                         }
                     }
                     score += pathCoverage * 0.5;
 
-                    if (targetType === 'flak') {
-                        // Flak should be placed along the air path (between start and end)
-                        // Calculate distance along the path from start to end
+                    if (buildType === 'flak') {
                         let startP = this.map.path[0];
                         let endP = this.map.path[this.map.path.length - 1];
                         let midC = (startP.c + endP.c) / 2;
                         let midR = (startP.r + endP.r) / 2;
-                        
-                        // Prefer spots near the middle of the air path (straight line from start to end)
                         let distToMid = Math.hypot(spot.c - midC, spot.r - midR);
-                        score += Math.max(0, (15 - distToMid)) * 8; // Closer to middle = much better
-                        
-                        // Also prefer spots that have good coverage of the path
+                        score += Math.max(0, 15 - distToMid) * 8;
                         score += pathCoverage * 4;
-                        
-                        // Prefer spots not too close to edges
-                        let edgeDist = Math.min(spot.c, COLS - spot.c, spot.r, ROWS - spot.r);
-                        score += edgeDist * 3;
-                        
-                        // Add large base score to ensure flak gets built
-                        score += 100;
-                    } else if (targetType === 'rapid' || targetType === 'basic') {
+                        score += Math.min(spot.c, COLS - spot.c, spot.r, ROWS - spot.r) * 3;
+                    } else if (buildType === 'rapid' || buildType === 'basic') {
                         score += spot.orthoNeighbors * 5 + spot.pathNeighbors * 2;
-                    } else if (targetType === 'sniper') {
+                    } else if (buildType === 'sniper') {
                         score -= spot.orthoNeighbors * 3;
-                    } else if (targetType === 'rocket' || targetType === 'silo') {
+                    } else if (buildType === 'rocket' || buildType === 'silo') {
                         score -= (Math.abs(spot.c - COLS/2) + Math.abs(spot.r - ROWS/2)) * 0.4;
                         score -= spot.orthoNeighbors * 2;
-                    } else if (targetType === 'laser' || targetType === 'electric') {
+                    } else if (buildType === 'laser' || buildType === 'electric') {
                         score += spot.orthoNeighbors * 2;
                     }
 
-                    // Synergy: near a laser = slowed enemies = more DPS
-                    if (targetType !== 'flak' && laserTowers.length > 0) {
+                    if (buildType !== 'flak' && laserTowers.length > 0) {
                         for (let laser of laserTowers) {
                             if (Math.hypot(laser.c - spot.c, laser.r - spot.r) <= 4) { score += 80; break; }
                         }
@@ -270,22 +270,11 @@ class Game {
                     if (score > bestScore) { bestScore = score; bestSpot = spot; }
                 }
 
-                if (bestSpot) { this.buildTower(bestSpot.c, bestSpot.r, targetType); return; }
-
-            } else {
-                // Can't afford target — save up unless we're desperate for early towers
-                if (totalTowers < 2) {
-                    let affordable = buildOrder.filter(t => this.money >= costs[t]);
-                    if (affordable.length > 0) {
-                        let spot = spots.reduce((b, s) => s.orthoNeighbors > b.orthoNeighbors ? s : b, spots[0]);
-                        this.buildTower(spot.c, spot.r, affordable[0]);
-                    }
-                }
-                return;
+                if (bestSpot) { this.buildTower(bestSpot.c, bestSpot.r, buildType); return; }
             }
         }
 
-        // Upgrade logic — spread evenly, prioritise high-value towers
+        // Upgrade logic
         const upgradeValue = { silo: 10, rocket: 9, sniper: 8, electric: 7, laser: 6, flak: 5, rapid: 4, basic: 3, income: 2 };
         let upgradableTowers = [];
         for (let t of this.towers) {
@@ -297,21 +286,17 @@ class Game {
 
         if (upgradableTowers.length > 0) {
             upgradableTowers.sort((a, b) => {
-                // Prioritize flak upgrades when air is imminent
+                // Flak upgrades priority when air is imminent
                 if (isAirImminent) {
                     if (a.t.type === 'flak' && b.t.type !== 'flak') return -1;
                     if (b.t.type === 'flak' && a.t.type !== 'flak') return 1;
                 }
-                
-                // Prioritize laser upgrades (slow effect is crucial)
                 if (a.t.type === 'laser' && b.t.type !== 'laser') return -1;
                 if (b.t.type === 'laser' && a.t.type !== 'laser') return 1;
-                
-                // Spread upgrades evenly across paths
-                let lvlDiff = a.t.upgrades[a.i] - b.t.upgrades[b.i];
-                if (lvlDiff !== 0) return lvlDiff;
-                
-                // Then by tower value
+                // Spread upgrades evenly — prefer towers with fewest total upgrades
+                let aTotal = a.t.upgrades[0] + a.t.upgrades[1] + a.t.upgrades[2];
+                let bTotal = b.t.upgrades[0] + b.t.upgrades[1] + b.t.upgrades[2];
+                if (aTotal !== bTotal) return aTotal - bTotal;
                 return (upgradeValue[b.t.type] || 0) - (upgradeValue[a.t.type] || 0);
             });
             let pick = upgradableTowers[0];
