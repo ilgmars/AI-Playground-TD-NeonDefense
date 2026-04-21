@@ -69,8 +69,14 @@ function init() {
     updateSeedDisplay();
 
     document.getElementById('start-btn').addEventListener('click', () => {
-        document.getElementById('start-screen').classList.add('hidden');
-        game.start();
+        const seedVal = document.getElementById('start-seed-input').value.trim();
+        const parsedSeed = seedVal !== '' ? parseInt(seedVal) : null;
+        if (parsedSeed !== null && !isNaN(parsedSeed)) {
+            restartGame(parsedSeed);
+        } else {
+            document.getElementById('start-screen').classList.add('hidden');
+            game.start();
+        }
     });
 
     document.getElementById('speed-btn').addEventListener('click', () => {
@@ -161,8 +167,16 @@ function init() {
         autoEl.classList.remove('on');
     }
 
-    document.getElementById('confirm-yes').addEventListener('click', restartGame);
-    document.getElementById('game-over-restart').addEventListener('click', restartGame);
+    document.getElementById('confirm-yes').addEventListener('click', () => {
+        const seedVal = document.getElementById('restart-seed-input').value.trim();
+        const parsed = seedVal !== '' ? parseInt(seedVal) : null;
+        restartGame(!isNaN(parsed) && parsed !== null ? parsed : null);
+    });
+    document.getElementById('game-over-restart').addEventListener('click', () => {
+        const seedVal = document.getElementById('gameover-seed-input').value.trim();
+        const parsed = seedVal !== '' ? parseInt(seedVal) : null;
+        restartGame(!isNaN(parsed) && parsed !== null ? parsed : null);
+    });
 
     const scoresList = document.getElementById('scores-list');
     const playerNameInput = document.getElementById('player-name');

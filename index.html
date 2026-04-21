@@ -97,11 +97,17 @@
                     </div>
 
                     <button id="game-over-restart" style="margin-top: 20px;">RESTART</button>
+                    <div class="seed-input-row" style="margin-top: 10px;">
+                        <input type="number" id="gameover-seed-input" placeholder="SEED (optional)" />
+                    </div>
                 </div>
 
                 <div id="restart-confirm" class="hidden overlay">
                     <h2>REBOOT SYSTEM?</h2>
                     <p>Current progress will be lost.</p>
+                    <div class="seed-input-row">
+                        <input type="number" id="restart-seed-input" placeholder="SEED (optional)" />
+                    </div>
                     <div style="display: flex; gap: 20px;">
                         <button id="confirm-yes" class="danger">YES</button>
                         <button id="confirm-no">NO</button>
@@ -111,6 +117,9 @@
                 <div id="start-screen" class="overlay">
                     <h1>NEON DEFENSE</h1>
                     <p>Protect the core from the rogue geometry.</p>
+                    <div class="seed-input-row">
+                        <input type="number" id="start-seed-input" placeholder="SEED (optional)" />
+                    </div>
                     <button id="start-btn">INITIALIZE</button>
                 </div>
             </div>

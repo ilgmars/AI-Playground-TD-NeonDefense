@@ -480,7 +480,36 @@ button.danger:hover {
 }
 
 
-/* Tower Tooltip */
+.seed-input-row {
+    margin-bottom: 16px;
+}
+
+.seed-input-row input {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.9rem;
+    letter-spacing: 2px;
+    padding: 8px 14px;
+    text-align: center;
+    width: 200px;
+    transition: border-color 0.2s;
+    /* Remove number input arrows */
+    -moz-appearance: textfield;
+}
+
+.seed-input-row input::-webkit-outer-spin-button,
+.seed-input-row input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+}
+
+.seed-input-row input:focus {
+    outline: none;
+    border-color: var(--accent);
+    color: var(--text-main);
+}
 #tower-tooltip {
     position: fixed;
     z-index: 1000;
