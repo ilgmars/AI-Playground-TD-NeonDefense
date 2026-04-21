@@ -444,7 +444,7 @@ class Game {
         let upgradedAny = false;
         for (let t of this.selectedTowers) {
             let cost = t.getUpgradeCost(index);
-            if (this.money >= cost && t.upgrades[index] < 3) {
+            if (this.money >= cost) {
                 this.money -= cost;
                 t.upgrade(index);
                 this.addUpgradeEffect(t.x, t.y);
