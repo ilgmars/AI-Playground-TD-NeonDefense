@@ -119,19 +119,21 @@ class Game {
         const costs = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400, income: 200 };
         const ranges = { basic: 100, sniper: 250, rapid: 80, laser: 150, rocket: 200, flak: 200, electric: 120, silo: 100, income: 0 };
 
-        // Air wave is every wave % 5 === 0; prepare one wave ahead
+        // Air wave is every wave % 5 === 0; start preparing 2 waves ahead
         let isAirImminent = (this.wave % 5 === 0) ||
             (this.wave % 5 === 4) ||
+            (this.wave % 5 === 3) ||
             (this.waveCooldown > 0 && (this.wave + 1) % 5 === 0) ||
             (this.currentWaveDef && this.currentWaveDef.type === 'air');
 
-        // How many flak we need scales with wave
-        let flakNeeded = Math.max(1, Math.floor(this.wave / 4));
+        // Always want at least 1 flak; 2 once we've seen a second air wave
+        let flakNeeded = this.wave >= 10 ? 2 : 1;
 
         // Build priority list — ordered by strategic value
         // Early game: get a laser + some basics fast, then diversify
         let targetType;
-        if (isAirImminent && counts['flak'] < flakNeeded) {
+        if (counts['flak'] < flakNeeded) {
+            // Always maintain flak coverage — it's cheap and critical
             targetType = 'flak';
         } else if (!isAirImminent && counts['laser'] < Math.max(1, Math.floor(this.wave / 8))) {
             // Always want at least one laser for slow synergy
@@ -159,7 +161,7 @@ class Game {
         // Prefer building until we have decent coverage, then mix in upgrades
         // If flak is urgently needed, always try to build
         let totalTowers = this.towers.length;
-        let preferBuild = (isAirImminent && counts['flak'] < flakNeeded) ||
+        let preferBuild = (counts['flak'] < flakNeeded) ||
             totalTowers < 4 ||
             (totalTowers < 10 && Math.random() < 0.7) ||
             Math.random() < 0.5;
