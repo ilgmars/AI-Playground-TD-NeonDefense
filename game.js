@@ -55,26 +55,26 @@ class Game {
         }
         
         // Investment-based scaling: enemies scale with player power
-        // Every 1500¢ spent = +1.0x difficulty (was 2000, now scales faster)
-        let investmentFactor = 1 + (totalTowerValue / 1500);
+        // Every 2000¢ spent = +1.0x difficulty (gentler scaling for early game)
+        let investmentFactor = 1 + (totalTowerValue / 2000);
 
         // Wave-based scaling with MUCH gentler curves
         let baseExpFactor;
         if (this.wave <= 5) {
             // Waves 1-5: Very gentle for new players
-            baseExpFactor = 0.8 + this.wave * 0.15; // 0.95, 1.1, 1.25, 1.4, 1.55
+            baseExpFactor = 0.7 + this.wave * 0.12; // 0.82, 0.94, 1.06, 1.18, 1.30
         } else if (this.wave <= 10) {
             // Waves 6-10: Gentle transition period
-            baseExpFactor = 1.55 * Math.pow(1.06, this.wave - 5); // ~1.55 to ~2.07
+            baseExpFactor = 1.30 * Math.pow(1.05, this.wave - 5); // ~1.30 to ~1.66
         } else if (this.wave <= 20) {
             // Waves 11-20: Moderate exponential growth
-            baseExpFactor = 2.07 * Math.pow(1.08, this.wave - 10); // ~2.07 to ~4.47
+            baseExpFactor = 1.66 * Math.pow(1.08, this.wave - 10); // ~1.66 to ~3.58
         } else {
             // Waves 21+: Capped logarithmic growth for infinite scaling
             // HP grows slowly, count grows instead
             let cap = 5.0; // Maximum base multiplier
             let lateWaves = this.wave - 20;
-            baseExpFactor = Math.min(cap, 4.47 + Math.log(1 + lateWaves) * 0.3);
+            baseExpFactor = Math.min(cap, 3.58 + Math.log(1 + lateWaves) * 0.3);
         }
 
         // Final HP = base wave difficulty × player investment
@@ -83,14 +83,14 @@ class Game {
 
         if (this.wave > 0 && this.wave % 5 === 0) {
             // Air waves: more enemies, slightly tankier
-            let airCount = 15 + this.wave * 0.6; // Slower count growth
+            let airCount = 12 + this.wave * 0.5; // Slower count growth, fewer enemies
             if (this.wave > 20) airCount += Math.log(this.wave - 19) * 8; // Log scaling after wave 20
             
             this.currentWaveDef = {
                 count: Math.floor(airCount),
                 type: 'air',
                 spawnRate: Math.max(18, 35 - Math.floor(this.wave / 8)),
-                hpMult: finalHpMult * 1.2 // Air slightly tankier
+                hpMult: finalHpMult * 1.1 // Air slightly tankier (reduced from 1.2)
             };
             this.enemiesSpawned = 0;
             this.spawnTimer = 60;
@@ -168,7 +168,7 @@ class Game {
 
         let wanted = {
             basic:    Math.max(3, Math.ceil(w / 5)),
-            flak:     w >= 3  ? Math.max(2, Math.min(6, 2 + Math.floor(w / 6))) : 0,
+            flak:     w >= 3  ? Math.max(1, Math.min(3, 1 + Math.floor(w / 12))) : 0,
             rapid:    w >= 2  ? Math.ceil(w / 6)   : 0,
             laser:    w >= 3  ? Math.min(4, Math.ceil(w / 8)) : 0,
             sniper:   w >= 5  ? Math.ceil(w / 7)   : 0,
@@ -181,9 +181,9 @@ class Game {
         let totalTowers = this.towers.length;
         let totalWanted = Object.values(wanted).reduce((a, b) => a + b, 0);
 
-        // Force flak building - must have at least 2 flak by wave 5
+        // Force flak building - but only 1-3 flak towers max
         let needFlak  = w >= 3 && counts['flak'] < wanted['flak'];
-        let urgentFlak = w >= 4 && counts['flak'] === 0; // MUST build flak by wave 4
+        let urgentFlak = w >= 4 && w <= 5 && counts['flak'] === 0; // MUST build at least 1 flak before wave 5
         let needLaser = w >= 3 && counts['laser'] === 0;
 
         // Pick build target - prioritize building all tower types evenly
@@ -300,10 +300,35 @@ class Game {
         }
 
         // Upgrade — spread evenly, flak/laser priority when air coming
-        // BUT: Don't upgrade if we urgently need flak and don't have enough money
+        // BUT: Don't upgrade if we need to save for an important tower
+        let savingForTower = null;
+        let savingCost = 0;
+        
+        // Check if we should save money for a specific tower
         if (urgentFlak && this.money < costs['flak']) {
-            console.log(`Wave ${w}: Skipping upgrades to save for flak (need ${costs['flak']}, have ${this.money})`);
-            // Skip upgrades, save money for flak
+            savingForTower = 'flak';
+            savingCost = costs['flak'];
+        } else if (needFlak && counts['flak'] < 1 && this.money < costs['flak']) {
+            savingForTower = 'flak';
+            savingCost = costs['flak'];
+        } else if (needLaser && this.money < costs['laser']) {
+            savingForTower = 'laser';
+            savingCost = costs['laser'];
+        } else if (targetType && counts[targetType] < wanted[targetType] && this.money < costs[targetType]) {
+            // Save for the target tower if we're significantly behind
+            let deficit = wanted[targetType] - counts[targetType];
+            if (deficit >= 2 || (deficit >= 1 && totalTowers < 8)) {
+                savingForTower = targetType;
+                savingCost = costs[targetType];
+            }
+        }
+        
+        if (savingForTower) {
+            console.log(`Wave ${w}: Saving for ${savingForTower} (need ${savingCost}, have ${this.money})`);
+        }
+
+        if (savingForTower) {
+            // Skip upgrades to save money
         } else {
             const upgradeValue = { silo: 10, rocket: 9, sniper: 8, electric: 7, laser: 6, flak: 5, rapid: 4, basic: 3, income: 2 };
             let upgradableTowers = [];
@@ -327,24 +352,18 @@ class Game {
                     return (upgradeValue[b.t.type] || 0) - (upgradeValue[a.t.type] || 0);
                 });
                 let pick = upgradableTowers[0];
-                
-                // Don't upgrade if we need to save for flak
-                if (needFlak && this.money - pick.cost < costs['flak']) {
-                    console.log(`Wave ${w}: Skipping upgrade to save for flak`);
-                } else {
-                    this.money -= pick.cost;
-                    pick.t.upgrade(pick.i);
-                    this.addUpgradeEffect(pick.t.x, pick.t.y);
-                    this.uiDirty = true;
-                }
+                this.money -= pick.cost;
+                pick.t.upgrade(pick.i);
+                this.addUpgradeEffect(pick.t.x, pick.t.y);
+                this.uiDirty = true;
             }
         }
 
         let potionCost = this.getPotionCost();
         if (this.health <= 3 && this.money >= potionCost && this.health < this.maxHealth) {
-            // Don't buy potion if we need to save for flak
-            if ((urgentFlak || needFlak) && this.money - potionCost < costs['flak']) {
-                console.log(`Wave ${w}: Skipping potion to save for flak`);
+            // Don't buy potion if we need to save for a tower
+            if (savingForTower && this.money - potionCost < savingCost) {
+                console.log(`Wave ${w}: Skipping potion to save for ${savingForTower}`);
             } else {
                 this.buyPotion();
             }
