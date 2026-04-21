@@ -79,9 +79,47 @@ function init() {
         }
     });
 
+    let speedClickCount = 0;
+    let speedClickTimer = null;
+    let ultraSpeedUnlocked = false;
+
     document.getElementById('speed-btn').addEventListener('click', () => {
-        gameSpeed *= 2;
-        if (gameSpeed > 16) gameSpeed = 1;
+        speedClickCount++;
+        
+        // Reset counter after 2 seconds of no clicks
+        clearTimeout(speedClickTimer);
+        speedClickTimer = setTimeout(() => {
+            speedClickCount = 0;
+        }, 2000);
+        
+        // Easter egg: unlock x256 mode after 15 clicks
+        if (speedClickCount >= 15 && !ultraSpeedUnlocked) {
+            ultraSpeedUnlocked = true;
+            speedClickCount = 0;
+            
+            // Visual feedback
+            const speedDisplay = document.getElementById('speed-display');
+            const originalColor = speedDisplay.style.color;
+            speedDisplay.style.color = '#fbbf24';
+            speedDisplay.style.textShadow = '0 0 20px rgba(251, 191, 36, 0.8)';
+            speedDisplay.textContent = 'ULTRA!';
+            
+            setTimeout(() => {
+                speedDisplay.style.color = originalColor;
+                speedDisplay.style.textShadow = '';
+                speedDisplay.textContent = gameSpeed + 'X';
+            }, 1500);
+        }
+        
+        // Normal speed cycling
+        if (ultraSpeedUnlocked) {
+            gameSpeed *= 2;
+            if (gameSpeed > 256) gameSpeed = 1;
+        } else {
+            gameSpeed *= 2;
+            if (gameSpeed > 16) gameSpeed = 1;
+        }
+        
         document.getElementById('speed-display').textContent = gameSpeed + 'X';
     });
     document.getElementById('pause-btn').addEventListener('click', () => {

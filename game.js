@@ -68,15 +68,15 @@ class Game {
             baseExpFactor = 1.30 * Math.pow(1.05, this.wave - 5); // ~1.30 to ~1.66
         } else if (this.wave <= 20) {
             // Waves 11-20: Moderate exponential growth
-            baseExpFactor = 1.66 * Math.pow(1.06, this.wave - 10); // ~1.66 to ~2.97 (reduced from 1.07)
-        } else if (this.wave <= 35) {
-            // Waves 21-35: Very smooth transition to late game
-            baseExpFactor = 2.97 * Math.pow(1.03, this.wave - 20); // ~2.97 to ~4.82 (reduced from 1.04)
+            baseExpFactor = 1.66 * Math.pow(1.06, this.wave - 10); // ~1.66 to ~2.97
+        } else if (this.wave <= 40) {
+            // Waves 21-40: Very smooth transition to late game
+            baseExpFactor = 2.97 * Math.pow(1.025, this.wave - 20); // ~2.97 to ~4.82
         } else {
-            // Waves 36+: Capped logarithmic growth for infinite scaling
-            let cap = 6.5; // Maximum base multiplier
-            let lateWaves = this.wave - 35;
-            baseExpFactor = Math.min(cap, 4.82 + Math.log(1 + lateWaves) * 0.25);
+            // Waves 41+: Endless mode - slow logarithmic growth
+            // Keeps game challenging but not impossible
+            let lateWaves = this.wave - 40;
+            baseExpFactor = 4.82 + Math.log(1 + lateWaves) * 0.15; // Slow, steady growth
         }
 
         // Final HP = base wave difficulty × player investment
@@ -85,18 +85,19 @@ class Game {
 
         if (this.wave > 0 && this.wave % 5 === 0) {
             // Air waves: more enemies, slightly tankier
-            let airCount = 12 + this.wave * 0.45; // Reduced from 0.5
-            if (this.wave > 20 && this.wave <= 35) {
-                airCount += Math.log(this.wave - 19) * 3; // Very gentle air scaling 21-35
-            } else if (this.wave > 35) {
-                airCount += Math.log(16) * 3 + Math.log(this.wave - 34) * 6; // More aggressive after 35
+            let airCount = 12 + this.wave * 0.45;
+            if (this.wave > 20 && this.wave <= 40) {
+                airCount += Math.log(this.wave - 19) * 2.5; // Very gentle air scaling 21-40
+            } else if (this.wave > 40) {
+                // Endless mode: air count grows moderately
+                airCount += Math.log(21) * 2.5 + Math.log(this.wave - 39) * 3.5;
             }
             
             this.currentWaveDef = {
                 count: Math.floor(airCount),
                 type: 'air',
                 spawnRate: Math.max(18, 35 - Math.floor(this.wave / 8)),
-                hpMult: finalHpMult * 1.08 // Reduced from 1.1
+                hpMult: finalHpMult * 1.08
             };
             this.enemiesSpawned = 0;
             this.spawnTimer = 60;
@@ -108,12 +109,13 @@ class Game {
 
         let loops = Math.floor((this.wave - 1) / this.waveData.length);
         
-        // Count scaling: very gentle growth in mid-game
-        let countMult = 1 + loops * 0.15; // Reduced from 0.2
-        if (this.wave > 20 && this.wave <= 35) {
-            countMult += Math.log(this.wave - 19) * 0.15; // Very gentle count scaling waves 21-35
-        } else if (this.wave > 35) {
-            countMult += Math.log(16) * 0.15 + Math.log(this.wave - 34) * 0.3; // More aggressive after 35
+        // Count scaling: very gentle growth for endless mode
+        let countMult = 1 + loops * 0.15;
+        if (this.wave > 20 && this.wave <= 40) {
+            countMult += Math.log(this.wave - 19) * 0.12; // Very gentle count scaling waves 21-40
+        } else if (this.wave > 40) {
+            // Endless mode: count grows slowly to keep game interesting
+            countMult += Math.log(21) * 0.12 + Math.log(this.wave - 39) * 0.18;
         }
 
         this.currentWaveDef = {
@@ -170,15 +172,15 @@ class Game {
         const ranges = { basic: 100, sniper: 250, rapid: 80, laser: 150, rocket: 200, flak: 250, electric: 120, silo: 100, income: 0 };
 
         let wanted = {
-            basic:    Math.max(3, Math.ceil(w / 5)),
-            flak:     w >= 4  ? Math.max(1, Math.min(3, 1 + Math.floor(w / 12))) : 0,
-            rapid:    w >= 2  ? Math.ceil(w / 6)   : 0,
-            laser:    w >= 3  ? Math.min(4, Math.ceil(w / 8)) : 0,
-            sniper:   w >= 5  ? Math.ceil(w / 7)   : 0,
-            rocket:   w >= 6  ? Math.ceil(w / 8)   : 0,
-            electric: w >= 8  ? Math.ceil(w / 10)  : 0,
-            silo:     w >= 12 ? Math.ceil(w / 12)  : 0,
-            income:   w >= 10 ? Math.floor(w / 10) : 0,
+            basic:    Math.max(3, Math.ceil(w / 4.5)),
+            flak:     w >= 4  ? Math.max(1, Math.min(5, 1 + Math.floor(w / 10))) : 0,
+            rapid:    w >= 2  ? Math.ceil(w / 5.5)   : 0,
+            laser:    w >= 3  ? Math.min(6, Math.ceil(w / 7)) : 0,
+            sniper:   w >= 5  ? Math.ceil(w / 6.5)   : 0,
+            rocket:   w >= 6  ? Math.ceil(w / 7)   : 0,
+            electric: w >= 8  ? Math.ceil(w / 9)  : 0,
+            silo:     w >= 12 ? Math.ceil(w / 10)  : 0,
+            income:   w >= 10 ? Math.floor(w / 9) : 0,
         };
 
         let totalTowers = this.towers.length;
@@ -210,8 +212,8 @@ class Game {
         }
 
         let mustBuild = totalTowers < 5 || urgentFlak || needFlak || needLaser ||
-                        totalTowers < Math.floor(totalWanted * 0.7);
-        let buildChance = w < 10 ? 0.8 : w < 20 ? 0.65 : 0.5;
+                        totalTowers < Math.floor(totalWanted * 0.75);
+        let buildChance = w < 10 ? 0.8 : w < 20 ? 0.65 : w < 40 ? 0.55 : 0.6;
         let preferBuild = mustBuild || totalTowers < totalWanted || Math.random() < buildChance;
 
         if (preferBuild && spots.length > 0) {
