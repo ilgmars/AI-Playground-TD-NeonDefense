@@ -68,15 +68,15 @@ class Game {
             baseExpFactor = 1.30 * Math.pow(1.05, this.wave - 5); // ~1.30 to ~1.66
         } else if (this.wave <= 20) {
             // Waves 11-20: Moderate exponential growth
-            baseExpFactor = 1.66 * Math.pow(1.07, this.wave - 10); // ~1.66 to ~3.26 (reduced from 1.08)
-        } else if (this.wave <= 30) {
-            // Waves 21-30: Smooth transition to late game
-            baseExpFactor = 3.26 * Math.pow(1.04, this.wave - 20); // ~3.26 to ~4.84
+            baseExpFactor = 1.66 * Math.pow(1.06, this.wave - 10); // ~1.66 to ~2.97 (reduced from 1.07)
+        } else if (this.wave <= 35) {
+            // Waves 21-35: Very smooth transition to late game
+            baseExpFactor = 2.97 * Math.pow(1.03, this.wave - 20); // ~2.97 to ~4.82 (reduced from 1.04)
         } else {
-            // Waves 31+: Capped logarithmic growth for infinite scaling
-            let cap = 6.0; // Maximum base multiplier
-            let lateWaves = this.wave - 30;
-            baseExpFactor = Math.min(cap, 4.84 + Math.log(1 + lateWaves) * 0.25);
+            // Waves 36+: Capped logarithmic growth for infinite scaling
+            let cap = 6.5; // Maximum base multiplier
+            let lateWaves = this.wave - 35;
+            baseExpFactor = Math.min(cap, 4.82 + Math.log(1 + lateWaves) * 0.25);
         }
 
         // Final HP = base wave difficulty × player investment
@@ -85,18 +85,18 @@ class Game {
 
         if (this.wave > 0 && this.wave % 5 === 0) {
             // Air waves: more enemies, slightly tankier
-            let airCount = 12 + this.wave * 0.5; // Slower count growth, fewer enemies
-            if (this.wave > 20 && this.wave <= 30) {
-                airCount += Math.log(this.wave - 19) * 5; // Gentler air scaling 21-30
-            } else if (this.wave > 30) {
-                airCount += Math.log(11) * 5 + Math.log(this.wave - 29) * 7; // More aggressive after 30
+            let airCount = 12 + this.wave * 0.45; // Reduced from 0.5
+            if (this.wave > 20 && this.wave <= 35) {
+                airCount += Math.log(this.wave - 19) * 3; // Very gentle air scaling 21-35
+            } else if (this.wave > 35) {
+                airCount += Math.log(16) * 3 + Math.log(this.wave - 34) * 6; // More aggressive after 35
             }
             
             this.currentWaveDef = {
                 count: Math.floor(airCount),
                 type: 'air',
                 spawnRate: Math.max(18, 35 - Math.floor(this.wave / 8)),
-                hpMult: finalHpMult * 1.1 // Air slightly tankier (reduced from 1.2)
+                hpMult: finalHpMult * 1.08 // Reduced from 1.1
             };
             this.enemiesSpawned = 0;
             this.spawnTimer = 60;
@@ -108,12 +108,12 @@ class Game {
 
         let loops = Math.floor((this.wave - 1) / this.waveData.length);
         
-        // Count scaling: after wave 20, grow count more gradually
-        let countMult = 1 + loops * 0.2;
-        if (this.wave > 20 && this.wave <= 30) {
-            countMult += Math.log(this.wave - 19) * 0.25; // Gentler count scaling waves 21-30
-        } else if (this.wave > 30) {
-            countMult += Math.log(11) * 0.25 + Math.log(this.wave - 29) * 0.35; // More aggressive after 30
+        // Count scaling: very gentle growth in mid-game
+        let countMult = 1 + loops * 0.15; // Reduced from 0.2
+        if (this.wave > 20 && this.wave <= 35) {
+            countMult += Math.log(this.wave - 19) * 0.15; // Very gentle count scaling waves 21-35
+        } else if (this.wave > 35) {
+            countMult += Math.log(16) * 0.15 + Math.log(this.wave - 34) * 0.3; // More aggressive after 35
         }
 
         this.currentWaveDef = {
