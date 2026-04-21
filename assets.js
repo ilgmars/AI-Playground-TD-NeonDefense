@@ -148,7 +148,7 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
     // Turret rotation
     ctx.rotate(angle);
 
-    let color = type === 'sniper' ? '#f472b6' : type === 'rapid' ? '#a3e635' : type === 'laser' ? '#8b5cf6' : type === 'rocket' ? '#f97316' : type === 'electric' ? '#0ea5e9' : type === 'flak' ? '#60a5fa' : type === 'silo' ? '#ef4444' : '#38bdf8';
+    let color = type === 'sniper' ? '#f472b6' : type === 'rapid' ? '#a3e635' : type === 'laser' ? '#8b5cf6' : type === 'rocket' ? '#f97316' : type === 'electric' ? '#0ea5e9' : type === 'flak' ? '#60a5fa' : type === 'silo' ? '#ef4444' : type === 'income' ? '#fbbf24' : '#38bdf8';
     
     ctx.shadowColor = color;
     ctx.shadowBlur = 8;
@@ -241,6 +241,23 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
             ctx.arc(Math.cos(a) * size/6, Math.sin(a) * size/6, 2, 0, Math.PI*2);
             ctx.fill();
         }
+    } else if (type === 'income') {
+        ctx.rotate(-angle); // static, no rotation
+        // Diamond shape
+        ctx.beginPath();
+        ctx.moveTo(0, -size/2.5);
+        ctx.lineTo(size/2.5, 0);
+        ctx.lineTo(0, size/2.5);
+        ctx.lineTo(-size/2.5, 0);
+        ctx.closePath();
+        ctx.stroke();
+        // ¢ symbol inside
+        ctx.fillStyle = color;
+        ctx.font = `bold ${Math.floor(size/2.5)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowBlur = 0;
+        ctx.fillText('¢', 0, 1);
     }
     
     ctx.restore();

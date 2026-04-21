@@ -265,7 +265,7 @@ function init() {
     let lastClickedR = -1;
 
     canvas.addEventListener('pointerdown', (e) => {
-        if (game.state !== 'playing') return;
+        if (game.state !== 'playing' && game.state !== 'paused') return;
 
         // Close menus when clicking on canvas
         document.getElementById('upgrade-menu').classList.add('hidden');
@@ -316,7 +316,7 @@ function init() {
         }
         game.draw();
 
-        if (game.state === 'playing' && selectedTowerType) {
+        if ((game.state === 'playing' || game.state === 'paused') && selectedTowerType) {
             const c = Math.floor(mousePos.x / TILE_SIZE);
             const r = Math.floor(mousePos.y / TILE_SIZE);
             
@@ -325,7 +325,7 @@ function init() {
             const py = r * TILE_SIZE;
 
             if (game.map.isBuildable(c, r)) {
-                const ranges = { basic: 100, sniper: 250, rapid: 80, laser: 150, rocket: 200, electric: 120, silo: 100 };
+                const ranges = { basic: 100, sniper: 250, rapid: 80, laser: 150, rocket: 200, electric: 120, silo: 100, income: 0 };
                 ctx.beginPath();
                 ctx.arc(px + TILE_SIZE/2, py + TILE_SIZE/2, ranges[selectedTowerType], 0, Math.PI*2);
                 ctx.fillStyle = 'rgba(56, 189, 248, 0.1)';
@@ -347,8 +347,13 @@ function init() {
     requestAnimationFrame(loop);
 }
 
+window.buyPotion = function() {
+    if (game.state !== 'playing' && game.state !== 'paused') return;
+    game.buyPotion();
+}
+
 window.selectTower = function(type) {
-    if (game.state !== 'playing') return;
+    if (game.state !== 'playing' && game.state !== 'paused') return;
     
     document.querySelectorAll('.tower-option').forEach(el => el.classList.remove('selected'));
     

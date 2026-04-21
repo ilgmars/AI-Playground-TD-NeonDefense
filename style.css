@@ -189,6 +189,8 @@ canvas {
 .flak-icon { border-color: #60a5fa; background: #1e3a8a; clip-path: polygon(20% 100%, 80% 100%, 100% 50%, 80% 0%, 20% 0%, 0% 50%); border-radius: 0; border: none; }
 .electric-icon { border-color: #0ea5e9; background: #0284c7; border-radius: 50%; outline: 2px dashed #38bdf8; outline-offset: -4px; }
 .silo-icon { border-color: #ef4444; background: #991b1b; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); border-radius: 0; border: none; }
+.income-icon { border-color: #fbbf24; background: #92400e; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); border-radius: 0; border: none; }
+.potion-icon { border-color: #4ade80; background: #166534; border-radius: 50% 50% 40% 40%; }
 
 .tower-info {
     display: flex;

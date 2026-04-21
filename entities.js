@@ -38,6 +38,11 @@ const TOWER_UPGRADES = {
         { name: 'Warhead', desc: 'More hover rocket dmg', baseCost: 300, costMult: 1.6, apply: (t) => { t.damage += 30; } },
         { name: 'Capacity', desc: 'More max hovering rockets', baseCost: 400, costMult: 2.0, apply: (t) => { t.maxHover = (t.maxHover || 3) + 1; } },
         { name: 'Assembly', desc: 'Builds rockets faster', baseCost: 250, costMult: 1.5, apply: (t) => { t.fireRate = Math.max(30, Math.floor(t.fireRate * 0.8)); } }
+    ],
+    income: [
+        { name: 'Efficiency', desc: '+10¢ per wave', baseCost: 150, costMult: 1.6, apply: (t) => { t.incomePerWave += 10; } },
+        { name: 'Overcharge', desc: '+15¢ per wave', baseCost: 250, costMult: 1.8, apply: (t) => { t.incomePerWave += 15; } },
+        { name: 'Network', desc: '+5¢ per other Relay', baseCost: 200, costMult: 1.5, apply: (t) => { t.networkBonus = (t.networkBonus || 0) + 1; } }
     ]
 };
 
@@ -237,6 +242,12 @@ class Tower {
             this.fireRate = 80;
             this.hoverRockets = [];
             this.maxHover = 4;
+        } else if (type === 'income') {
+            this.baseCost = 200;
+            this.range = 0;
+            this.damage = 0;
+            this.fireRate = 0;
+            this.incomePerWave = 20;
         }
         
         this.totalSpent = this.baseCost;
@@ -263,6 +274,7 @@ class Tower {
     }
 
     update(enemies, projectiles, particles) {
+        if (this.type === 'income') return; // passive tower, no combat logic
         if (this.cooldown > 0) this.cooldown--;
 
         if (this.type === 'silo') {
@@ -328,7 +340,7 @@ class Tower {
                 }
 
                 if (this.type === 'flak' && enemy.isAir) score += 1000000; // Flak strictly prioritizes Air
-                if (this.type !== 'flak' && enemy.isAir) score -= 1000000; // Normal towers strictly prioritize Ground
+                if (this.type !== 'flak' && enemy.isAir) score -= 500; // Normal towers prefer ground but can target air
                 
                 // Laser should prefer enemies NOT already slowed by another laser
                 if (this.type === 'laser' && enemy.currentSlow < 1) {

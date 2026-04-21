@@ -12,12 +12,14 @@ class Game {
         
         this.money = 100;
         this.health = 20;
+        this.maxHealth = 20;
         this.wave = 1;
         this.selectedTower = null;
         this.autopilot = false;
         this.autopilotTimer = 0;
         this.state = 'start'; 
         this.uiDirty = false;
+        this.potionCount = 0; // tracks purchases for scaling cost
         
         this.waveData = [
             { count: 10, type: 'normal', spawnRate: 60, hpMult: 1 },
@@ -114,121 +116,141 @@ class Game {
             }
         }
 
-        const options = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'flak', 'electric', 'silo'];
-        const generalOptions = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'electric', 'silo'];
-        const costs = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400 };
-        const ranges = { basic: 100, sniper: 250, rapid: 80, laser: 150, rocket: 200, flak: 200, electric: 120, silo: 100 };
-        
-        let isAirImminent = (this.wave % 5 === 4) || (this.waveCooldown > 0 && (this.wave + 1) % 5 === 0) || (this.currentWaveDef && this.currentWaveDef.type === 'air');
-        
+        const costs = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400, income: 200 };
+        const ranges = { basic: 100, sniper: 250, rapid: 80, laser: 150, rocket: 200, flak: 200, electric: 120, silo: 100, income: 0 };
+
+        // Air wave is every wave % 5 === 0; prepare one wave ahead
+        let isAirImminent = (this.wave % 5 === 0) ||
+            (this.wave % 5 === 4) ||
+            (this.waveCooldown > 0 && (this.wave + 1) % 5 === 0) ||
+            (this.currentWaveDef && this.currentWaveDef.type === 'air');
+
+        // How many flak we need scales with wave
+        let flakNeeded = Math.max(1, Math.floor(this.wave / 4));
+
+        // Build priority list — ordered by strategic value
+        // Early game: get a laser + some basics fast, then diversify
         let targetType;
-        if (isAirImminent && counts['flak'] < Math.floor(this.wave / 6) + 1) {
+        if (isAirImminent && counts['flak'] < flakNeeded) {
             targetType = 'flak';
+        } else if (!isAirImminent && counts['laser'] < Math.max(1, Math.floor(this.wave / 8))) {
+            // Always want at least one laser for slow synergy
+            targetType = 'laser';
+        } else if (this.wave >= 4 && counts['sniper'] < Math.max(1, Math.floor(this.wave / 6))) {
+            targetType = 'sniper';
+        } else if (this.wave >= 6 && counts['rocket'] < Math.max(1, Math.floor(this.wave / 7))) {
+            targetType = 'rocket';
+        } else if (this.wave >= 8 && counts['electric'] < Math.max(1, Math.floor(this.wave / 8))) {
+            targetType = 'electric';
+        } else if (this.wave >= 12 && counts['silo'] < Math.max(1, Math.floor(this.wave / 12))) {
+            targetType = 'silo';
+        } else if (counts['income'] < Math.floor(this.wave / 5)) {
+            // One income tower every 5 waves — pays off over time
+            targetType = 'income';
         } else {
-            let minCount = Math.min(...generalOptions.map(t => counts[t]));
-            let neededTypes = generalOptions.filter(t => counts[t] === minCount);
-            neededTypes.sort((a, b) => costs[a] - costs[b]); 
-            let pool = neededTypes.slice(0, 3);
+            // Fill with basics and rapids to maintain DPS
+            let cheapOptions = ['basic', 'rapid', 'sniper'];
+            let minCount = Math.min(...cheapOptions.map(t => counts[t]));
+            let pool = cheapOptions.filter(t => counts[t] === minCount);
             targetType = pool[Math.floor(Math.random() * pool.length)];
         }
-        
-        let preferBuild = this.towers.length < 5 || Math.random() < 0.6;
+
+        // Decide: build new tower or upgrade existing?
+        // Prefer building until we have decent coverage, then mix in upgrades
+        // If flak is urgently needed, always try to build
+        let totalTowers = this.towers.length;
+        let preferBuild = (isAirImminent && counts['flak'] < flakNeeded) ||
+            totalTowers < 4 ||
+            (totalTowers < 10 && Math.random() < 0.7) ||
+            Math.random() < 0.5;
 
         if (preferBuild && spots.length > 0) {
             if (this.money >= costs[targetType]) {
                 let bestSpot = null;
                 let bestScore = -999;
-                
-                // Count nearby laser towers for synergy bonuses
+
                 let laserTowers = this.towers.filter(t => t.type === 'laser');
-                
+
                 for (let spot of spots) {
                     let score = Math.random() * 2;
-                    
-                    // Calculate path coverage - how many path cells can this tower cover?
+
+                    // Path coverage score
                     let pathCoverage = 0;
                     const range = ranges[targetType];
-                    for (let r = 0; r < ROWS; r++) {
-                        for (let c = 0; c < COLS; c++) {
-                            let cell = this.map.grid[r][c];
+                    for (let pr = 0; pr < ROWS; pr++) {
+                        for (let pc = 0; pc < COLS; pc++) {
+                            let cell = this.map.grid[pr][pc];
                             if (cell === 1 || cell === 2 || cell === 3) {
-                                let dist = Math.hypot(c - spot.c, r - spot.r) * TILE_SIZE;
-                                if (dist <= range) {
-                                    pathCoverage++;
-                                }
+                                let dist = Math.hypot(pc - spot.c, pr - spot.r) * TILE_SIZE;
+                                if (dist <= range) pathCoverage++;
                             }
                         }
                     }
-                    
-                    // Base: prefer spots with better path coverage
                     score += pathCoverage * 0.5;
-                    
+
                     if (targetType === 'flak') {
-                        // AA: prefer central positioning for maximum air coverage + path adjacency
                         let distToCenter = Math.abs(spot.c - COLS/2) + Math.abs(spot.r - ROWS/2);
                         score -= distToCenter * 0.3;
-                        score += pathCoverage * 0.3; // Still want some path presence
+                        score += pathCoverage * 0.3;
                     } else if (targetType === 'rapid' || targetType === 'basic') {
-                        // Close-range: maximize path neighbors
                         score += spot.orthoNeighbors * 5 + spot.pathNeighbors * 2;
                     } else if (targetType === 'sniper') {
-                        // Long-range: prefer edges, less path neighbor focused
-                        let distToCenter = Math.abs(spot.c - COLS/2) + Math.abs(spot.r - ROWS/2);
                         score -= spot.orthoNeighbors * 5;
-                        score += (distToCenter * 0.3); // Slight preference for edges
                         score += pathCoverage * 0.3;
                     } else if (targetType === 'rocket') {
-                        // Splash damage: prefer middle positions with good coverage
                         let distToCenter = Math.abs(spot.c - COLS/2) + Math.abs(spot.r - ROWS/2);
                         score -= distToCenter * 0.5;
                         score -= spot.orthoNeighbors * 2;
                         score += pathCoverage * 0.4;
                     } else if (targetType === 'laser' || targetType === 'electric') {
-                        // Slow/chain: medium range, near path
                         score += spot.orthoNeighbors * 2;
                         score += pathCoverage * 0.4;
                     } else if (targetType === 'silo') {
-                        // Stationary: prefer central for coverage
                         let distToCenter = Math.abs(spot.c - COLS/2) + Math.abs(spot.r - ROWS/2);
                         score -= distToCenter * 0.5;
                         score += pathCoverage * 0.3;
                     }
-                    
-                    // Synergy bonus: non-AA towers near lasers are better (enemies slowed = easier to hit)
+
+                    // Synergy: near a laser = slowed enemies = more DPS
                     if (targetType !== 'flak' && laserTowers.length > 0) {
-                        let nearLaser = false;
                         for (let laser of laserTowers) {
                             let dist = Math.hypot(laser.c - spot.c, laser.r - spot.r);
-                            if (dist <= 4) { // Within 4 tiles
-                                nearLaser = true;
-                                break;
-                            }
+                            if (dist <= 4) { score += 100; break; }
                         }
-                        if (nearLaser) score += 100; // Strong bonus for synergy
                     }
-                    
+
                     if (score > bestScore) {
                         bestScore = score;
                         bestSpot = spot;
                     }
                 }
-                
+
                 if (bestSpot) {
                     this.buildTower(bestSpot.c, bestSpot.r, targetType);
                     return;
                 }
             } else {
-                if (this.towers.length < 3) {
-                    let affordable = options.filter(t => this.money >= costs[t]).sort((a,b) => costs[b] - costs[a]);
+                // Can't afford target — buy the best thing we can afford right now
+                // unless we're close to affording the target (within 30%), save up
+                let savingThreshold = costs[targetType] * 0.7;
+                if (this.money < savingThreshold) {
+                    let affordable = ['basic', 'rapid', 'laser', 'sniper', 'flak', 'rocket', 'electric', 'silo']
+                        .filter(t => this.money >= costs[t])
+                        .sort((a, b) => costs[b] - costs[a]);
                     if (affordable.length > 0 && spots.length > 0) {
-                        this.buildTower(spots[0].c, spots[0].r, affordable[0]);
+                        // Only buy cheap filler if we really need more towers
+                        if (totalTowers < 3 || (totalTowers < 6 && this.wave < 5)) {
+                            let bestSpot = spots.reduce((best, s) =>
+                                (s.orthoNeighbors > best.orthoNeighbors ? s : best), spots[0]);
+                            this.buildTower(bestSpot.c, bestSpot.r, affordable[0]);
+                        }
                     }
                 }
                 return;
             }
         }
 
-        // Upgrade logic based on 3 paths
+        // Upgrade logic — prioritize high-value towers, upgrade evenly across paths
         let upgradableTowers = [];
         for (let t of this.towers) {
             for (let i = 0; i < 3; i++) {
@@ -238,26 +260,35 @@ class Game {
                 }
             }
         }
-        
+
         if (upgradableTowers.length > 0) {
+            // Tower value weights — higher = upgrade sooner
+            const upgradeValue = { silo: 10, sniper: 9, rocket: 8, electric: 7, laser: 6, flak: 5, rapid: 4, basic: 3, income: 2 };
+
             upgradableTowers.sort((a, b) => {
+                // During air waves, flak upgrades are top priority
                 if (isAirImminent) {
                     if (a.t.type === 'flak' && b.t.type !== 'flak') return -1;
                     if (b.t.type === 'flak' && a.t.type !== 'flak') return 1;
-                } else {
-                    if (a.t.type === 'flak' && b.t.type !== 'flak') return 1;
-                    if (b.t.type === 'flak' && a.t.type !== 'flak') return -1;
                 }
-                let lvlA = a.t.upgrades[a.i];
-                let lvlB = b.t.upgrades[b.i];
-                if (lvlA !== lvlB) return lvlA - lvlB;
-                return b.t.baseCost - a.t.baseCost; 
+                // Prefer lower upgrade level (spread upgrades evenly)
+                let lvlDiff = a.t.upgrades[a.i] - b.t.upgrades[b.i];
+                if (lvlDiff !== 0) return lvlDiff;
+                // Then prefer higher-value tower types
+                return (upgradeValue[b.t.type] || 0) - (upgradeValue[a.t.type] || 0);
             });
+
             let target = upgradableTowers[0];
             this.money -= target.cost;
             target.t.upgrade(target.i);
             this.addUpgradeEffect(target.t.x, target.t.y);
             this.uiDirty = true;
+        }
+
+        // Buy a potion if health is critical and we can spare the credits
+        let potionCost = this.getPotionCost();
+        if (this.health <= 5 && this.money >= potionCost && this.health < this.maxHealth) {
+            this.buyPotion();
         }
     }
 
@@ -303,7 +334,14 @@ class Game {
                 if (aliveEnemies.length === 0) {
                     this.currentWaveDef = null;
                     this.waveCooldown = ((this.wave + 1) % 5 === 0) ? 300 : 180; 
-                    this.money += 20 + this.wave * 5; 
+                    this.money += 20 + this.wave * 5;
+                    // Income tower payout
+                    let incomeTowers = this.towers.filter(t => t.type === 'income');
+                    let relayCount = incomeTowers.length;
+                    for (let t of incomeTowers) {
+                        let bonus = t.incomePerWave + (t.networkBonus || 0) * 5 * (relayCount - 1);
+                        this.money += bonus;
+                    }
                     
                     if ((this.wave + 1) % 5 === 0) {
                         SoundFX.siren();
@@ -430,8 +468,24 @@ class Game {
         }
     }
 
+    getPotionCost() {
+        return 150 + this.potionCount * 75;
+    }
+
+    buyPotion() {
+        let cost = this.getPotionCost();
+        if (this.money < cost) { SoundFX.error(); return false; }
+        if (this.health >= this.maxHealth) { SoundFX.error(); return false; }
+        this.money -= cost;
+        this.health = Math.min(this.maxHealth, this.health + 5);
+        this.potionCount++;
+        this.uiDirty = true;
+        SoundFX.upgrade();
+        return true;
+    }
+
     canAfford(type) {
-        const costs = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400 };
+        const costs = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400, income: 200 };
         return this.money >= costs[type];
     }
 
@@ -442,7 +496,7 @@ class Game {
             if (t.c === c && t.r === r) return false;
         }
 
-        const costs = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400 };
+        const costs = { basic: 50, sniper: 100, rapid: 150, flak: 150, laser: 200, rocket: 250, electric: 300, silo: 400, income: 200 };
         let cost = costs[type];
 
         if (this.money >= cost) {
@@ -511,39 +565,44 @@ class Game {
         if (!this.selectedTowers || this.selectedTowers.length === 0) return;
         let t = this.selectedTowers[0];
         
-        const names = { basic: 'Blaster', sniper: 'Sniper', rapid: 'Pulse', flak: 'Flak (AA)', laser: 'Laser', rocket: 'Rocket', electric: 'Tesla', silo: 'Silo' };
+        const names = { basic: 'Blaster', sniper: 'Sniper', rapid: 'Pulse', flak: 'Flak (AA)', laser: 'Laser', rocket: 'Rocket', electric: 'Tesla', silo: 'Silo', income: 'Relay' };
         document.getElementById('upgrade-type-name').textContent = names[t.type] + (this.selectedTowers.length > 1 ? ` (${this.selectedTowers.length})` : '');
-        document.getElementById('tower-dmg').textContent = Math.floor(t.damage);
-        document.getElementById('tower-rng').textContent = Math.floor(t.range);
-        document.getElementById('tower-spd').textContent = t.fireRate;
+        document.getElementById('tower-dmg').textContent = t.type === 'income' ? (t.incomePerWave + '¢') : Math.floor(t.damage);
+        document.getElementById('tower-rng').textContent = t.type === 'income' ? 'passive' : Math.floor(t.range);
+        document.getElementById('tower-spd').textContent = t.type === 'income' ? '/wave' : t.fireRate;
         
-        // Targeting mode selector
+        // Targeting mode selector (not shown for income towers)
         let targetingEl = document.getElementById('targeting-mode');
-        if (!targetingEl) {
-            let container = document.createElement('div');
-            container.id = 'targeting-mode';
-            container.style.cssText = 'display:flex; gap:4px; margin-bottom:8px; justify-content:center;';
-            const modes = [['closest','NEAR'],['mostHp','MAX HP'],['leastHp','MIN HP']];
-            for (let [mode, label] of modes) {
-                let btn = document.createElement('button');
-                btn.dataset.mode = mode;
-                btn.textContent = label;
-                btn.style.cssText = 'flex:1; padding:3px 0; font-size:0.65rem; letter-spacing:1px;';
-                btn.addEventListener('click', () => {
-                    for (let tower of this.selectedTowers) tower.targetMode = mode;
-                    this.updateUpgradeMenu();
-                });
-                container.appendChild(btn);
+        if (t.type === 'income') {
+            if (targetingEl) targetingEl.style.display = 'none';
+        } else {
+            if (!targetingEl) {
+                let container = document.createElement('div');
+                container.id = 'targeting-mode';
+                container.style.cssText = 'display:flex; gap:4px; margin-bottom:8px; justify-content:center;';
+                const modes = [['closest','NEAR'],['mostHp','MAX HP'],['leastHp','MIN HP']];
+                for (let [mode, label] of modes) {
+                    let btn = document.createElement('button');
+                    btn.dataset.mode = mode;
+                    btn.textContent = label;
+                    btn.style.cssText = 'flex:1; padding:3px 0; font-size:0.65rem; letter-spacing:1px;';
+                    btn.addEventListener('click', () => {
+                        for (let tower of this.selectedTowers) tower.targetMode = mode;
+                        this.updateUpgradeMenu();
+                    });
+                    container.appendChild(btn);
+                }
+                let upgradesList = document.getElementById('upgrades-list');
+                upgradesList.parentNode.insertBefore(container, upgradesList);
+                targetingEl = container;
             }
-            let upgradesList = document.getElementById('upgrades-list');
-            upgradesList.parentNode.insertBefore(container, upgradesList);
-            targetingEl = container;
-        }
-        // Update active state
-        for (let btn of targetingEl.children) {
-            btn.classList.toggle('active', btn.dataset.mode === t.targetMode);
-            btn.style.opacity = btn.dataset.mode === t.targetMode ? '1' : '0.45';
-            btn.style.borderColor = btn.dataset.mode === t.targetMode ? 'var(--accent)' : '';
+            targetingEl.style.display = '';
+            // Update active state
+            for (let btn of targetingEl.children) {
+                btn.classList.toggle('active', btn.dataset.mode === t.targetMode);
+                btn.style.opacity = btn.dataset.mode === t.targetMode ? '1' : '0.45';
+                btn.style.borderColor = btn.dataset.mode === t.targetMode ? 'var(--accent)' : '';
+            }
         }
         
         let list = document.getElementById('upgrades-list');
@@ -605,7 +664,7 @@ class Game {
             airEl.style.textShadow = 'none';
         }
         
-        document.querySelectorAll('.tower-option').forEach(el => {
+        document.querySelectorAll('.tower-option[data-type]').forEach(el => {
             let type = el.dataset.type;
             if (this.canAfford(type)) {
                 el.classList.remove('disabled');
@@ -613,6 +672,13 @@ class Game {
                 el.classList.add('disabled');
             }
         });
+
+        // Potion button
+        let potionBtn = document.getElementById('potion-btn');
+        let potionCost = this.getPotionCost();
+        document.getElementById('potion-cost').textContent = potionCost + '¢';
+        let potionDisabled = this.money < potionCost || this.health >= this.maxHealth;
+        potionBtn.classList.toggle('disabled', potionDisabled);
 
         this.updateUpgradeMenu();
     }
