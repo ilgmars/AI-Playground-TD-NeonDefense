@@ -137,11 +137,6 @@ class Game {
         let wavesUntilAir = isAirWave ? 0 : (5 - (w % 5)) % 5;
         let isAirImminent = isAirWave || wavesUntilAir <= 2;
 
-        // DEBUG: Log flak status
-        if (w >= 3 && counts['flak'] === 0) {
-            console.log(`Wave ${w}: NO FLAK! Money: ${this.money}, Flak cost: 150`);
-        }
-
         let spots = [];
         for (let r = 0; r < ROWS; r++) {
             for (let c = 0; c < COLS; c++) {
@@ -190,10 +185,8 @@ class Game {
         let targetType;
         if (urgentFlak) {
             targetType = 'flak';
-            console.log(`Wave ${w}: URGENT FLAK - forcing flak build`);
         } else if (needFlak) {
             targetType = 'flak';
-            console.log(`Wave ${w}: Need flak - targeting flak`);
         } else if (needLaser) {
             targetType = 'laser';
         } else {
@@ -212,16 +205,9 @@ class Game {
         let buildChance = w < 10 ? 0.8 : w < 20 ? 0.65 : 0.5;
         let preferBuild = mustBuild || totalTowers < totalWanted || Math.random() < buildChance;
 
-        if (w >= 3 && counts['flak'] === 0) {
-            console.log(`Wave ${w}: targetType=${targetType}, preferBuild=${preferBuild}, mustBuild=${mustBuild}, spots=${spots.length}`);
-        }
-
         if (preferBuild && spots.length > 0) {
             let buildType = targetType;
             if (this.money < costs[buildType]) {
-                if (w >= 3 && counts['flak'] === 0) {
-                    console.log(`Wave ${w}: Can't afford ${buildType} (${costs[buildType]}), money=${this.money}`);
-                }
                 let candidates = Object.keys(costs).filter(t => {
                     if (this.money < costs[t]) return false;
                     if (t === 'flak') return urgentFlak || needFlak || counts['flak'] < wanted['flak'];
@@ -239,9 +225,6 @@ class Game {
                     return deficitB - deficitA;
                 });
                 buildType = candidates[0] || null;
-                if (w >= 3 && counts['flak'] === 0) {
-                    console.log(`Wave ${w}: Candidates: ${candidates.join(', ')}, selected: ${buildType}`);
-                }
             }
 
             if (buildType) {
@@ -290,9 +273,6 @@ class Game {
                     if (score > bestScore) { bestScore = score; bestSpot = spot; }
                 }
                 if (bestSpot) { 
-                    if (buildType === 'flak') {
-                        console.log(`Wave ${w}: Building FLAK at (${bestSpot.c}, ${bestSpot.r})`);
-                    }
                     this.buildTower(bestSpot.c, bestSpot.r, buildType); 
                     return; 
                 }
@@ -321,10 +301,6 @@ class Game {
                 savingForTower = targetType;
                 savingCost = costs[targetType];
             }
-        }
-        
-        if (savingForTower) {
-            console.log(`Wave ${w}: Saving for ${savingForTower} (need ${savingCost}, have ${this.money})`);
         }
 
         if (savingForTower) {
@@ -363,7 +339,7 @@ class Game {
         if (this.health <= 3 && this.money >= potionCost && this.health < this.maxHealth) {
             // Don't buy potion if we need to save for a tower
             if (savingForTower && this.money - potionCost < savingCost) {
-                console.log(`Wave ${w}: Skipping potion to save for ${savingForTower}`);
+                // Skip potion to save for tower
             } else {
                 this.buyPotion();
             }
