@@ -84,18 +84,20 @@ body {
 }
 
 .stat-box .label {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 600;
     color: var(--text-muted);
     letter-spacing: 1.5px;
     font-family: 'Outfit', sans-serif;
+    line-height: 1;
 }
 
 .stat-box .value {
-    font-size: 1.5rem;
+    font-size: 1.3rem;
     font-weight: 700;
     font-family: 'Outfit', sans-serif;
     text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+    line-height: 1.2;
 }
 
 #health-display { color: var(--health); text-shadow: 0 0 10px rgba(251, 113, 133, 0.4); }
@@ -420,10 +422,12 @@ button.danger:hover {
     .stat-box .label {
         font-size: 0.5rem;
         letter-spacing: 0.5px;
+        line-height: 1;
     }
 
     .stat-box .value {
-        font-size: 0.85rem;
+        font-size: 0.8rem;
+        line-height: 1.1;
     }
 
     #air-countdown {
