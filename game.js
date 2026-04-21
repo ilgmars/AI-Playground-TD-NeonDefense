@@ -68,13 +68,15 @@ class Game {
             baseExpFactor = 1.30 * Math.pow(1.05, this.wave - 5); // ~1.30 to ~1.66
         } else if (this.wave <= 20) {
             // Waves 11-20: Moderate exponential growth
-            baseExpFactor = 1.66 * Math.pow(1.08, this.wave - 10); // ~1.66 to ~3.58
+            baseExpFactor = 1.66 * Math.pow(1.07, this.wave - 10); // ~1.66 to ~3.26 (reduced from 1.08)
+        } else if (this.wave <= 30) {
+            // Waves 21-30: Smooth transition to late game
+            baseExpFactor = 3.26 * Math.pow(1.04, this.wave - 20); // ~3.26 to ~4.84
         } else {
-            // Waves 21+: Capped logarithmic growth for infinite scaling
-            // HP grows slowly, count grows instead
-            let cap = 5.0; // Maximum base multiplier
-            let lateWaves = this.wave - 20;
-            baseExpFactor = Math.min(cap, 3.58 + Math.log(1 + lateWaves) * 0.3);
+            // Waves 31+: Capped logarithmic growth for infinite scaling
+            let cap = 6.0; // Maximum base multiplier
+            let lateWaves = this.wave - 30;
+            baseExpFactor = Math.min(cap, 4.84 + Math.log(1 + lateWaves) * 0.25);
         }
 
         // Final HP = base wave difficulty × player investment
@@ -84,7 +86,11 @@ class Game {
         if (this.wave > 0 && this.wave % 5 === 0) {
             // Air waves: more enemies, slightly tankier
             let airCount = 12 + this.wave * 0.5; // Slower count growth, fewer enemies
-            if (this.wave > 20) airCount += Math.log(this.wave - 19) * 8; // Log scaling after wave 20
+            if (this.wave > 20 && this.wave <= 30) {
+                airCount += Math.log(this.wave - 19) * 5; // Gentler air scaling 21-30
+            } else if (this.wave > 30) {
+                airCount += Math.log(11) * 5 + Math.log(this.wave - 29) * 7; // More aggressive after 30
+            }
             
             this.currentWaveDef = {
                 count: Math.floor(airCount),
@@ -102,10 +108,12 @@ class Game {
 
         let loops = Math.floor((this.wave - 1) / this.waveData.length);
         
-        // Count scaling: after wave 20, grow count more aggressively instead of HP
+        // Count scaling: after wave 20, grow count more gradually
         let countMult = 1 + loops * 0.2;
-        if (this.wave > 20) {
-            countMult += Math.log(this.wave - 19) * 0.4; // Extra count scaling
+        if (this.wave > 20 && this.wave <= 30) {
+            countMult += Math.log(this.wave - 19) * 0.25; // Gentler count scaling waves 21-30
+        } else if (this.wave > 30) {
+            countMult += Math.log(11) * 0.25 + Math.log(this.wave - 29) * 0.35; // More aggressive after 30
         }
 
         this.currentWaveDef = {
