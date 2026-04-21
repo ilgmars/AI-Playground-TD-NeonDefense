@@ -66,20 +66,10 @@ function init() {
         document.getElementById('speed-display').textContent = gameSpeed + 'X';
     });
     document.getElementById('pause-btn').addEventListener('click', () => {
-        if (game.state === 'playing') {
-            game.state = 'paused';
-            document.getElementById('pause-display').textContent = 'ON';
-            document.getElementById('pause-display').style.color = '#ef4444';
-            document.getElementById('pause-display').style.textShadow = '0 0 10px rgba(239,68,68,0.4)';
-        } else if (game.state === 'paused') {
-            game.state = 'playing';
-            document.getElementById('pause-display').textContent = 'OFF';
-            document.getElementById('pause-display').style.color = 'var(--text-muted)';
-            document.getElementById('pause-display').style.textShadow = 'none';
-        }
+        togglePause();
     });
 
-    document.getElementById('pause-btn').addEventListener('click', () => {
+    function togglePause() {
         if (game.state === 'playing') {
             game.state = 'paused';
             document.getElementById('pause-display').textContent = 'ON';
@@ -91,7 +81,7 @@ function init() {
             document.getElementById('pause-display').style.color = 'var(--text-muted)';
             document.getElementById('pause-display').style.textShadow = 'none';
         }
-    });
+    }
 
     document.getElementById('autopilot-btn').addEventListener('click', () => {
         game.autopilot = !game.autopilot;
@@ -220,17 +210,7 @@ function init() {
         // Space to pause/unpause
         if (e.code === 'Space' && (game.state === 'playing' || game.state === 'paused')) {
             e.preventDefault();
-            if (game.state === 'playing') {
-                game.state = 'paused';
-                document.getElementById('pause-display').textContent = 'ON';
-                document.getElementById('pause-display').style.color = '#ef4444';
-                document.getElementById('pause-display').style.textShadow = '0 0 10px rgba(239,68,68,0.4)';
-            } else if (game.state === 'paused') {
-                game.state = 'playing';
-                document.getElementById('pause-display').textContent = 'OFF';
-                document.getElementById('pause-display').style.color = 'var(--text-muted)';
-                document.getElementById('pause-display').style.textShadow = 'none';
-            }
+            togglePause();
             return;
         }
         

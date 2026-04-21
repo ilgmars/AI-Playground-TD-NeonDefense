@@ -174,6 +174,22 @@ class Tower {
         this.chainCount = type === 'electric' ? 3 : 0;
         this.maxHover = type === 'silo' ? 3 : 0;
 
+        // Default targeting modes per tower type
+        // closest: good for basic/rapid (high DPS, finish off nearby)
+        // mostHp: good for sniper/rocket/silo (burst damage, take out big threats)
+        // leastHp: good for laser/electric (finish off weakened enemies efficiently)
+        const defaultTargetModes = {
+            basic: 'closest',
+            sniper: 'mostHp',
+            rapid: 'closest',
+            laser: 'leastHp',
+            rocket: 'mostHp',
+            flak: 'closest',
+            electric: 'leastHp',
+            silo: 'mostHp'
+        };
+        this.targetMode = defaultTargetModes[type] || 'closest';
+
         if (type === 'basic') {
             this.baseCost = 50;
             this.range = 100;
@@ -301,13 +317,22 @@ class Tower {
             let dist = Math.hypot(ex - (this.x + TILE_SIZE/2), ey - (this.y + TILE_SIZE/2));
             
             if (dist <= this.range) {
-                let score = -dist; // Closer is better
-                if (this.type === 'flak' && enemy.isAir) score += 1000; // Flak strictly prioritizes Air
-                if (this.type !== 'flak' && enemy.isAir) score -= 1000; // Normal towers strictly prioritize Ground
+                // Base score by targeting mode
+                let score;
+                if (this.targetMode === 'mostHp') {
+                    score = enemy.hp;
+                } else if (this.targetMode === 'leastHp') {
+                    score = -enemy.hp;
+                } else { // 'closest'
+                    score = -dist;
+                }
+
+                if (this.type === 'flak' && enemy.isAir) score += 1000000; // Flak strictly prioritizes Air
+                if (this.type !== 'flak' && enemy.isAir) score -= 1000000; // Normal towers strictly prioritize Ground
                 
                 // Laser should prefer enemies NOT already slowed by another laser
                 if (this.type === 'laser' && enemy.currentSlow < 1) {
-                    score += 500; // Heavily prefer un-slowed targets
+                    score += 500000; // Heavily prefer un-slowed targets
                 }
                 
                 if (score > bestScore) {
@@ -321,7 +346,9 @@ class Tower {
             this.angle = Math.atan2(target.y - (this.y + TILE_SIZE/2), target.x - (this.x + TILE_SIZE/2));
             
             if (this.type === 'laser') {
-                target.hp -= this.damage;
+                let dmg = this.damage;
+                if (target.isAir) dmg *= 0.4; // Ground towers are less effective vs air
+                target.hp -= dmg;
                 if (this.slowEffect && this.slowEffect > 0) {
                     target.currentSlow = Math.max(0.1, 1 - this.slowEffect);
                 }
@@ -339,7 +366,9 @@ class Tower {
                     let alreadyHit = new Set();
                     
                     while (currentTarget && hitCount < (this.chainCount || 3)) {
-                        currentTarget.hp -= this.damage;
+                        let dmg = this.damage;
+                        if (currentTarget.isAir) dmg *= 0.4; // Electric less effective vs air
+                        currentTarget.hp -= dmg;
                         if (currentTarget.hp <= 0) {
                             currentTarget.active = false;
                             SoundFX.explosion();
@@ -479,7 +508,7 @@ class Projectile {
         }
     }
 
-    update(enemies, particles) {
+    update(enemies, particles, projectiles) {
         if (!this.active) return;
         
         if (this.x < -200 || this.x > 2000 || this.y < -200 || this.y > 1500) {
@@ -504,7 +533,7 @@ class Projectile {
                 if (dist < e.radius + 5 && !this.hitEnemies.has(e)) {
                     this.hitEnemies.add(e);
                     this.target = e; 
-                    this.explode(enemies, particles);
+                    this.explode(enemies, particles, projectiles);
                     if (!this.active) break;
                 }
             }
@@ -554,11 +583,11 @@ class Projectile {
             
             let triggerDist = this.target.active ? this.currentSpeed + 5 : 45;
             if (dist < triggerDist) {
-                this.explode(enemies, particles);
+                this.explode(enemies, particles, projectiles);
             }
         } else {
             if (dist < this.speed) {
-                this.explode(enemies, particles);
+                this.explode(enemies, particles, projectiles);
             } else {
                 let dx = tx - this.x;
                 let dy = ty - this.y;
@@ -568,16 +597,25 @@ class Projectile {
         }
     }
 
-    explode(enemies, particles) {
+    explode(enemies, particles, projectiles) {
         if (this.splash > 0) {
             SoundFX.explosion();
             particles.push(new Explosion(this.x, this.y, this.splash));
+            // If this is a rocket (silo), cancel all other rockets targeting the same enemy
+            if (this.type === 'rocket' && projectiles) {
+                for (let p of projectiles) {
+                    if (p !== this && p.active && p.type === 'rocket' && p.target === this.target) {
+                        p.active = false;
+                    }
+                }
+            }
             for (let e of enemies) {
                 if (!e.active) continue;
                 let d = Math.hypot(e.x - this.x, e.y - this.y);
                 if (d <= this.splash) {
                     let dmg = this.damage;
                     if (this.type === 'flak' && e.isAir) dmg *= 4; // Flak deals 400% damage to Air
+                    else if (this.type !== 'flak' && e.isAir) dmg *= 0.4; // Ground towers less effective vs air
                     
                     e.hp -= dmg;
                     if (e.hp <= 0) {
@@ -591,6 +629,7 @@ class Projectile {
             if (this.target.active) {
                 let dmg = this.damage;
                 if (this.type === 'flak' && this.target.isAir) dmg *= 4;
+                else if (this.type !== 'flak' && this.target.isAir) dmg *= 0.4; // Ground towers less effective vs air
                 
                 this.target.hp -= dmg;
                 SoundFX.hit();

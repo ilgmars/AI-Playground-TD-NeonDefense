@@ -351,7 +351,7 @@ class Game {
 
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             let p = this.projectiles[i];
-            p.update(this.enemies, this.particles);
+            p.update(this.enemies, this.particles, this.projectiles);
             if (!p.active) {
                 this.projectiles.splice(i, 1);
             }
@@ -516,6 +516,35 @@ class Game {
         document.getElementById('tower-dmg').textContent = Math.floor(t.damage);
         document.getElementById('tower-rng').textContent = Math.floor(t.range);
         document.getElementById('tower-spd').textContent = t.fireRate;
+        
+        // Targeting mode selector
+        let targetingEl = document.getElementById('targeting-mode');
+        if (!targetingEl) {
+            let container = document.createElement('div');
+            container.id = 'targeting-mode';
+            container.style.cssText = 'display:flex; gap:4px; margin-bottom:8px; justify-content:center;';
+            const modes = [['closest','NEAR'],['mostHp','MAX HP'],['leastHp','MIN HP']];
+            for (let [mode, label] of modes) {
+                let btn = document.createElement('button');
+                btn.dataset.mode = mode;
+                btn.textContent = label;
+                btn.style.cssText = 'flex:1; padding:3px 0; font-size:0.65rem; letter-spacing:1px;';
+                btn.addEventListener('click', () => {
+                    for (let tower of this.selectedTowers) tower.targetMode = mode;
+                    this.updateUpgradeMenu();
+                });
+                container.appendChild(btn);
+            }
+            let upgradesList = document.getElementById('upgrades-list');
+            upgradesList.parentNode.insertBefore(container, upgradesList);
+            targetingEl = container;
+        }
+        // Update active state
+        for (let btn of targetingEl.children) {
+            btn.classList.toggle('active', btn.dataset.mode === t.targetMode);
+            btn.style.opacity = btn.dataset.mode === t.targetMode ? '1' : '0.45';
+            btn.style.borderColor = btn.dataset.mode === t.targetMode ? 'var(--accent)' : '';
+        }
         
         let list = document.getElementById('upgrades-list');
         let defs = TOWER_UPGRADES[t.type];
