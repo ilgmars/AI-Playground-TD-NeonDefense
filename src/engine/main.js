@@ -625,6 +625,13 @@ function init() {
 
     window.refreshAbilityUI = refreshAbilityUI;
 
+    function maybeShowStrategistPreview() {
+        if (game && game.showAllWavesPreview) {
+            showWavePreview(20);  // reveal first 20 waves
+        }
+    }
+    window.maybeShowStrategistPreview = maybeShowStrategistPreview;
+
     document.getElementById('restart-btn').addEventListener('click', () => {
         if (game.state === 'playing') {
             game.state = 'paused';
@@ -672,6 +679,7 @@ function init() {
             game.autopilotTickInterval = 15;
         }
         if (typeof refreshAbilityUI === 'function') refreshAbilityUI();
+        if (typeof maybeShowStrategistPreview === 'function') maybeShowStrategistPreview();
     }
 
     document.getElementById('confirm-yes').addEventListener('click', () => {
