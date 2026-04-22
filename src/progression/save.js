@@ -135,6 +135,38 @@ const NeonSave = (function () {
         };
     }
 
+    // M3: Sum damageDealt across all alive towers, bucketed by base tower type
+    // (variants like 'basic_cryo' roll up to 'basic'). Increments
+    // save.towerMastery[type].xp and sets milestones m1 at 1000 / m2 at 10000.
+    // Returns an array of { type, xpGained, newMilestones: ['m1'|'m2'] } for UI.
+    function tallyMastery(save, towers) {
+        const perType = {};
+        for (const t of towers) {
+            const base = (t.type || '').split('_')[0];
+            if (!TOWER_TYPES.includes(base)) continue;
+            const dmg = t.damageDealt || 0;
+            if (dmg <= 0) continue;
+            perType[base] = (perType[base] || 0) + dmg;
+        }
+
+        const results = [];
+        for (const type of Object.keys(perType)) {
+            const xpGained = Math.floor(perType[type]);
+            if (xpGained <= 0) continue;
+            if (!save.towerMastery[type]) save.towerMastery[type] = { xp: 0, milestones: { m1: false, m2: false } };
+            save.towerMastery[type].xp += xpGained;
+
+            const newMilestones = [];
+            const milestones = save.towerMastery[type].milestones;
+            if (!milestones.m1 && save.towerMastery[type].xp >= 1000) { milestones.m1 = true; newMilestones.push('m1'); }
+            if (!milestones.m2 && save.towerMastery[type].xp >= 10000) { milestones.m2 = true; newMilestones.push('m2'); }
+
+            results.push({ type, xpGained, newMilestones, newXP: save.towerMastery[type].xp });
+        }
+        write(save);
+        return results;
+    }
+
     // Updates save in place for a completed run and persists it.
     // Returns the breakdown object (incl. `firstClear` boolean for UI).
     function recordRun(save, result) {
@@ -172,6 +204,7 @@ const NeonSave = (function () {
         write,
         hasUnlocked,
         calculateRunXP,
-        recordRun
+        recordRun,
+        tallyMastery
     };
 })();

@@ -261,7 +261,9 @@ function buildTreeNodeEl(node, tierKey, tierOpen) {
 
 // Renders the XP breakdown in the game-over overlay. Called by
 // window.onRunEnded after XP has been applied to the save.
-function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId }) {
+function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults }) {
+    // M3: Clear any stale mastery banners from prior runs.
+    document.querySelectorAll('.xp-breakdown-unlock.mastery-banner').forEach(el => el.remove());
     document.getElementById('xp-wave').textContent     = xp.waveXP;
     document.getElementById('xp-clear').textContent    = xp.clearBonus;
     document.getElementById('xp-first').textContent    = xp.firstBonus;
@@ -287,6 +289,22 @@ function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId }) {
         unlock.classList.remove('hidden');
     } else {
         unlock.classList.add('hidden');
+    }
+
+    // M3: Mastery milestone banner — only appended if at least one milestone fired.
+    if (masteryResults && masteryResults.length > 0) {
+        const milestoneHits = masteryResults.filter(r => r.newMilestones && r.newMilestones.length > 0);
+        if (milestoneHits.length > 0) {
+            const lines = milestoneHits.map(r => {
+                const names = r.newMilestones.map(m => m === 'm1' ? 'VARIANT' : 'SKIN').join(' + ');
+                return `${TOWERS[r.type]?.displayName || r.type}: ${names}`;
+            });
+            const wrap = document.createElement('div');
+            wrap.className = 'xp-breakdown-unlock mastery-banner';
+            wrap.textContent = 'MASTERY: ' + lines.join(' · ');
+            const unlockEl = document.getElementById('xp-unlock');
+            unlockEl.parentNode.insertBefore(wrap, unlockEl.nextSibling);
+        }
     }
 }
 
@@ -790,8 +808,11 @@ function init() {
             updateMainMenuState();
         }
 
+        // M3: Mastery XP from damage dealt this run.
+        const masteryResults = NeonSave.tallyMastery(save, game.towers);
+
         if (typeof renderRunResultXP === 'function') {
-            renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId });
+            renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults });
         }
     };
 
