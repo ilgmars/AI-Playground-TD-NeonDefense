@@ -130,6 +130,21 @@ class Game {
     }
 
     startWave() {
+        // M3: Research Node aura — boosts damage of all towers within auraRange
+        // tiles of each Research Node by auraBonus. Recomputes each wave (stackable).
+        for (const t of this.towers) t.auraDamageBonus = 0;
+        const researchNodes = this.towers.filter(t => t.type === 'income_research');
+        for (const rn of researchNodes) {
+            for (const t of this.towers) {
+                if (t === rn) continue;
+                const dc = t.c - rn.c, dr = t.r - rn.r;
+                const dist = Math.sqrt(dc*dc + dr*dr);
+                if (dist <= (rn.auraRange || 3)) {
+                    t.auraDamageBonus = (t.auraDamageBonus || 0) + (rn.auraBonus || 0.02);
+                }
+            }
+        }
+
         // Calculate total tower power for dynamic difficulty
         let totalTowerValue = 0;
         for (let t of this.towers) {

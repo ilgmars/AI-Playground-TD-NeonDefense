@@ -255,7 +255,7 @@ class Tower {
     }
 
     update(enemies, projectiles, particles) {
-        if (this.type === 'income') return; // passive tower, no combat logic
+        if (this.type === 'income' || this.type === 'income_research') return; // passive tower, no combat logic
         if (this.cooldown > 0) this.cooldown--;
 
         if (this.type === 'silo') {
@@ -289,7 +289,8 @@ class Tower {
                 }
                 
                 if (target) {
-                    projectiles.push(new Projectile(rx, ry, target, this.damage, 'rocket', this.pierce, this.splash, this));
+                    const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
+                    projectiles.push(new Projectile(rx, ry, target, effectiveDamage, 'rocket', this.pierce, this.splash, this));
                     this.hoverRockets.splice(i, 1);
                 }
             }
@@ -353,11 +354,12 @@ class Tower {
             if (this.type === 'laser_pulse') {
                 // M3: Pulse Laser — fires high-damage projectiles at fireRate cadence.
                 if (this.cooldown <= 0) {
+                    const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
                     const proj = new Projectile(
                         this.x + TILE_SIZE / 2,
                         this.y + TILE_SIZE / 2,
                         target,
-                        this.damage,
+                        effectiveDamage,
                         'laser-pulse',
                         this.pierce || 1,
                         0,
@@ -367,7 +369,8 @@ class Tower {
                     this.cooldown = this.fireRate;
                 }
             } else if (this.type === 'laser') {
-                let dmg = this.damage;
+                const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
+                let dmg = effectiveDamage;
                 if (target.isAir) dmg *= 0.4; // Ground towers are less effective vs air
                 target.hp -= dmg;
                 this.damageDealt += dmg;
@@ -382,6 +385,7 @@ class Tower {
             } else if (this.type === 'electric_plasma') {
                 // M3: Plasma Coil — continuous AoE damage to all enemies in range per frame.
                 if (this.cooldown <= 0) {
+                    const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
                     const tx = this.x + TILE_SIZE / 2;
                     const ty = this.y + TILE_SIZE / 2;
                     const r2 = this.range * this.range;
@@ -390,8 +394,8 @@ class Tower {
                         const dx = e.x - tx;
                         const dy = e.y - ty;
                         if (dx*dx + dy*dy > r2) continue;
-                        e.hp -= this.damage;
-                        this.damageDealt += this.damage;
+                        e.hp -= effectiveDamage;
+                        this.damageDealt += effectiveDamage;
                         if (e.hp <= 0) e.active = false;
                     }
                     this.cooldown = 1; // effectively every frame (fireRate=1)
@@ -399,13 +403,14 @@ class Tower {
             } else if (this.type === 'electric') {
                 if (this.cooldown === 0) {
                     SoundFX.shootElectric();
+                    const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
                     let points = [{x: this.x + TILE_SIZE/2, y: this.y + TILE_SIZE/2}];
                     let currentTarget = target;
                     let hitCount = 0;
                     let alreadyHit = new Set();
-                    
+
                     while (currentTarget && hitCount < (this.chainCount || 3)) {
-                        let dmg = this.damage;
+                        let dmg = effectiveDamage;
                         if (currentTarget.isAir) dmg *= 0.4; // Electric less effective vs air
                         currentTarget.hp -= dmg;
                         this.damageDealt += dmg;
@@ -442,6 +447,8 @@ class Tower {
                 
                 if (this.type === 'rapid_flame') {
                     // M3: Flamethrower cone damage
+                    const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
+                    const effectiveBurnDamage = (this.burnDamage || 2) * (1 + (this.auraDamageBonus || 0));
                     const coneAngle = this.coneAngle || 0.6;
                     const aimAngle = this.angle; // updated above: angle to current target
                     const tx = this.x + TILE_SIZE / 2;
@@ -457,17 +464,18 @@ class Tower {
                         while (diff > Math.PI) diff -= Math.PI * 2;
                         while (diff < -Math.PI) diff += Math.PI * 2;
                         if (Math.abs(diff) <= coneAngle / 2) {
-                            e.hp -= this.damage;
-                            this.damageDealt += this.damage;
+                            e.hp -= effectiveDamage;
+                            this.damageDealt += effectiveDamage;
                             if (e.hp <= 0) e.active = false;
                             // Start/refresh burn DoT
                             e.burnFrames = Math.max(e.burnFrames || 0, this.burnDuration || 120);
-                            e.burnDamage = this.burnDamage || 2;
+                            e.burnDamage = effectiveBurnDamage;
                             e.burnSource = this;
                         }
                     }
                     this.cooldown = this.fireRate;
                 } else if (this.type === 'rapid') {
+                    const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
                     let pc = this.pelletCount || 5;
                     let baseAngle = Math.atan2(target.y - (this.y + TILE_SIZE/2), target.x - (this.x + TILE_SIZE/2));
                     let spread = this.spread || 0.4;
@@ -478,7 +486,7 @@ class Tower {
                             this.x + TILE_SIZE/2,
                             this.y + TILE_SIZE/2,
                             null,
-                            this.damage,
+                            effectiveDamage,
                             this.type,
                             this.pierce,
                             this.splash,
@@ -491,6 +499,7 @@ class Tower {
                         projectiles.push(proj);
                     }
                 } else {
+                    const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
                     let ms = this.multiShot || 1;
                     for (let i = 0; i < ms; i++) {
                         let finalTarget = target;
@@ -508,7 +517,7 @@ class Tower {
                             this.x + TILE_SIZE/2,
                             this.y + TILE_SIZE/2,
                             finalTarget,
-                            this.damage,
+                            effectiveDamage,
                             this.type,
                             this.pierce,
                             this.splash,
