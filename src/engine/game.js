@@ -109,7 +109,11 @@ class Game {
                 if (d2 < bestDist) { bestDist = d2; best = { c, r }; }
             }
         }
-        if (best) this.towers.push(new Tower(best.c, best.r, 'income'));
+        if (best) {
+            const relay = new Tower(best.c, best.r, 'income');
+            relay.totalSpent = 0;  // Free tower doesn't count toward investment-factor scaling.
+            this.towers.push(relay);
+        }
     }
 
     startWave() {
