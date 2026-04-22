@@ -25,12 +25,16 @@ function setDifficulty(diff) {
     document.querySelectorAll('.difficulty-btn').forEach(b => {
         b.classList.toggle('selected', b.dataset.difficulty === diff);
     });
+    // Repaint the top-bar MODE preview immediately, even before the game restarts.
+    updateModeDisplay(diff);
 }
 
-function updateModeDisplay() {
+function updateModeDisplay(diff) {
     let el = document.getElementById('mode-display');
-    if (!el || !game) return;
-    let d = DIFFICULTY[game.difficulty];
+    if (!el) return;
+    let key = diff || (game && game.difficulty) || selectedDifficulty;
+    let d = DIFFICULTY[key];
+    if (!d) return;
     el.textContent = d.letter;
     el.style.color = d.color;
     el.style.textShadow = '0 0 10px ' + d.color + '66';

@@ -105,7 +105,15 @@
                         <div id="scores-list" style="font-family: monospace; font-size: 1.1rem;"></div>
                     </div>
 
-                    <button id="game-over-restart" style="margin-top: 20px;">RESTART</button>
+                    <div class="difficulty-row" style="margin-top: 20px;">
+                        <span class="difficulty-label">DIFFICULTY</span>
+                        <div class="difficulty-buttons">
+                            <button class="difficulty-btn easy" data-difficulty="easy">EASY</button>
+                            <button class="difficulty-btn normal" data-difficulty="normal">NORMAL</button>
+                            <button class="difficulty-btn hard" data-difficulty="hard">HARD</button>
+                        </div>
+                    </div>
+                    <button id="game-over-restart">RESTART</button>
                     <div class="seed-input-row" style="margin-top: 10px;">
                         <input type="number" id="gameover-seed-input" placeholder="SEED (optional)" />
                     </div>
@@ -114,6 +122,14 @@
                 <div id="restart-confirm" class="hidden overlay">
                     <h2>REBOOT SYSTEM?</h2>
                     <p>Current progress will be lost.</p>
+                    <div class="difficulty-row">
+                        <span class="difficulty-label">DIFFICULTY</span>
+                        <div class="difficulty-buttons">
+                            <button class="difficulty-btn easy" data-difficulty="easy">EASY</button>
+                            <button class="difficulty-btn normal" data-difficulty="normal">NORMAL</button>
+                            <button class="difficulty-btn hard" data-difficulty="hard">HARD</button>
+                        </div>
+                    </div>
                     <div class="seed-input-row">
                         <input type="number" id="restart-seed-input" placeholder="SEED (optional)" />
                     </div>
