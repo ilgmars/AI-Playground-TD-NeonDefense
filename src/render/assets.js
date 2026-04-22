@@ -68,7 +68,7 @@ function drawSpawnerTile(ctx, x, y, size) {
 
 // Entity drawing
 
-function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burning = false) {
+function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burning = false, shielded = false) {
     ctx.save();
     ctx.translate(x, y);
     
@@ -139,6 +139,18 @@ function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burni
         ctx.beginPath();
         ctx.arc(x, y, radius + 2, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
+    }
+
+    // M3: Shielded enemy — cyan ring overlay when shield is intact.
+    if (shielded) {
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = '#60e5ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, radius + 4, 0, Math.PI * 2);
+        ctx.stroke();
         ctx.restore();
     }
 }

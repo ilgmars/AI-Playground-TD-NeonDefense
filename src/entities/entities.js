@@ -158,7 +158,7 @@ class Enemy {
 
     draw(ctx) {
         if (!this.active) return;
-        drawEnemy(ctx, this.x, this.y, this.radius, this.type, this.hp / this.maxHp, this.currentSlow < 1, this.burnFrames > 0);
+        drawEnemy(ctx, this.x, this.y, this.radius, this.type, this.hp / this.maxHp, this.currentSlow < 1, this.burnFrames > 0, this.shielded && !this.shieldBroken);
 
         // M2: Freeze ability — blue glow ring overlay.
         if (this.frozen) {
@@ -616,19 +616,30 @@ class Projectile {
                     let dmg = this.damage;
                     if (this.type === 'flak' && e.isAir) dmg *= 4;
                     else if (this.type !== 'flak' && e.isAir) dmg *= 0.4;
-                    
-                    e.hp -= dmg;
-                    if (this.sourceTower) this.sourceTower.damageDealt += dmg;
-                    // M3: Cryo Blaster slow effect — applied if the source tower defines slowEffect.
-                    if (this.sourceTower && this.sourceTower.slowEffect) {
-                        const newSlow = 1 - this.sourceTower.slowEffect;
-                        e.currentSlow = Math.min(e.currentSlow, newSlow);
-                        e.slowExpireFrame = this.sourceTower.slowDuration || 60;
-                    }
-                    SoundFX.hit();
-                    if (e.hp <= 0) {
-                        e.active = false;
-                        SoundFX.explosion();
+
+                    // M3: Shielded enemy absorbs first projectile hit — no damage, no XP.
+                    if (e.shielded && !e.shieldBroken) {
+                        e.shieldBroken = true;
+                        // Cryo slow still applies — shield absorbs damage but not effects.
+                        if (this.sourceTower && this.sourceTower.slowEffect) {
+                            const newSlow = 1 - this.sourceTower.slowEffect;
+                            e.currentSlow = Math.min(e.currentSlow, newSlow);
+                            e.slowExpireFrame = this.sourceTower.slowDuration || 60;
+                        }
+                    } else {
+                        e.hp -= dmg;
+                        if (this.sourceTower) this.sourceTower.damageDealt += dmg;
+                        // M3: Cryo Blaster slow effect — applied if the source tower defines slowEffect.
+                        if (this.sourceTower && this.sourceTower.slowEffect) {
+                            const newSlow = 1 - this.sourceTower.slowEffect;
+                            e.currentSlow = Math.min(e.currentSlow, newSlow);
+                            e.slowExpireFrame = this.sourceTower.slowDuration || 60;
+                        }
+                        SoundFX.hit();
+                        if (e.hp <= 0) {
+                            e.active = false;
+                            SoundFX.explosion();
+                        }
                     }
 
                     // Check pierce
@@ -718,23 +729,39 @@ class Projectile {
                     let dmg = this.damage;
                     if (this.type === 'flak' && e.isAir) dmg *= 4; // Flak deals 400% damage to Air
                     else if (this.type !== 'flak' && e.isAir) dmg *= 0.4; // Ground towers less effective vs air
-                    
-                    e.hp -= dmg;
-                    if (this.sourceTower) this.sourceTower.damageDealt += dmg;
-                    // M3: Cryo Blaster slow effect — applied if the source tower defines slowEffect.
-                    if (this.sourceTower && this.sourceTower.slowEffect) {
-                        const newSlow = 1 - this.sourceTower.slowEffect;
-                        e.currentSlow = Math.min(e.currentSlow, newSlow);
-                        e.slowExpireFrame = this.sourceTower.slowDuration || 60;
-                    }
-                    // M3: EMP Flak stuns air targets on hit.
-                    if (this.sourceTower && this.sourceTower.stunDuration && e.isAir) {
-                        e.stunned = true;
-                        e.stunFrames = this.sourceTower.stunDuration;
-                    }
-                    if (e.hp <= 0) {
-                        e.active = false;
-                        SoundFX.explosion();
+
+                    // M3: Shielded enemy absorbs first projectile hit — no damage, no XP.
+                    if (e.shielded && !e.shieldBroken) {
+                        e.shieldBroken = true;
+                        // Cryo slow still applies — shield absorbs damage but not effects.
+                        if (this.sourceTower && this.sourceTower.slowEffect) {
+                            const newSlow = 1 - this.sourceTower.slowEffect;
+                            e.currentSlow = Math.min(e.currentSlow, newSlow);
+                            e.slowExpireFrame = this.sourceTower.slowDuration || 60;
+                        }
+                        // M3: EMP Flak stun still applies through shield.
+                        if (this.sourceTower && this.sourceTower.stunDuration && e.isAir) {
+                            e.stunned = true;
+                            e.stunFrames = this.sourceTower.stunDuration;
+                        }
+                    } else {
+                        e.hp -= dmg;
+                        if (this.sourceTower) this.sourceTower.damageDealt += dmg;
+                        // M3: Cryo Blaster slow effect — applied if the source tower defines slowEffect.
+                        if (this.sourceTower && this.sourceTower.slowEffect) {
+                            const newSlow = 1 - this.sourceTower.slowEffect;
+                            e.currentSlow = Math.min(e.currentSlow, newSlow);
+                            e.slowExpireFrame = this.sourceTower.slowDuration || 60;
+                        }
+                        // M3: EMP Flak stuns air targets on hit.
+                        if (this.sourceTower && this.sourceTower.stunDuration && e.isAir) {
+                            e.stunned = true;
+                            e.stunFrames = this.sourceTower.stunDuration;
+                        }
+                        if (e.hp <= 0) {
+                            e.active = false;
+                            SoundFX.explosion();
+                        }
                     }
                 }
             }
@@ -769,19 +796,30 @@ class Projectile {
                 let dmg = this.damage;
                 if (this.type === 'flak' && this.target.isAir) dmg *= 4;
                 else if (this.type !== 'flak' && this.target.isAir) dmg *= 0.4; // Ground towers less effective vs air
-                
-                this.target.hp -= dmg;
-                if (this.sourceTower) this.sourceTower.damageDealt += dmg;
-                // M3: Cryo Blaster slow effect — applied if the source tower defines slowEffect.
-                if (this.sourceTower && this.sourceTower.slowEffect) {
-                    const newSlow = 1 - this.sourceTower.slowEffect;
-                    this.target.currentSlow = Math.min(this.target.currentSlow, newSlow);
-                    this.target.slowExpireFrame = this.sourceTower.slowDuration || 60;
-                }
-                SoundFX.hit();
-                if (this.target.hp <= 0) {
-                    this.target.active = false;
-                    SoundFX.explosion();
+
+                // M3: Shielded enemy absorbs first projectile hit — no damage, no XP.
+                if (this.target.shielded && !this.target.shieldBroken) {
+                    this.target.shieldBroken = true;
+                    // Cryo slow still applies — shield absorbs damage but not effects.
+                    if (this.sourceTower && this.sourceTower.slowEffect) {
+                        const newSlow = 1 - this.sourceTower.slowEffect;
+                        this.target.currentSlow = Math.min(this.target.currentSlow, newSlow);
+                        this.target.slowExpireFrame = this.sourceTower.slowDuration || 60;
+                    }
+                } else {
+                    this.target.hp -= dmg;
+                    if (this.sourceTower) this.sourceTower.damageDealt += dmg;
+                    // M3: Cryo Blaster slow effect — applied if the source tower defines slowEffect.
+                    if (this.sourceTower && this.sourceTower.slowEffect) {
+                        const newSlow = 1 - this.sourceTower.slowEffect;
+                        this.target.currentSlow = Math.min(this.target.currentSlow, newSlow);
+                        this.target.slowExpireFrame = this.sourceTower.slowDuration || 60;
+                    }
+                    SoundFX.hit();
+                    if (this.target.hp <= 0) {
+                        this.target.active = false;
+                        SoundFX.explosion();
+                    }
                 }
             }
 

@@ -10,7 +10,7 @@ window.save = save;   // M2: expose for Enemy.draw HP-bar check.
 
 // Default tier = highest cleared. First-time players start on A0.
 // Clamp to M1 ceiling in case a hand-edited save has ascensionCleared > 7.
-let selectedTier = Math.min(save.ascensionCleared, ASCENSION_MAX_TIER_M1);
+let selectedTier = Math.min(save.ascensionCleared, ASCENSION_MAX_TIER);
 
 // Visible Ascension tier in the scoreboard view (independent from run tier).
 let visibleScoreTier = selectedTier;
@@ -29,7 +29,7 @@ let selectedTowerLoadout = (save.lastLoadout && save.lastLoadout.towerLoadout)
     : {};
 
 function setTier(tier) {
-    const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER_M1);
+    const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER);
     if (tier < 0 || tier > unlockedMax) return;
     selectedTier = tier;
 
@@ -58,9 +58,9 @@ function renderAscensionSelector(context) {
     if (!container) return;
     container.innerHTML = '';
 
-    const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER_M1);
+    const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER);
 
-    for (let t = 0; t <= ASCENSION_MAX_TIER_M1; t++) {
+    for (let t = 0; t <= ASCENSION_MAX_TIER; t++) {
         const spec = ASCENSION_TIERS[t];
         const btn = document.createElement('button');
         btn.className = 'ascension-btn';
@@ -400,11 +400,11 @@ function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, mas
 
     const unlock = document.getElementById('xp-unlock');
     if (firstClear) {
-        const nextTier = Math.min(tier + 1, ASCENSION_MAX_TIER_M1);
+        const nextTier = Math.min(tier + 1, ASCENSION_MAX_TIER);
         const nextSpec = ASCENSION_TIERS[nextTier];
         let text = nextTier > tier
             ? `UNLOCKED: ${nextSpec.label} — ${nextSpec.name}`
-            : `MAXED for M1`;
+            : `MAXED`;
         if (autoUnlockedNodeId) {
             const node = getTreeNode(autoUnlockedNodeId);
             if (node) text += ` · FREE NODE: ${autoUnlockedNodeId}`;
@@ -858,7 +858,7 @@ function init() {
         const tabs = document.getElementById('score-tabs');
         if (!tabs) return;
         tabs.innerHTML = '';
-        for (let t = 0; t <= ASCENSION_MAX_TIER_M1; t++) {
+        for (let t = 0; t <= ASCENSION_MAX_TIER; t++) {
             const btn = document.createElement('button');
             btn.className = 'score-tab';
             btn.textContent = 'A' + t;

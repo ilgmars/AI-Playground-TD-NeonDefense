@@ -3,7 +3,7 @@ class Game {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
 
-        this.ascensionTier = Math.max(0, Math.min((ascensionTier | 0), ASCENSION_MAX_TIER_M1));
+        this.ascensionTier = Math.max(0, Math.min((ascensionTier | 0), ASCENSION_MAX_TIER));
         this.ascension = getAscensionEffects(this.ascensionTier);
 
         this.map = new GameMap(seed);
@@ -397,6 +397,11 @@ class Game {
                     if (this.freezeTimer > 0) {
                         newEnemy.frozen = true;
                         newEnemy.frozenFrames = this.freezeTimer;
+                    }
+                    // M3: A8 Shielded — 40% of enemies spawn with a shield.
+                    if (this.ascension.spawnShielded && Math.random() < 0.4) {
+                        newEnemy.shielded = true;
+                        newEnemy.shieldBroken = false;
                     }
                     this.enemies.push(newEnemy);
                     this.enemiesSpawned++;

@@ -33,7 +33,7 @@ const ASCENSION_TIERS = [
     { tier: 7, label: 'A7',  name: 'Harsh potions', modifier: { potionCostMult: 2, potionHeal: 1 },          kind: 'stat' },
     // A8-A10 are declared for UI completeness but NOT playable until M3 adds
     // the Shielded / Splitter / Boss enemy types. Run Setup must lock these.
-    { tier: 8, label: 'A8',  name: 'Shielded (M3)', modifier: null,                                          kind: 'enemy-m3' },
+    { tier: 8, label: 'A8',  name: 'Shielded enemy', modifier: { spawnShielded: true },                      kind: 'enemy-m3' },
     { tier: 9, label: 'A9',  name: 'Splitter (M3)', modifier: null,                                          kind: 'enemy-m3' },
     { tier: 10, label: 'A10', name: 'Boss (M3)',    modifier: null,                                          kind: 'enemy-m3' }
 ];
@@ -50,16 +50,19 @@ function getAscensionEffects(tier) {
         payoutMult: 1,
         disableInvestCap: false,
         potionCostMult: 1,
-        potionHeal: null  // null = use POTION_CONFIG.healAmount
+        potionHeal: null,  // null = use POTION_CONFIG.healAmount
+        spawnShielded: false,
+        spawnSplitter: false,
+        spawnBoss: false
     };
 
-    const safeTier = Math.max(0, Math.min(tier || 0, ASCENSION_MAX_TIER_M1));
+    const safeTier = Math.max(0, Math.min(tier || 0, ASCENSION_MAX_TIER));
 
     for (let i = 1; i <= safeTier; i++) {
         const mod = ASCENSION_TIERS[i] && ASCENSION_TIERS[i].modifier;
         if (!mod) continue;
         for (const key of Object.keys(mod)) {
-            if (key === 'disableInvestCap') {
+            if (key === 'disableInvestCap' || key === 'spawnShielded' || key === 'spawnSplitter' || key === 'spawnBoss') {
                 effects[key] = mod[key];
             } else if (key === 'airWaveInterval' || key === 'potionHeal') {
                 effects[key] = mod[key];  // overwrite (not multiplicative)
