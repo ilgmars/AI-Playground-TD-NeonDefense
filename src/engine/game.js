@@ -25,6 +25,7 @@ class Game {
         this.startingPotions = 0;
         this.prePlaceRelay = false;
         this.showAllWavesPreview = false;
+        this.autopilotTickInterval = AUTOPILOT_CONFIG.tickInterval;
         this.ability = null;  // set by applyLoadout
 
         this.health = 20;
@@ -332,7 +333,7 @@ class Game {
 
         if (this.autopilot) {
             this.autopilotTimer++;
-            if (this.autopilotTimer >= AUTOPILOT_CONFIG.tickInterval) {
+            if (this.autopilotTimer >= this.autopilotTickInterval) {
                 this.autopilotTimer = 0;
                 this.runAutopilot();
             }

@@ -63,7 +63,10 @@ function renderAscensionSelector(context) {
         if (t > unlockedMax) {
             btn.classList.add('locked');
             btn.disabled = true;
-            btn.title = spec.name + ' (locked — clear A' + (t - 1) + ' to unlock)';
+            const showPreview = NeonSave.hasUnlocked(save, 'qol.ascpreview') && t === unlockedMax + 1;
+            btn.title = spec.name
+                + (showPreview ? ' (preview: ' + spec.name + ')' : '')
+                + ' (locked — clear A' + (t - 1) + ' to unlock)';
         } else {
             btn.addEventListener('click', () => setTier(t));
         }
@@ -90,6 +93,7 @@ function renderLoadoutDropdowns() {
     renderOneLoadoutSelect('run-hero-select', 'selectedHero', 'hero.pioneer', HEROES);
     renderOneLoadoutSelect('run-kit-select',  'selectedKit',  'kit.standard', STARTER_KITS);
     renderOneAbilitySelect();
+    if (typeof refreshSkipsetupRow === 'function') refreshSkipsetupRow();
 }
 
 function renderOneLoadoutSelect(elementId, globalName, fallbackId, catalog) {
@@ -393,9 +397,32 @@ function init() {
     // Ensure Main Menu is visible on initial page load.
     showScreen('main-menu');
 
+    // M2: qol.skipsetup — show toggle only when unlocked, persist state.
+    function refreshSkipsetupRow() {
+        const row = document.getElementById('skipsetup-row');
+        const toggle = document.getElementById('skipsetup-toggle');
+        if (!row || !toggle) return;
+        if (NeonSave.hasUnlocked(save, 'qol.skipsetup')) {
+            row.classList.remove('hidden');
+            toggle.checked = !!save.settings.skipRunSetup;
+        } else {
+            row.classList.add('hidden');
+        }
+    }
+    document.getElementById('skipsetup-toggle').addEventListener('change', e => {
+        save.settings.skipRunSetup = !!e.target.checked;
+        NeonSave.write(save);
+    });
+    refreshSkipsetupRow();
+
     // M2: Main Menu wiring — landing screen.
     document.getElementById('menu-start-btn').addEventListener('click', () => {
-        navigateToRunSetup();
+        if (save.settings.skipRunSetup && save.lastLoadout) {
+            // Skip Run Setup: restart with last loadout immediately.
+            restartGame(null);
+        } else {
+            navigateToRunSetup();
+        }
     });
     document.getElementById('menu-tree-btn').addEventListener('click', () => {
         navigateToTechTree();
@@ -639,6 +666,11 @@ function init() {
         hideScreen('start-screen');
         hideScreen('game-over');
         hideScreen('restart-confirm');
+
+        // M2: qol.fastai halves autopilot tick interval.
+        if (NeonSave.hasUnlocked(save, 'qol.fastai')) {
+            game.autopilotTickInterval = 15;
+        }
         if (typeof refreshAbilityUI === 'function') refreshAbilityUI();
     }
 
