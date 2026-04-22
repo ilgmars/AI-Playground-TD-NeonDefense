@@ -68,7 +68,7 @@ function drawSpawnerTile(ctx, x, y, size) {
 
 // Entity drawing
 
-function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false) {
+function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burning = false) {
     ctx.save();
     ctx.translate(x, y);
     
@@ -128,8 +128,19 @@ function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false) {
     ctx.fillRect(-radius, -radius - 8, radius*2, 4);
     ctx.fillStyle = '#22c55e';
     ctx.fillRect(-radius, -radius - 8, radius*2 * healthRatio, 4);
-    
+
     ctx.restore();
+
+    // M3: Flamethrower burn overlay — orange translucent aura.
+    if (burning) {
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = 'rgba(251, 146, 60, 0.6)';
+        ctx.beginPath();
+        ctx.arc(x, y, radius + 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
 }
 
 function drawTower(ctx, x, y, type, size, angle, level = 1) {

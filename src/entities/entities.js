@@ -71,6 +71,17 @@ class Enemy {
             return;
         }
 
+        // M3: Flamethrower burn DoT — ticks every 10 frames.
+        if (this.burnFrames && this.burnFrames > 0) {
+            this.burnFrames--;
+            if (this.burnFrames % 10 === 0) {
+                const d = this.burnDamage || 1;
+                this.hp -= d;
+                if (this.burnSource) this.burnSource.damageDealt += d;
+                if (this.hp <= 0) this.active = false;
+            }
+        }
+
         // M3: Cryo slow ticks down to 1 after slowExpireFrame frames.
         if (this.slowExpireFrame && this.slowExpireFrame > 0) {
             this.slowExpireFrame--;
@@ -147,7 +158,7 @@ class Enemy {
 
     draw(ctx) {
         if (!this.active) return;
-        drawEnemy(ctx, this.x, this.y, this.radius, this.type, this.hp / this.maxHp, this.currentSlow < 1);
+        drawEnemy(ctx, this.x, this.y, this.radius, this.type, this.hp / this.maxHp, this.currentSlow < 1, this.burnFrames > 0);
 
         // M2: Freeze ability — blue glow ring overlay.
         if (this.frozen) {
@@ -396,7 +407,34 @@ class Tower {
                 else if (this.type === 'rocket') SoundFX.shootRocket();
                 else if (this.type === 'flak') SoundFX.shootFlak();
                 
-                if (this.type === 'rapid') {
+                if (this.type === 'rapid_flame') {
+                    // M3: Flamethrower cone damage
+                    const coneAngle = this.coneAngle || 0.6;
+                    const aimAngle = this.angle; // updated above: angle to current target
+                    const tx = this.x + TILE_SIZE / 2;
+                    const ty = this.y + TILE_SIZE / 2;
+                    for (const e of enemies) {
+                        if (!e.active) continue;
+                        const dx = e.x - tx;
+                        const dy = e.y - ty;
+                        const d = Math.hypot(dx, dy);
+                        if (d > this.range) continue;
+                        const enemyAngle = Math.atan2(dy, dx);
+                        let diff = enemyAngle - aimAngle;
+                        while (diff > Math.PI) diff -= Math.PI * 2;
+                        while (diff < -Math.PI) diff += Math.PI * 2;
+                        if (Math.abs(diff) <= coneAngle / 2) {
+                            e.hp -= this.damage;
+                            this.damageDealt += this.damage;
+                            if (e.hp <= 0) e.active = false;
+                            // Start/refresh burn DoT
+                            e.burnFrames = Math.max(e.burnFrames || 0, this.burnDuration || 120);
+                            e.burnDamage = this.burnDamage || 2;
+                            e.burnSource = this;
+                        }
+                    }
+                    this.cooldown = this.fireRate;
+                } else if (this.type === 'rapid') {
                     let pc = this.pelletCount || 5;
                     let baseAngle = Math.atan2(target.y - (this.y + TILE_SIZE/2), target.x - (this.x + TILE_SIZE/2));
                     let spread = this.spread || 0.4;
