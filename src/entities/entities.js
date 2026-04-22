@@ -64,6 +64,30 @@ class Enemy {
             return;
         }
 
+        // M3: Stun effect — halts this enemy for stunFrames frames.
+        if (this.stunned && this.stunFrames > 0) {
+            this.stunFrames--;
+            if (this.stunFrames === 0) this.stunned = false;
+            return;
+        }
+
+        // M3: Flamethrower burn DoT — ticks every 10 frames.
+        if (this.burnFrames && this.burnFrames > 0) {
+            this.burnFrames--;
+            if (this.burnFrames % 10 === 0) {
+                const d = this.burnDamage || 1;
+                this.hp -= d;
+                if (this.burnSource) this.burnSource.damageDealt += d;
+                if (this.hp <= 0) this.active = false;
+            }
+        }
+
+        // M3: Cryo slow ticks down to 1 after slowExpireFrame frames.
+        if (this.slowExpireFrame && this.slowExpireFrame > 0) {
+            this.slowExpireFrame--;
+            if (this.slowExpireFrame === 0) this.currentSlow = 1;
+        }
+
         if (this.isAir) {
             if (this.followsPath) {
                 // Air enemy following the path
@@ -76,7 +100,8 @@ class Enemy {
                 let dist = Math.hypot(dx, dy);
 
                 let currentSpeed = this.speed * this.currentSlow;
-                if (this.currentSlow < 1) this.currentSlow = Math.min(1, this.currentSlow + 0.01);
+                // M3: Only auto-recover slow if not held by cryo duration.
+                if (this.currentSlow < 1 && (!this.slowExpireFrame || this.slowExpireFrame === 0)) this.currentSlow = Math.min(1, this.currentSlow + 0.01);
 
                 if (dist < currentSpeed) {
                     this.x = targetX;
@@ -99,7 +124,8 @@ class Enemy {
                     this.reachedEnd = true;
                     this.active = false;
                 }
-                if (this.currentSlow < 1) this.currentSlow = Math.min(1, this.currentSlow + 0.01);
+                // M3: Only auto-recover slow if not held by cryo duration.
+                if (this.currentSlow < 1 && (!this.slowExpireFrame || this.slowExpireFrame === 0)) this.currentSlow = Math.min(1, this.currentSlow + 0.01);
             }
             return;
         }
@@ -113,7 +139,8 @@ class Enemy {
         let dist = Math.hypot(dx, dy);
 
         let currentSpeed = this.speed * this.currentSlow;
-        this.currentSlow = 1;
+        // M3: Only reset slow to 1 if there's no active cryo/slow duration — otherwise cryo holds.
+        if (!this.slowExpireFrame || this.slowExpireFrame === 0) this.currentSlow = 1;
 
         if (dist < currentSpeed) {
             this.x = targetX;
@@ -131,7 +158,7 @@ class Enemy {
 
     draw(ctx) {
         if (!this.active) return;
-        drawEnemy(ctx, this.x, this.y, this.radius, this.type, this.hp / this.maxHp, this.currentSlow < 1);
+        drawEnemy(ctx, this.x, this.y, this.radius, this.type, this.hp / this.maxHp, this.currentSlow < 1, this.burnFrames > 0, this.shielded && !this.shieldBroken, this.splitterGeneration === 1, this.isBoss);
 
         // M2: Freeze ability — blue glow ring overlay.
         if (this.frozen) {
@@ -202,8 +229,11 @@ class Tower {
         if (type === 'silo')  this.hoverRockets = [];
 
         this.totalSpent = this.baseCost;
+        // M3: Mastery XP attribution — incremented by every projectile hit
+        // and every frame of laser/tesla direct damage sourced from this tower.
+        this.damageDealt = 0;
     }
-    
+
     get level() {
         return 1 + this.upgrades[0] + this.upgrades[1] + this.upgrades[2];
     }
@@ -225,7 +255,7 @@ class Tower {
     }
 
     update(enemies, projectiles, particles) {
-        if (this.type === 'income') return; // passive tower, no combat logic
+        if (this.type === 'income' || this.type === 'income_research') return; // passive tower, no combat logic
         if (this.cooldown > 0) this.cooldown--;
 
         if (this.type === 'silo') {
@@ -259,7 +289,8 @@ class Tower {
                 }
                 
                 if (target) {
-                    projectiles.push(new Projectile(rx, ry, target, this.damage, 'rocket', this.pierce, this.splash));
+                    const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
+                    projectiles.push(new Projectile(rx, ry, target, effectiveDamage, 'rocket', this.pierce, this.splash, this));
                     this.hoverRockets.splice(i, 1);
                 }
             }
@@ -320,10 +351,29 @@ class Tower {
         if (target) {
             this.angle = Math.atan2(target.y - (this.y + TILE_SIZE/2), target.x - (this.x + TILE_SIZE/2));
             
-            if (this.type === 'laser') {
-                let dmg = this.damage;
+            if (this.type === 'laser_pulse') {
+                // M3: Pulse Laser — fires high-damage projectiles at fireRate cadence.
+                if (this.cooldown <= 0) {
+                    const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
+                    const proj = new Projectile(
+                        this.x + TILE_SIZE / 2,
+                        this.y + TILE_SIZE / 2,
+                        target,
+                        effectiveDamage,
+                        'laser-pulse',
+                        this.pierce || 1,
+                        0,
+                        this
+                    );
+                    projectiles.push(proj);
+                    this.cooldown = this.fireRate;
+                }
+            } else if (this.type === 'laser') {
+                const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
+                let dmg = effectiveDamage;
                 if (target.isAir) dmg *= 0.4; // Ground towers are less effective vs air
                 target.hp -= dmg;
+                this.damageDealt += dmg;
                 if (this.slowEffect && this.slowEffect > 0) {
                     target.currentSlow = Math.max(0.1, 1 - this.slowEffect);
                 }
@@ -332,23 +382,47 @@ class Tower {
                     SoundFX.explosion();
                 }
                 this.laserTarget = {x: target.x, y: target.y};
+            } else if (this.type === 'electric_plasma') {
+                // M3: Plasma Coil — continuous AoE damage to all enemies in range per frame.
+                if (this.cooldown <= 0) {
+                    const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
+                    const tx = this.x + TILE_SIZE / 2;
+                    const ty = this.y + TILE_SIZE / 2;
+                    const r2 = this.range * this.range;
+                    for (const e of enemies) {
+                        if (!e.active) continue;
+                        const dx = e.x - tx;
+                        const dy = e.y - ty;
+                        if (dx*dx + dy*dy > r2) continue;
+                        e.hp -= effectiveDamage;
+                        this.damageDealt += effectiveDamage;
+                        if (e.hp <= 0) e.active = false;
+                    }
+                    this.cooldown = 1; // effectively every frame (fireRate=1)
+                }
             } else if (this.type === 'electric') {
                 if (this.cooldown === 0) {
                     SoundFX.shootElectric();
+                    const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
                     let points = [{x: this.x + TILE_SIZE/2, y: this.y + TILE_SIZE/2}];
                     let currentTarget = target;
                     let hitCount = 0;
                     let alreadyHit = new Set();
-                    
+
                     while (currentTarget && hitCount < (this.chainCount || 3)) {
-                        let dmg = this.damage;
+                        let dmg = effectiveDamage;
                         if (currentTarget.isAir) dmg *= 0.4; // Electric less effective vs air
-                        currentTarget.hp -= dmg;
-                        if (currentTarget.hp <= 0) {
-                            currentTarget.active = false;
-                            SoundFX.explosion();
+                        if (currentTarget.shielded && !currentTarget.shieldBroken) {
+                            currentTarget.shieldBroken = true;
+                        } else {
+                            currentTarget.hp -= dmg;
+                            this.damageDealt += dmg;
+                            if (currentTarget.hp <= 0) {
+                                currentTarget.active = false;
+                                SoundFX.explosion();
+                            }
                         }
-                        
+
                         points.push({x: currentTarget.x, y: currentTarget.y});
                         alreadyHit.add(currentTarget);
                         hitCount++;
@@ -375,7 +449,37 @@ class Tower {
                 else if (this.type === 'rocket') SoundFX.shootRocket();
                 else if (this.type === 'flak') SoundFX.shootFlak();
                 
-                if (this.type === 'rapid') {
+                if (this.type === 'rapid_flame') {
+                    // M3: Flamethrower cone damage
+                    const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
+                    const effectiveBurnDamage = (this.burnDamage || 2) * (1 + (this.auraDamageBonus || 0));
+                    const coneAngle = this.coneAngle || 0.6;
+                    const aimAngle = this.angle; // updated above: angle to current target
+                    const tx = this.x + TILE_SIZE / 2;
+                    const ty = this.y + TILE_SIZE / 2;
+                    for (const e of enemies) {
+                        if (!e.active) continue;
+                        const dx = e.x - tx;
+                        const dy = e.y - ty;
+                        const d = Math.hypot(dx, dy);
+                        if (d > this.range) continue;
+                        const enemyAngle = Math.atan2(dy, dx);
+                        let diff = enemyAngle - aimAngle;
+                        while (diff > Math.PI) diff -= Math.PI * 2;
+                        while (diff < -Math.PI) diff += Math.PI * 2;
+                        if (Math.abs(diff) <= coneAngle / 2) {
+                            e.hp -= effectiveDamage;
+                            this.damageDealt += effectiveDamage;
+                            if (e.hp <= 0) e.active = false;
+                            // Start/refresh burn DoT
+                            e.burnFrames = Math.max(e.burnFrames || 0, this.burnDuration || 120);
+                            e.burnDamage = effectiveBurnDamage;
+                            e.burnSource = this;
+                        }
+                    }
+                    this.cooldown = this.fireRate;
+                } else if (this.type === 'rapid') {
+                    const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
                     let pc = this.pelletCount || 5;
                     let baseAngle = Math.atan2(target.y - (this.y + TILE_SIZE/2), target.x - (this.x + TILE_SIZE/2));
                     let spread = this.spread || 0.4;
@@ -383,13 +487,14 @@ class Tower {
                         let offset = -spread/2 + (spread / Math.max(1, pc - 1)) * i;
                         if (pc === 1) offset = 0;
                         let proj = new Projectile(
-                            this.x + TILE_SIZE/2, 
-                            this.y + TILE_SIZE/2, 
-                            null, 
-                            this.damage, 
+                            this.x + TILE_SIZE/2,
+                            this.y + TILE_SIZE/2,
+                            null,
+                            effectiveDamage,
                             this.type,
                             this.pierce,
-                            this.splash
+                            this.splash,
+                            this
                         );
                         proj.isDumbFire = true;
                         proj.angle = baseAngle + offset;
@@ -398,6 +503,7 @@ class Tower {
                         projectiles.push(proj);
                     }
                 } else {
+                    const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
                     let ms = this.multiShot || 1;
                     for (let i = 0; i < ms; i++) {
                         let finalTarget = target;
@@ -412,13 +518,14 @@ class Tower {
                             if (altTarget) finalTarget = altTarget;
                         }
                         projectiles.push(new Projectile(
-                            this.x + TILE_SIZE/2, 
-                            this.y + TILE_SIZE/2, 
-                            finalTarget, 
-                            this.damage, 
+                            this.x + TILE_SIZE/2,
+                            this.y + TILE_SIZE/2,
+                            finalTarget,
+                            effectiveDamage,
                             this.type,
                             this.pierce,
-                            this.splash
+                            this.splash,
+                            this
                         ));
                     }
                 }
@@ -461,7 +568,7 @@ class Tower {
 }
 
 class Projectile {
-    constructor(x, y, target, damage, type, pierce = 1, splash = 0) {
+    constructor(x, y, target, damage, type, pierce = 1, splash = 0, tower) {
         this.x = x;
         this.y = y;
         this.target = target;
@@ -470,6 +577,7 @@ class Projectile {
         this.pierce = pierce;
         this.splash = splash;
         this.hitEnemies = new Set();
+        this.sourceTower = tower || null;
         
         this.speed = type === 'sniper' ? 12 : type === 'rapid' ? 8 : type === 'rocket' ? 5 : type === 'flak' ? 14 : 8;
         this.active = true;
@@ -512,14 +620,32 @@ class Projectile {
                     let dmg = this.damage;
                     if (this.type === 'flak' && e.isAir) dmg *= 4;
                     else if (this.type !== 'flak' && e.isAir) dmg *= 0.4;
-                    
-                    e.hp -= dmg;
-                    SoundFX.hit();
-                    if (e.hp <= 0) {
-                        e.active = false;
-                        SoundFX.explosion();
+
+                    // M3: Shielded enemy absorbs first projectile hit — no damage, no XP.
+                    if (e.shielded && !e.shieldBroken) {
+                        e.shieldBroken = true;
+                        // Cryo slow still applies — shield absorbs damage but not effects.
+                        if (this.sourceTower && this.sourceTower.slowEffect) {
+                            const newSlow = 1 - this.sourceTower.slowEffect;
+                            e.currentSlow = Math.min(e.currentSlow, newSlow);
+                            e.slowExpireFrame = this.sourceTower.slowDuration || 60;
+                        }
+                    } else {
+                        e.hp -= dmg;
+                        if (this.sourceTower) this.sourceTower.damageDealt += dmg;
+                        // M3: Cryo Blaster slow effect — applied if the source tower defines slowEffect.
+                        if (this.sourceTower && this.sourceTower.slowEffect) {
+                            const newSlow = 1 - this.sourceTower.slowEffect;
+                            e.currentSlow = Math.min(e.currentSlow, newSlow);
+                            e.slowExpireFrame = this.sourceTower.slowDuration || 60;
+                        }
+                        SoundFX.hit();
+                        if (e.hp <= 0) {
+                            e.active = false;
+                            SoundFX.explosion();
+                        }
                     }
-                    
+
                     // Check pierce
                     this.pierce--;
                     if (this.pierce <= 0) {
@@ -607,11 +733,64 @@ class Projectile {
                     let dmg = this.damage;
                     if (this.type === 'flak' && e.isAir) dmg *= 4; // Flak deals 400% damage to Air
                     else if (this.type !== 'flak' && e.isAir) dmg *= 0.4; // Ground towers less effective vs air
-                    
-                    e.hp -= dmg;
-                    if (e.hp <= 0) {
-                        e.active = false;
-                        SoundFX.explosion();
+
+                    // M3: Shielded enemy absorbs first projectile hit — no damage, no XP.
+                    if (e.shielded && !e.shieldBroken) {
+                        e.shieldBroken = true;
+                        // Cryo slow still applies — shield absorbs damage but not effects.
+                        if (this.sourceTower && this.sourceTower.slowEffect) {
+                            const newSlow = 1 - this.sourceTower.slowEffect;
+                            e.currentSlow = Math.min(e.currentSlow, newSlow);
+                            e.slowExpireFrame = this.sourceTower.slowDuration || 60;
+                        }
+                        // M3: EMP Flak stun still applies through shield.
+                        if (this.sourceTower && this.sourceTower.stunDuration && e.isAir) {
+                            e.stunned = true;
+                            e.stunFrames = this.sourceTower.stunDuration;
+                        }
+                    } else {
+                        e.hp -= dmg;
+                        if (this.sourceTower) this.sourceTower.damageDealt += dmg;
+                        // M3: Cryo Blaster slow effect — applied if the source tower defines slowEffect.
+                        if (this.sourceTower && this.sourceTower.slowEffect) {
+                            const newSlow = 1 - this.sourceTower.slowEffect;
+                            e.currentSlow = Math.min(e.currentSlow, newSlow);
+                            e.slowExpireFrame = this.sourceTower.slowDuration || 60;
+                        }
+                        // M3: EMP Flak stuns air targets on hit.
+                        if (this.sourceTower && this.sourceTower.stunDuration && e.isAir) {
+                            e.stunned = true;
+                            e.stunFrames = this.sourceTower.stunDuration;
+                        }
+                        if (e.hp <= 0) {
+                            e.active = false;
+                            SoundFX.explosion();
+                        }
+                    }
+                }
+            }
+            // M3: Cluster Rocket — spawn sub-rockets at impact site. Uses the
+            // enemies and projectiles arrays passed to Projectile.update /
+            // explode so no global game reference is needed.
+            if (this.sourceTower && this.sourceTower.clusterCount && !this.isClusterChild) {
+                const subRadius = (this.sourceTower.splash || 45) * 0.6;
+                const subDamage = (this.sourceTower.damage || 18) * 0.5;
+                for (let i = 0; i < this.sourceTower.clusterCount; i++) {
+                    const angle = (Math.PI * 2 / this.sourceTower.clusterCount) * i;
+                    const sx = this.x + Math.cos(angle) * subRadius * 0.3;
+                    const sy = this.y + Math.sin(angle) * subRadius * 0.3;
+                    let nearest = null;
+                    let bestD = Infinity;
+                    for (const en of enemies) {
+                        if (!en.active) continue;
+                        const dx = en.x - sx, dy = en.y - sy;
+                        const d2 = dx*dx + dy*dy;
+                        if (d2 < bestD) { bestD = d2; nearest = en; }
+                    }
+                    if (nearest) {
+                        const sub = new Projectile(sx, sy, nearest, subDamage, 'rocket', 1, subRadius, this.sourceTower);
+                        sub.isClusterChild = true;
+                        projectiles.push(sub);
                     }
                 }
             }
@@ -621,15 +800,33 @@ class Projectile {
                 let dmg = this.damage;
                 if (this.type === 'flak' && this.target.isAir) dmg *= 4;
                 else if (this.type !== 'flak' && this.target.isAir) dmg *= 0.4; // Ground towers less effective vs air
-                
-                this.target.hp -= dmg;
-                SoundFX.hit();
-                if (this.target.hp <= 0) {
-                    this.target.active = false;
-                    SoundFX.explosion();
+
+                // M3: Shielded enemy absorbs first projectile hit — no damage, no XP.
+                if (this.target.shielded && !this.target.shieldBroken) {
+                    this.target.shieldBroken = true;
+                    // Cryo slow still applies — shield absorbs damage but not effects.
+                    if (this.sourceTower && this.sourceTower.slowEffect) {
+                        const newSlow = 1 - this.sourceTower.slowEffect;
+                        this.target.currentSlow = Math.min(this.target.currentSlow, newSlow);
+                        this.target.slowExpireFrame = this.sourceTower.slowDuration || 60;
+                    }
+                } else {
+                    this.target.hp -= dmg;
+                    if (this.sourceTower) this.sourceTower.damageDealt += dmg;
+                    // M3: Cryo Blaster slow effect — applied if the source tower defines slowEffect.
+                    if (this.sourceTower && this.sourceTower.slowEffect) {
+                        const newSlow = 1 - this.sourceTower.slowEffect;
+                        this.target.currentSlow = Math.min(this.target.currentSlow, newSlow);
+                        this.target.slowExpireFrame = this.sourceTower.slowDuration || 60;
+                    }
+                    SoundFX.hit();
+                    if (this.target.hp <= 0) {
+                        this.target.active = false;
+                        SoundFX.explosion();
+                    }
                 }
             }
-            
+
             this.pierce--;
             if (this.pierce <= 0 || !this.target.active) {
                 this.active = false;

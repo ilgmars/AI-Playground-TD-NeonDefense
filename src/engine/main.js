@@ -10,7 +10,7 @@ window.save = save;   // M2: expose for Enemy.draw HP-bar check.
 
 // Default tier = highest cleared. First-time players start on A0.
 // Clamp to M1 ceiling in case a hand-edited save has ascensionCleared > 7.
-let selectedTier = Math.min(save.ascensionCleared, ASCENSION_MAX_TIER_M1);
+let selectedTier = Math.min(save.ascensionCleared, ASCENSION_MAX_TIER);
 
 // Visible Ascension tier in the scoreboard view (independent from run tier).
 let visibleScoreTier = selectedTier;
@@ -21,8 +21,15 @@ let selectedHero    = (save.lastLoadout && save.lastLoadout.heroId   && NeonSave
 let selectedKit     = (save.lastLoadout && save.lastLoadout.kitId    && NeonSave.hasUnlocked(save, save.lastLoadout.kitId))    ? save.lastLoadout.kitId    : 'kit.' + DEFAULT_KIT;
 let selectedAbility = (save.lastLoadout && save.lastLoadout.abilityId && NeonSave.hasUnlocked(save, save.lastLoadout.abilityId)) ? save.lastLoadout.abilityId : 'ability.none';
 
+// M3: Per-base-type variant selection. Map of baseType → effective tower id.
+// Example: { basic: 'basic_cryo', sniper: 'sniper', ... } — 'sniper' means base form.
+// Initialized from save.lastLoadout.towerLoadout if present.
+let selectedTowerLoadout = (save.lastLoadout && save.lastLoadout.towerLoadout)
+    ? { ...save.lastLoadout.towerLoadout }
+    : {};
+
 function setTier(tier) {
-    const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER_M1);
+    const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER);
     if (tier < 0 || tier > unlockedMax) return;
     selectedTier = tier;
 
@@ -51,9 +58,9 @@ function renderAscensionSelector(context) {
     if (!container) return;
     container.innerHTML = '';
 
-    const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER_M1);
+    const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER);
 
-    for (let t = 0; t <= ASCENSION_MAX_TIER_M1; t++) {
+    for (let t = 0; t <= ASCENSION_MAX_TIER; t++) {
         const spec = ASCENSION_TIERS[t];
         const btn = document.createElement('button');
         btn.className = 'ascension-btn';
@@ -93,7 +100,52 @@ function renderLoadoutDropdowns() {
     renderOneLoadoutSelect('run-hero-select', 'selectedHero', 'hero.pioneer', HEROES);
     renderOneLoadoutSelect('run-kit-select',  'selectedKit',  'kit.standard', STARTER_KITS);
     renderOneAbilitySelect();
+    renderTowerVariantGrid();
     if (typeof refreshSkipsetupRow === 'function') refreshSkipsetupRow();
+}
+
+// M3: Populate the tower-variant grid. One row per base tower type;
+// row is visible only if the player has unlocked that tower's variant
+// (towerMastery[type].milestones.m1). If no variants are unlocked, the
+// entire row is hidden.
+function renderTowerVariantGrid() {
+    const row = document.getElementById('tower-loadout-row');
+    const grid = document.getElementById('tower-variant-grid');
+    if (!row || !grid) return;
+    grid.innerHTML = '';
+
+    let anyUnlocked = false;
+    for (const baseType of NeonSave.TOWER_TYPES) {
+        const variantId = TOWER_VARIANTS[baseType];
+        const variantUnlocked = save.towerMastery[baseType] && save.towerMastery[baseType].milestones && save.towerMastery[baseType].milestones.m1;
+        if (!variantUnlocked) continue;
+        anyUnlocked = true;
+
+        const cell = document.createElement('div');
+        cell.className = 'tower-variant-row';
+
+        const label = document.createElement('span');
+        label.className = 'variant-base';
+        label.textContent = TOWERS[baseType].displayName;
+
+        const sel = document.createElement('select');
+        sel.innerHTML = `
+            <option value="${baseType}">${TOWERS[baseType].displayName}</option>
+            <option value="${variantId}">${TOWERS[variantId].displayName}</option>
+        `;
+        const current = selectedTowerLoadout[baseType] || baseType;
+        sel.value = current;
+        sel.addEventListener('change', e => {
+            selectedTowerLoadout[baseType] = e.target.value;
+        });
+
+        cell.appendChild(label);
+        cell.appendChild(sel);
+        grid.appendChild(cell);
+    }
+
+    if (anyUnlocked) row.classList.remove('hidden');
+    else row.classList.add('hidden');
 }
 
 function renderOneLoadoutSelect(elementId, globalName, fallbackId, catalog) {
@@ -164,6 +216,7 @@ function navigateToMainMenu() {
     hideScreen('game-over');
     hideScreen('restart-confirm');
     hideScreen('tech-tree');
+    hideScreen('tower-mastery');
     showScreen('main-menu');
     updateMainMenuState();
 }
@@ -259,9 +312,82 @@ function buildTreeNodeEl(node, tierKey, tierOpen) {
     return el;
 }
 
+// M3: Tower Mastery screen. Shows 9 tower rows with XP progress bars
+// and milestone dots. Reads save.towerMastery; no purchase flow.
+function navigateToTowerMastery() {
+    hideScreen('main-menu');
+    hideScreen('start-screen');
+    hideScreen('game-over');
+    hideScreen('tech-tree');
+    showScreen('tower-mastery');
+    renderTowerMastery();
+}
+
+function renderTowerMastery() {
+    const grid = document.getElementById('mastery-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    for (const type of NeonSave.TOWER_TYPES) {
+        const mast = save.towerMastery[type] || { xp: 0, milestones: { m1: false, m2: false } };
+        const towerDef = TOWERS[type];
+
+        const row = document.createElement('div');
+        row.className = 'mastery-row';
+        if (mast.milestones.m1 && mast.milestones.m2) row.classList.add('maxed');
+
+        const icon = document.createElement('div');
+        icon.className = 'mastery-icon';
+
+        const body = document.createElement('div');
+        body.className = 'mastery-body';
+
+        const nameRow = document.createElement('div');
+        nameRow.className = 'mastery-name-row';
+        const label = document.createElement('span');
+        label.textContent = towerDef ? towerDef.displayName : type;
+        const xpText = document.createElement('span');
+        xpText.className = 'mastery-xp-text';
+        const capXP = mast.milestones.m2 ? 10000 : mast.milestones.m1 ? 10000 : 1000;
+        xpText.textContent = `${mast.xp} / ${capXP} XP`;
+        nameRow.appendChild(label);
+        nameRow.appendChild(xpText);
+
+        const bar = document.createElement('div');
+        bar.className = 'mastery-bar';
+        const fill = document.createElement('div');
+        fill.className = 'mastery-bar-fill';
+        const progress = Math.min(1, mast.xp / capXP);
+        fill.style.width = (progress * 100) + '%';
+        if (mast.milestones.m2) fill.classList.add('maxed');
+        bar.appendChild(fill);
+
+        const milestones = document.createElement('div');
+        milestones.className = 'mastery-milestones';
+        const dot1 = document.createElement('span');
+        dot1.className = 'mastery-milestone-dot' + (mast.milestones.m1 ? ' hit' : '');
+        dot1.textContent = (mast.milestones.m1 ? '● ' : '○ ') + 'VARIANT @ 1K';
+        const dot2 = document.createElement('span');
+        dot2.className = 'mastery-milestone-dot' + (mast.milestones.m2 ? ' hit' : '');
+        dot2.textContent = (mast.milestones.m2 ? '● ' : '○ ') + 'SKIN @ 10K';
+        milestones.appendChild(dot1);
+        milestones.appendChild(dot2);
+
+        body.appendChild(nameRow);
+        body.appendChild(bar);
+        body.appendChild(milestones);
+
+        row.appendChild(icon);
+        row.appendChild(body);
+        grid.appendChild(row);
+    }
+}
+
 // Renders the XP breakdown in the game-over overlay. Called by
 // window.onRunEnded after XP has been applied to the save.
-function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId }) {
+function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults }) {
+    // M3: Clear any stale mastery banners from prior runs.
+    document.querySelectorAll('.xp-breakdown-unlock.mastery-banner').forEach(el => el.remove());
     document.getElementById('xp-wave').textContent     = xp.waveXP;
     document.getElementById('xp-clear').textContent    = xp.clearBonus;
     document.getElementById('xp-first').textContent    = xp.firstBonus;
@@ -274,11 +400,11 @@ function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId }) {
 
     const unlock = document.getElementById('xp-unlock');
     if (firstClear) {
-        const nextTier = Math.min(tier + 1, ASCENSION_MAX_TIER_M1);
+        const nextTier = Math.min(tier + 1, ASCENSION_MAX_TIER);
         const nextSpec = ASCENSION_TIERS[nextTier];
         let text = nextTier > tier
             ? `UNLOCKED: ${nextSpec.label} — ${nextSpec.name}`
-            : `MAXED for M1`;
+            : `MAXED`;
         if (autoUnlockedNodeId) {
             const node = getTreeNode(autoUnlockedNodeId);
             if (node) text += ` · FREE NODE: ${autoUnlockedNodeId}`;
@@ -287,6 +413,22 @@ function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId }) {
         unlock.classList.remove('hidden');
     } else {
         unlock.classList.add('hidden');
+    }
+
+    // M3: Mastery milestone banner — only appended if at least one milestone fired.
+    if (masteryResults && masteryResults.length > 0) {
+        const milestoneHits = masteryResults.filter(r => r.newMilestones && r.newMilestones.length > 0);
+        if (milestoneHits.length > 0) {
+            const lines = milestoneHits.map(r => {
+                const names = r.newMilestones.map(m => m === 'm1' ? 'VARIANT' : 'SKIN').join(' + ');
+                return `${TOWERS[r.type]?.displayName || r.type}: ${names}`;
+            });
+            const wrap = document.createElement('div');
+            wrap.className = 'xp-breakdown-unlock mastery-banner';
+            wrap.textContent = 'MASTERY: ' + lines.join(' · ');
+            const unlockEl = document.getElementById('xp-unlock');
+            unlockEl.parentNode.insertBefore(wrap, unlockEl.nextSibling);
+        }
     }
 }
 
@@ -377,7 +519,8 @@ function init() {
     game = new Game(canvas, urlSeed, selectedTier, {
         heroId: selectedHero,
         kitId: selectedKit,
-        abilityId: selectedAbility
+        abilityId: selectedAbility,
+        towerLoadout: { ...selectedTowerLoadout }
     });
 
     game.draw();
@@ -427,6 +570,12 @@ function init() {
     document.getElementById('menu-tree-btn').addEventListener('click', () => {
         navigateToTechTree();
     });
+    document.getElementById('menu-mastery-btn').addEventListener('click', () => {
+        navigateToTowerMastery();
+    });
+    document.getElementById('mastery-back-btn').addEventListener('click', () => {
+        navigateToMainMenu();
+    });
     document.getElementById('menu-dailyseed-btn').addEventListener('click', () => {
         if (!NeonSave.hasUnlocked(save, 'qol.dailyseed')) return;
         const today = new Date();
@@ -436,7 +585,8 @@ function init() {
         // Rebuild preview Game on the daily seed and go to Run Setup.
         const canvas = document.getElementById('game-canvas');
         game = new Game(canvas, dailySeed, selectedTier, {
-            heroId: selectedHero, kitId: selectedKit, abilityId: selectedAbility
+            heroId: selectedHero, kitId: selectedKit, abilityId: selectedAbility,
+            towerLoadout: { ...selectedTowerLoadout }
         });
         game.draw();
         updateSeedDisplay();
@@ -472,7 +622,12 @@ function init() {
 
     document.getElementById('start-btn').addEventListener('click', () => {
         // M2: Persist chosen loadout for next run.
-        save.lastLoadout = { heroId: selectedHero, kitId: selectedKit, abilityId: selectedAbility };
+        save.lastLoadout = {
+            heroId: selectedHero,
+            kitId: selectedKit,
+            abilityId: selectedAbility,
+            towerLoadout: { ...selectedTowerLoadout }
+        };
         NeonSave.write(save);
 
         const seedVal = document.getElementById('start-seed-input').value.trim();
@@ -656,7 +811,8 @@ function init() {
         game = new Game(canvas, useSeed, selectedTier, {
             heroId: selectedHero,
             kitId: selectedKit,
-            abilityId: selectedAbility
+            abilityId: selectedAbility,
+            towerLoadout: { ...selectedTowerLoadout }
         });
         game.start();
         updateSeedDisplay();
@@ -702,7 +858,7 @@ function init() {
         const tabs = document.getElementById('score-tabs');
         if (!tabs) return;
         tabs.innerHTML = '';
-        for (let t = 0; t <= ASCENSION_MAX_TIER_M1; t++) {
+        for (let t = 0; t <= ASCENSION_MAX_TIER; t++) {
             const btn = document.createElement('button');
             btn.className = 'score-tab';
             btn.textContent = 'A' + t;
@@ -790,8 +946,11 @@ function init() {
             updateMainMenuState();
         }
 
+        // M3: Mastery XP from damage dealt this run.
+        const masteryResults = NeonSave.tallyMastery(save, game.towers);
+
         if (typeof renderRunResultXP === 'function') {
-            renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId });
+            renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults });
         }
     };
 

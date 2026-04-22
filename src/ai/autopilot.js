@@ -3,6 +3,19 @@
 // a potion buy. Behavior is unchanged from the original inline implementation
 // in game.js — this class only reorganizes the logic into named phases.
 
+// M3: Extract base type from a tower type string.
+// e.g. 'laser_pulse' → 'laser', 'flak_emp' → 'flak', 'laser' → 'laser'.
+// Handles variants whose names are baseType_suffix (all M3 variants follow this).
+// Exception: 'income_research' should map to 'income' (two-word base).
+function baseOf(towerType) {
+    if (!towerType) return towerType;
+    // Handle income_research specially — its base is 'income'.
+    if (towerType === 'income_research') return 'income';
+    // All other variants follow baseType_suffix pattern.
+    const under = towerType.indexOf('_');
+    return under === -1 ? towerType : towerType.slice(0, under);
+}
+
 class Autopilot {
     constructor(game) {
         this.game = game;
@@ -10,6 +23,8 @@ class Autopilot {
 
     // Entry point — called from Game.update() on each autopilot tick.
     run() {
+        this._tryUseAbilities();
+
         const state = this._analyzeState();
 
         // Build has priority; if we built, we're done for this tick.
@@ -65,7 +80,11 @@ class Autopilot {
 
     _countTowers() {
         const counts = { basic: 0, sniper: 0, rapid: 0, laser: 0, rocket: 0, flak: 0, electric: 0, silo: 0, income: 0 };
-        for (let t of this.game.towers) counts[t.type]++;
+        // M3: Use baseOf so variants (e.g. laser_pulse, flak_emp) count toward their base type.
+        for (let t of this.game.towers) {
+            const base = baseOf(t.type);
+            if (base in counts) counts[base]++;
+        }
         return counts;
     }
 
@@ -263,7 +282,8 @@ class Autopilot {
     // Flat bonus for placing near an existing laser (encourages chokepoint stacking).
     _laserSynergyBonus(spot, buildType) {
         if (buildType === 'flak') return 0;
-        const lasers = this.game.towers.filter(t => t.type === 'laser');
+        // M3: Match both 'laser' base and 'laser_pulse' variant.
+        const lasers = this.game.towers.filter(t => baseOf(t.type) === 'laser');
         for (let laser of lasers) {
             if (Math.hypot(laser.c - spot.c, laser.r - spot.r) <= AUTOPILOT_CONFIG.laserSynergyRange) {
                 return AUTOPILOT_CONFIG.laserSynergyScore;
@@ -308,10 +328,12 @@ class Autopilot {
         const values = AUTOPILOT_CONFIG.upgradeValue;
         return (a, b) => {
             if (isAirImminent) {
-                if (a.t.type === 'flak'  && b.t.type !== 'flak')  return -1;
-                if (b.t.type === 'flak'  && a.t.type !== 'flak')  return  1;
-                if (a.t.type === 'laser' && b.t.type !== 'laser') return -1;
-                if (b.t.type === 'laser' && a.t.type !== 'laser') return  1;
+                // M3: Use baseOf so variants (flak_emp, laser_pulse) share upgrade priority.
+                const aBase = baseOf(a.t.type), bBase = baseOf(b.t.type);
+                if (aBase === 'flak'  && bBase !== 'flak')  return -1;
+                if (bBase === 'flak'  && aBase !== 'flak')  return  1;
+                if (aBase === 'laser' && bBase !== 'laser') return -1;
+                if (bBase === 'laser' && aBase !== 'laser') return  1;
             }
             const aTotal = a.t.upgrades[0] + a.t.upgrades[1] + a.t.upgrades[2];
             const bTotal = b.t.upgrades[0] + b.t.upgrades[1] + b.t.upgrades[2];
@@ -336,5 +358,48 @@ class Autopilot {
         if (state.savingForTower && g.money - cost < state.savingCost) return;
 
         g.buyPotion();
+    }
+
+    // -----------------------------------------------------------------
+    // Phase 0: abilities (runs before build/upgrade/potion)
+    // -----------------------------------------------------------------
+
+    // M3: Autopilot triggers Airstrike on dense clusters and Freeze on low HP.
+    // Scan is ignored (pure info).
+    _tryUseAbilities() {
+        if (!this.game.ability || !this.game.ability.isUsable()) return;
+        if (this.game.state !== 'playing') return;
+
+        const kind = this.game.ability.kind;
+        if (kind === 'target') {
+            // Airstrike — find densest cluster of enemies, strike if >= 8
+            let best = null;
+            let bestCount = 0;
+            for (const e of this.game.enemies) {
+                if (!e.active) continue;
+                let count = 0;
+                for (const o of this.game.enemies) {
+                    if (!o.active) continue;
+                    const dx = o.x - e.x, dy = o.y - e.y;
+                    if (dx*dx + dy*dy <= 80*80) count++;
+                }
+                if (count > bestCount) { bestCount = count; best = e; }
+            }
+            if (bestCount >= 8 && best) {
+                if (this.game.ability.tryUse()) {
+                    this.game.airstrike(best.x, best.y);
+                    if (typeof window.refreshAbilityUI === 'function') window.refreshAbilityUI();
+                }
+            }
+        } else if (kind === 'instant') {
+            // Freeze — trigger when HP <= 3 (emergency save)
+            if (this.game.health <= 3) {
+                if (this.game.ability.tryUse()) {
+                    this.game.freezeAllEnemies(180);
+                    if (typeof window.refreshAbilityUI === 'function') window.refreshAbilityUI();
+                }
+            }
+        }
+        // kind === 'reveal' (Scan): autopilot ignores info-only abilities.
     }
 }

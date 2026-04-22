@@ -3,7 +3,7 @@ class Game {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
 
-        this.ascensionTier = Math.max(0, Math.min((ascensionTier | 0), ASCENSION_MAX_TIER_M1));
+        this.ascensionTier = Math.max(0, Math.min((ascensionTier | 0), ASCENSION_MAX_TIER));
         this.ascension = getAscensionEffects(this.ascensionTier);
 
         this.map = new GameMap(seed);
@@ -68,6 +68,19 @@ class Game {
         this.ability = NeonAbilities.createInstance(this.loadout.abilityId);
         this.abilityTargetMode = false;   // true when awaiting click for Airstrike
         this.freezeTimer = 0;             // frames left on Freeze effect
+        // M3: Tower loadout (base → variant) drives buildTower resolution.
+        this.towerLoadout = this.loadout.towerLoadout || {};
+    }
+
+    // M3: Given a base tower type (e.g. 'basic'), return the effective type
+    // to build — either the base or its variant — based on this.towerLoadout.
+    // Also handles pass-through of variant ids directly.
+    getEffectiveTowerType(requestedType) {
+        // If caller already passed a variant id, use it.
+        if (requestedType && requestedType.includes('_')) return requestedType;
+        const chosen = this.towerLoadout[requestedType];
+        if (chosen && TOWERS[chosen]) return chosen;
+        return requestedType;
     }
 
     start() {
@@ -117,6 +130,24 @@ class Game {
     }
 
     startWave() {
+        // M3: A10 — every 10th wave is a boss wave (one boss replaces normal spawns).
+        this.isBossWave = this.ascension.spawnBoss && this.wave > 0 && this.wave % 10 === 0;
+
+        // M3: Research Node aura — boosts damage of all towers within auraRange
+        // tiles of each Research Node by auraBonus. Recomputes each wave (stackable).
+        for (const t of this.towers) t.auraDamageBonus = 0;
+        const researchNodes = this.towers.filter(t => t.type === 'income_research');
+        for (const rn of researchNodes) {
+            for (const t of this.towers) {
+                if (t === rn) continue;
+                const dc = t.c - rn.c, dr = t.r - rn.r;
+                const dist = Math.sqrt(dc*dc + dr*dr);
+                if (dist <= (rn.auraRange || 3)) {
+                    t.auraDamageBonus = (t.auraDamageBonus || 0) + (rn.auraBonus || 0.02);
+                }
+            }
+        }
+
         // Calculate total tower power for dynamic difficulty
         let totalTowerValue = 0;
         for (let t of this.towers) {
@@ -364,11 +395,30 @@ class Game {
             if (this.enemiesSpawned < this.currentWaveDef.count) {
                 if (this.spawnTimer > 0) {
                     this.spawnTimer--;
+                } else if (this.isBossWave && this.enemiesSpawned === 0) {
+                    // M3: Boss wave — spawn one boss and short-circuit further spawns.
+                    const boss = new Enemy(this.map.path, 'tank', this.currentWaveDef.hpMult);
+                    boss.hp *= 20;
+                    boss.maxHp *= 20;
+                    boss.speed *= 0.5;
+                    boss.reward = Math.floor((boss.reward || 0) * 10);
+                    boss.radius = Math.max(boss.radius, 20);
+                    boss.isBoss = true;
+                    this.enemies.push(boss);
+                    this.enemiesSpawned = this.currentWaveDef.count;
                 } else {
                     const newEnemy = new Enemy(this.map.path, this.currentWaveDef.type, this.currentWaveDef.hpMult);
                     if (this.freezeTimer > 0) {
                         newEnemy.frozen = true;
                         newEnemy.frozenFrames = this.freezeTimer;
+                    }
+                    // M3: A8 Shielded — 40% of enemies spawn with a shield.
+                    if (this.ascension.spawnShielded && Math.random() < 0.4) {
+                        newEnemy.shielded = true;
+                        newEnemy.shieldBroken = false;
+                    }
+                    if (this.ascension.spawnSplitter && Math.random() < 0.3) {
+                        newEnemy.splitterGeneration = 1;
                     }
                     this.enemies.push(newEnemy);
                     this.enemiesSpawned++;
@@ -469,6 +519,20 @@ class Game {
                 }
                 reward = Math.max(1, Math.floor(reward * this.ascension.payoutMult));
                 this.money += reward;
+                // M3: Splitter — spawn 2 half-HP, 0.75x-speed children at death site (generation 1 only).
+                if (e.splitterGeneration === 1) {
+                    for (let s = 0; s < 2; s++) {
+                        const child = new Enemy(this.map.path, e.type, 1);
+                        child.x = e.x + (s === 0 ? -8 : 8);
+                        child.y = e.y;
+                        child.hp = e.maxHp * 0.5;
+                        child.maxHp = e.maxHp * 0.5;
+                        child.speed *= 0.75;
+                        child.splitterGeneration = 2;
+                        child.pathIndex = e.pathIndex;
+                        this.enemies.push(child);
+                    }
+                }
                 this.enemies.splice(i, 1);
                 this.uiDirty = true;
             }
@@ -581,7 +645,8 @@ class Game {
     }
 
     canAfford(type) {
-        return this.money >= Math.floor(TOWERS[type].cost * this.towerCostMult);
+        const effType = this.getEffectiveTowerType(type);
+        return this.money >= Math.floor(TOWERS[effType].cost * this.towerCostMult);
     }
 
     buildTower(c, r, type) {
@@ -591,11 +656,12 @@ class Game {
             if (t.c === c && t.r === r) return false;
         }
 
-        let cost = Math.floor(TOWERS[type].cost * this.towerCostMult);
+        const effType = this.getEffectiveTowerType(type);
+        let cost = Math.floor(TOWERS[effType].cost * this.towerCostMult);
 
         if (this.money >= cost) {
             this.money -= cost;
-            this.towers.push(new Tower(c, r, type));
+            this.towers.push(new Tower(c, r, effType));
             this.uiDirty = true;
             SoundFX.build();
             return true;
@@ -660,13 +726,14 @@ class Game {
         let t = this.selectedTowers[0];
         
         document.getElementById('upgrade-type-name').textContent = TOWERS[t.type].displayName + (this.selectedTowers.length > 1 ? ` (${this.selectedTowers.length})` : '');
-        document.getElementById('tower-dmg').textContent = t.type === 'income' ? (t.incomePerWave + '¢') : Math.floor(t.damage);
-        document.getElementById('tower-rng').textContent = t.type === 'income' ? 'passive' : Math.floor(t.range);
-        document.getElementById('tower-spd').textContent = t.type === 'income' ? '/wave' : t.fireRate;
+        const isIncomeType = t.type === 'income' || t.type === 'income_research';
+        document.getElementById('tower-dmg').textContent = isIncomeType ? (t.incomePerWave + '¢') : Math.floor(t.damage);
+        document.getElementById('tower-rng').textContent = isIncomeType ? 'passive' : Math.floor(t.range);
+        document.getElementById('tower-spd').textContent = isIncomeType ? '/wave' : t.fireRate;
         
         // Targeting mode selector (not shown for income towers)
         let targetingEl = document.getElementById('targeting-mode');
-        if (t.type === 'income') {
+        if (t.type === 'income' || t.type === 'income_research') {
             if (targetingEl) targetingEl.style.display = 'none';
         } else {
             if (!targetingEl) {

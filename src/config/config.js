@@ -33,9 +33,9 @@ const ASCENSION_TIERS = [
     { tier: 7, label: 'A7',  name: 'Harsh potions', modifier: { potionCostMult: 2, potionHeal: 1 },          kind: 'stat' },
     // A8-A10 are declared for UI completeness but NOT playable until M3 adds
     // the Shielded / Splitter / Boss enemy types. Run Setup must lock these.
-    { tier: 8, label: 'A8',  name: 'Shielded (M3)', modifier: null,                                          kind: 'enemy-m3' },
-    { tier: 9, label: 'A9',  name: 'Splitter (M3)', modifier: null,                                          kind: 'enemy-m3' },
-    { tier: 10, label: 'A10', name: 'Boss (M3)',    modifier: null,                                          kind: 'enemy-m3' }
+    { tier: 8, label: 'A8',  name: 'Shielded enemy', modifier: { spawnShielded: true },                      kind: 'enemy-m3' },
+    { tier: 9, label: 'A9',  name: 'Splitter enemy', modifier: { spawnSplitter: true },                     kind: 'enemy-m3' },
+    { tier: 10, label: 'A10', name: 'Boss enemy',    modifier: { spawnBoss: true },                          kind: 'enemy-m3' }
 ];
 
 // Returns the cumulative effect map for a tier (0 <= tier <= 7 in M1).
@@ -50,16 +50,19 @@ function getAscensionEffects(tier) {
         payoutMult: 1,
         disableInvestCap: false,
         potionCostMult: 1,
-        potionHeal: null  // null = use POTION_CONFIG.healAmount
+        potionHeal: null,  // null = use POTION_CONFIG.healAmount
+        spawnShielded: false,
+        spawnSplitter: false,
+        spawnBoss: false
     };
 
-    const safeTier = Math.max(0, Math.min(tier || 0, ASCENSION_MAX_TIER_M1));
+    const safeTier = Math.max(0, Math.min(tier || 0, ASCENSION_MAX_TIER));
 
     for (let i = 1; i <= safeTier; i++) {
         const mod = ASCENSION_TIERS[i] && ASCENSION_TIERS[i].modifier;
         if (!mod) continue;
         for (const key of Object.keys(mod)) {
-            if (key === 'disableInvestCap') {
+            if (key === 'disableInvestCap' || key === 'spawnShielded' || key === 'spawnSplitter' || key === 'spawnBoss') {
                 effects[key] = mod[key];
             } else if (key === 'airWaveInterval' || key === 'potionHeal') {
                 effects[key] = mod[key];  // overwrite (not multiplicative)
@@ -101,7 +104,53 @@ const TOWERS = {
                 maxHover: 4, splash: 40 },
     income:   { cost: 200, range: 0,   damage: 0,   fireRate: 0,
                 displayName: 'Relay',     defaultTargetMode: 'closest',
-                incomePerWave: 20 }
+                incomePerWave: 20 },
+
+    // M3: Variants — unlocked by per-tower mastery m1 (1000 XP damage dealt).
+    // Selected per-type in Run Setup; Game.getEffectiveTowerType resolves
+    // base → variant at build time.
+    basic_cryo:     { cost: 50,  range: 100, damage: 5,   fireRate: 40,
+                      displayName: 'Cryo Blaster',   defaultTargetMode: 'first',
+                      baseType: 'basic', slowEffect: 0.3, slowDuration: 60 },
+    sniper_scatter: { cost: 100, range: 150, damage: 35,  fireRate: 100,
+                      displayName: 'Scatter Sniper', defaultTargetMode: 'mostHp',
+                      baseType: 'sniper', multiShot: 2, pierce: 1 },
+    rapid_flame:    { cost: 150, range: 70,  damage: 3,   fireRate: 8,
+                      displayName: 'Flamethrower',   defaultTargetMode: 'first',
+                      baseType: 'rapid', burnDamage: 2, burnDuration: 120,
+                      coneAngle: 0.6 },
+    laser_pulse:    { cost: 200, range: 150, damage: 30,  fireRate: 60,
+                      displayName: 'Pulse Laser',    defaultTargetMode: 'mostHp',
+                      baseType: 'laser', pulsed: true },
+    rocket_cluster: { cost: 250, range: 200, damage: 18,  fireRate: 90,
+                      displayName: 'Cluster Rocket', defaultTargetMode: 'mostHp',
+                      baseType: 'rocket', splash: 45, clusterCount: 4 },
+    flak_emp:       { cost: 150, range: 250, damage: 8,   fireRate: 40,
+                      displayName: 'EMP Flak',       defaultTargetMode: 'first',
+                      baseType: 'flak', splash: 40, stunDuration: 60 },
+    electric_plasma:{ cost: 300, range: 100, damage: 2,   fireRate: 1,
+                      displayName: 'Plasma Coil',    defaultTargetMode: 'first',
+                      baseType: 'electric', continuousAoE: true },
+    silo_orbital:   { cost: 400, range: 120, damage: 360, fireRate: 480,
+                      displayName: 'Orbital Strike', defaultTargetMode: 'mostHp',
+                      baseType: 'silo', maxHover: 1, splash: 90, orbital: true },
+    income_research:{ cost: 200, range: 0,   damage: 0,   fireRate: 0,
+                      displayName: 'Research Node',  defaultTargetMode: 'closest',
+                      baseType: 'income', incomePerWave: 0, auraBonus: 0.02, auraRange: 3 }
+};
+
+// M3: Map from base tower type → variant type id. Used by Run Setup to show
+// base/variant toggles, and by Game to resolve loadout choices at build time.
+const TOWER_VARIANTS = {
+    basic:    'basic_cryo',
+    sniper:   'sniper_scatter',
+    rapid:    'rapid_flame',
+    laser:    'laser_pulse',
+    rocket:   'rocket_cluster',
+    flak:     'flak_emp',
+    electric: 'electric_plasma',
+    silo:     'silo_orbital',
+    income:   'income_research'
 };
 
 // -------------------------------------------------------------------------
@@ -243,6 +292,13 @@ const TOWER_UPGRADES = {
         { name: 'Network',    desc: '+5¢ per other Relay', baseCost: 200, costMult: 1.5, apply: (t) => { t.networkBonus = (t.networkBonus || 0) + 1; } }
     ]
 };
+
+// M3: Alias variant upgrade trees to their base tower's. Variants share the
+// same 3 upgrade slots as their base; clicking them opens the standard
+// upgrade menu instead of crashing with "Cannot read properties of undefined".
+for (const [base, variant] of Object.entries(TOWER_VARIANTS)) {
+    if (TOWER_UPGRADES[base]) TOWER_UPGRADES[variant] = TOWER_UPGRADES[base];
+}
 
 // -------------------------------------------------------------------------
 // Heroes (M2). Picked at run setup; one passive effect applied at Game
