@@ -659,3 +659,62 @@ button.danger:hover {
     color: var(--text-main);
 }
 #tt-stats span b { color: var(--money); }
+
+/* Run Result XP breakdown (M1 minimal) */
+.xp-breakdown {
+    width: 260px;
+    margin: 14px auto 10px;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 8px;
+    font-family: monospace;
+    color: var(--text-main);
+}
+.xp-breakdown-title {
+    text-align: center;
+    color: var(--accent);
+    font-size: 0.8rem;
+    letter-spacing: 3px;
+    margin-bottom: 6px;
+    font-weight: 700;
+    font-family: inherit;
+}
+.xp-breakdown-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    padding: 2px 0;
+    color: var(--text-muted);
+}
+.xp-breakdown-row.hidden { display: none; }
+.xp-breakdown-total {
+    display: flex;
+    justify-content: space-between;
+    font-size: 1.05rem;
+    padding: 6px 0 2px;
+    margin-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    color: #a3e635;
+    font-weight: 700;
+}
+.xp-breakdown-balance {
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    margin-top: 4px;
+}
+.xp-breakdown-unlock {
+    margin-top: 8px;
+    padding: 6px 8px;
+    background: rgba(163, 230, 53, 0.12);
+    border: 1px solid rgba(163, 230, 53, 0.4);
+    border-radius: 4px;
+    text-align: center;
+    font-size: 0.8rem;
+    color: #a3e635;
+    letter-spacing: 1px;
+    font-family: inherit;
+}
+.xp-breakdown-unlock.hidden { display: none; }

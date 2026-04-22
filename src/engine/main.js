@@ -74,6 +74,32 @@ function renderAscensionSelector(context) {
     }
 }
 
+// Renders the XP breakdown in the game-over overlay. Called by
+// window.onRunEnded after XP has been applied to the save.
+function renderRunResultXP({ wave, tier, xp, firstClear }) {
+    document.getElementById('xp-wave').textContent     = xp.waveXP;
+    document.getElementById('xp-clear').textContent    = xp.clearBonus;
+    document.getElementById('xp-first').textContent    = xp.firstBonus;
+    document.getElementById('xp-total').textContent    = xp.total;
+    document.getElementById('xp-balance').textContent  = save.metaXP;
+
+    // Hide the clear-bonus row when no clear, first-bonus row when no first clear.
+    document.getElementById('xp-clear-row').classList.toggle('hidden', xp.clearBonus === 0);
+    document.getElementById('xp-first-row').classList.toggle('hidden', xp.firstBonus === 0);
+
+    const unlock = document.getElementById('xp-unlock');
+    if (firstClear) {
+        const nextTier = Math.min(tier + 1, ASCENSION_MAX_TIER_M1);
+        const nextSpec = ASCENSION_TIERS[nextTier];
+        unlock.textContent = nextTier > tier
+            ? `UNLOCKED: ${nextSpec.label} — ${nextSpec.name}`
+            : `MAXED for M1`;
+        unlock.classList.remove('hidden');
+    } else {
+        unlock.classList.add('hidden');
+    }
+}
+
 function resizeCanvas() {
     const canvas = document.getElementById('game-canvas');
     const container = document.getElementById('game-container');

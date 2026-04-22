@@ -85,6 +85,28 @@
                     <h2>GAME OVER</h2>
                     <p>Waves Survived: <span id="final-wave"></span></p>
 
+                    <div class="xp-breakdown" id="xp-breakdown">
+                        <div class="xp-breakdown-title">META-XP EARNED</div>
+                        <div class="xp-breakdown-row">
+                            <span>Wave XP</span><span id="xp-wave">0</span>
+                        </div>
+                        <div class="xp-breakdown-row" id="xp-clear-row">
+                            <span>Clear Bonus</span><span id="xp-clear">0</span>
+                        </div>
+                        <div class="xp-breakdown-row" id="xp-first-row">
+                            <span>First-Clear Bonus</span><span id="xp-first">0</span>
+                        </div>
+                        <div class="xp-breakdown-total">
+                            <span>Total</span><span id="xp-total">0</span>
+                        </div>
+                        <div class="xp-breakdown-balance">
+                            Balance: <span id="xp-balance">0</span>
+                        </div>
+                        <div class="xp-breakdown-unlock hidden" id="xp-unlock">
+                            <!-- filled in when firstClear -->
+                        </div>
+                    </div>
+
                     <div id="score-entry"
                         style="margin-top: 20px; display: none; flex-direction: column; align-items: center; gap: 10px;">
                         <input type="text" id="player-name" maxlength="3" placeholder="AAA"
