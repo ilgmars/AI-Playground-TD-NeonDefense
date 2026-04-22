@@ -64,6 +64,19 @@ class Enemy {
             return;
         }
 
+        // M3: Stun effect — halts this enemy for stunFrames frames.
+        if (this.stunned && this.stunFrames > 0) {
+            this.stunFrames--;
+            if (this.stunFrames === 0) this.stunned = false;
+            return;
+        }
+
+        // M3: Cryo slow ticks down to 1 after slowExpireFrame frames.
+        if (this.slowExpireFrame && this.slowExpireFrame > 0) {
+            this.slowExpireFrame--;
+            if (this.slowExpireFrame === 0) this.currentSlow = 1;
+        }
+
         if (this.isAir) {
             if (this.followsPath) {
                 // Air enemy following the path
@@ -76,7 +89,8 @@ class Enemy {
                 let dist = Math.hypot(dx, dy);
 
                 let currentSpeed = this.speed * this.currentSlow;
-                if (this.currentSlow < 1) this.currentSlow = Math.min(1, this.currentSlow + 0.01);
+                // M3: Only auto-recover slow if not held by cryo duration.
+                if (this.currentSlow < 1 && (!this.slowExpireFrame || this.slowExpireFrame === 0)) this.currentSlow = Math.min(1, this.currentSlow + 0.01);
 
                 if (dist < currentSpeed) {
                     this.x = targetX;
@@ -99,7 +113,8 @@ class Enemy {
                     this.reachedEnd = true;
                     this.active = false;
                 }
-                if (this.currentSlow < 1) this.currentSlow = Math.min(1, this.currentSlow + 0.01);
+                // M3: Only auto-recover slow if not held by cryo duration.
+                if (this.currentSlow < 1 && (!this.slowExpireFrame || this.slowExpireFrame === 0)) this.currentSlow = Math.min(1, this.currentSlow + 0.01);
             }
             return;
         }
@@ -113,7 +128,8 @@ class Enemy {
         let dist = Math.hypot(dx, dy);
 
         let currentSpeed = this.speed * this.currentSlow;
-        this.currentSlow = 1;
+        // M3: Only reset slow to 1 if there's no active cryo/slow duration — otherwise cryo holds.
+        if (!this.slowExpireFrame || this.slowExpireFrame === 0) this.currentSlow = 1;
 
         if (dist < currentSpeed) {
             this.x = targetX;
@@ -523,6 +539,12 @@ class Projectile {
                     
                     e.hp -= dmg;
                     if (this.sourceTower) this.sourceTower.damageDealt += dmg;
+                    // M3: Cryo Blaster slow effect — applied if the source tower defines slowEffect.
+                    if (this.sourceTower && this.sourceTower.slowEffect) {
+                        const newSlow = 1 - this.sourceTower.slowEffect;
+                        e.currentSlow = Math.min(e.currentSlow, newSlow);
+                        e.slowExpireFrame = this.sourceTower.slowDuration || 60;
+                    }
                     SoundFX.hit();
                     if (e.hp <= 0) {
                         e.active = false;
@@ -619,9 +641,45 @@ class Projectile {
                     
                     e.hp -= dmg;
                     if (this.sourceTower) this.sourceTower.damageDealt += dmg;
+                    // M3: Cryo Blaster slow effect — applied if the source tower defines slowEffect.
+                    if (this.sourceTower && this.sourceTower.slowEffect) {
+                        const newSlow = 1 - this.sourceTower.slowEffect;
+                        e.currentSlow = Math.min(e.currentSlow, newSlow);
+                        e.slowExpireFrame = this.sourceTower.slowDuration || 60;
+                    }
+                    // M3: EMP Flak stuns air targets on hit.
+                    if (this.sourceTower && this.sourceTower.stunDuration && e.isAir) {
+                        e.stunned = true;
+                        e.stunFrames = this.sourceTower.stunDuration;
+                    }
                     if (e.hp <= 0) {
                         e.active = false;
                         SoundFX.explosion();
+                    }
+                }
+            }
+            // M3: Cluster Rocket — spawn sub-rockets at impact site. Uses the
+            // enemies and projectiles arrays passed to Projectile.update /
+            // explode so no global game reference is needed.
+            if (this.sourceTower && this.sourceTower.clusterCount && !this.isClusterChild) {
+                const subRadius = (this.sourceTower.splash || 45) * 0.6;
+                const subDamage = (this.sourceTower.damage || 18) * 0.5;
+                for (let i = 0; i < this.sourceTower.clusterCount; i++) {
+                    const angle = (Math.PI * 2 / this.sourceTower.clusterCount) * i;
+                    const sx = this.x + Math.cos(angle) * subRadius * 0.3;
+                    const sy = this.y + Math.sin(angle) * subRadius * 0.3;
+                    let nearest = null;
+                    let bestD = Infinity;
+                    for (const en of enemies) {
+                        if (!en.active) continue;
+                        const dx = en.x - sx, dy = en.y - sy;
+                        const d2 = dx*dx + dy*dy;
+                        if (d2 < bestD) { bestD = d2; nearest = en; }
+                    }
+                    if (nearest) {
+                        const sub = new Projectile(sx, sy, nearest, subDamage, 'rocket', 1, subRadius, this.sourceTower);
+                        sub.isClusterChild = true;
+                        projectiles.push(sub);
                     }
                 }
             }
@@ -634,6 +692,12 @@ class Projectile {
                 
                 this.target.hp -= dmg;
                 if (this.sourceTower) this.sourceTower.damageDealt += dmg;
+                // M3: Cryo Blaster slow effect — applied if the source tower defines slowEffect.
+                if (this.sourceTower && this.sourceTower.slowEffect) {
+                    const newSlow = 1 - this.sourceTower.slowEffect;
+                    this.target.currentSlow = Math.min(this.target.currentSlow, newSlow);
+                    this.target.slowExpireFrame = this.sourceTower.slowDuration || 60;
+                }
                 SoundFX.hit();
                 if (this.target.hp <= 0) {
                     this.target.active = false;
