@@ -164,6 +164,7 @@ function navigateToMainMenu() {
     hideScreen('game-over');
     hideScreen('restart-confirm');
     hideScreen('tech-tree');
+    hideScreen('tower-mastery');
     showScreen('main-menu');
     updateMainMenuState();
 }
@@ -257,6 +258,77 @@ function buildTreeNodeEl(node, tierKey, tierOpen) {
     }
 
     return el;
+}
+
+// M3: Tower Mastery screen. Shows 9 tower rows with XP progress bars
+// and milestone dots. Reads save.towerMastery; no purchase flow.
+function navigateToTowerMastery() {
+    hideScreen('main-menu');
+    hideScreen('start-screen');
+    hideScreen('game-over');
+    hideScreen('tech-tree');
+    showScreen('tower-mastery');
+    renderTowerMastery();
+}
+
+function renderTowerMastery() {
+    const grid = document.getElementById('mastery-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    for (const type of NeonSave.TOWER_TYPES) {
+        const mast = save.towerMastery[type] || { xp: 0, milestones: { m1: false, m2: false } };
+        const towerDef = TOWERS[type];
+
+        const row = document.createElement('div');
+        row.className = 'mastery-row';
+        if (mast.milestones.m1 && mast.milestones.m2) row.classList.add('maxed');
+
+        const icon = document.createElement('div');
+        icon.className = 'mastery-icon';
+
+        const body = document.createElement('div');
+        body.className = 'mastery-body';
+
+        const nameRow = document.createElement('div');
+        nameRow.className = 'mastery-name-row';
+        const label = document.createElement('span');
+        label.textContent = towerDef ? towerDef.displayName : type;
+        const xpText = document.createElement('span');
+        xpText.className = 'mastery-xp-text';
+        const capXP = mast.milestones.m2 ? 10000 : mast.milestones.m1 ? 10000 : 1000;
+        xpText.textContent = `${mast.xp} / ${capXP} XP`;
+        nameRow.appendChild(label);
+        nameRow.appendChild(xpText);
+
+        const bar = document.createElement('div');
+        bar.className = 'mastery-bar';
+        const fill = document.createElement('div');
+        fill.className = 'mastery-bar-fill';
+        const progress = Math.min(1, mast.xp / capXP);
+        fill.style.width = (progress * 100) + '%';
+        if (mast.milestones.m2) fill.classList.add('maxed');
+        bar.appendChild(fill);
+
+        const milestones = document.createElement('div');
+        milestones.className = 'mastery-milestones';
+        const dot1 = document.createElement('span');
+        dot1.className = 'mastery-milestone-dot' + (mast.milestones.m1 ? ' hit' : '');
+        dot1.textContent = (mast.milestones.m1 ? '● ' : '○ ') + 'VARIANT @ 1K';
+        const dot2 = document.createElement('span');
+        dot2.className = 'mastery-milestone-dot' + (mast.milestones.m2 ? ' hit' : '');
+        dot2.textContent = (mast.milestones.m2 ? '● ' : '○ ') + 'SKIN @ 10K';
+        milestones.appendChild(dot1);
+        milestones.appendChild(dot2);
+
+        body.appendChild(nameRow);
+        body.appendChild(bar);
+        body.appendChild(milestones);
+
+        row.appendChild(icon);
+        row.appendChild(body);
+        grid.appendChild(row);
+    }
 }
 
 // Renders the XP breakdown in the game-over overlay. Called by
@@ -444,6 +516,12 @@ function init() {
     });
     document.getElementById('menu-tree-btn').addEventListener('click', () => {
         navigateToTechTree();
+    });
+    document.getElementById('menu-mastery-btn').addEventListener('click', () => {
+        navigateToTowerMastery();
+    });
+    document.getElementById('mastery-back-btn').addEventListener('click', () => {
+        navigateToMainMenu();
     });
     document.getElementById('menu-dailyseed-btn').addEventListener('click', () => {
         if (!NeonSave.hasUnlocked(save, 'qol.dailyseed')) return;
