@@ -6,6 +6,7 @@ let gameSpeed = 1;
 // Load or create persistent save. NeonSave.load handles legacy migration
 // (neonDefenseScores_easy|normal|hard → a0/a2/a4, 200 XP welcome grant).
 const save = NeonSave.load();
+window.save = save;   // M2: expose for Enemy.draw HP-bar check.
 
 // Default tier = highest cleared. First-time players start on A0.
 // Clamp to M1 ceiling in case a hand-edited save has ascensionCleared > 7.

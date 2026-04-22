@@ -146,6 +146,21 @@ class Enemy {
             ctx.fill();
             ctx.restore();
         }
+
+        // M2 QoL: HP bar above enemies when qol.hpbars is owned.
+        if (window.save && NeonSave.hasUnlocked(window.save, 'qol.hpbars')) {
+            const barW = 20;
+            const barH = 3;
+            const frac = Math.max(0, this.hp / this.maxHp);
+            const bx = this.x - barW / 2;
+            const by = this.y - this.radius - 8;
+            ctx.save();
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.fillRect(bx, by, barW, barH);
+            ctx.fillStyle = frac > 0.4 ? '#a3e635' : frac > 0.15 ? '#fbbf24' : '#ef4444';
+            ctx.fillRect(bx, by, barW * frac, barH);
+            ctx.restore();
+        }
     }
 }
 
