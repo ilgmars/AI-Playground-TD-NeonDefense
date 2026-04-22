@@ -22,10 +22,11 @@ const NeonSave = (function () {
             version: SCHEMA_VERSION,
             metaXP: 0,
             totalXPEarned: 0,
-            ascensionCleared: 0,          // highest tier where wave 30 was reached
-            unlockedNodes: [],            // filled in M2
-            towerMastery: mastery,        // filled in M3
-            highScores: highScores,       // per-Ascension top-5 lists of { name, wave }
+            ascensionCleared: 0,                               // highest tier where wave 30 was reached
+            unlockedNodes: ['hero.pioneer', 'kit.standard'],   // M2 pre-unlocked tree nodes
+            towerMastery: mastery,                             // filled in M3
+            highScores: highScores,                            // per-Ascension top-5 lists of { name, wave }
+            lastLoadout: null,                                 // M2: remembered for qol.skipsetup
             settings: { skipRunSetup: false }
         };
     }
@@ -82,6 +83,7 @@ const NeonSave = (function () {
             try {
                 const parsed = JSON.parse(raw);
                 if (parsed && typeof parsed === 'object' && parsed.version === SCHEMA_VERSION) {
+                    backfillV1Fields(parsed);
                     return parsed;
                 }
             } catch (_) { /* fall through to fresh */ }
@@ -94,6 +96,23 @@ const NeonSave = (function () {
 
     function write(save) {
         localStorage.setItem(KEY, JSON.stringify(save));
+    }
+
+    // Non-schema-bump backfill for M1-era saves missing M2 fields.
+    // Idempotent — safe to call on every load.
+    function backfillV1Fields(save) {
+        if (!Array.isArray(save.unlockedNodes)) save.unlockedNodes = [];
+        if (!save.unlockedNodes.includes('hero.pioneer')) save.unlockedNodes.push('hero.pioneer');
+        if (!save.unlockedNodes.includes('kit.standard')) save.unlockedNodes.push('kit.standard');
+        if (typeof save.lastLoadout === 'undefined') save.lastLoadout = null;
+        if (!save.settings || typeof save.settings !== 'object') save.settings = { skipRunSetup: false };
+        if (typeof save.settings.skipRunSetup !== 'boolean') save.settings.skipRunSetup = false;
+        write(save);
+    }
+
+    // True if the given nodeId exists in save.unlockedNodes. Safe for any input.
+    function hasUnlocked(save, nodeId) {
+        return Array.isArray(save.unlockedNodes) && save.unlockedNodes.includes(nodeId);
     }
 
     // Spec formula:
@@ -151,6 +170,7 @@ const NeonSave = (function () {
         migrateLegacy,
         load,
         write,
+        hasUnlocked,
         calculateRunXP,
         recordRun
     };
