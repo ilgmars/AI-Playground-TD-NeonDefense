@@ -8,7 +8,8 @@ let gameSpeed = 1;
 const save = NeonSave.load();
 
 // Default tier = highest cleared. First-time players start on A0.
-let selectedTier = save.ascensionCleared;
+// Clamp to M1 ceiling in case a hand-edited save has ascensionCleared > 7.
+let selectedTier = Math.min(save.ascensionCleared, ASCENSION_MAX_TIER_M1);
 
 // Visible Ascension tier in the scoreboard view (independent from run tier).
 let visibleScoreTier = selectedTier;
