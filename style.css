@@ -514,6 +514,73 @@ button.danger:hover {
     border-color: var(--accent);
     color: var(--text-main);
 }
+/* Difficulty selector on start screen */
+.difficulty-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.difficulty-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    letter-spacing: 3px;
+    font-weight: 600;
+}
+
+.difficulty-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.difficulty-btn {
+    padding: 8px 18px;
+    font-size: 0.85rem;
+    letter-spacing: 1.5px;
+    border-width: 2px;
+    box-shadow: none;
+    opacity: 0.55;
+}
+
+.difficulty-btn.easy   { color: #4ade80; border-color: #4ade80; }
+.difficulty-btn.normal { color: #fbbf24; border-color: #fbbf24; }
+.difficulty-btn.hard   { color: #ef4444; border-color: #ef4444; }
+
+.difficulty-btn.easy:hover,
+.difficulty-btn.easy.selected   { background: #4ade80; color: #0f172a; opacity: 1; box-shadow: 0 0 18px rgba(74, 222, 128, 0.55); }
+.difficulty-btn.normal:hover,
+.difficulty-btn.normal.selected { background: #fbbf24; color: #0f172a; opacity: 1; box-shadow: 0 0 18px rgba(251, 191, 36, 0.55); }
+.difficulty-btn.hard:hover,
+.difficulty-btn.hard.selected   { background: #ef4444; color: #0f172a; opacity: 1; box-shadow: 0 0 18px rgba(239, 68, 68, 0.55); }
+
+/* Scoreboard tabs in game-over screen */
+.score-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 10px;
+    justify-content: center;
+}
+
+.score-tab {
+    padding: 4px 10px;
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+    border-width: 1px;
+    box-shadow: none;
+    opacity: 0.5;
+    flex: 1;
+}
+
+.score-tab.easy   { color: #4ade80; border-color: #4ade80; }
+.score-tab.normal { color: #fbbf24; border-color: #fbbf24; }
+.score-tab.hard   { color: #ef4444; border-color: #ef4444; }
+
+.score-tab.easy.selected,   .score-tab.easy:hover   { background: rgba(74, 222, 128, 0.15);  opacity: 1; box-shadow: 0 0 10px rgba(74, 222, 128, 0.4) inset; }
+.score-tab.normal.selected, .score-tab.normal:hover { background: rgba(251, 191, 36, 0.15);  opacity: 1; box-shadow: 0 0 10px rgba(251, 191, 36, 0.4) inset; }
+.score-tab.hard.selected,   .score-tab.hard:hover   { background: rgba(239, 68, 68, 0.15);   opacity: 1; box-shadow: 0 0 10px rgba(239, 68, 68, 0.4) inset; }
+
 #tower-tooltip {
     position: fixed;
     z-index: 1000;

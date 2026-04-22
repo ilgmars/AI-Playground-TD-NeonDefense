@@ -1,8 +1,11 @@
 class Game {
-    constructor(canvas, seed) {
+    constructor(canvas, seed, difficulty) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
-        
+
+        this.difficulty = (difficulty && DIFFICULTY[difficulty]) ? difficulty : DEFAULT_DIFFICULTY;
+        this.diffMult = DIFFICULTY[this.difficulty];
+
         this.map = new GameMap(seed);
         this.seed = this.map.seed;
         this.enemies = [];
@@ -135,7 +138,7 @@ class Game {
         // Final HP = base wave difficulty × capped investment factor
         // Investment helps early, but wave progression dominates late game
         let finalHpMult = baseExpFactor * investmentFactor;
-        
+
         // Additional overall difficulty multiplier after wave 200
         // Increases by +3% every 5 waves (indefinitely)
         if (this.wave > 200) {
@@ -145,6 +148,9 @@ class Game {
             let overallDifficultyMultiplier = 1.05 + (milestonesPassed * 0.03);
             finalHpMult *= overallDifficultyMultiplier;
         }
+
+        // Difficulty mode HP multiplier (Easy=1.0, Normal=1.25, Hard=1.6)
+        finalHpMult *= this.diffMult.hpMult;
 
         if (this.wave > 0 && this.wave % 5 === 0) {
             // Air waves: challenging but fair with extreme endgame scaling
@@ -175,7 +181,7 @@ class Game {
             }
             
             this.currentWaveDef = {
-                count: Math.floor(airCount),
+                count: Math.floor(airCount * this.diffMult.countMult),
                 type: 'air',
                 spawnRate: Math.max(20, 50 - Math.floor(this.wave / 8)),
                 hpMult: finalHpMult * 0.98 // Slightly weaker than ground
@@ -221,7 +227,7 @@ class Game {
         }
 
         this.currentWaveDef = {
-            count: Math.floor(def.count * countMult),
+            count: Math.floor(def.count * countMult * this.diffMult.countMult),
             type: def.type,
             spawnRate: Math.max(12, def.spawnRate - loops * 2),
             hpMult: def.hpMult * finalHpMult // HP scales with wave + investment
@@ -322,7 +328,10 @@ class Game {
                         
                         waveBonus += extremeBonus + milestoneBonus;
                     }
-                    
+
+                    // Difficulty payout multiplier (Easy=1.0, Normal=0.9, Hard=0.75)
+                    waveBonus = Math.floor(waveBonus * this.diffMult.payoutMult);
+
                     this.money += waveBonus;
                     
                     // Income tower payout
@@ -373,6 +382,7 @@ class Game {
                     // Boost rewards in late game to help economy
                     reward = Math.floor(reward * (1 + (this.wave - 35) * 0.025));
                 }
+                reward = Math.max(1, Math.floor(reward * this.diffMult.payoutMult));
                 this.money += reward;
                 this.enemies.splice(i, 1);
                 this.uiDirty = true;

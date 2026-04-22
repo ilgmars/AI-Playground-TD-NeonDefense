@@ -2,6 +2,39 @@ let game;
 let selectedTowerType = null;
 let mousePos = { x: 0, y: 0 };
 let gameSpeed = 1;
+let selectedDifficulty = (function() {
+    let stored = localStorage.getItem('neonDefenseDifficulty');
+    return (stored && DIFFICULTY[stored]) ? stored : DEFAULT_DIFFICULTY;
+})();
+
+// One-time migration: prior runs were on what is now the easy curve.
+(function migrateScoreboard() {
+    if (localStorage.getItem('neonDefenseScores') !== null
+        && localStorage.getItem('neonDefenseScores_easy') === null) {
+        localStorage.setItem('neonDefenseScores_easy', localStorage.getItem('neonDefenseScores'));
+        localStorage.removeItem('neonDefenseScores');
+    }
+})();
+
+function scoreKey(diff) { return 'neonDefenseScores_' + diff; }
+
+function setDifficulty(diff) {
+    if (!DIFFICULTY[diff]) return;
+    selectedDifficulty = diff;
+    localStorage.setItem('neonDefenseDifficulty', diff);
+    document.querySelectorAll('.difficulty-btn').forEach(b => {
+        b.classList.toggle('selected', b.dataset.difficulty === diff);
+    });
+}
+
+function updateModeDisplay() {
+    let el = document.getElementById('mode-display');
+    if (!el || !game) return;
+    let d = DIFFICULTY[game.difficulty];
+    el.textContent = d.letter;
+    el.style.color = d.color;
+    el.style.textShadow = '0 0 10px ' + d.color + '66';
+}
 
 function resizeCanvas() {
     const canvas = document.getElementById('game-canvas');
@@ -62,17 +95,27 @@ function init() {
         history.replaceState(null, '', '#' + game.seed);
     }
 
-    game = new Game(canvas, urlSeed);
+    game = new Game(canvas, urlSeed, selectedDifficulty);
 
     game.draw();
     game.updateUI();
     updateSeedDisplay();
+    updateModeDisplay();
+
+    // Restore selected difficulty button state
+    document.querySelectorAll('.difficulty-btn').forEach(b => {
+        b.classList.toggle('selected', b.dataset.difficulty === selectedDifficulty);
+        b.addEventListener('click', () => setDifficulty(b.dataset.difficulty));
+    });
 
     document.getElementById('start-btn').addEventListener('click', () => {
         const seedVal = document.getElementById('start-seed-input').value.trim();
         const parsedSeed = seedVal !== '' ? parseInt(seedVal) : null;
         if (parsedSeed !== null && !isNaN(parsedSeed)) {
             restartGame(parsedSeed);
+        } else if (game.difficulty !== selectedDifficulty) {
+            // Difficulty changed since the preview Game was created — rebuild on the same map.
+            restartGame(game.seed);
         } else {
             document.getElementById('start-screen').classList.add('hidden');
             game.start();
@@ -193,9 +236,10 @@ function init() {
         resizeCanvas();
 
         let useSeed = (typeof seed === 'number') ? seed : null;
-        game = new Game(canvas, useSeed);
+        game = new Game(canvas, useSeed, selectedDifficulty);
         game.start();
         updateSeedDisplay();
+        updateModeDisplay();
 
         gameSpeed = 1;
         document.getElementById('speed-display').textContent = '1X';
@@ -219,13 +263,15 @@ function init() {
     const scoresList = document.getElementById('scores-list');
     const playerNameInput = document.getElementById('player-name');
     const submitScoreBtn = document.getElementById('submit-score');
+    let visibleScoreTab = selectedDifficulty;
 
-    window.loadScores = function() {
-        let scores = JSON.parse(localStorage.getItem('neonDefenseScores') || '[]');
+    function renderScores(diff) {
+        let scores = JSON.parse(localStorage.getItem(scoreKey(diff)) || '[]');
         scores.sort((a, b) => b.wave - a.wave);
         scoresList.innerHTML = '';
         if (scores.length === 0) {
             scoresList.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.9rem;">NO DATA YET</div>';
+            return;
         }
         scores.slice(0, 5).forEach((s, i) => {
             let div = document.createElement('div');
@@ -238,14 +284,32 @@ function init() {
         });
     }
 
+    function setScoreTab(diff) {
+        visibleScoreTab = diff;
+        document.querySelectorAll('.score-tab').forEach(b => {
+            b.classList.toggle('selected', b.dataset.difficulty === diff);
+        });
+        renderScores(diff);
+    }
+
+    document.querySelectorAll('.score-tab').forEach(b => {
+        b.addEventListener('click', () => setScoreTab(b.dataset.difficulty));
+    });
+
+    window.loadScores = function() {
+        // Default the visible tab to the current run's mode on each game-over.
+        setScoreTab(game ? game.difficulty : selectedDifficulty);
+    };
+
     submitScoreBtn.addEventListener('click', () => {
         let name = playerNameInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
         if (name.length > 0 && name.length <= 3 && game.state === 'gameover') {
-            let scores = JSON.parse(localStorage.getItem('neonDefenseScores') || '[]');
+            let key = scoreKey(game.difficulty);
+            let scores = JSON.parse(localStorage.getItem(key) || '[]');
             scores.push({ name: name, wave: game.wave });
-            localStorage.setItem('neonDefenseScores', JSON.stringify(scores));
+            localStorage.setItem(key, JSON.stringify(scores));
             document.getElementById('score-entry').style.display = 'none';
-            window.loadScores();
+            setScoreTab(game.difficulty);
         }
     });
 

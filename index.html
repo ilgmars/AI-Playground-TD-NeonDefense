@@ -19,6 +19,10 @@
                     <span id="air-countdown" style="font-size: 0.65rem; color: #60a5fa; font-weight: bold; margin-top: -2px; letter-spacing: 1px;">✈ IN 4</span>
                 </div>
                 <div class="stat-box">
+                    <span class="label">MODE</span>
+                    <span id="mode-display" class="value">N</span>
+                </div>
+                <div class="stat-box">
                     <span class="label">HEALTH</span>
                     <span id="health-display" class="value">20</span>
                 </div>
@@ -93,6 +97,11 @@
                         <h3
                             style="text-align: center; font-size: 1rem; color: var(--accent); margin-bottom: 10px; letter-spacing: 2px;">
                             TOP SCORES</h3>
+                        <div class="score-tabs">
+                            <button class="score-tab easy" data-difficulty="easy">EASY</button>
+                            <button class="score-tab normal" data-difficulty="normal">NORMAL</button>
+                            <button class="score-tab hard" data-difficulty="hard">HARD</button>
+                        </div>
                         <div id="scores-list" style="font-family: monospace; font-size: 1.1rem;"></div>
                     </div>
 
@@ -117,6 +126,14 @@
                 <div id="start-screen" class="overlay">
                     <h1>NEON DEFENSE</h1>
                     <p>Protect the core from the rogue geometry.</p>
+                    <div class="difficulty-row">
+                        <span class="difficulty-label">DIFFICULTY</span>
+                        <div class="difficulty-buttons">
+                            <button class="difficulty-btn easy" data-difficulty="easy">EASY</button>
+                            <button class="difficulty-btn normal" data-difficulty="normal">NORMAL</button>
+                            <button class="difficulty-btn hard" data-difficulty="hard">HARD</button>
+                        </div>
+                    </div>
                     <div class="seed-input-row">
                         <input type="number" id="start-seed-input" placeholder="SEED (optional)" />
                     </div>

@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git mv *)"
+      "Bash(git mv *)",
+      "Bash(node --check src/config/config.js)",
+      "Bash(node --check src/engine/game.js)",
+      "Bash(node --check src/engine/main.js)"
     ]
   }
 }

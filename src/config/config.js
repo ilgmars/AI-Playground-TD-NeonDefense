@@ -3,6 +3,20 @@
 // want to tweak. Logic lives in entities.js / game.js / autopilot.js.
 
 // -------------------------------------------------------------------------
+// Difficulty modes. Multipliers applied on top of the existing scaling.
+// Easy is bit-identical to the historical curve (all 1.0).
+// hpMult     -> enemy HP per spawn
+// countMult  -> enemies per wave (ground + air)
+// payoutMult -> wave-completion bonus + per-enemy rewards (relays unaffected)
+// -------------------------------------------------------------------------
+const DIFFICULTY = {
+    easy:   { hpMult: 1.0,  countMult: 1.0,  payoutMult: 1.0,  label: 'EASY',   letter: 'E', color: '#4ade80' },
+    normal: { hpMult: 1.25, countMult: 1.15, payoutMult: 0.9,  label: 'NORMAL', letter: 'N', color: '#fbbf24' },
+    hard:   { hpMult: 1.6,  countMult: 1.35, payoutMult: 0.75, label: 'HARD',   letter: 'H', color: '#ef4444' }
+};
+const DEFAULT_DIFFICULTY = 'normal';
+
+// -------------------------------------------------------------------------
 // Tower base stats. Applied by Tower constructor.
 // Optional fields (pelletCount, spread, splash, chainCount, maxHover, etc.)
 // are only copied onto the tower when present.
