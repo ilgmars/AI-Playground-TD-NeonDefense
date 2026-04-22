@@ -80,31 +80,31 @@ const AUTOPILOT_CONFIG = {
 
     // For each tower type: (wave) => desired count on the board.
     wantedCount: {
-        basic:    w => Math.max(3, Math.ceil(w / 4.5)),
-        flak:     w => w >= 4  ? Math.max(1, Math.min(5, 1 + Math.floor(w / 10))) : 0,
-        rapid:    w => w >= 2  ? Math.ceil(w / 5.5) : 0,
-        laser:    w => w >= 3  ? Math.min(6, Math.ceil(w / 7)) : 0,
-        sniper:   w => w >= 5  ? Math.ceil(w / 6.5) : 0,
-        rocket:   w => w >= 6  ? Math.ceil(w / 7)   : 0,
-        electric: w => w >= 8  ? Math.ceil(w / 9)   : 0,
-        silo:     w => w >= 12 ? Math.ceil(w / 10)  : 0,
-        income:   w => w >= 10 ? Math.floor(w / 9)  : 0
+        basic:    w => Math.max(4, Math.ceil(w / 3.5)),        // More basics, scale faster
+        flak:     w => w >= 4  ? Math.max(2, Math.min(8, 2 + Math.floor(w / 8))) : 0,  // More flak for air waves
+        rapid:    w => w >= 2  ? Math.ceil(w / 4.5) : 0,       // More rapids, scale faster
+        laser:    w => w >= 3  ? Math.min(8, Math.ceil(w / 5)) : 0,  // More lasers for slow
+        sniper:   w => w >= 5  ? Math.ceil(w / 5.5) : 0,       // More snipers, scale faster
+        rocket:   w => w >= 6  ? Math.ceil(w / 6)   : 0,       // More rockets, scale faster
+        electric: w => w >= 8  ? Math.ceil(w / 7.5)   : 0,     // More electric, scale faster
+        silo:     w => w >= 12 ? Math.ceil(w / 8)  : 0,        // More silos, scale faster
+        income:   w => w >= 8 ? Math.max(1, Math.floor(w / 7))  : 0  // Earlier income, more relays
     },
 
     // Order used when scanning for the biggest tower-count deficit.
-    buildOrder: ['flak', 'laser', 'basic', 'rapid', 'sniper', 'rocket', 'electric', 'silo', 'income'],
+    buildOrder: ['flak', 'laser', 'income', 'basic', 'rapid', 'sniper', 'rocket', 'electric', 'silo'],
 
     // Priority weight when choosing which tower to upgrade (higher = prefer).
-    upgradeValue: { silo: 10, rocket: 9, sniper: 8, electric: 7, laser: 6, flak: 5, rapid: 4, basic: 3, income: 2 },
+    upgradeValue: { silo: 10, rocket: 9, electric: 8, sniper: 7, laser: 6, flak: 5, rapid: 4, basic: 3, income: 2 },
 
     // (wave) => probability that the autopilot builds vs upgrades this tick.
-    buildChance: w => w < 10 ? 0.8 : w < 20 ? 0.65 : w < 40 ? 0.55 : 0.6,
+    buildChance: w => w < 10 ? 0.85 : w < 20 ? 0.7 : w < 40 ? 0.6 : 0.55,
 
     // A wave is "air imminent" if <= N waves away (or currently active).
     airImminentWindow: 2,
 
     // Auto-potion when health drops to or below this threshold.
-    potionHealthThreshold: 3,
+    potionHealthThreshold: 5,  // Buy potions earlier (was 3)
 
     // Bonus awarded when placing near an existing laser (synergy nudge).
     laserSynergyRange: 3,     // tiles
@@ -119,8 +119,8 @@ const AUTOPILOT_CONFIG = {
     saveEarlyTowerTotal: 8,    // saveDeficitModerate only kicks in while this few total towers
 
     // Build urgency thresholds.
-    mustBuildMinTowers: 5,       // always build if fewer towers than this
-    mustBuildWantedFraction: 0.75 // or if below 75% of totalWanted
+    mustBuildMinTowers: 6,       // always build if fewer towers than this (increased from 5)
+    mustBuildWantedFraction: 0.7 // or if below 70% of totalWanted (more aggressive)
 };
 
 // -------------------------------------------------------------------------
