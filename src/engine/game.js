@@ -1,5 +1,5 @@
 class Game {
-    constructor(canvas, seed, ascensionTier) {
+    constructor(canvas, seed, ascensionTier, loadout) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
 
@@ -11,12 +11,27 @@ class Game {
         this.enemies = [];
         this.towers = [];
         this.projectiles = [];
-        this.particles = []; 
-        this.upgradeEffects = []; 
-        
+        this.particles = [];
+        this.upgradeEffects = [];
+
         this.money = Math.floor(125 * this.ascension.startMoneyMult);
+
+        // M2: loadout state (set before apply).
+        this.loadout = loadout || { heroId: 'hero.pioneer', kitId: 'kit.standard', abilityId: 'ability.none' };
+        this.towerCostMult = 1;
+        this.upgradeCostMult = 1;
+        this.potionHealBonus = 0;
+        this.potionCostKitMult = 1;
+        this.startingPotions = 0;
+        this.prePlaceRelay = false;
+        this.showAllWavesPreview = false;
+        this.ability = null;  // set by applyLoadout
+
         this.health = 20;
         this.maxHealth = 20;
+
+        this.applyLoadout();
+
         this.wave = 1;
         this.selectedTower = null;
         this.autopilot = false;
@@ -44,10 +59,54 @@ class Game {
         this.waveCooldown = 0; 
     }
 
+    applyLoadout() {
+        const heroKey = this.loadout.heroId ? this.loadout.heroId.replace(/^hero\./, '') : null;
+        const kitKey  = this.loadout.kitId  ? this.loadout.kitId.replace(/^kit\./, '')  : null;
+        if (heroKey && HEROES[heroKey] && HEROES[heroKey].apply) HEROES[heroKey].apply(this);
+        if (kitKey  && STARTER_KITS[kitKey]  && STARTER_KITS[kitKey].apply)  STARTER_KITS[kitKey].apply(this);
+        // Ability instance is created in Task 8 (abilities.js).
+    }
+
     start() {
         this.state = 'playing';
+        this.applyPostInitEffects();
         this.startWave();
         this.updateUI();
+    }
+
+    // M2: Effects that depend on the map being ready (path midpoint, etc).
+    applyPostInitEffects() {
+        // Medic: N starting potions — implemented as immediate HP refund at run start
+        // (bounded by maxHealth via Math.min).
+        if (this.startingPotions > 0) {
+            const baseHeal = (this.ascension.potionHeal !== null) ? this.ascension.potionHeal : POTION_CONFIG.healAmount;
+            const heal = baseHeal + this.potionHealBonus;
+            this.health = Math.min(this.maxHealth, this.health + heal * this.startingPotions);
+        }
+
+        // Economist: pre-place a free Relay at the tile nearest to the path midpoint.
+        if (this.prePlaceRelay) this.placeFreeRelay();
+    }
+
+    // Find a buildable tile nearest to the path midpoint and place a free Relay.
+    placeFreeRelay() {
+        const path = this.map.path;
+        if (!path || path.length === 0) return;
+        const mid = path[Math.floor(path.length / 2)];
+        let best = null;
+        let bestDist = Infinity;
+        for (let r = 0; r < window.ROWS; r++) {
+            for (let c = 0; c < window.COLS; c++) {
+                if (!this.map.isBuildable(c, r)) continue;
+                const occupied = this.towers.find(t => t.c === c && t.r === r);
+                if (occupied) continue;
+                const dx = c - mid.c;
+                const dy = r - mid.r;
+                const d2 = dx*dx + dy*dy;
+                if (d2 < bestDist) { bestDist = d2; best = { c, r }; }
+            }
+        }
+        if (best) this.towers.push(new Tower(best.c, best.r, 'income'));
     }
 
     startWave() {
@@ -479,7 +538,7 @@ class Game {
 
     getPotionCost() {
         const base = POTION_CONFIG.baseCost + this.potionCount * POTION_CONFIG.costPerUse;
-        return Math.floor(base * this.ascension.potionCostMult);
+        return Math.floor(base * this.ascension.potionCostMult * this.potionCostKitMult);
     }
 
     buyPotion() {
@@ -487,9 +546,10 @@ class Game {
         if (this.money < cost) { SoundFX.error(); return false; }
         if (this.health >= this.maxHealth) { SoundFX.error(); return false; }
         this.money -= cost;
-        const heal = (this.ascension.potionHeal !== null)
+        const baseHeal = (this.ascension.potionHeal !== null)
             ? this.ascension.potionHeal
             : POTION_CONFIG.healAmount;
+        const heal = baseHeal + this.potionHealBonus;
         this.health = Math.min(this.maxHealth, this.health + heal);
         this.potionCount++;
         this.uiDirty = true;
@@ -498,7 +558,7 @@ class Game {
     }
 
     canAfford(type) {
-        return this.money >= TOWERS[type].cost;
+        return this.money >= Math.floor(TOWERS[type].cost * this.towerCostMult);
     }
 
     buildTower(c, r, type) {
@@ -508,7 +568,7 @@ class Game {
             if (t.c === c && t.r === r) return false;
         }
 
-        let cost = TOWERS[type].cost;
+        let cost = Math.floor(TOWERS[type].cost * this.towerCostMult);
 
         if (this.money >= cost) {
             this.money -= cost;
@@ -556,7 +616,7 @@ class Game {
         if (!this.selectedTowers || this.selectedTowers.length === 0) return;
         let upgradedAny = false;
         for (let t of this.selectedTowers) {
-            let cost = t.getUpgradeCost(index);
+            let cost = Math.floor(t.getUpgradeCost(index) * this.upgradeCostMult);
             if (this.money >= cost) {
                 this.money -= cost;
                 t.upgrade(index);
@@ -637,7 +697,7 @@ class Game {
         
         for (let i = 0; i < 3; i++) {
             let def = defs[i];
-            let cost = t.getUpgradeCost(i);
+            let cost = Math.floor(t.getUpgradeCost(i) * this.upgradeCostMult);
             let lvl = t.upgrades[i];
             
             let div = list.children[i];
