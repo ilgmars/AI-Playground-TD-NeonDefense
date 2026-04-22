@@ -775,6 +775,28 @@ class Game {
         return results;
     }
 
+    // M2: Airstrike ability. Deals 200 damage in 80px radius centered at (x, y).
+    // Adds a visual ring effect. Caller (main.js) must consume a charge.
+    // Damage applied directly via hp -= dmg, matching existing Tower/Projectile pattern.
+    airstrike(x, y) {
+        const damage = 200;
+        const radius = 80;
+        const r2 = radius * radius;
+        for (const enemy of this.enemies) {
+            if (!enemy.active) continue;
+            const dx = enemy.x - x;
+            const dy = enemy.y - y;
+            if (dx*dx + dy*dy <= r2) {
+                enemy.hp -= damage;
+                if (enemy.hp <= 0) enemy.active = false;
+            }
+        }
+        // Visual: reuse upgradeEffects structure (expanding ring)
+        this.upgradeEffects.push({ x: x, y: y, radius: radius * 0.2, alpha: 1, airstrike: true });
+        this.upgradeEffects.push({ x: x, y: y, radius: radius * 0.5, alpha: 0.8, airstrike: true });
+        SoundFX.build();
+    }
+
     gameOver() {
         this.state = 'gameover';
         document.getElementById('game-over').classList.remove('hidden');

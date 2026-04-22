@@ -922,6 +922,16 @@ function init() {
         const c = Math.floor(pos.x / TILE_SIZE);
         const r = Math.floor(pos.y / TILE_SIZE);
 
+        // M2: Airstrike targeting mode — canvas click triggers the strike.
+        if (game.abilityTargetMode && game.ability && game.ability.isUsable()) {
+            if (game.ability.tryUse()) {
+                game.airstrike(pos.x, pos.y);
+                game.abilityTargetMode = false;
+                refreshAbilityUI();
+            }
+            return;
+        }
+
         if (selectedTowerType) {
             if (game.buildTower(c, r, selectedTowerType)) {
                 // Success, deselect tower
@@ -963,6 +973,23 @@ function init() {
             game.update();
         }
         game.draw();
+
+        // M2: Airstrike targeting crosshair.
+        if ((game.state === 'playing' || game.state === 'paused') && game.abilityTargetMode && game.ability && game.ability.isUsable()) {
+            const ctx = game.ctx;
+            ctx.save();
+            ctx.strokeStyle = 'rgba(251, 191, 36, 0.85)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(mousePos.x, mousePos.y, 80, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([6, 4]);
+            ctx.strokeStyle = 'rgba(251, 191, 36, 0.4)';
+            ctx.beginPath();
+            ctx.arc(mousePos.x, mousePos.y, 80 * 1.3, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
 
         if ((game.state === 'playing' || game.state === 'paused') && selectedTowerType) {
             const c = Math.floor(mousePos.x / TILE_SIZE);
