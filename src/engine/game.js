@@ -116,13 +116,13 @@ class Game {
             // Base logarithmic growth
             let baseGrowth = 13.1 + Math.log(1 + extremeWaves) * 0.5;
             
-            // Milestone bonuses every 50 waves (250, 300, 350, etc.)
-            let milestonesPassed = Math.floor(extremeWaves / 50);
-            let milestoneBonus = milestonesPassed * 0.8; // +0.8x per 50 waves
+            // Milestone bonuses every 20 waves (220, 240, 260, etc.)
+            let milestonesPassed = Math.floor(extremeWaves / 20);
+            let milestoneBonus = milestonesPassed * 0.6; // +0.6x per 20 waves
             
-            // Gradual ramp within each 50-wave segment
-            let segmentProgress = (extremeWaves % 50) / 50; // 0 to 1
-            let segmentRamp = segmentProgress * 0.5; // Up to +0.5x within segment
+            // Gradual ramp within each 20-wave segment
+            let segmentProgress = (extremeWaves % 20) / 20; // 0 to 1
+            let segmentRamp = segmentProgress * 0.4; // Up to +0.4x within segment
             
             baseExpFactor = baseGrowth + milestoneBonus + segmentRamp;
         }
@@ -149,9 +149,9 @@ class Game {
                 let extremeWaves = this.wave - 200;
                 let baseCount = 28.5 + Math.log(1 + extremeWaves) * 2.0;
                 
-                // Milestone bonuses every 50 waves
-                let milestonesPassed = Math.floor(extremeWaves / 50);
-                let milestoneBonus = milestonesPassed * 3; // +3 enemies per 50 waves
+                // Milestone bonuses every 20 waves (220, 240, 260, etc.)
+                let milestonesPassed = Math.floor(extremeWaves / 20);
+                let milestoneBonus = milestonesPassed * 2; // +2 enemies per 20 waves
                 
                 airCount = baseCount + milestoneBonus;
             }
@@ -192,9 +192,9 @@ class Game {
             let baseCount = 1 + loops * 0.15 + 20 * 0.01 + 20 * 0.014 + Math.log(41) * 0.28 + Math.log(101) * 0.22;
             let logGrowth = Math.log(1 + extremeWaves) * 0.18;
             
-            // Milestone bonuses every 50 waves
-            let milestonesPassed = Math.floor(extremeWaves / 50);
-            let milestoneBonus = milestonesPassed * 0.15; // +15% per 50 waves
+            // Milestone bonuses every 20 waves (220, 240, 260, etc.)
+            let milestonesPassed = Math.floor(extremeWaves / 20);
+            let milestoneBonus = milestonesPassed * 0.12; // +12% per 20 waves
             
             countMult = baseCount + logGrowth + milestoneBonus;
         }
@@ -292,9 +292,9 @@ class Game {
                         let extremeWaves = this.wave - 200;
                         let extremeBonus = Math.floor(extremeWaves * 8);
                         
-                        // Milestone bonuses every 50 waves (250, 300, 350, etc.)
-                        let milestonesPassed = Math.floor(extremeWaves / 50);
-                        let milestoneBonus = milestonesPassed * 500; // +500¢ per 50 waves
+                        // Milestone bonuses every 20 waves (220, 240, 260, etc.)
+                        let milestonesPassed = Math.floor(extremeWaves / 20);
+                        let milestoneBonus = milestonesPassed * 300; // +300¢ per 20 waves
                         
                         waveBonus += extremeBonus + milestoneBonus;
                     }
