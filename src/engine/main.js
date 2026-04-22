@@ -2,42 +2,76 @@ let game;
 let selectedTowerType = null;
 let mousePos = { x: 0, y: 0 };
 let gameSpeed = 1;
-let selectedDifficulty = (function() {
-    let stored = localStorage.getItem('neonDefenseDifficulty');
-    return (stored && DIFFICULTY[stored]) ? stored : DEFAULT_DIFFICULTY;
-})();
 
-// One-time migration: prior runs were on what is now the easy curve.
-(function migrateScoreboard() {
-    if (localStorage.getItem('neonDefenseScores') !== null
-        && localStorage.getItem('neonDefenseScores_easy') === null) {
-        localStorage.setItem('neonDefenseScores_easy', localStorage.getItem('neonDefenseScores'));
-        localStorage.removeItem('neonDefenseScores');
-    }
-})();
+// Load or create persistent save. NeonSave.load handles legacy migration
+// (neonDefenseScores_easy|normal|hard → a0/a2/a4, 200 XP welcome grant).
+const save = NeonSave.load();
 
-function scoreKey(diff) { return 'neonDefenseScores_' + diff; }
+// Default tier = highest cleared. First-time players start on A0.
+let selectedTier = save.ascensionCleared;
 
-function setDifficulty(diff) {
-    if (!DIFFICULTY[diff]) return;
-    selectedDifficulty = diff;
-    localStorage.setItem('neonDefenseDifficulty', diff);
-    document.querySelectorAll('.difficulty-btn').forEach(b => {
-        b.classList.toggle('selected', b.dataset.difficulty === diff);
-    });
-    // Repaint the top-bar MODE preview immediately, even before the game restarts.
-    updateModeDisplay(diff);
+// Visible Ascension tier in the scoreboard view (independent from run tier).
+let visibleScoreTier = selectedTier;
+
+function setTier(tier) {
+    const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER_M1);
+    if (tier < 0 || tier > unlockedMax) return;
+    selectedTier = tier;
+
+    // Re-render all three selector contexts with new selection.
+    renderAscensionSelector('start');
+    renderAscensionSelector('gameover');
+    renderAscensionSelector('restart');
+
+    updateModeDisplay(tier);
 }
 
-function updateModeDisplay(diff) {
-    let el = document.getElementById('mode-display');
+function updateModeDisplay(tier) {
+    const el = document.getElementById('mode-display');
     if (!el) return;
-    let key = diff || (game && game.difficulty) || selectedDifficulty;
-    let d = DIFFICULTY[key];
-    if (!d) return;
-    el.textContent = d.letter;
-    el.style.color = d.color;
-    el.style.textShadow = '0 0 10px ' + d.color + '66';
+    const t = (typeof tier === 'number') ? tier : (game ? game.ascensionTier : selectedTier);
+    el.textContent = 'A' + t;
+    el.style.color = 'var(--accent)';
+    el.style.textShadow = '0 0 10px rgba(56, 189, 248, 0.45)';
+}
+
+// Renders one of the three .ascension-buttons containers. Shows A0-A7,
+// greys/locks tiers above save.ascensionCleared + 1. Also populates the
+// corresponding .ascension-modifiers-preview line with cumulative modifiers.
+function renderAscensionSelector(context) {
+    const container = document.querySelector(`.ascension-buttons[data-context="${context}"]`);
+    if (!container) return;
+    container.innerHTML = '';
+
+    const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER_M1);
+
+    for (let t = 0; t <= ASCENSION_MAX_TIER_M1; t++) {
+        const spec = ASCENSION_TIERS[t];
+        const btn = document.createElement('button');
+        btn.className = 'ascension-btn';
+        btn.textContent = spec.label; // "A0", "A1", ...
+        btn.title = spec.name;
+        if (t === selectedTier) btn.classList.add('selected');
+        if (t > unlockedMax) {
+            btn.classList.add('locked');
+            btn.disabled = true;
+            btn.title = spec.name + ' (locked — clear A' + (t - 1) + ' to unlock)';
+        } else {
+            btn.addEventListener('click', () => setTier(t));
+        }
+        container.appendChild(btn);
+    }
+
+    const preview = document.querySelector(`.ascension-modifiers-preview[data-context="${context}"]`);
+    if (preview) {
+        if (selectedTier === 0) {
+            preview.textContent = 'Baseline — no modifiers';
+        } else {
+            const names = [];
+            for (let i = 1; i <= selectedTier; i++) names.push(ASCENSION_TIERS[i].name);
+            preview.textContent = names.join(' · ');
+        }
+    }
 }
 
 function resizeCanvas() {
@@ -99,26 +133,25 @@ function init() {
         history.replaceState(null, '', '#' + game.seed);
     }
 
-    game = new Game(canvas, urlSeed, selectedDifficulty);
+    game = new Game(canvas, urlSeed, selectedTier);
 
     game.draw();
     game.updateUI();
     updateSeedDisplay();
     updateModeDisplay();
 
-    // Restore selected difficulty button state
-    document.querySelectorAll('.difficulty-btn').forEach(b => {
-        b.classList.toggle('selected', b.dataset.difficulty === selectedDifficulty);
-        b.addEventListener('click', () => setDifficulty(b.dataset.difficulty));
-    });
+    // Populate all three Ascension selectors.
+    renderAscensionSelector('start');
+    renderAscensionSelector('gameover');
+    renderAscensionSelector('restart');
 
     document.getElementById('start-btn').addEventListener('click', () => {
         const seedVal = document.getElementById('start-seed-input').value.trim();
         const parsedSeed = seedVal !== '' ? parseInt(seedVal) : null;
         if (parsedSeed !== null && !isNaN(parsedSeed)) {
             restartGame(parsedSeed);
-        } else if (game.difficulty !== selectedDifficulty) {
-            // Difficulty changed since the preview Game was created — rebuild on the same map.
+        } else if (game.ascensionTier !== selectedTier) {
+            // Tier changed since the preview Game was created — rebuild on the same map.
             restartGame(game.seed);
         } else {
             document.getElementById('start-screen').classList.add('hidden');
@@ -240,7 +273,7 @@ function init() {
         resizeCanvas();
 
         let useSeed = (typeof seed === 'number') ? seed : null;
-        game = new Game(canvas, useSeed, selectedDifficulty);
+        game = new Game(canvas, useSeed, selectedTier);
         game.start();
         updateSeedDisplay();
         updateModeDisplay();
@@ -267,18 +300,32 @@ function init() {
     const scoresList = document.getElementById('scores-list');
     const playerNameInput = document.getElementById('player-name');
     const submitScoreBtn = document.getElementById('submit-score');
-    let visibleScoreTab = selectedDifficulty;
 
-    function renderScores(diff) {
-        let scores = JSON.parse(localStorage.getItem(scoreKey(diff)) || '[]');
-        scores.sort((a, b) => b.wave - a.wave);
+    // Populate the score-tabs container with one tab per Ascension tier (0..M1 max).
+    function renderScoreTabs() {
+        const tabs = document.getElementById('score-tabs');
+        if (!tabs) return;
+        tabs.innerHTML = '';
+        for (let t = 0; t <= ASCENSION_MAX_TIER_M1; t++) {
+            const btn = document.createElement('button');
+            btn.className = 'score-tab';
+            btn.textContent = 'A' + t;
+            btn.dataset.tier = String(t);
+            if (t === visibleScoreTier) btn.classList.add('selected');
+            btn.addEventListener('click', () => setScoreTab(t));
+            tabs.appendChild(btn);
+        }
+    }
+
+    function renderScores(tier) {
+        const scores = (save.highScores['a' + tier] || []).slice().sort((a, b) => b.wave - a.wave);
         scoresList.innerHTML = '';
         if (scores.length === 0) {
             scoresList.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.9rem;">NO DATA YET</div>';
             return;
         }
         scores.slice(0, 5).forEach((s, i) => {
-            let div = document.createElement('div');
+            const div = document.createElement('div');
             div.style.display = 'flex';
             div.style.justifyContent = 'space-between';
             div.style.padding = '4px 0';
@@ -288,32 +335,28 @@ function init() {
         });
     }
 
-    function setScoreTab(diff) {
-        visibleScoreTab = diff;
+    function setScoreTab(tier) {
+        visibleScoreTier = tier;
         document.querySelectorAll('.score-tab').forEach(b => {
-            b.classList.toggle('selected', b.dataset.difficulty === diff);
+            b.classList.toggle('selected', parseInt(b.dataset.tier) === tier);
         });
-        renderScores(diff);
+        renderScores(tier);
     }
 
-    document.querySelectorAll('.score-tab').forEach(b => {
-        b.addEventListener('click', () => setScoreTab(b.dataset.difficulty));
-    });
+    renderScoreTabs();
 
     window.loadScores = function() {
-        // Default the visible tab to the current run's mode on each game-over.
-        setScoreTab(game ? game.difficulty : selectedDifficulty);
+        // Default the visible tab to the current run's tier on each game-over.
+        setScoreTab(game ? game.ascensionTier : selectedTier);
     };
 
     submitScoreBtn.addEventListener('click', () => {
-        let name = playerNameInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const name = playerNameInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
         if (name.length > 0 && name.length <= 3 && game.state === 'gameover') {
-            let key = scoreKey(game.difficulty);
-            let scores = JSON.parse(localStorage.getItem(key) || '[]');
-            scores.push({ name: name, wave: game.wave });
-            localStorage.setItem(key, JSON.stringify(scores));
+            NeonSave.recordRun(save, { wave: game.wave, tier: game.ascensionTier, name: name });
             document.getElementById('score-entry').style.display = 'none';
-            setScoreTab(game.difficulty);
+            renderScoreTabs();
+            setScoreTab(game.ascensionTier);
         }
     });
 
