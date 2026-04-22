@@ -388,6 +388,7 @@ class Autopilot {
             if (bestCount >= 8 && best) {
                 if (this.game.ability.tryUse()) {
                     this.game.airstrike(best.x, best.y);
+                    if (typeof window.refreshAbilityUI === 'function') window.refreshAbilityUI();
                 }
             }
         } else if (kind === 'instant') {
@@ -395,6 +396,7 @@ class Autopilot {
             if (this.game.health <= 3) {
                 if (this.game.ability.tryUse()) {
                     this.game.freezeAllEnemies(180);
+                    if (typeof window.refreshAbilityUI === 'function') window.refreshAbilityUI();
                 }
             }
         }

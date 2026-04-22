@@ -412,13 +412,17 @@ class Tower {
                     while (currentTarget && hitCount < (this.chainCount || 3)) {
                         let dmg = effectiveDamage;
                         if (currentTarget.isAir) dmg *= 0.4; // Electric less effective vs air
-                        currentTarget.hp -= dmg;
-                        this.damageDealt += dmg;
-                        if (currentTarget.hp <= 0) {
-                            currentTarget.active = false;
-                            SoundFX.explosion();
+                        if (currentTarget.shielded && !currentTarget.shieldBroken) {
+                            currentTarget.shieldBroken = true;
+                        } else {
+                            currentTarget.hp -= dmg;
+                            this.damageDealt += dmg;
+                            if (currentTarget.hp <= 0) {
+                                currentTarget.active = false;
+                                SoundFX.explosion();
+                            }
                         }
-                        
+
                         points.push({x: currentTarget.x, y: currentTarget.y});
                         alreadyHit.add(currentTarget);
                         hitCount++;

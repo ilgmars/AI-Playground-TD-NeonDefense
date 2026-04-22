@@ -293,6 +293,13 @@ const TOWER_UPGRADES = {
     ]
 };
 
+// M3: Alias variant upgrade trees to their base tower's. Variants share the
+// same 3 upgrade slots as their base; clicking them opens the standard
+// upgrade menu instead of crashing with "Cannot read properties of undefined".
+for (const [base, variant] of Object.entries(TOWER_VARIANTS)) {
+    if (TOWER_UPGRADES[base]) TOWER_UPGRADES[variant] = TOWER_UPGRADES[base];
+}
+
 // -------------------------------------------------------------------------
 // Heroes (M2). Picked at run setup; one passive effect applied at Game
 // construction. Pioneer is pre-unlocked on fresh save (see save.js).

@@ -726,13 +726,14 @@ class Game {
         let t = this.selectedTowers[0];
         
         document.getElementById('upgrade-type-name').textContent = TOWERS[t.type].displayName + (this.selectedTowers.length > 1 ? ` (${this.selectedTowers.length})` : '');
-        document.getElementById('tower-dmg').textContent = t.type === 'income' ? (t.incomePerWave + '¢') : Math.floor(t.damage);
-        document.getElementById('tower-rng').textContent = t.type === 'income' ? 'passive' : Math.floor(t.range);
-        document.getElementById('tower-spd').textContent = t.type === 'income' ? '/wave' : t.fireRate;
+        const isIncomeType = t.type === 'income' || t.type === 'income_research';
+        document.getElementById('tower-dmg').textContent = isIncomeType ? (t.incomePerWave + '¢') : Math.floor(t.damage);
+        document.getElementById('tower-rng').textContent = isIncomeType ? 'passive' : Math.floor(t.range);
+        document.getElementById('tower-spd').textContent = isIncomeType ? '/wave' : t.fireRate;
         
         // Targeting mode selector (not shown for income towers)
         let targetingEl = document.getElementById('targeting-mode');
-        if (t.type === 'income') {
+        if (t.type === 'income' || t.type === 'income_research') {
             if (targetingEl) targetingEl.style.display = 'none';
         } else {
             if (!targetingEl) {
