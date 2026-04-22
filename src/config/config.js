@@ -35,7 +35,7 @@ const ASCENSION_TIERS = [
     // the Shielded / Splitter / Boss enemy types. Run Setup must lock these.
     { tier: 8, label: 'A8',  name: 'Shielded enemy', modifier: { spawnShielded: true },                      kind: 'enemy-m3' },
     { tier: 9, label: 'A9',  name: 'Splitter enemy', modifier: { spawnSplitter: true },                     kind: 'enemy-m3' },
-    { tier: 10, label: 'A10', name: 'Boss (M3)',    modifier: null,                                          kind: 'enemy-m3' }
+    { tier: 10, label: 'A10', name: 'Boss enemy',    modifier: { spawnBoss: true },                          kind: 'enemy-m3' }
 ];
 
 // Returns the cumulative effect map for a tier (0 <= tier <= 7 in M1).

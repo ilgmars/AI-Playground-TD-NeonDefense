@@ -130,6 +130,9 @@ class Game {
     }
 
     startWave() {
+        // M3: A10 — every 10th wave is a boss wave (one boss replaces normal spawns).
+        this.isBossWave = this.ascension.spawnBoss && this.wave > 0 && this.wave % 10 === 0;
+
         // M3: Research Node aura — boosts damage of all towers within auraRange
         // tiles of each Research Node by auraBonus. Recomputes each wave (stackable).
         for (const t of this.towers) t.auraDamageBonus = 0;
@@ -392,6 +395,17 @@ class Game {
             if (this.enemiesSpawned < this.currentWaveDef.count) {
                 if (this.spawnTimer > 0) {
                     this.spawnTimer--;
+                } else if (this.isBossWave && this.enemiesSpawned === 0) {
+                    // M3: Boss wave — spawn one boss and short-circuit further spawns.
+                    const boss = new Enemy(this.map.path, 'tank', this.currentWaveDef.hpMult);
+                    boss.hp *= 20;
+                    boss.maxHp *= 20;
+                    boss.speed *= 0.5;
+                    boss.reward = Math.floor((boss.reward || 0) * 10);
+                    boss.radius = Math.max(boss.radius, 20);
+                    boss.isBoss = true;
+                    this.enemies.push(boss);
+                    this.enemiesSpawned = this.currentWaveDef.count;
                 } else {
                     const newEnemy = new Enemy(this.map.path, this.currentWaveDef.type, this.currentWaveDef.hpMult);
                     if (this.freezeTimer > 0) {

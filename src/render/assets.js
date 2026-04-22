@@ -68,7 +68,7 @@ function drawSpawnerTile(ctx, x, y, size) {
 
 // Entity drawing
 
-function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burning = false, shielded = false, splitter = false) {
+function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burning = false, shielded = false, splitter = false, isBoss = false) {
     ctx.save();
     ctx.translate(x, y);
     
@@ -161,6 +161,20 @@ function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burni
         ctx.beginPath();
         ctx.arc(x, y, radius * 0.3, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
+    }
+
+    // M3: Boss enemy — purple glow ring overlay.
+    if (isBoss) {
+        ctx.save();
+        ctx.globalAlpha = 0.6;
+        ctx.shadowColor = '#a855f7';
+        ctx.shadowBlur = 14;
+        ctx.strokeStyle = '#a855f7';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(x, y, radius + 6, 0, Math.PI * 2);
+        ctx.stroke();
         ctx.restore();
     }
 }
