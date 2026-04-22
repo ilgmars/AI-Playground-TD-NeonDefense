@@ -350,7 +350,23 @@ class Tower {
         if (target) {
             this.angle = Math.atan2(target.y - (this.y + TILE_SIZE/2), target.x - (this.x + TILE_SIZE/2));
             
-            if (this.type === 'laser') {
+            if (this.type === 'laser_pulse') {
+                // M3: Pulse Laser — fires high-damage projectiles at fireRate cadence.
+                if (this.cooldown <= 0) {
+                    const proj = new Projectile(
+                        this.x + TILE_SIZE / 2,
+                        this.y + TILE_SIZE / 2,
+                        target,
+                        this.damage,
+                        'laser-pulse',
+                        this.pierce || 1,
+                        0,
+                        this
+                    );
+                    projectiles.push(proj);
+                    this.cooldown = this.fireRate;
+                }
+            } else if (this.type === 'laser') {
                 let dmg = this.damage;
                 if (target.isAir) dmg *= 0.4; // Ground towers are less effective vs air
                 target.hp -= dmg;
@@ -363,6 +379,23 @@ class Tower {
                     SoundFX.explosion();
                 }
                 this.laserTarget = {x: target.x, y: target.y};
+            } else if (this.type === 'electric_plasma') {
+                // M3: Plasma Coil — continuous AoE damage to all enemies in range per frame.
+                if (this.cooldown <= 0) {
+                    const tx = this.x + TILE_SIZE / 2;
+                    const ty = this.y + TILE_SIZE / 2;
+                    const r2 = this.range * this.range;
+                    for (const e of enemies) {
+                        if (!e.active) continue;
+                        const dx = e.x - tx;
+                        const dy = e.y - ty;
+                        if (dx*dx + dy*dy > r2) continue;
+                        e.hp -= this.damage;
+                        this.damageDealt += this.damage;
+                        if (e.hp <= 0) e.active = false;
+                    }
+                    this.cooldown = 1; // effectively every frame (fireRate=1)
+                }
             } else if (this.type === 'electric') {
                 if (this.cooldown === 0) {
                     SoundFX.shootElectric();
