@@ -36,6 +36,10 @@
                     <span class="label">SPEED</span>
                     <span id="speed-display" class="value">1X</span>
                 </div>
+                <div class="stat-box interactive hidden" id="ability-btn" title="Use ability">
+                    <span class="label" id="ability-label">ABILITY</span>
+                    <span id="ability-display" class="value">—</span>
+                </div>
                 <div class="stat-box interactive" id="pause-btn">
                     <span class="label">PAUSE</span>
                     <span id="pause-display" class="value">OFF</span>
@@ -153,9 +157,19 @@
                     </div>
                 </div>
 
-                <div id="start-screen" class="overlay">
+                <div id="main-menu" class="overlay">
                     <h1>NEON DEFENSE</h1>
                     <p>Protect the core from the rogue geometry.</p>
+                    <div class="menu-buttons">
+                        <button id="menu-start-btn" class="menu-primary">START RUN</button>
+                        <button id="menu-tree-btn">TECH TREE <span class="menu-balance" id="menu-xp-balance">0 XP</span></button>
+                        <button id="menu-dailyseed-btn" class="hidden">DAILY CHALLENGE</button>
+                        <button id="menu-reset-btn" class="danger small">RESET SAVE</button>
+                    </div>
+                </div>
+
+                <div id="start-screen" class="overlay hidden">
+                    <h1 style="font-size: 2.2rem;">RUN SETUP</h1>
                     <div class="ascension-row">
                         <span class="ascension-label">ASCENSION</span>
                         <div class="ascension-buttons" data-context="start">
@@ -163,10 +177,53 @@
                         </div>
                         <div class="ascension-modifiers-preview" data-context="start">—</div>
                     </div>
+                    <div class="loadout-row">
+                        <span class="loadout-label">HERO</span>
+                        <select id="run-hero-select" class="loadout-select"></select>
+                    </div>
+                    <div class="loadout-row">
+                        <span class="loadout-label">KIT</span>
+                        <select id="run-kit-select" class="loadout-select"></select>
+                    </div>
+                    <div class="loadout-row">
+                        <span class="loadout-label">ABILITY</span>
+                        <select id="run-ability-select" class="loadout-select"></select>
+                    </div>
                     <div class="seed-input-row">
                         <input type="number" id="start-seed-input" placeholder="SEED (optional)" />
                     </div>
-                    <button id="start-btn">INITIALIZE</button>
+                    <div class="loadout-row hidden" id="skipsetup-row">
+                        <label class="skip-setup-toggle">
+                            <input type="checkbox" id="skipsetup-toggle" />
+                            Skip Run Setup next time (go straight to launch)
+                        </label>
+                    </div>
+                    <div class="setup-actions">
+                        <button id="setup-back-btn" class="secondary">BACK</button>
+                        <button id="start-btn">INITIALIZE</button>
+                    </div>
+                </div>
+
+                <div id="tech-tree" class="overlay hidden">
+                    <h2>TECH TREE</h2>
+                    <div class="tree-balance-row">
+                        Meta-XP Balance: <span id="tree-xp-balance">0</span>
+                    </div>
+                    <div class="tech-tree-grid">
+                        <div class="tree-tier" data-tier="tier1">
+                            <h3>TIER 1 · 50 XP</h3>
+                            <div class="tree-nodes" data-tier-body="tier1"></div>
+                        </div>
+                        <div class="tree-tier" data-tier="tier2">
+                            <h3>TIER 2 · 200 XP</h3>
+                            <div class="tree-nodes" data-tier-body="tier2"></div>
+                        </div>
+                        <div class="tree-tier" data-tier="tier3">
+                            <h3>TIER 3 · 500 XP</h3>
+                            <div class="tree-nodes" data-tier-body="tier3"></div>
+                        </div>
+                    </div>
+                    <button id="tree-back-btn" class="secondary">BACK</button>
                 </div>
             </div>
 
@@ -260,6 +317,8 @@
     <script src="src/entities/entities.js"></script>
     <script src="src/ai/autopilot.js"></script>
     <script src="src/progression/save.js"></script>
+    <script src="src/progression/tree.js"></script>
+    <script src="src/progression/abilities.js"></script>
     <script src="src/engine/game.js"></script>
     <script src="src/engine/main.js"></script>
 </body>

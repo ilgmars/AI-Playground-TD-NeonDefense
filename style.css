@@ -718,3 +718,245 @@ button.danger:hover {
     font-family: inherit;
 }
 .xp-breakdown-unlock.hidden { display: none; }
+
+/* M2: Main Menu buttons */
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+    margin-top: 20px;
+    min-width: 240px;
+}
+.menu-buttons button {
+    padding: 10px 16px;
+    font-size: 0.95rem;
+    letter-spacing: 2px;
+    border: 2px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 700;
+}
+.menu-buttons button:hover {
+    background: var(--accent);
+    color: #0f172a;
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.45);
+}
+.menu-buttons button.menu-primary {
+    border-color: #a3e635;
+    color: #a3e635;
+}
+.menu-buttons button.menu-primary:hover {
+    background: #a3e635;
+    box-shadow: 0 0 16px rgba(163, 230, 53, 0.45);
+}
+.menu-buttons button.small {
+    font-size: 0.8rem;
+    padding: 6px 10px;
+    border-width: 1px;
+    opacity: 0.65;
+}
+.menu-buttons button.small:hover {
+    opacity: 1;
+}
+.menu-buttons .menu-balance {
+    float: right;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+.menu-buttons button:hover .menu-balance {
+    color: rgba(15, 23, 42, 0.7);
+}
+
+/* M2: Loadout dropdowns in Run Setup */
+.loadout-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+.loadout-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    font-weight: 600;
+}
+.loadout-select {
+    min-width: 240px;
+    padding: 5px 10px;
+    font-size: 0.85rem;
+    background: rgba(0, 0, 0, 0.5);
+    color: var(--text-main);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    font-family: inherit;
+    cursor: pointer;
+}
+.loadout-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.setup-actions {
+    display: flex;
+    gap: 14px;
+    margin-top: 14px;
+}
+.setup-actions button.secondary {
+    border-color: var(--text-muted);
+    color: var(--text-muted);
+}
+.setup-actions button.secondary:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* M2: Tech Tree overlay */
+#tech-tree {
+    padding: 24px;
+    overflow-y: auto;
+}
+#tech-tree h2 {
+    margin-bottom: 10px;
+}
+.tree-balance-row {
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--accent);
+    letter-spacing: 2px;
+    margin-bottom: 18px;
+    font-family: monospace;
+}
+.tech-tree-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    max-width: 900px;
+    margin: 0 auto 16px;
+}
+.tree-tier {
+    flex: 1 1 260px;
+    min-width: 260px;
+    max-width: 300px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 8px;
+}
+.tree-tier h3 {
+    text-align: center;
+    color: var(--accent);
+    letter-spacing: 3px;
+    margin-bottom: 10px;
+    font-size: 0.85rem;
+}
+.tree-tier.locked {
+    opacity: 0.5;
+    border-style: dashed;
+}
+.tree-tier.locked h3::after {
+    content: ' · LOCKED';
+    color: var(--text-muted);
+}
+.tree-nodes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.tree-node {
+    padding: 8px 10px;
+    border: 1px solid var(--text-muted);
+    border-radius: 5px;
+    background: rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.tree-node:hover:not(.owned):not(.locked):not(.too-expensive) {
+    border-color: var(--accent);
+    background: rgba(56, 189, 248, 0.12);
+}
+.tree-node.owned {
+    border-color: #a3e635;
+    background: rgba(163, 230, 53, 0.1);
+    cursor: default;
+}
+.tree-node.locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+    border-style: dashed;
+}
+.tree-node.too-expensive {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.tree-node-name {
+    font-weight: 700;
+    color: var(--text-main);
+    font-size: 0.9rem;
+    display: flex;
+    justify-content: space-between;
+}
+.tree-node-name .node-status {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+}
+.tree-node.owned .node-status {
+    color: #a3e635;
+}
+.tree-node-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* M2: Ability top-bar button */
+#ability-btn {
+    cursor: pointer;
+}
+#ability-btn.armed {
+    background: rgba(56, 189, 248, 0.18);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.45) inset;
+}
+#ability-btn.no-charges {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+#ability-display {
+    font-variant-numeric: tabular-nums;
+}
+
+/* M2: Wave preview popup (Scan + Strategist) */
+#wave-preview {
+    z-index: 15;
+    min-width: 280px;
+    max-width: 400px;
+    padding: 16px;
+}
+#wave-preview-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin: 10px 0;
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: var(--text-main);
+}
+.wave-preview-row {
+    padding: 2px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* M2: qol.skipsetup toggle */
+.skip-setup-toggle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}

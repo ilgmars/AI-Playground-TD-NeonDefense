@@ -243,3 +243,119 @@ const TOWER_UPGRADES = {
         { name: 'Network',    desc: '+5¢ per other Relay', baseCost: 200, costMult: 1.5, apply: (t) => { t.networkBonus = (t.networkBonus || 0) + 1; } }
     ]
 };
+
+// -------------------------------------------------------------------------
+// Heroes (M2). Picked at run setup; one passive effect applied at Game
+// construction. Pioneer is pre-unlocked on fresh save (see save.js).
+// -------------------------------------------------------------------------
+const HEROES = {
+    pioneer:  { id: 'hero.pioneer',  name: 'Pioneer',  desc: '+25% starting money',
+                apply: (g) => { g.money = Math.floor(g.money * 1.25); } },
+    engineer: { id: 'hero.engineer', name: 'Engineer', desc: '-10% tower cost, -5% upgrade cost',
+                apply: (g) => { g.towerCostMult = 0.9;  g.upgradeCostMult = 0.95; } },
+    warden:   { id: 'hero.warden',   name: 'Warden',   desc: '+5 max HP; potions heal +1',
+                apply: (g) => { g.maxHealth += 5; g.health += 5; g.potionHealBonus = 1; } }
+};
+const DEFAULT_HERO = 'pioneer';
+
+// -------------------------------------------------------------------------
+// Starter Kits (M2). Picked at run setup; one configuration change applied
+// at Game construction. Standard is pre-unlocked.
+// -------------------------------------------------------------------------
+const STARTER_KITS = {
+    standard:   { id: 'kit.standard',   name: 'Standard',   desc: 'Default loadout',
+                  apply: (g) => { /* no-op */ } },
+    economist:  { id: 'kit.economist',  name: 'Economist',  desc: '$75 start, free Relay pre-placed',
+                  apply: (g) => { g.money = 75; g.prePlaceRelay = true; } },
+    medic:      { id: 'kit.medic',      name: 'Medic',      desc: '+2 starting potions; potions cost 1.5x',
+                  apply: (g) => { g.startingPotions = 2; g.potionCostKitMult = 1.5; } },
+    strategist: { id: 'kit.strategist', name: 'Strategist', desc: 'See all waves; -20% starting money',
+                  apply: (g) => { g.money = Math.floor(g.money * 0.8); g.showAllWavesPreview = true; } }
+};
+const DEFAULT_KIT = 'standard';
+
+// -------------------------------------------------------------------------
+// Active Abilities (M2). Picked at run setup; used during a run via the
+// top-bar ability button. Logic lives in abilities.js.
+// -------------------------------------------------------------------------
+const ABILITIES = {
+    none:      { id: 'ability.none',      name: 'None',         desc: 'No ability this run', charges: 0, kind: 'none' },
+    scan:      { id: 'ability.scan',      name: 'Scan',         desc: 'Reveal next 3 waves', charges: 1, kind: 'reveal' },
+    airstrike: { id: 'ability.airstrike', name: 'Airstrike',    desc: '200 dmg AoE, 80px radius', charges: 3, kind: 'target' },
+    freeze:    { id: 'ability.freeze',    name: 'Freeze Wave',  desc: 'Stop all enemies 3s', charges: 1, kind: 'instant' }
+};
+const DEFAULT_ABILITY = 'none';
+
+// -------------------------------------------------------------------------
+// QoL nodes (M2). Toggled by ownership in save.unlockedNodes. Effects
+// applied at Game construction or read per-frame.
+// -------------------------------------------------------------------------
+const QOL_NODES = {
+    'qol.hpbars':      { name: 'Enemy HP Bars',   desc: 'Show HP bars above each enemy' },
+    'qol.fastai':      { name: 'Fast Autopilot',  desc: 'Autopilot tick 15f (from 30f)' },
+    'qol.dailyseed':   { name: 'Daily Seed',      desc: 'Daily Challenge button on Main Menu' },
+    'qol.skipsetup':   { name: 'Skip Setup',      desc: 'One-click reuse of last loadout' },
+    'qol.ascpreview':  { name: 'Ascension +1 Preview', desc: 'See next-tier modifier before clearing' }
+};
+
+// -------------------------------------------------------------------------
+// Tech Tree (M2). 3 tiers x 5 nodes. Costs: T1=50, T2=200, T3=500 XP.
+// Tier gating: need >= 2 owned nodes in prior tier to open next tier.
+// Pre-unlocks: hero.pioneer + kit.standard (see save.js).
+// Auto-unlocks: clearing A1/A3/A5/A7 grants specific nodes for free
+// (see tree.js autoUnlockOnAscension).
+// -------------------------------------------------------------------------
+const TECH_TREE = {
+    tier1: {
+        cost: 50,
+        nodes: [
+            { id: 'hero.pioneer',   kind: 'hero',    desc: '+25% starting money' },
+            { id: 'kit.standard',   kind: 'kit',     desc: 'Default loadout' },
+            { id: 'hero.engineer',  kind: 'hero',    desc: '-10% tower cost, -5% upgrade cost' },
+            { id: 'ability.scan',   kind: 'ability', desc: 'Reveal next 3 waves (1 charge)' },
+            { id: 'kit.economist',  kind: 'kit',     desc: '$75 start + pre-placed Relay' }
+        ]
+    },
+    tier2: {
+        cost: 200,
+        nodes: [
+            { id: 'hero.warden',       kind: 'hero',    desc: '+5 max HP; potions heal +1' },
+            { id: 'ability.airstrike', kind: 'ability', desc: 'Click-target 200 dmg AoE (3 charges)' },
+            { id: 'kit.medic',         kind: 'kit',     desc: '+2 potions; potions cost 1.5x' },
+            { id: 'qol.hpbars',        kind: 'qol',    desc: 'Show enemy HP bars' },
+            { id: 'qol.fastai',        kind: 'qol',    desc: 'Autopilot tick 15f (faster)' }
+        ]
+    },
+    tier3: {
+        cost: 500,
+        nodes: [
+            { id: 'ability.freeze',    kind: 'ability', desc: 'Freeze all enemies 3s (1 charge)' },
+            { id: 'kit.strategist',    kind: 'kit',     desc: 'See all waves; -20% start $' },
+            { id: 'qol.dailyseed',     kind: 'qol',    desc: 'Daily Challenge seed button' },
+            { id: 'qol.skipsetup',     kind: 'qol',    desc: 'One-click last-loadout reuse' },
+            { id: 'qol.ascpreview',    kind: 'qol',    desc: 'Preview next Ascension modifier' }
+        ]
+    }
+};
+
+// Ascension-clear → free tree node mapping. Fires on first clear of each tier.
+const ASCENSION_AUTO_UNLOCKS = {
+    1:  'kit.economist',
+    3:  'qol.hpbars',
+    5:  'qol.dailyseed',
+    7:  'qol.skipsetup'
+    // A10 reward deferred to M3 (cosmetic banner).
+};
+
+// Lookup a node definition by id across all 3 tiers. Returns null if not found.
+function getTreeNode(nodeId) {
+    for (const tierKey of ['tier1', 'tier2', 'tier3']) {
+        const tier = TECH_TREE[tierKey];
+        for (const node of tier.nodes) {
+            if (node.id === nodeId) {
+                return { ...node, tier: tierKey, cost: tier.cost };
+            }
+        }
+    }
+    return null;
+}

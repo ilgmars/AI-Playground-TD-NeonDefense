@@ -1,5 +1,5 @@
 class Game {
-    constructor(canvas, seed, ascensionTier) {
+    constructor(canvas, seed, ascensionTier, loadout) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
 
@@ -11,12 +11,28 @@ class Game {
         this.enemies = [];
         this.towers = [];
         this.projectiles = [];
-        this.particles = []; 
-        this.upgradeEffects = []; 
-        
+        this.particles = [];
+        this.upgradeEffects = [];
+
         this.money = Math.floor(125 * this.ascension.startMoneyMult);
+
+        // M2: loadout state (set before apply).
+        this.loadout = loadout || { heroId: 'hero.pioneer', kitId: 'kit.standard', abilityId: 'ability.none' };
+        this.towerCostMult = 1;
+        this.upgradeCostMult = 1;
+        this.potionHealBonus = 0;
+        this.potionCostKitMult = 1;
+        this.startingPotions = 0;
+        this.prePlaceRelay = false;
+        this.showAllWavesPreview = false;
+        this.autopilotTickInterval = AUTOPILOT_CONFIG.tickInterval;
+        this.ability = null;  // set by applyLoadout
+
         this.health = 20;
         this.maxHealth = 20;
+
+        this.applyLoadout();
+
         this.wave = 1;
         this.selectedTower = null;
         this.autopilot = false;
@@ -44,10 +60,60 @@ class Game {
         this.waveCooldown = 0; 
     }
 
+    applyLoadout() {
+        const heroKey = this.loadout.heroId ? this.loadout.heroId.replace(/^hero\./, '') : null;
+        const kitKey  = this.loadout.kitId  ? this.loadout.kitId.replace(/^kit\./, '')  : null;
+        if (heroKey && HEROES[heroKey] && HEROES[heroKey].apply) HEROES[heroKey].apply(this);
+        if (kitKey  && STARTER_KITS[kitKey]  && STARTER_KITS[kitKey].apply)  STARTER_KITS[kitKey].apply(this);
+        this.ability = NeonAbilities.createInstance(this.loadout.abilityId);
+        this.abilityTargetMode = false;   // true when awaiting click for Airstrike
+        this.freezeTimer = 0;             // frames left on Freeze effect
+    }
+
     start() {
         this.state = 'playing';
+        this.applyPostInitEffects();
         this.startWave();
         this.updateUI();
+    }
+
+    // M2: Effects that depend on the map being ready (path midpoint, etc).
+    applyPostInitEffects() {
+        // Medic: N starting potions — implemented as immediate HP refund at run start
+        // (bounded by maxHealth via Math.min).
+        if (this.startingPotions > 0) {
+            const baseHeal = (this.ascension.potionHeal !== null) ? this.ascension.potionHeal : POTION_CONFIG.healAmount;
+            const heal = baseHeal + this.potionHealBonus;
+            this.health = Math.min(this.maxHealth, this.health + heal * this.startingPotions);
+        }
+
+        // Economist: pre-place a free Relay at the tile nearest to the path midpoint.
+        if (this.prePlaceRelay) this.placeFreeRelay();
+    }
+
+    // Find a buildable tile nearest to the path midpoint and place a free Relay.
+    placeFreeRelay() {
+        const path = this.map.path;
+        if (!path || path.length === 0) return;
+        const mid = path[Math.floor(path.length / 2)];
+        let best = null;
+        let bestDist = Infinity;
+        for (let r = 0; r < window.ROWS; r++) {
+            for (let c = 0; c < window.COLS; c++) {
+                if (!this.map.isBuildable(c, r)) continue;
+                const occupied = this.towers.find(t => t.c === c && t.r === r);
+                if (occupied) continue;
+                const dx = c - mid.c;
+                const dy = r - mid.r;
+                const d2 = dx*dx + dy*dy;
+                if (d2 < bestDist) { bestDist = d2; best = { c, r }; }
+            }
+        }
+        if (best) {
+            const relay = new Tower(best.c, best.r, 'income');
+            relay.totalSpent = 0;  // Free tower doesn't count toward investment-factor scaling.
+            this.towers.push(relay);
+        }
     }
 
     startWave() {
@@ -258,9 +324,20 @@ class Game {
     update() {
         if (this.state !== 'playing') return;
 
+        // M2: Freeze ability — decrements per-game timer and unfreezes enemies.
+        if (this.freezeTimer > 0) {
+            this.freezeTimer--;
+            if (this.freezeTimer === 0) {
+                for (const e of this.enemies) {
+                    e.frozen = false;
+                    e.frozenFrames = 0;
+                }
+            }
+        }
+
         if (this.autopilot) {
             this.autopilotTimer++;
-            if (this.autopilotTimer >= AUTOPILOT_CONFIG.tickInterval) {
+            if (this.autopilotTimer >= this.autopilotTickInterval) {
                 this.autopilotTimer = 0;
                 this.runAutopilot();
             }
@@ -288,7 +365,12 @@ class Game {
                 if (this.spawnTimer > 0) {
                     this.spawnTimer--;
                 } else {
-                    this.enemies.push(new Enemy(this.map.path, this.currentWaveDef.type, this.currentWaveDef.hpMult));
+                    const newEnemy = new Enemy(this.map.path, this.currentWaveDef.type, this.currentWaveDef.hpMult);
+                    if (this.freezeTimer > 0) {
+                        newEnemy.frozen = true;
+                        newEnemy.frozenFrames = this.freezeTimer;
+                    }
+                    this.enemies.push(newEnemy);
                     this.enemiesSpawned++;
                     this.spawnTimer = this.currentWaveDef.spawnRate;
                 }
@@ -479,7 +561,7 @@ class Game {
 
     getPotionCost() {
         const base = POTION_CONFIG.baseCost + this.potionCount * POTION_CONFIG.costPerUse;
-        return Math.floor(base * this.ascension.potionCostMult);
+        return Math.floor(base * this.ascension.potionCostMult * this.potionCostKitMult);
     }
 
     buyPotion() {
@@ -487,9 +569,10 @@ class Game {
         if (this.money < cost) { SoundFX.error(); return false; }
         if (this.health >= this.maxHealth) { SoundFX.error(); return false; }
         this.money -= cost;
-        const heal = (this.ascension.potionHeal !== null)
+        const baseHeal = (this.ascension.potionHeal !== null)
             ? this.ascension.potionHeal
             : POTION_CONFIG.healAmount;
+        const heal = baseHeal + this.potionHealBonus;
         this.health = Math.min(this.maxHealth, this.health + heal);
         this.potionCount++;
         this.uiDirty = true;
@@ -498,7 +581,7 @@ class Game {
     }
 
     canAfford(type) {
-        return this.money >= TOWERS[type].cost;
+        return this.money >= Math.floor(TOWERS[type].cost * this.towerCostMult);
     }
 
     buildTower(c, r, type) {
@@ -508,7 +591,7 @@ class Game {
             if (t.c === c && t.r === r) return false;
         }
 
-        let cost = TOWERS[type].cost;
+        let cost = Math.floor(TOWERS[type].cost * this.towerCostMult);
 
         if (this.money >= cost) {
             this.money -= cost;
@@ -556,7 +639,7 @@ class Game {
         if (!this.selectedTowers || this.selectedTowers.length === 0) return;
         let upgradedAny = false;
         for (let t of this.selectedTowers) {
-            let cost = t.getUpgradeCost(index);
+            let cost = Math.floor(t.getUpgradeCost(index) * this.upgradeCostMult);
             if (this.money >= cost) {
                 this.money -= cost;
                 t.upgrade(index);
@@ -637,7 +720,7 @@ class Game {
         
         for (let i = 0; i < 3; i++) {
             let def = defs[i];
-            let cost = t.getUpgradeCost(i);
+            let cost = Math.floor(t.getUpgradeCost(i) * this.upgradeCostMult);
             let lvl = t.upgrades[i];
             
             let div = list.children[i];
@@ -692,6 +775,57 @@ class Game {
         potionBtn.classList.toggle('disabled', potionDisabled);
 
         this.updateUpgradeMenu();
+    }
+
+    // M2: Returns an array of { wave, type, count } for the next `n` waves.
+    // Used by Scan ability and Strategist kit. Pulls from hand-tuned
+    // waveData for waves <= 10, computes procedurally for 11+.
+    getWavePreview(n) {
+        const results = [];
+        for (let i = 0; i < n; i++) {
+            const w = this.wave + i;
+            if (w <= 0) continue;
+            if (w % this.ascension.airWaveInterval === 0) {
+                results.push({ wave: w, type: 'air', count: '(air wave)' });
+                continue;
+            }
+            const idx = (w - 1) % this.waveData.length;
+            const def = this.waveData[idx];
+            results.push({ wave: w, type: def.type, count: def.count + '+' });
+        }
+        return results;
+    }
+
+    // M2: Airstrike ability. Deals 200 damage in 80px radius centered at (x, y).
+    // Adds a visual ring effect. Caller (main.js) must consume a charge.
+    // Damage applied directly via hp -= dmg, matching existing Tower/Projectile pattern.
+    airstrike(x, y) {
+        const damage = 200;
+        const radius = 80;
+        const r2 = radius * radius;
+        for (const enemy of this.enemies) {
+            if (!enemy.active) continue;
+            const dx = enemy.x - x;
+            const dy = enemy.y - y;
+            if (dx*dx + dy*dy <= r2) {
+                enemy.hp -= damage;
+                if (enemy.hp <= 0) enemy.active = false;
+            }
+        }
+        // Visual: reuse upgradeEffects structure (expanding ring)
+        this.upgradeEffects.push({ x: x, y: y, radius: radius * 0.2, alpha: 1, airstrike: true });
+        this.upgradeEffects.push({ x: x, y: y, radius: radius * 0.5, alpha: 0.8, airstrike: true });
+        SoundFX.build();
+    }
+
+    // M2: Freeze ability. Stops all enemy movement for `frames` (at 60 fps).
+    freezeAllEnemies(frames) {
+        this.freezeTimer = frames;
+        for (const e of this.enemies) {
+            if (!e.active) continue;
+            e.frozen = true;
+            e.frozenFrames = frames;
+        }
     }
 
     gameOver() {

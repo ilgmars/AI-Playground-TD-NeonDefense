@@ -6,6 +6,7 @@ let gameSpeed = 1;
 // Load or create persistent save. NeonSave.load handles legacy migration
 // (neonDefenseScores_easy|normal|hard → a0/a2/a4, 200 XP welcome grant).
 const save = NeonSave.load();
+window.save = save;   // M2: expose for Enemy.draw HP-bar check.
 
 // Default tier = highest cleared. First-time players start on A0.
 // Clamp to M1 ceiling in case a hand-edited save has ascensionCleared > 7.
@@ -13,6 +14,12 @@ let selectedTier = Math.min(save.ascensionCleared, ASCENSION_MAX_TIER_M1);
 
 // Visible Ascension tier in the scoreboard view (independent from run tier).
 let visibleScoreTier = selectedTier;
+
+// M2: Selected loadout for next run. Initialized from save.lastLoadout if present,
+// else default to Pioneer + Standard + None. Always valid (unlocked).
+let selectedHero    = (save.lastLoadout && save.lastLoadout.heroId   && NeonSave.hasUnlocked(save, save.lastLoadout.heroId))   ? save.lastLoadout.heroId   : 'hero.' + DEFAULT_HERO;
+let selectedKit     = (save.lastLoadout && save.lastLoadout.kitId    && NeonSave.hasUnlocked(save, save.lastLoadout.kitId))    ? save.lastLoadout.kitId    : 'kit.' + DEFAULT_KIT;
+let selectedAbility = (save.lastLoadout && save.lastLoadout.abilityId && NeonSave.hasUnlocked(save, save.lastLoadout.abilityId)) ? save.lastLoadout.abilityId : 'ability.none';
 
 function setTier(tier) {
     const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER_M1);
@@ -56,7 +63,10 @@ function renderAscensionSelector(context) {
         if (t > unlockedMax) {
             btn.classList.add('locked');
             btn.disabled = true;
-            btn.title = spec.name + ' (locked — clear A' + (t - 1) + ' to unlock)';
+            const showPreview = NeonSave.hasUnlocked(save, 'qol.ascpreview') && t === unlockedMax + 1;
+            btn.title = spec.name
+                + (showPreview ? ' (preview: ' + spec.name + ')' : '')
+                + ' (locked — clear A' + (t - 1) + ' to unlock)';
         } else {
             btn.addEventListener('click', () => setTier(t));
         }
@@ -75,9 +85,183 @@ function renderAscensionSelector(context) {
     }
 }
 
+
+// M2: Populate the three loadout dropdowns based on unlocked tree nodes.
+// Called at init and after any tree purchase. Preserves current selection
+// if still valid; falls back to default otherwise.
+function renderLoadoutDropdowns() {
+    renderOneLoadoutSelect('run-hero-select', 'selectedHero', 'hero.pioneer', HEROES);
+    renderOneLoadoutSelect('run-kit-select',  'selectedKit',  'kit.standard', STARTER_KITS);
+    renderOneAbilitySelect();
+    if (typeof refreshSkipsetupRow === 'function') refreshSkipsetupRow();
+}
+
+function renderOneLoadoutSelect(elementId, globalName, fallbackId, catalog) {
+    const sel = document.getElementById(elementId);
+    if (!sel) return;
+    sel.innerHTML = '';
+
+    const currentGlobal = (globalName === 'selectedHero') ? selectedHero : selectedKit;
+
+    const entries = Object.values(catalog);
+    const unlocked = entries.filter(e => NeonSave.hasUnlocked(save, e.id));
+    if (unlocked.length === 0) return;
+
+    for (const entry of unlocked) {
+        const opt = document.createElement('option');
+        opt.value = entry.id;
+        opt.textContent = entry.name + ' — ' + entry.desc;
+        sel.appendChild(opt);
+    }
+
+    let validSelection = currentGlobal;
+    if (!unlocked.find(e => e.id === validSelection)) validSelection = fallbackId;
+    sel.value = validSelection;
+    if (globalName === 'selectedHero') selectedHero = validSelection;
+    else if (globalName === 'selectedKit') selectedKit = validSelection;
+}
+
+// Ability dropdown is special: always includes 'None' even if not in save.
+function renderOneAbilitySelect() {
+    const sel = document.getElementById('run-ability-select');
+    if (!sel) return;
+    sel.innerHTML = '';
+
+    // Always-available "None" option
+    const noneOpt = document.createElement('option');
+    noneOpt.value = 'ability.none';
+    noneOpt.textContent = ABILITIES.none.name + ' — ' + ABILITIES.none.desc;
+    sel.appendChild(noneOpt);
+
+    // Unlocked abilities
+    for (const key of ['scan', 'airstrike', 'freeze']) {
+        const ab = ABILITIES[key];
+        if (NeonSave.hasUnlocked(save, ab.id)) {
+            const opt = document.createElement('option');
+            opt.value = ab.id;
+            opt.textContent = ab.name + ' — ' + ab.desc + ' (' + ab.charges + ')';
+            sel.appendChild(opt);
+        }
+    }
+
+    if (![...sel.options].find(o => o.value === selectedAbility)) selectedAbility = 'ability.none';
+    sel.value = selectedAbility;
+}
+
+// M2: Show / hide overlay helpers. All overlays use .hidden to toggle.
+function showScreen(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('hidden');
+}
+function hideScreen(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+}
+
+// Main Menu → Run Setup → Game is the canonical forward path.
+function navigateToMainMenu() {
+    hideScreen('start-screen');
+    hideScreen('game-over');
+    hideScreen('restart-confirm');
+    hideScreen('tech-tree');
+    showScreen('main-menu');
+    updateMainMenuState();
+}
+
+function navigateToRunSetup() {
+    hideScreen('main-menu');
+    hideScreen('game-over');
+    hideScreen('tech-tree');
+    showScreen('start-screen');
+    renderAscensionSelector('start');
+    renderLoadoutDropdowns();
+}
+
+function updateMainMenuState() {
+    const bal = document.getElementById('menu-xp-balance');
+    if (bal) bal.textContent = save.metaXP + ' XP';
+
+    const daily = document.getElementById('menu-dailyseed-btn');
+    if (daily) {
+        if (NeonSave.hasUnlocked(save, 'qol.dailyseed')) daily.classList.remove('hidden');
+        else daily.classList.add('hidden');
+    }
+}
+
+// M2: Tech Tree screen. Renders 3 tier columns of nodes, each styled
+// by ownership / eligibility / affordability. Click affordable node to
+// purchase; XP is deducted and loadout dropdowns refresh.
+function navigateToTechTree() {
+    hideScreen('main-menu');
+    hideScreen('start-screen');
+    hideScreen('game-over');
+    showScreen('tech-tree');
+    renderTechTree();
+}
+
+function renderTechTree() {
+    const bal = document.getElementById('tree-xp-balance');
+    if (bal) bal.textContent = save.metaXP;
+
+    for (const tierKey of ['tier1', 'tier2', 'tier3']) {
+        const tierEl = document.querySelector(`.tree-tier[data-tier="${tierKey}"]`);
+        const body   = document.querySelector(`.tree-nodes[data-tier-body="${tierKey}"]`);
+        if (!tierEl || !body) continue;
+
+        const open = NeonTree.isTierOpen(save, tierKey);
+        tierEl.classList.toggle('locked', !open);
+
+        body.innerHTML = '';
+        for (const node of TECH_TREE[tierKey].nodes) {
+            body.appendChild(buildTreeNodeEl(node, tierKey, open));
+        }
+    }
+}
+
+function buildTreeNodeEl(node, tierKey, tierOpen) {
+    const el = document.createElement('div');
+    el.className = 'tree-node';
+
+    const owned     = NeonSave.hasUnlocked(save, node.id);
+    const cost      = TECH_TREE[tierKey].cost;
+    const canAfford = save.metaXP >= cost;
+    let status = cost + ' XP';
+    if (owned) { el.classList.add('owned'); status = 'OWNED'; }
+    else if (!tierOpen) { el.classList.add('locked'); status = 'LOCKED'; }
+    else if (!canAfford) { el.classList.add('too-expensive'); status = cost + ' XP (need more)'; }
+
+    const nameRow = document.createElement('div');
+    nameRow.className = 'tree-node-name';
+    const displayName = (node.kind === 'hero' && HEROES[node.id.slice(5)]) ? HEROES[node.id.slice(5)].name
+                      : (node.kind === 'kit'  && STARTER_KITS[node.id.slice(4)]) ? STARTER_KITS[node.id.slice(4)].name
+                      : (node.kind === 'ability' && ABILITIES[node.id.slice(8)]) ? ABILITIES[node.id.slice(8)].name
+                      : (node.kind === 'qol' && QOL_NODES[node.id]) ? QOL_NODES[node.id].name
+                      : node.id;
+    nameRow.innerHTML = `<span>${displayName}</span><span class="node-status">${status}</span>`;
+
+    const desc = document.createElement('div');
+    desc.className = 'tree-node-desc';
+    desc.textContent = node.desc;
+
+    el.appendChild(nameRow);
+    el.appendChild(desc);
+
+    if (!owned && tierOpen && canAfford) {
+        el.addEventListener('click', () => {
+            if (NeonTree.purchase(save, node.id)) {
+                renderTechTree();
+                renderLoadoutDropdowns();
+                updateMainMenuState();
+            }
+        });
+    }
+
+    return el;
+}
+
 // Renders the XP breakdown in the game-over overlay. Called by
 // window.onRunEnded after XP has been applied to the save.
-function renderRunResultXP({ wave, tier, xp, firstClear }) {
+function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId }) {
     document.getElementById('xp-wave').textContent     = xp.waveXP;
     document.getElementById('xp-clear').textContent    = xp.clearBonus;
     document.getElementById('xp-first').textContent    = xp.firstBonus;
@@ -92,13 +276,43 @@ function renderRunResultXP({ wave, tier, xp, firstClear }) {
     if (firstClear) {
         const nextTier = Math.min(tier + 1, ASCENSION_MAX_TIER_M1);
         const nextSpec = ASCENSION_TIERS[nextTier];
-        unlock.textContent = nextTier > tier
+        let text = nextTier > tier
             ? `UNLOCKED: ${nextSpec.label} — ${nextSpec.name}`
             : `MAXED for M1`;
+        if (autoUnlockedNodeId) {
+            const node = getTreeNode(autoUnlockedNodeId);
+            if (node) text += ` · FREE NODE: ${autoUnlockedNodeId}`;
+        }
+        unlock.textContent = text;
         unlock.classList.remove('hidden');
     } else {
         unlock.classList.add('hidden');
     }
+}
+
+// M2: Wave preview popup. Used by Scan ability and Strategist kit.
+// `count` = number of upcoming waves to reveal (3 for Scan; 9999 for Strategist).
+function showWavePreview(count) {
+    let panel = document.getElementById('wave-preview');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'wave-preview';
+        panel.className = 'overlay';
+        document.getElementById('game-container').appendChild(panel);
+    }
+    panel.classList.remove('hidden');
+    panel.innerHTML = '<h3>WAVE PREVIEW</h3><div id="wave-preview-list"></div><button id="wave-preview-close">CLOSE</button>';
+
+    const list = panel.querySelector('#wave-preview-list');
+    list.innerHTML = '';
+    const entries = game.getWavePreview(count);
+    for (const entry of entries) {
+        const row = document.createElement('div');
+        row.className = 'wave-preview-row';
+        row.textContent = `Wave ${entry.wave}: ${entry.count}× ${entry.type}`;
+        list.appendChild(row);
+    }
+    panel.querySelector('#wave-preview-close').addEventListener('click', () => panel.classList.add('hidden'));
 }
 
 function resizeCanvas() {
@@ -160,7 +374,11 @@ function init() {
         history.replaceState(null, '', '#' + game.seed);
     }
 
-    game = new Game(canvas, urlSeed, selectedTier);
+    game = new Game(canvas, urlSeed, selectedTier, {
+        heroId: selectedHero,
+        kitId: selectedKit,
+        abilityId: selectedAbility
+    });
 
     game.draw();
     game.updateUI();
@@ -172,17 +390,98 @@ function init() {
     renderAscensionSelector('gameover');
     renderAscensionSelector('restart');
 
+    // M2: Populate Run Setup dropdowns + Main Menu state on initial load.
+    renderLoadoutDropdowns();
+    updateMainMenuState();
+
+    // Ensure Main Menu is visible on initial page load.
+    showScreen('main-menu');
+
+    // M2: qol.skipsetup — show toggle only when unlocked, persist state.
+    function refreshSkipsetupRow() {
+        const row = document.getElementById('skipsetup-row');
+        const toggle = document.getElementById('skipsetup-toggle');
+        if (!row || !toggle) return;
+        if (NeonSave.hasUnlocked(save, 'qol.skipsetup')) {
+            row.classList.remove('hidden');
+            toggle.checked = !!save.settings.skipRunSetup;
+        } else {
+            row.classList.add('hidden');
+        }
+    }
+    document.getElementById('skipsetup-toggle').addEventListener('change', e => {
+        save.settings.skipRunSetup = !!e.target.checked;
+        NeonSave.write(save);
+    });
+    refreshSkipsetupRow();
+
+    // M2: Main Menu wiring — landing screen.
+    document.getElementById('menu-start-btn').addEventListener('click', () => {
+        if (save.settings.skipRunSetup && save.lastLoadout) {
+            // Skip Run Setup: restart with last loadout immediately.
+            restartGame(null);
+        } else {
+            navigateToRunSetup();
+        }
+    });
+    document.getElementById('menu-tree-btn').addEventListener('click', () => {
+        navigateToTechTree();
+    });
+    document.getElementById('menu-dailyseed-btn').addEventListener('click', () => {
+        if (!NeonSave.hasUnlocked(save, 'qol.dailyseed')) return;
+        const today = new Date();
+        const dailySeed = parseInt(today.getFullYear().toString() +
+            String(today.getMonth() + 1).padStart(2, '0') +
+            String(today.getDate()).padStart(2, '0'));
+        // Rebuild preview Game on the daily seed and go to Run Setup.
+        const canvas = document.getElementById('game-canvas');
+        game = new Game(canvas, dailySeed, selectedTier, {
+            heroId: selectedHero, kitId: selectedKit, abilityId: selectedAbility
+        });
+        game.draw();
+        updateSeedDisplay();
+        updateModeDisplay();
+        navigateToRunSetup();
+    });
+    document.getElementById('menu-reset-btn').addEventListener('click', () => {
+        if (confirm('Reset save? This deletes XP, unlocks, and high scores. Cannot be undone.')) {
+            localStorage.removeItem('neonDefense.save');
+            location.reload();
+        }
+    });
+
+    // M2: Run Setup BACK button goes to Main Menu.
+    document.getElementById('setup-back-btn').addEventListener('click', () => {
+        navigateToMainMenu();
+    });
+
+    document.getElementById('tree-back-btn').addEventListener('click', () => {
+        navigateToMainMenu();
+    });
+
+    // M2: Loadout dropdown change handlers.
+    document.getElementById('run-hero-select').addEventListener('change', e => {
+        selectedHero = e.target.value;
+    });
+    document.getElementById('run-kit-select').addEventListener('change', e => {
+        selectedKit = e.target.value;
+    });
+    document.getElementById('run-ability-select').addEventListener('change', e => {
+        selectedAbility = e.target.value;
+    });
+
     document.getElementById('start-btn').addEventListener('click', () => {
+        // M2: Persist chosen loadout for next run.
+        save.lastLoadout = { heroId: selectedHero, kitId: selectedKit, abilityId: selectedAbility };
+        NeonSave.write(save);
+
         const seedVal = document.getElementById('start-seed-input').value.trim();
         const parsedSeed = seedVal !== '' ? parseInt(seedVal) : null;
         if (parsedSeed !== null && !isNaN(parsedSeed)) {
             restartGame(parsedSeed);
-        } else if (game.ascensionTier !== selectedTier) {
-            // Tier changed since the preview Game was created — rebuild on the same map.
-            restartGame(game.seed);
         } else {
-            document.getElementById('start-screen').classList.add('hidden');
-            game.start();
+            // Always rebuild — loadout may have changed even if tier/seed didn't.
+            restartGame(game.seed);
         }
     });
 
@@ -279,6 +578,60 @@ function init() {
         }
     });
 
+    // M2: Ability button. Behavior depends on ability kind:
+    //   - 'reveal' (Scan): show wave preview immediately, consume 1 charge
+    //   - 'target' (Airstrike): enter targeting mode; next canvas click strikes
+    //   - 'instant' (Freeze): consume 1 charge, apply effect immediately
+    document.getElementById('ability-btn').addEventListener('click', () => {
+        if (!game || !game.ability || !game.ability.isUsable()) return;
+        if (game.state !== 'playing' && game.state !== 'paused') return;
+
+        const kind = game.ability.kind;
+        if (kind === 'reveal') {
+            if (game.ability.tryUse()) {
+                showWavePreview(3);
+                refreshAbilityUI();
+            }
+        } else if (kind === 'target') {
+            game.abilityTargetMode = !game.abilityTargetMode;
+            document.getElementById('ability-btn').classList.toggle('armed', game.abilityTargetMode);
+        } else if (kind === 'instant') {
+            if (game.ability.tryUse()) {
+                // Only Freeze currently uses 'instant' — call into game.
+                game.freezeAllEnemies(180); // 3 seconds at 60 fps
+                refreshAbilityUI();
+            }
+        }
+    });
+
+    function refreshAbilityUI() {
+        const btn = document.getElementById('ability-btn');
+        const disp = document.getElementById('ability-display');
+        const label = document.getElementById('ability-label');
+        if (!btn || !disp || !game || !game.ability) return;
+
+        if (game.ability.id === 'ability.none') {
+            btn.classList.add('hidden');
+            return;
+        }
+        btn.classList.remove('hidden');
+
+        const shortName = game.ability.name.toUpperCase().slice(0, 8);
+        label.textContent = shortName;
+        disp.textContent = game.ability.charges > 0 ? `${game.ability.charges}×` : '—';
+        btn.classList.toggle('no-charges', game.ability.charges === 0);
+        btn.classList.toggle('armed', game.abilityTargetMode === true);
+    }
+
+    window.refreshAbilityUI = refreshAbilityUI;
+
+    function maybeShowStrategistPreview() {
+        if (game && game.showAllWavesPreview) {
+            showWavePreview(20);  // reveal first 20 waves
+        }
+    }
+    window.maybeShowStrategistPreview = maybeShowStrategistPreview;
+
     document.getElementById('restart-btn').addEventListener('click', () => {
         if (game.state === 'playing') {
             game.state = 'paused';
@@ -300,7 +653,11 @@ function init() {
         resizeCanvas();
 
         let useSeed = (typeof seed === 'number') ? seed : null;
-        game = new Game(canvas, useSeed, selectedTier);
+        game = new Game(canvas, useSeed, selectedTier, {
+            heroId: selectedHero,
+            kitId: selectedKit,
+            abilityId: selectedAbility
+        });
         game.start();
         updateSeedDisplay();
         updateModeDisplay();
@@ -311,6 +668,18 @@ function init() {
         const autoEl = document.getElementById('autopilot-display');
         autoEl.textContent = 'OFF';
         autoEl.classList.remove('on');
+
+        hideScreen('main-menu');
+        hideScreen('start-screen');
+        hideScreen('game-over');
+        hideScreen('restart-confirm');
+
+        // M2: qol.fastai halves autopilot tick interval.
+        if (NeonSave.hasUnlocked(save, 'qol.fastai')) {
+            game.autopilotTickInterval = 15;
+        }
+        if (typeof refreshAbilityUI === 'function') refreshAbilityUI();
+        if (typeof maybeShowStrategistPreview === 'function') maybeShowStrategistPreview();
     }
 
     document.getElementById('confirm-yes').addEventListener('click', () => {
@@ -404,21 +773,25 @@ function init() {
         const xp = NeonSave.calculateRunXP(wave, tier, firstClear);
         save.metaXP        += xp.total;
         save.totalXPEarned += xp.total;
-        if (firstClear) save.ascensionCleared = tier;
+
+        let autoUnlockedNodeId = null;
+        if (firstClear) {
+            save.ascensionCleared = tier;
+            // M2: Grant a free tree node for the cleared tier.
+            autoUnlockedNodeId = NeonTree.autoUnlockOnAscension(save, tier);
+        }
         NeonSave.write(save);
 
-        // If a new tier unlocked, refresh selectors so the next button becomes active.
         if (firstClear) {
             renderAscensionSelector('start');
             renderAscensionSelector('gameover');
             renderAscensionSelector('restart');
+            renderLoadoutDropdowns();
+            updateMainMenuState();
         }
 
-        // renderRunResultXP is defined in Task 7. Guard so Task 6 tests in
-        // isolation don't ReferenceError when the overlay DOM and function
-        // don't exist yet.
         if (typeof renderRunResultXP === 'function') {
-            renderRunResultXP({ wave, tier, xp, firstClear });
+            renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId });
         }
     };
 
@@ -599,6 +972,16 @@ function init() {
         const c = Math.floor(pos.x / TILE_SIZE);
         const r = Math.floor(pos.y / TILE_SIZE);
 
+        // M2: Airstrike targeting mode — canvas click triggers the strike.
+        if (game.abilityTargetMode && game.ability && game.ability.isUsable()) {
+            if (game.ability.tryUse()) {
+                game.airstrike(pos.x, pos.y);
+                game.abilityTargetMode = false;
+                refreshAbilityUI();
+            }
+            return;
+        }
+
         if (selectedTowerType) {
             if (game.buildTower(c, r, selectedTowerType)) {
                 // Success, deselect tower
@@ -640,6 +1023,23 @@ function init() {
             game.update();
         }
         game.draw();
+
+        // M2: Airstrike targeting crosshair.
+        if ((game.state === 'playing' || game.state === 'paused') && game.abilityTargetMode && game.ability && game.ability.isUsable()) {
+            const ctx = game.ctx;
+            ctx.save();
+            ctx.strokeStyle = 'rgba(251, 191, 36, 0.85)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(mousePos.x, mousePos.y, 80, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([6, 4]);
+            ctx.strokeStyle = 'rgba(251, 191, 36, 0.4)';
+            ctx.beginPath();
+            ctx.arc(mousePos.x, mousePos.y, 80 * 1.3, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
 
         if ((game.state === 'playing' || game.state === 'paused') && selectedTowerType) {
             const c = Math.floor(mousePos.x / TILE_SIZE);
