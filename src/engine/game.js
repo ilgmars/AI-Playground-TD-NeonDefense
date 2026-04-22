@@ -11,7 +11,7 @@ class Game {
         this.particles = []; 
         this.upgradeEffects = []; 
         
-        this.money = 100;
+        this.money = 125;  // Better starting money for early game
         this.health = 20;
         this.maxHealth = 20;
         this.wave = 1;
@@ -55,49 +55,130 @@ class Game {
         }
         
         // Investment-based scaling: enemies scale with player power
-        // Every 2000¢ spent = +1.0x difficulty (gentler scaling for early game)
-        let investmentFactor = 1 + (totalTowerValue / 2000);
-
-        // Wave-based scaling with MUCH gentler curves
-        let baseExpFactor;
-        if (this.wave <= 5) {
-            // Waves 1-5: Very gentle for new players
-            baseExpFactor = 0.7 + this.wave * 0.12; // 0.82, 0.94, 1.06, 1.18, 1.30
-        } else if (this.wave <= 10) {
-            // Waves 6-10: Gentle transition period
-            baseExpFactor = 1.30 * Math.pow(1.05, this.wave - 5); // ~1.30 to ~1.66
-        } else if (this.wave <= 20) {
-            // Waves 11-20: Moderate exponential growth
-            baseExpFactor = 1.66 * Math.pow(1.06, this.wave - 10); // ~1.66 to ~2.97
-        } else if (this.wave <= 40) {
-            // Waves 21-40: Very smooth transition to late game
-            baseExpFactor = 2.97 * Math.pow(1.025, this.wave - 20); // ~2.97 to ~4.82
+        // This creates dynamic difficulty that responds to player strategy
+        // Uses soft caps to prevent death spiral while maintaining challenge
+        let investmentFactor;
+        if (this.wave <= 20) {
+            // Waves 1-20: Very gentle investment scaling (every 5000¢ = +1.0x)
+            investmentFactor = 1 + (totalTowerValue / 5000);
+        } else if (this.wave <= 35) {
+            // Waves 21-35: Investment with gentle cap
+            let baseInvestment = 1 + (totalTowerValue / 5000);
+            let excess = Math.max(0, baseInvestment - 4); // Cap starts at 4x
+            investmentFactor = 4 + Math.sqrt(excess) * 1.0; // Moderate soft cap
+        } else if (this.wave <= 55) {
+            // Waves 36-55: Investment capped but still relevant
+            let baseInvestment = 1 + (totalTowerValue / 5000);
+            let excess = Math.max(0, baseInvestment - 6); // Cap starts at 6x
+            investmentFactor = 6 + Math.sqrt(excess) * 0.8; // Stronger soft cap
+        } else if (this.wave <= 100) {
+            // Waves 56-100: Investment heavily capped
+            let baseInvestment = 1 + (totalTowerValue / 5000);
+            let excess = Math.max(0, baseInvestment - 8); // Cap starts at 8x
+            investmentFactor = 8 + Math.log(1 + excess) * 0.7; // Logarithmic cap
         } else {
-            // Waves 41+: Endless mode - slow logarithmic growth
-            // Keeps game challenging but not impossible
-            let lateWaves = this.wave - 40;
-            baseExpFactor = 4.82 + Math.log(1 + lateWaves) * 0.15; // Slow, steady growth
+            // Waves 101+: Investment very heavily capped for extreme endgame
+            let baseInvestment = 1 + (totalTowerValue / 5000);
+            let excess = Math.max(0, baseInvestment - 10); // Cap starts at 10x
+            investmentFactor = 10 + Math.log(1 + excess) * 0.5; // Strong logarithmic cap
         }
 
-        // Final HP = base wave difficulty × player investment
-        // This keeps difficulty proportional to player power
+        // Wave-based scaling: provides baseline difficulty progression
+        // Combined with investment factor for dynamic challenge
+        let baseExpFactor;
+        if (this.wave <= 5) {
+            // Waves 1-5: Very gentle tutorial
+            baseExpFactor = 0.65 + this.wave * 0.1; // 0.75, 0.85, 0.95, 1.05, 1.15
+        } else if (this.wave <= 12) {
+            // Waves 6-12: Gentle early game ramp
+            baseExpFactor = 1.15 * Math.pow(1.05, this.wave - 5); // ~1.15 to ~1.6
+        } else if (this.wave <= 25) {
+            // Waves 13-25: Smooth mid-early game
+            baseExpFactor = 1.6 * Math.pow(1.04, this.wave - 12); // ~1.6 to ~2.5
+        } else if (this.wave <= 40) {
+            // Waves 26-40: Mid-game
+            baseExpFactor = 2.5 * Math.pow(1.038, this.wave - 25); // ~2.5 to ~4.2
+        } else if (this.wave <= 60) {
+            // Waves 41-60: Late game
+            baseExpFactor = 4.2 * Math.pow(1.03, this.wave - 40); // ~4.2 to ~7.0
+        } else if (this.wave <= 100) {
+            // Waves 61-100: Extended endgame
+            let endlessWaves = this.wave - 60;
+            baseExpFactor = 7.0 + Math.log(1 + endlessWaves) * 0.8; // ~7.0 to ~10.0
+        } else if (this.wave <= 200) {
+            // Waves 101-200: Deep endgame with gentle growth
+            let deepWaves = this.wave - 100;
+            baseExpFactor = 10.0 + Math.log(1 + deepWaves) * 0.6; // ~10.0 to ~13.1
+        } else {
+            // Waves 201+: Extreme endgame with exponential milestone difficulty spikes
+            let extremeWaves = this.wave - 200;
+            
+            // Base logarithmic growth
+            let baseGrowth = 13.1 + Math.log(1 + extremeWaves) * 0.5;
+            
+            // Exponential milestone bonuses every 20 waves (220, 240, 260, etc.)
+            let milestonesPassed = Math.floor(extremeWaves / 20);
+            // Each milestone is stronger: 0.7, 0.84, 1.01, 1.21, 1.45...
+            let milestoneBonus = 0;
+            for (let i = 0; i < milestonesPassed; i++) {
+                milestoneBonus += 0.7 * Math.pow(1.2, i); // 20% exponential growth per milestone
+            }
+            
+            // Gradual ramp within each 20-wave segment
+            let segmentProgress = (extremeWaves % 20) / 20; // 0 to 1
+            let nextMilestoneValue = 0.7 * Math.pow(1.2, milestonesPassed);
+            let segmentRamp = segmentProgress * nextMilestoneValue * 0.6; // Ramp to 60% of next milestone
+            
+            baseExpFactor = baseGrowth + milestoneBonus + segmentRamp;
+        }
+
+        // Final HP = base wave difficulty × capped investment factor
+        // Investment helps early, but wave progression dominates late game
         let finalHpMult = baseExpFactor * investmentFactor;
+        
+        // Additional overall difficulty multiplier after wave 200
+        // Increases by +3% every 5 waves (indefinitely)
+        if (this.wave > 200) {
+            let extremeWaves = this.wave - 200;
+            let milestonesPassed = Math.floor(extremeWaves / 5);
+            // Base 5% increase + 3% per 5 waves
+            let overallDifficultyMultiplier = 1.05 + (milestonesPassed * 0.03);
+            finalHpMult *= overallDifficultyMultiplier;
+        }
 
         if (this.wave > 0 && this.wave % 5 === 0) {
-            // Air waves: more enemies, slightly tankier
-            let airCount = 12 + this.wave * 0.45;
-            if (this.wave > 20 && this.wave <= 40) {
-                airCount += Math.log(this.wave - 19) * 2.5; // Very gentle air scaling 21-40
-            } else if (this.wave > 40) {
-                // Endless mode: air count grows moderately
-                airCount += Math.log(21) * 2.5 + Math.log(this.wave - 39) * 3.5;
+            // Air waves: challenging but fair with extreme endgame scaling
+            let airCount;
+            if (this.wave <= 15) {
+                airCount = 7 + this.wave * 0.35; // Gentle early air
+            } else if (this.wave <= 30) {
+                airCount = 12.25 + (this.wave - 15) * 0.28; // Moderate mid-game growth
+            } else if (this.wave <= 55) {
+                airCount = 16.45 + (this.wave - 30) * 0.24; // Steady late game
+            } else if (this.wave <= 100) {
+                airCount = 22.45 + Math.log(this.wave - 54) * 3.0; // Logarithmic endgame
+            } else if (this.wave <= 200) {
+                airCount = 26.0 + Math.log(this.wave - 99) * 2.5; // Deep endgame
+            } else {
+                // Waves 201+: Extreme endgame with exponential milestone scaling
+                let extremeWaves = this.wave - 200;
+                let baseCount = 28.5 + Math.log(1 + extremeWaves) * 2.0;
+                
+                // Exponential milestone bonuses every 20 waves (220, 240, 260, etc.)
+                let milestonesPassed = Math.floor(extremeWaves / 20);
+                let milestoneBonus = 0;
+                for (let i = 0; i < milestonesPassed; i++) {
+                    milestoneBonus += 2.5 * Math.pow(1.15, i); // 15% exponential growth per milestone
+                }
+                
+                airCount = baseCount + milestoneBonus;
             }
             
             this.currentWaveDef = {
                 count: Math.floor(airCount),
                 type: 'air',
-                spawnRate: Math.max(18, 35 - Math.floor(this.wave / 8)),
-                hpMult: finalHpMult * 1.08
+                spawnRate: Math.max(20, 50 - Math.floor(this.wave / 8)),
+                hpMult: finalHpMult * 0.98 // Slightly weaker than ground
             };
             this.enemiesSpawned = 0;
             this.spawnTimer = 60;
@@ -109,20 +190,41 @@ class Game {
 
         let loops = Math.floor((this.wave - 1) / this.waveData.length);
         
-        // Count scaling: very gentle growth for endless mode
-        let countMult = 1 + loops * 0.15;
-        if (this.wave > 20 && this.wave <= 40) {
-            countMult += Math.log(this.wave - 19) * 0.12; // Very gentle count scaling waves 21-40
-        } else if (this.wave > 40) {
-            // Endless mode: count grows slowly to keep game interesting
-            countMult += Math.log(21) * 0.12 + Math.log(this.wave - 39) * 0.18;
+        // Count scaling: gentle growth for early/mid game, milestone scaling for extreme endgame
+        let countMult;
+        if (this.wave <= 20) {
+            countMult = 1 + loops * 0.15; // Very gentle early game
+        } else if (this.wave <= 40) {
+            countMult = 1 + loops * 0.15 + (this.wave - 20) * 0.01; // Slow mid-game
+        } else if (this.wave <= 60) {
+            countMult = 1 + loops * 0.15 + 20 * 0.01 + (this.wave - 40) * 0.014; // Moderate late game
+        } else if (this.wave <= 100) {
+            let baseCount = 1 + loops * 0.15 + 20 * 0.01 + 20 * 0.014;
+            countMult = baseCount + Math.log(this.wave - 59) * 0.28; // Logarithmic endgame
+        } else if (this.wave <= 200) {
+            let baseCount = 1 + loops * 0.15 + 20 * 0.01 + 20 * 0.014 + Math.log(41) * 0.28;
+            countMult = baseCount + Math.log(this.wave - 99) * 0.22; // Deep endgame
+        } else {
+            // Waves 201+: Extreme endgame with exponential milestone scaling
+            let extremeWaves = this.wave - 200;
+            let baseCount = 1 + loops * 0.15 + 20 * 0.01 + 20 * 0.014 + Math.log(41) * 0.28 + Math.log(101) * 0.22;
+            let logGrowth = Math.log(1 + extremeWaves) * 0.18;
+            
+            // Exponential milestone bonuses every 20 waves (220, 240, 260, etc.)
+            let milestonesPassed = Math.floor(extremeWaves / 20);
+            let milestoneBonus = 0;
+            for (let i = 0; i < milestonesPassed; i++) {
+                milestoneBonus += 0.15 * Math.pow(1.15, i); // 15% exponential growth per milestone
+            }
+            
+            countMult = baseCount + logGrowth + milestoneBonus;
         }
 
         this.currentWaveDef = {
             count: Math.floor(def.count * countMult),
             type: def.type,
             spawnRate: Math.max(12, def.spawnRate - loops * 2),
-            hpMult: def.hpMult * finalHpMult // No extra loop multiplier - HP is capped
+            hpMult: def.hpMult * finalHpMult // HP scales with wave + investment
         };
 
         this.enemiesSpawned = 0;
@@ -186,7 +288,43 @@ class Game {
                 if (aliveEnemies.length === 0) {
                     this.currentWaveDef = null;
                     this.waveCooldown = ((this.wave + 1) % 5 === 0) ? WAVE_CONFIG.airWaveCooldown : WAVE_CONFIG.normalCooldown;
-                    this.money += WAVE_CONFIG.endOfWavePayoutBase + this.wave * WAVE_CONFIG.endOfWavePayoutPerWave;
+                    
+                    // Wave completion bonus with scaling for late game
+                    let waveBonus = WAVE_CONFIG.endOfWavePayoutBase + this.wave * WAVE_CONFIG.endOfWavePayoutPerWave;
+                    
+                    // Late game economic boost to keep up with difficulty
+                    if (this.wave > 25) {
+                        // Add bonus scaling for waves 26+
+                        let lateGameBonus = Math.floor((this.wave - 25) * 4);
+                        waveBonus += lateGameBonus;
+                    }
+                    if (this.wave > 45) {
+                        // Extra boost for very late game
+                        let veryLateBonus = Math.floor((this.wave - 45) * 3);
+                        waveBonus += veryLateBonus;
+                    }
+                    if (this.wave > 100) {
+                        // Deep endgame boost
+                        let deepBonus = Math.floor((this.wave - 100) * 5);
+                        waveBonus += deepBonus;
+                    }
+                    if (this.wave > 200) {
+                        // Extreme endgame boost with exponential milestone bonuses
+                        let extremeWaves = this.wave - 200;
+                        let extremeBonus = Math.floor(extremeWaves * 10); // Increased from 8
+                        
+                        // Exponential milestone bonuses every 20 waves (220, 240, 260, etc.)
+                        let milestonesPassed = Math.floor(extremeWaves / 20);
+                        let milestoneBonus = 0;
+                        for (let i = 0; i < milestonesPassed; i++) {
+                            milestoneBonus += Math.floor(350 * Math.pow(1.18, i)); // 18% exponential growth per milestone
+                        }
+                        
+                        waveBonus += extremeBonus + milestoneBonus;
+                    }
+                    
+                    this.money += waveBonus;
+                    
                     // Income tower payout
                     let incomeTowers = this.towers.filter(t => t.type === 'income');
                     let relayCount = incomeTowers.length;
@@ -229,7 +367,13 @@ class Game {
                     this.gameOver();
                 }
             } else if (!e.active) {
-                this.money += e.reward;
+                // Base reward with late-game scaling
+                let reward = e.reward;
+                if (this.wave > 35) {
+                    // Boost rewards in late game to help economy
+                    reward = Math.floor(reward * (1 + (this.wave - 35) * 0.025));
+                }
+                this.money += reward;
                 this.enemies.splice(i, 1);
                 this.uiDirty = true;
             }
