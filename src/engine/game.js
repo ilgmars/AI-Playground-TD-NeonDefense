@@ -700,6 +700,7 @@ class Game {
         document.getElementById('final-wave').textContent = this.wave;
         document.getElementById('score-entry').style.display = 'flex';
         document.getElementById('player-name').value = '';
+        if (window.onRunEnded) window.onRunEnded({ wave: this.wave, tier: this.ascensionTier });
         if (window.loadScores) window.loadScores();
     }
 }

@@ -350,15 +350,50 @@ function init() {
         setScoreTab(game ? game.ascensionTier : selectedTier);
     };
 
+    // Name submission — appends to per-tier high-score list. Does NOT
+    // re-award XP; that happens in onRunEnded immediately after death.
     submitScoreBtn.addEventListener('click', () => {
         const name = playerNameInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
         if (name.length > 0 && name.length <= 3 && game.state === 'gameover') {
-            NeonSave.recordRun(save, { wave: game.wave, tier: game.ascensionTier, name: name });
+            const tier = game.ascensionTier;
+            const list = save.highScores['a' + tier] || [];
+            list.push({ name: name.slice(0, 3), wave: game.wave });
+            list.sort((a, b) => b.wave - a.wave);
+            save.highScores['a' + tier] = list.slice(0, 5);
+            NeonSave.write(save);
             document.getElementById('score-entry').style.display = 'none';
             renderScoreTabs();
-            setScoreTab(game.ascensionTier);
+            setScoreTab(tier);
         }
     });
+
+    // Called by Game.gameOver() the instant a run ends. Always awards XP
+    // (whether or not the player submits a name) and updates ascensionCleared.
+    // Exposes the XP breakdown to renderRunResultXP for the overlay.
+    window.onRunEnded = function (result) {
+        const { wave, tier } = result;
+        const firstClear = wave >= 30 && tier > save.ascensionCleared;
+
+        const xp = NeonSave.calculateRunXP(wave, tier, firstClear);
+        save.metaXP        += xp.total;
+        save.totalXPEarned += xp.total;
+        if (firstClear) save.ascensionCleared = tier;
+        NeonSave.write(save);
+
+        // If a new tier unlocked, refresh selectors so the next button becomes active.
+        if (firstClear) {
+            renderAscensionSelector('start');
+            renderAscensionSelector('gameover');
+            renderAscensionSelector('restart');
+        }
+
+        // renderRunResultXP is defined in Task 7. Guard so Task 6 tests in
+        // isolation don't ReferenceError when the overlay DOM and function
+        // don't exist yet.
+        if (typeof renderRunResultXP === 'function') {
+            renderRunResultXP({ wave, tier, xp, firstClear });
+        }
+    };
 
     document.getElementById('confirm-no').addEventListener('click', () => {
         document.getElementById('restart-confirm').classList.add('hidden');
