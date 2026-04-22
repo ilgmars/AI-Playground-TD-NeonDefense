@@ -256,7 +256,7 @@ function buildTreeNodeEl(node, tierKey, tierOpen) {
 
 // Renders the XP breakdown in the game-over overlay. Called by
 // window.onRunEnded after XP has been applied to the save.
-function renderRunResultXP({ wave, tier, xp, firstClear }) {
+function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId }) {
     document.getElementById('xp-wave').textContent     = xp.waveXP;
     document.getElementById('xp-clear').textContent    = xp.clearBonus;
     document.getElementById('xp-first').textContent    = xp.firstBonus;
@@ -271,9 +271,14 @@ function renderRunResultXP({ wave, tier, xp, firstClear }) {
     if (firstClear) {
         const nextTier = Math.min(tier + 1, ASCENSION_MAX_TIER_M1);
         const nextSpec = ASCENSION_TIERS[nextTier];
-        unlock.textContent = nextTier > tier
+        let text = nextTier > tier
             ? `UNLOCKED: ${nextSpec.label} — ${nextSpec.name}`
             : `MAXED for M1`;
+        if (autoUnlockedNodeId) {
+            const node = getTreeNode(autoUnlockedNodeId);
+            if (node) text += ` · FREE NODE: ${autoUnlockedNodeId}`;
+        }
+        unlock.textContent = text;
         unlock.classList.remove('hidden');
     } else {
         unlock.classList.add('hidden');
@@ -727,21 +732,25 @@ function init() {
         const xp = NeonSave.calculateRunXP(wave, tier, firstClear);
         save.metaXP        += xp.total;
         save.totalXPEarned += xp.total;
-        if (firstClear) save.ascensionCleared = tier;
+
+        let autoUnlockedNodeId = null;
+        if (firstClear) {
+            save.ascensionCleared = tier;
+            // M2: Grant a free tree node for the cleared tier.
+            autoUnlockedNodeId = NeonTree.autoUnlockOnAscension(save, tier);
+        }
         NeonSave.write(save);
 
-        // If a new tier unlocked, refresh selectors so the next button becomes active.
         if (firstClear) {
             renderAscensionSelector('start');
             renderAscensionSelector('gameover');
             renderAscensionSelector('restart');
+            renderLoadoutDropdowns();
+            updateMainMenuState();
         }
 
-        // renderRunResultXP is defined in Task 7. Guard so Task 6 tests in
-        // isolation don't ReferenceError when the overlay DOM and function
-        // don't exist yet.
         if (typeof renderRunResultXP === 'function') {
-            renderRunResultXP({ wave, tier, xp, firstClear });
+            renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId });
         }
     };
 
