@@ -85,6 +85,28 @@
                     <h2>GAME OVER</h2>
                     <p>Waves Survived: <span id="final-wave"></span></p>
 
+                    <div class="xp-breakdown" id="xp-breakdown">
+                        <div class="xp-breakdown-title">META-XP EARNED</div>
+                        <div class="xp-breakdown-row">
+                            <span>Wave XP</span><span id="xp-wave">0</span>
+                        </div>
+                        <div class="xp-breakdown-row" id="xp-clear-row">
+                            <span>Clear Bonus</span><span id="xp-clear">0</span>
+                        </div>
+                        <div class="xp-breakdown-row" id="xp-first-row">
+                            <span>First-Clear Bonus</span><span id="xp-first">0</span>
+                        </div>
+                        <div class="xp-breakdown-total">
+                            <span>Total</span><span id="xp-total">0</span>
+                        </div>
+                        <div class="xp-breakdown-balance">
+                            Balance: <span id="xp-balance">0</span>
+                        </div>
+                        <div class="xp-breakdown-unlock hidden" id="xp-unlock">
+                            <!-- filled in when firstClear -->
+                        </div>
+                    </div>
+
                     <div id="score-entry"
                         style="margin-top: 20px; display: none; flex-direction: column; align-items: center; gap: 10px;">
                         <input type="text" id="player-name" maxlength="3" placeholder="AAA"
@@ -97,21 +119,16 @@
                         <h3
                             style="text-align: center; font-size: 1rem; color: var(--accent); margin-bottom: 10px; letter-spacing: 2px;">
                             TOP SCORES</h3>
-                        <div class="score-tabs">
-                            <button class="score-tab easy" data-difficulty="easy">EASY</button>
-                            <button class="score-tab normal" data-difficulty="normal">NORMAL</button>
-                            <button class="score-tab hard" data-difficulty="hard">HARD</button>
+                        <div class="score-tabs" id="score-tabs">
+                            <!-- Tabs populated by main.js renderScoreTabs() -->
                         </div>
                         <div id="scores-list" style="font-family: monospace; font-size: 1.1rem;"></div>
                     </div>
 
-                    <div class="difficulty-row" style="margin-top: 20px;">
-                        <span class="difficulty-label">DIFFICULTY</span>
-                        <div class="difficulty-buttons">
-                            <button class="difficulty-btn easy" data-difficulty="easy">EASY</button>
-                            <button class="difficulty-btn normal" data-difficulty="normal">NORMAL</button>
-                            <button class="difficulty-btn hard" data-difficulty="hard">HARD</button>
-                        </div>
+                    <div class="ascension-row" style="margin-top: 20px;">
+                        <span class="ascension-label">ASCENSION</span>
+                        <div class="ascension-buttons" data-context="gameover"></div>
+                        <div class="ascension-modifiers-preview" data-context="gameover">—</div>
                     </div>
                     <button id="game-over-restart">RESTART</button>
                     <div class="seed-input-row" style="margin-top: 10px;">
@@ -122,13 +139,10 @@
                 <div id="restart-confirm" class="hidden overlay">
                     <h2>REBOOT SYSTEM?</h2>
                     <p>Current progress will be lost.</p>
-                    <div class="difficulty-row">
-                        <span class="difficulty-label">DIFFICULTY</span>
-                        <div class="difficulty-buttons">
-                            <button class="difficulty-btn easy" data-difficulty="easy">EASY</button>
-                            <button class="difficulty-btn normal" data-difficulty="normal">NORMAL</button>
-                            <button class="difficulty-btn hard" data-difficulty="hard">HARD</button>
-                        </div>
+                    <div class="ascension-row">
+                        <span class="ascension-label">ASCENSION</span>
+                        <div class="ascension-buttons" data-context="restart"></div>
+                        <div class="ascension-modifiers-preview" data-context="restart">—</div>
                     </div>
                     <div class="seed-input-row">
                         <input type="number" id="restart-seed-input" placeholder="SEED (optional)" />
@@ -142,13 +156,12 @@
                 <div id="start-screen" class="overlay">
                     <h1>NEON DEFENSE</h1>
                     <p>Protect the core from the rogue geometry.</p>
-                    <div class="difficulty-row">
-                        <span class="difficulty-label">DIFFICULTY</span>
-                        <div class="difficulty-buttons">
-                            <button class="difficulty-btn easy" data-difficulty="easy">EASY</button>
-                            <button class="difficulty-btn normal" data-difficulty="normal">NORMAL</button>
-                            <button class="difficulty-btn hard" data-difficulty="hard">HARD</button>
+                    <div class="ascension-row">
+                        <span class="ascension-label">ASCENSION</span>
+                        <div class="ascension-buttons" data-context="start">
+                            <!-- Buttons populated by main.js renderAscensionSelector('start') -->
                         </div>
+                        <div class="ascension-modifiers-preview" data-context="start">—</div>
                     </div>
                     <div class="seed-input-row">
                         <input type="number" id="start-seed-input" placeholder="SEED (optional)" />
@@ -246,6 +259,7 @@
     <script src="src/engine/map.js"></script>
     <script src="src/entities/entities.js"></script>
     <script src="src/ai/autopilot.js"></script>
+    <script src="src/progression/save.js"></script>
     <script src="src/engine/game.js"></script>
     <script src="src/engine/main.js"></script>
 </body>

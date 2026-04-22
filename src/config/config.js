@@ -3,18 +3,73 @@
 // want to tweak. Logic lives in entities.js / game.js / autopilot.js.
 
 // -------------------------------------------------------------------------
-// Difficulty modes. Multipliers applied on top of the existing scaling.
-// Easy is bit-identical to the historical curve (all 1.0).
-// hpMult     -> enemy HP per spawn
-// countMult  -> enemies per wave (ground + air)
-// payoutMult -> wave-completion bonus + per-enemy rewards (relays unaffected)
+// Ascension tiers (Milestone 1: A0-A7 stat-only; A8-A10 reserved for M3
+// new-enemy tiers). Each tier ADDS its modifier to the previous tier's
+// stack — A5 has A1..A5 all active. Resolve a tier's full effect map via
+// `getAscensionEffects(tier)`.
+//
+// Effect keys:
+//   hpMult            -> multiplicative on per-spawn enemy HP
+//   startMoneyMult    -> multiplicative on Game's initial money
+//   airWaveInterval   -> "air wave every N waves" (default 5)
+//   countMult         -> multiplicative on per-wave enemy count
+//   payoutMult        -> multiplicative on wave-completion bonus + per-kill rewards
+//   disableInvestCap  -> if true, investment-factor soft caps in startWave() are skipped
+//   potionCostMult    -> multiplicative on POTION_CONFIG.baseCost + costPerUse
+//   potionHeal        -> overrides POTION_CONFIG.healAmount
 // -------------------------------------------------------------------------
-const DIFFICULTY = {
-    easy:   { hpMult: 1.0,  countMult: 1.0,  payoutMult: 1.0,  label: 'EASY',   letter: 'E', color: '#4ade80' },
-    normal: { hpMult: 1.25, countMult: 1.15, payoutMult: 0.9,  label: 'NORMAL', letter: 'N', color: '#fbbf24' },
-    hard:   { hpMult: 1.6,  countMult: 1.35, payoutMult: 0.75, label: 'HARD',   letter: 'H', color: '#ef4444' }
-};
-const DEFAULT_DIFFICULTY = 'normal';
+const ASCENSION_MAX_TIER = 10;
+const ASCENSION_MAX_TIER_M1 = 7; // tiers above this are reserved for Milestone 3
+
+const ASCENSION_TIERS = [
+    // tier 0 is always the baseline (no modifiers).
+    { tier: 0, label: 'A0',  name: 'Baseline',      modifier: null,                                          kind: 'baseline' },
+    { tier: 1, label: 'A1',  name: '+15% enemy HP', modifier: { hpMult: 1.15 },                              kind: 'stat' },
+    { tier: 2, label: 'A2',  name: '-25% start $',  modifier: { startMoneyMult: 0.75 },                      kind: 'stat' },
+    { tier: 3, label: 'A3',  name: 'Air every 4',   modifier: { airWaveInterval: 4 },                        kind: 'stat' },
+    { tier: 4, label: 'A4',  name: '+15% count',    modifier: { countMult: 1.15 },                           kind: 'stat' },
+    { tier: 5, label: 'A5',  name: '-40% payout',   modifier: { payoutMult: 0.60 },                          kind: 'stat' },
+    { tier: 6, label: 'A6',  name: 'No invest cap', modifier: { disableInvestCap: true },                    kind: 'stat' },
+    { tier: 7, label: 'A7',  name: 'Harsh potions', modifier: { potionCostMult: 2, potionHeal: 1 },          kind: 'stat' },
+    // A8-A10 are declared for UI completeness but NOT playable until M3 adds
+    // the Shielded / Splitter / Boss enemy types. Run Setup must lock these.
+    { tier: 8, label: 'A8',  name: 'Shielded (M3)', modifier: null,                                          kind: 'enemy-m3' },
+    { tier: 9, label: 'A9',  name: 'Splitter (M3)', modifier: null,                                          kind: 'enemy-m3' },
+    { tier: 10, label: 'A10', name: 'Boss (M3)',    modifier: null,                                          kind: 'enemy-m3' }
+];
+
+// Returns the cumulative effect map for a tier (0 <= tier <= 7 in M1).
+// Out-of-range tiers clamp to baseline. All multipliers start at 1.0 and
+// are composed by multiplication across all modifiers up to and including `tier`.
+function getAscensionEffects(tier) {
+    const effects = {
+        hpMult: 1,
+        startMoneyMult: 1,
+        airWaveInterval: 5,
+        countMult: 1,
+        payoutMult: 1,
+        disableInvestCap: false,
+        potionCostMult: 1,
+        potionHeal: null  // null = use POTION_CONFIG.healAmount
+    };
+
+    const safeTier = Math.max(0, Math.min(tier || 0, ASCENSION_MAX_TIER_M1));
+
+    for (let i = 1; i <= safeTier; i++) {
+        const mod = ASCENSION_TIERS[i] && ASCENSION_TIERS[i].modifier;
+        if (!mod) continue;
+        for (const key of Object.keys(mod)) {
+            if (key === 'disableInvestCap') {
+                effects[key] = mod[key];
+            } else if (key === 'airWaveInterval' || key === 'potionHeal') {
+                effects[key] = mod[key];  // overwrite (not multiplicative)
+            } else {
+                effects[key] *= mod[key]; // multiply multipliers
+            }
+        }
+    }
+    return effects;
+}
 
 // -------------------------------------------------------------------------
 // Tower base stats. Applied by Tower constructor.

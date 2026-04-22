@@ -1,10 +1,10 @@
 class Game {
-    constructor(canvas, seed, difficulty) {
+    constructor(canvas, seed, ascensionTier) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
 
-        this.difficulty = (difficulty && DIFFICULTY[difficulty]) ? difficulty : DEFAULT_DIFFICULTY;
-        this.diffMult = DIFFICULTY[this.difficulty];
+        this.ascensionTier = Math.max(0, Math.min((ascensionTier | 0), ASCENSION_MAX_TIER_M1));
+        this.ascension = getAscensionEffects(this.ascensionTier);
 
         this.map = new GameMap(seed);
         this.seed = this.map.seed;
@@ -14,7 +14,7 @@ class Game {
         this.particles = []; 
         this.upgradeEffects = []; 
         
-        this.money = 125;  // Better starting money for early game
+        this.money = Math.floor(125 * this.ascension.startMoneyMult);
         this.health = 20;
         this.maxHealth = 20;
         this.wave = 1;
@@ -61,7 +61,10 @@ class Game {
         // This creates dynamic difficulty that responds to player strategy
         // Uses soft caps to prevent death spiral while maintaining challenge
         let investmentFactor;
-        if (this.wave <= 20) {
+        if (this.ascension.disableInvestCap) {
+            // A6: soft caps removed — enemy HP scales 1:1 with investment forever.
+            investmentFactor = 1 + (totalTowerValue / 5000);
+        } else if (this.wave <= 20) {
             // Waves 1-20: Very gentle investment scaling (every 5000¢ = +1.0x)
             investmentFactor = 1 + (totalTowerValue / 5000);
         } else if (this.wave <= 35) {
@@ -149,10 +152,10 @@ class Game {
             finalHpMult *= overallDifficultyMultiplier;
         }
 
-        // Difficulty mode HP multiplier (Easy=1.0, Normal=1.25, Hard=1.6)
-        finalHpMult *= this.diffMult.hpMult;
+        // Ascension HP multiplier (cumulative from A1 +15% upward)
+        finalHpMult *= this.ascension.hpMult;
 
-        if (this.wave > 0 && this.wave % 5 === 0) {
+        if (this.wave > 0 && this.wave % this.ascension.airWaveInterval === 0) {
             // Air waves: challenging but fair with extreme endgame scaling
             let airCount;
             if (this.wave <= 15) {
@@ -181,7 +184,7 @@ class Game {
             }
             
             this.currentWaveDef = {
-                count: Math.floor(airCount * this.diffMult.countMult),
+                count: Math.floor(airCount * this.ascension.countMult),
                 type: 'air',
                 spawnRate: Math.max(20, 50 - Math.floor(this.wave / 8)),
                 hpMult: finalHpMult * 0.98 // Slightly weaker than ground
@@ -227,7 +230,7 @@ class Game {
         }
 
         this.currentWaveDef = {
-            count: Math.floor(def.count * countMult * this.diffMult.countMult),
+            count: Math.floor(def.count * countMult * this.ascension.countMult),
             type: def.type,
             spawnRate: Math.max(12, def.spawnRate - loops * 2),
             hpMult: def.hpMult * finalHpMult // HP scales with wave + investment
@@ -293,7 +296,7 @@ class Game {
                 let aliveEnemies = this.enemies.filter(e => e.active);
                 if (aliveEnemies.length === 0) {
                     this.currentWaveDef = null;
-                    this.waveCooldown = ((this.wave + 1) % 5 === 0) ? WAVE_CONFIG.airWaveCooldown : WAVE_CONFIG.normalCooldown;
+                    this.waveCooldown = ((this.wave + 1) % this.ascension.airWaveInterval === 0) ? WAVE_CONFIG.airWaveCooldown : WAVE_CONFIG.normalCooldown;
                     
                     // Wave completion bonus with scaling for late game
                     let waveBonus = WAVE_CONFIG.endOfWavePayoutBase + this.wave * WAVE_CONFIG.endOfWavePayoutPerWave;
@@ -329,8 +332,8 @@ class Game {
                         waveBonus += extremeBonus + milestoneBonus;
                     }
 
-                    // Difficulty payout multiplier (Easy=1.0, Normal=0.9, Hard=0.75)
-                    waveBonus = Math.floor(waveBonus * this.diffMult.payoutMult);
+                    // Ascension payout multiplier (A5 = 0.60)
+                    waveBonus = Math.floor(waveBonus * this.ascension.payoutMult);
 
                     this.money += waveBonus;
                     
@@ -342,7 +345,7 @@ class Game {
                         this.money += bonus;
                     }
                     
-                    if ((this.wave + 1) % 5 === 0) {
+                    if ((this.wave + 1) % this.ascension.airWaveInterval === 0) {
                         SoundFX.siren();
                     }
                 }
@@ -350,7 +353,7 @@ class Game {
         } else {
             if (this.waveCooldown > 0) {
                 this.waveCooldown--;
-                if ((this.wave + 1) % 5 === 0) {
+                if ((this.wave + 1) % this.ascension.airWaveInterval === 0) {
                     this.airWarning = true;
                 } else {
                     this.airWarning = false;
@@ -382,7 +385,7 @@ class Game {
                     // Boost rewards in late game to help economy
                     reward = Math.floor(reward * (1 + (this.wave - 35) * 0.025));
                 }
-                reward = Math.max(1, Math.floor(reward * this.diffMult.payoutMult));
+                reward = Math.max(1, Math.floor(reward * this.ascension.payoutMult));
                 this.money += reward;
                 this.enemies.splice(i, 1);
                 this.uiDirty = true;
@@ -475,7 +478,8 @@ class Game {
     }
 
     getPotionCost() {
-        return POTION_CONFIG.baseCost + this.potionCount * POTION_CONFIG.costPerUse;
+        const base = POTION_CONFIG.baseCost + this.potionCount * POTION_CONFIG.costPerUse;
+        return Math.floor(base * this.ascension.potionCostMult);
     }
 
     buyPotion() {
@@ -483,7 +487,10 @@ class Game {
         if (this.money < cost) { SoundFX.error(); return false; }
         if (this.health >= this.maxHealth) { SoundFX.error(); return false; }
         this.money -= cost;
-        this.health = Math.min(this.maxHealth, this.health + POTION_CONFIG.healAmount);
+        const heal = (this.ascension.potionHeal !== null)
+            ? this.ascension.potionHeal
+            : POTION_CONFIG.healAmount;
+        this.health = Math.min(this.maxHealth, this.health + heal);
         this.potionCount++;
         this.uiDirty = true;
         SoundFX.upgrade();
@@ -655,9 +662,10 @@ class Game {
         document.getElementById('health-display').textContent = this.health;
         document.getElementById('money-display').textContent = this.money;
         
-        let nextAir = 5 - (this.wave % 5);
+        const airInterval = this.ascension.airWaveInterval;
+        let nextAir = airInterval - (this.wave % airInterval);
         let airEl = document.getElementById('air-countdown');
-        if (nextAir === 5 && this.wave > 0) {
+        if (nextAir === airInterval && this.wave > 0) {
             airEl.textContent = '✈ ACTIVE';
             airEl.style.color = '#ef4444';
             airEl.style.textShadow = '0 0 5px rgba(239,68,68,0.5)';
@@ -692,6 +700,7 @@ class Game {
         document.getElementById('final-wave').textContent = this.wave;
         document.getElementById('score-entry').style.display = 'flex';
         document.getElementById('player-name').value = '';
+        if (window.onRunEnded) window.onRunEnded({ wave: this.wave, tier: this.ascensionTier });
         if (window.loadScores) window.loadScores();
     }
 }
