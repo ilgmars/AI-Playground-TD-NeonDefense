@@ -64,7 +64,9 @@ class Game {
         const kitKey  = this.loadout.kitId  ? this.loadout.kitId.replace(/^kit\./, '')  : null;
         if (heroKey && HEROES[heroKey] && HEROES[heroKey].apply) HEROES[heroKey].apply(this);
         if (kitKey  && STARTER_KITS[kitKey]  && STARTER_KITS[kitKey].apply)  STARTER_KITS[kitKey].apply(this);
-        // Ability instance is created in Task 8 (abilities.js).
+        this.ability = NeonAbilities.createInstance(this.loadout.abilityId);
+        this.abilityTargetMode = false;   // true when awaiting click for Airstrike
+        this.freezeTimer = 0;             // frames left on Freeze effect
     }
 
     start() {
@@ -752,6 +754,25 @@ class Game {
         potionBtn.classList.toggle('disabled', potionDisabled);
 
         this.updateUpgradeMenu();
+    }
+
+    // M2: Returns an array of { wave, type, count } for the next `n` waves.
+    // Used by Scan ability and Strategist kit. Pulls from hand-tuned
+    // waveData for waves <= 10, computes procedurally for 11+.
+    getWavePreview(n) {
+        const results = [];
+        for (let i = 0; i < n; i++) {
+            const w = this.wave + i;
+            if (w <= 0) continue;
+            if (w % this.ascension.airWaveInterval === 0) {
+                results.push({ wave: w, type: 'air', count: '(air wave)' });
+                continue;
+            }
+            const idx = (w - 1) % this.waveData.length;
+            const def = this.waveData[idx];
+            results.push({ wave: w, type: def.type, count: def.count + '+' });
+        }
+        return results;
     }
 
     gameOver() {

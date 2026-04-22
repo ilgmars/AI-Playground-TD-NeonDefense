@@ -914,3 +914,40 @@ button.danger:hover {
     color: var(--text-muted);
     margin-top: 2px;
 }
+
+/* M2: Ability top-bar button */
+#ability-btn {
+    cursor: pointer;
+}
+#ability-btn.armed {
+    background: rgba(56, 189, 248, 0.18);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.45) inset;
+}
+#ability-btn.no-charges {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+#ability-display {
+    font-variant-numeric: tabular-nums;
+}
+
+/* M2: Wave preview popup (Scan + Strategist) */
+#wave-preview {
+    z-index: 15;
+    min-width: 280px;
+    max-width: 400px;
+    padding: 16px;
+}
+#wave-preview-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin: 10px 0;
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: var(--text-main);
+}
+.wave-preview-row {
+    padding: 2px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+

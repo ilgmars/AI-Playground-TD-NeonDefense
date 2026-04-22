@@ -280,6 +280,31 @@ function renderRunResultXP({ wave, tier, xp, firstClear }) {
     }
 }
 
+// M2: Wave preview popup. Used by Scan ability and Strategist kit.
+// `count` = number of upcoming waves to reveal (3 for Scan; 9999 for Strategist).
+function showWavePreview(count) {
+    let panel = document.getElementById('wave-preview');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'wave-preview';
+        panel.className = 'overlay';
+        document.getElementById('game-container').appendChild(panel);
+    }
+    panel.classList.remove('hidden');
+    panel.innerHTML = '<h3>WAVE PREVIEW</h3><div id="wave-preview-list"></div><button id="wave-preview-close">CLOSE</button>';
+
+    const list = panel.querySelector('#wave-preview-list');
+    list.innerHTML = '';
+    const entries = game.getWavePreview(count);
+    for (const entry of entries) {
+        const row = document.createElement('div');
+        row.className = 'wave-preview-row';
+        row.textContent = `Wave ${entry.wave}: ${entry.count}× ${entry.type}`;
+        list.appendChild(row);
+    }
+    panel.querySelector('#wave-preview-close').addEventListener('click', () => panel.classList.add('hidden'));
+}
+
 function resizeCanvas() {
     const canvas = document.getElementById('game-canvas');
     const container = document.getElementById('game-container');
@@ -520,6 +545,53 @@ function init() {
         }
     });
 
+    // M2: Ability button. Behavior depends on ability kind:
+    //   - 'reveal' (Scan): show wave preview immediately, consume 1 charge
+    //   - 'target' (Airstrike): enter targeting mode; next canvas click strikes
+    //   - 'instant' (Freeze): consume 1 charge, apply effect immediately
+    document.getElementById('ability-btn').addEventListener('click', () => {
+        if (!game || !game.ability || !game.ability.isUsable()) return;
+        if (game.state !== 'playing' && game.state !== 'paused') return;
+
+        const kind = game.ability.kind;
+        if (kind === 'reveal') {
+            if (game.ability.tryUse()) {
+                showWavePreview(3);
+                refreshAbilityUI();
+            }
+        } else if (kind === 'target') {
+            game.abilityTargetMode = !game.abilityTargetMode;
+            document.getElementById('ability-btn').classList.toggle('armed', game.abilityTargetMode);
+        } else if (kind === 'instant') {
+            if (game.ability.tryUse()) {
+                // Only Freeze currently uses 'instant' — call into game.
+                game.freezeAllEnemies(180); // 3 seconds at 60 fps
+                refreshAbilityUI();
+            }
+        }
+    });
+
+    function refreshAbilityUI() {
+        const btn = document.getElementById('ability-btn');
+        const disp = document.getElementById('ability-display');
+        const label = document.getElementById('ability-label');
+        if (!btn || !disp || !game || !game.ability) return;
+
+        if (game.ability.id === 'ability.none') {
+            btn.classList.add('hidden');
+            return;
+        }
+        btn.classList.remove('hidden');
+
+        const shortName = game.ability.name.toUpperCase().slice(0, 8);
+        label.textContent = shortName;
+        disp.textContent = game.ability.charges > 0 ? `${game.ability.charges}×` : '—';
+        btn.classList.toggle('no-charges', game.ability.charges === 0);
+        btn.classList.toggle('armed', game.abilityTargetMode === true);
+    }
+
+    window.refreshAbilityUI = refreshAbilityUI;
+
     document.getElementById('restart-btn').addEventListener('click', () => {
         if (game.state === 'playing') {
             game.state = 'paused';
@@ -561,6 +633,7 @@ function init() {
         hideScreen('start-screen');
         hideScreen('game-over');
         hideScreen('restart-confirm');
+        if (typeof refreshAbilityUI === 'function') refreshAbilityUI();
     }
 
     document.getElementById('confirm-yes').addEventListener('click', () => {
