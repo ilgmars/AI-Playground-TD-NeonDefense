@@ -14,6 +14,12 @@ let selectedTier = Math.min(save.ascensionCleared, ASCENSION_MAX_TIER_M1);
 // Visible Ascension tier in the scoreboard view (independent from run tier).
 let visibleScoreTier = selectedTier;
 
+// M2: Selected loadout for next run. Initialized from save.lastLoadout if present,
+// else default to Pioneer + Standard + None. Always valid (unlocked).
+let selectedHero    = (save.lastLoadout && save.lastLoadout.heroId   && NeonSave.hasUnlocked(save, save.lastLoadout.heroId))   ? save.lastLoadout.heroId   : 'hero.' + DEFAULT_HERO;
+let selectedKit     = (save.lastLoadout && save.lastLoadout.kitId    && NeonSave.hasUnlocked(save, save.lastLoadout.kitId))    ? save.lastLoadout.kitId    : 'kit.' + DEFAULT_KIT;
+let selectedAbility = (save.lastLoadout && save.lastLoadout.abilityId && NeonSave.hasUnlocked(save, save.lastLoadout.abilityId)) ? save.lastLoadout.abilityId : 'ability.none';
+
 function setTier(tier) {
     const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER_M1);
     if (tier < 0 || tier > unlockedMax) return;
@@ -73,6 +79,113 @@ function renderAscensionSelector(context) {
             preview.textContent = names.join(' · ');
         }
     }
+}
+
+
+// M2: Populate the three loadout dropdowns based on unlocked tree nodes.
+// Called at init and after any tree purchase. Preserves current selection
+// if still valid; falls back to default otherwise.
+function renderLoadoutDropdowns() {
+    renderOneLoadoutSelect('run-hero-select', 'selectedHero', 'hero.pioneer', HEROES);
+    renderOneLoadoutSelect('run-kit-select',  'selectedKit',  'kit.standard', STARTER_KITS);
+    renderOneAbilitySelect();
+}
+
+function renderOneLoadoutSelect(elementId, globalName, fallbackId, catalog) {
+    const sel = document.getElementById(elementId);
+    if (!sel) return;
+    sel.innerHTML = '';
+
+    const currentGlobal = (globalName === 'selectedHero') ? selectedHero : selectedKit;
+
+    const entries = Object.values(catalog);
+    const unlocked = entries.filter(e => NeonSave.hasUnlocked(save, e.id));
+    if (unlocked.length === 0) return;
+
+    for (const entry of unlocked) {
+        const opt = document.createElement('option');
+        opt.value = entry.id;
+        opt.textContent = entry.name + ' — ' + entry.desc;
+        sel.appendChild(opt);
+    }
+
+    let validSelection = currentGlobal;
+    if (!unlocked.find(e => e.id === validSelection)) validSelection = fallbackId;
+    sel.value = validSelection;
+    if (globalName === 'selectedHero') selectedHero = validSelection;
+    else if (globalName === 'selectedKit') selectedKit = validSelection;
+}
+
+// Ability dropdown is special: always includes 'None' even if not in save.
+function renderOneAbilitySelect() {
+    const sel = document.getElementById('run-ability-select');
+    if (!sel) return;
+    sel.innerHTML = '';
+
+    // Always-available "None" option
+    const noneOpt = document.createElement('option');
+    noneOpt.value = 'ability.none';
+    noneOpt.textContent = ABILITIES.none.name + ' — ' + ABILITIES.none.desc;
+    sel.appendChild(noneOpt);
+
+    // Unlocked abilities
+    for (const key of ['scan', 'airstrike', 'freeze']) {
+        const ab = ABILITIES[key];
+        if (NeonSave.hasUnlocked(save, ab.id)) {
+            const opt = document.createElement('option');
+            opt.value = ab.id;
+            opt.textContent = ab.name + ' — ' + ab.desc + ' (' + ab.charges + ')';
+            sel.appendChild(opt);
+        }
+    }
+
+    if (![...sel.options].find(o => o.value === selectedAbility)) selectedAbility = 'ability.none';
+    sel.value = selectedAbility;
+}
+
+// M2: Show / hide overlay helpers. All overlays use .hidden to toggle.
+function showScreen(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('hidden');
+}
+function hideScreen(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+}
+
+// Main Menu → Run Setup → Game is the canonical forward path.
+function navigateToMainMenu() {
+    hideScreen('start-screen');
+    hideScreen('game-over');
+    hideScreen('restart-confirm');
+    hideScreen('tech-tree');
+    showScreen('main-menu');
+    updateMainMenuState();
+}
+
+function navigateToRunSetup() {
+    hideScreen('main-menu');
+    hideScreen('game-over');
+    hideScreen('tech-tree');
+    showScreen('start-screen');
+    renderAscensionSelector('start');
+    renderLoadoutDropdowns();
+}
+
+function updateMainMenuState() {
+    const bal = document.getElementById('menu-xp-balance');
+    if (bal) bal.textContent = save.metaXP + ' XP';
+
+    const daily = document.getElementById('menu-dailyseed-btn');
+    if (daily) {
+        if (NeonSave.hasUnlocked(save, 'qol.dailyseed')) daily.classList.remove('hidden');
+        else daily.classList.add('hidden');
+    }
+}
+
+// M2: Tech Tree screen — stub. Replaced in Task 6.
+function navigateToTechTree() {
+    alert('Tech Tree coming in next task');
 }
 
 // Renders the XP breakdown in the game-over overlay. Called by
@@ -160,7 +273,11 @@ function init() {
         history.replaceState(null, '', '#' + game.seed);
     }
 
-    game = new Game(canvas, urlSeed, selectedTier);
+    game = new Game(canvas, urlSeed, selectedTier, {
+        heroId: selectedHero,
+        kitId: selectedKit,
+        abilityId: selectedAbility
+    });
 
     game.draw();
     game.updateUI();
@@ -172,17 +289,71 @@ function init() {
     renderAscensionSelector('gameover');
     renderAscensionSelector('restart');
 
+    // M2: Populate Run Setup dropdowns + Main Menu state on initial load.
+    renderLoadoutDropdowns();
+    updateMainMenuState();
+
+    // Ensure Main Menu is visible on initial page load.
+    showScreen('main-menu');
+
+    // M2: Main Menu wiring — landing screen.
+    document.getElementById('menu-start-btn').addEventListener('click', () => {
+        navigateToRunSetup();
+    });
+    document.getElementById('menu-tree-btn').addEventListener('click', () => {
+        navigateToTechTree();
+    });
+    document.getElementById('menu-dailyseed-btn').addEventListener('click', () => {
+        if (!NeonSave.hasUnlocked(save, 'qol.dailyseed')) return;
+        const today = new Date();
+        const dailySeed = parseInt(today.getFullYear().toString() +
+            String(today.getMonth() + 1).padStart(2, '0') +
+            String(today.getDate()).padStart(2, '0'));
+        // Rebuild preview Game on the daily seed and go to Run Setup.
+        const canvas = document.getElementById('game-canvas');
+        game = new Game(canvas, dailySeed, selectedTier, {
+            heroId: selectedHero, kitId: selectedKit, abilityId: selectedAbility
+        });
+        game.draw();
+        updateSeedDisplay();
+        updateModeDisplay();
+        navigateToRunSetup();
+    });
+    document.getElementById('menu-reset-btn').addEventListener('click', () => {
+        if (confirm('Reset save? This deletes XP, unlocks, and high scores. Cannot be undone.')) {
+            localStorage.removeItem('neonDefense.save');
+            location.reload();
+        }
+    });
+
+    // M2: Run Setup BACK button goes to Main Menu.
+    document.getElementById('setup-back-btn').addEventListener('click', () => {
+        navigateToMainMenu();
+    });
+
+    // M2: Loadout dropdown change handlers.
+    document.getElementById('run-hero-select').addEventListener('change', e => {
+        selectedHero = e.target.value;
+    });
+    document.getElementById('run-kit-select').addEventListener('change', e => {
+        selectedKit = e.target.value;
+    });
+    document.getElementById('run-ability-select').addEventListener('change', e => {
+        selectedAbility = e.target.value;
+    });
+
     document.getElementById('start-btn').addEventListener('click', () => {
+        // M2: Persist chosen loadout for next run.
+        save.lastLoadout = { heroId: selectedHero, kitId: selectedKit, abilityId: selectedAbility };
+        NeonSave.write(save);
+
         const seedVal = document.getElementById('start-seed-input').value.trim();
         const parsedSeed = seedVal !== '' ? parseInt(seedVal) : null;
         if (parsedSeed !== null && !isNaN(parsedSeed)) {
             restartGame(parsedSeed);
-        } else if (game.ascensionTier !== selectedTier) {
-            // Tier changed since the preview Game was created — rebuild on the same map.
-            restartGame(game.seed);
         } else {
-            document.getElementById('start-screen').classList.add('hidden');
-            game.start();
+            // Always rebuild — loadout may have changed even if tier/seed didn't.
+            restartGame(game.seed);
         }
     });
 
@@ -300,7 +471,11 @@ function init() {
         resizeCanvas();
 
         let useSeed = (typeof seed === 'number') ? seed : null;
-        game = new Game(canvas, useSeed, selectedTier);
+        game = new Game(canvas, useSeed, selectedTier, {
+            heroId: selectedHero,
+            kitId: selectedKit,
+            abilityId: selectedAbility
+        });
         game.start();
         updateSeedDisplay();
         updateModeDisplay();
@@ -311,6 +486,11 @@ function init() {
         const autoEl = document.getElementById('autopilot-display');
         autoEl.textContent = 'OFF';
         autoEl.classList.remove('on');
+
+        hideScreen('main-menu');
+        hideScreen('start-screen');
+        hideScreen('game-over');
+        hideScreen('restart-confirm');
     }
 
     document.getElementById('confirm-yes').addEventListener('click', () => {
