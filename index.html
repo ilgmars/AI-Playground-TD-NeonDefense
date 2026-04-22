@@ -153,9 +153,19 @@
                     </div>
                 </div>
 
-                <div id="start-screen" class="overlay">
+                <div id="main-menu" class="overlay">
                     <h1>NEON DEFENSE</h1>
                     <p>Protect the core from the rogue geometry.</p>
+                    <div class="menu-buttons">
+                        <button id="menu-start-btn" class="menu-primary">START RUN</button>
+                        <button id="menu-tree-btn">TECH TREE <span class="menu-balance" id="menu-xp-balance">0 XP</span></button>
+                        <button id="menu-dailyseed-btn" class="hidden">DAILY CHALLENGE</button>
+                        <button id="menu-reset-btn" class="danger small">RESET SAVE</button>
+                    </div>
+                </div>
+
+                <div id="start-screen" class="overlay hidden">
+                    <h1 style="font-size: 2.2rem;">RUN SETUP</h1>
                     <div class="ascension-row">
                         <span class="ascension-label">ASCENSION</span>
                         <div class="ascension-buttons" data-context="start">
@@ -163,10 +173,25 @@
                         </div>
                         <div class="ascension-modifiers-preview" data-context="start">—</div>
                     </div>
+                    <div class="loadout-row">
+                        <span class="loadout-label">HERO</span>
+                        <select id="run-hero-select" class="loadout-select"></select>
+                    </div>
+                    <div class="loadout-row">
+                        <span class="loadout-label">KIT</span>
+                        <select id="run-kit-select" class="loadout-select"></select>
+                    </div>
+                    <div class="loadout-row">
+                        <span class="loadout-label">ABILITY</span>
+                        <select id="run-ability-select" class="loadout-select"></select>
+                    </div>
                     <div class="seed-input-row">
                         <input type="number" id="start-seed-input" placeholder="SEED (optional)" />
                     </div>
-                    <button id="start-btn">INITIALIZE</button>
+                    <div class="setup-actions">
+                        <button id="setup-back-btn" class="secondary">BACK</button>
+                        <button id="start-btn">INITIALIZE</button>
+                    </div>
                 </div>
             </div>
 

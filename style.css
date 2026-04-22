@@ -718,3 +718,99 @@ button.danger:hover {
     font-family: inherit;
 }
 .xp-breakdown-unlock.hidden { display: none; }
+
+/* M2: Main Menu buttons */
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+    margin-top: 20px;
+    min-width: 240px;
+}
+.menu-buttons button {
+    padding: 10px 16px;
+    font-size: 0.95rem;
+    letter-spacing: 2px;
+    border: 2px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 700;
+}
+.menu-buttons button:hover {
+    background: var(--accent);
+    color: #0f172a;
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.45);
+}
+.menu-buttons button.menu-primary {
+    border-color: #a3e635;
+    color: #a3e635;
+}
+.menu-buttons button.menu-primary:hover {
+    background: #a3e635;
+    box-shadow: 0 0 16px rgba(163, 230, 53, 0.45);
+}
+.menu-buttons button.small {
+    font-size: 0.8rem;
+    padding: 6px 10px;
+    border-width: 1px;
+    opacity: 0.65;
+}
+.menu-buttons button.small:hover {
+    opacity: 1;
+}
+.menu-buttons .menu-balance {
+    float: right;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+.menu-buttons button:hover .menu-balance {
+    color: rgba(15, 23, 42, 0.7);
+}
+
+/* M2: Loadout dropdowns in Run Setup */
+.loadout-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+.loadout-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    font-weight: 600;
+}
+.loadout-select {
+    min-width: 240px;
+    padding: 5px 10px;
+    font-size: 0.85rem;
+    background: rgba(0, 0, 0, 0.5);
+    color: var(--text-main);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    font-family: inherit;
+    cursor: pointer;
+}
+.loadout-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.setup-actions {
+    display: flex;
+    gap: 14px;
+    margin-top: 14px;
+}
+.setup-actions button.secondary {
+    border-color: var(--text-muted);
+    color: var(--text-muted);
+}
+.setup-actions button.secondary:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
