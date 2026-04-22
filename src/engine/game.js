@@ -319,6 +319,17 @@ class Game {
     update() {
         if (this.state !== 'playing') return;
 
+        // M2: Freeze ability — decrements per-game timer and unfreezes enemies.
+        if (this.freezeTimer > 0) {
+            this.freezeTimer--;
+            if (this.freezeTimer === 0) {
+                for (const e of this.enemies) {
+                    e.frozen = false;
+                    e.frozenFrames = 0;
+                }
+            }
+        }
+
         if (this.autopilot) {
             this.autopilotTimer++;
             if (this.autopilotTimer >= AUTOPILOT_CONFIG.tickInterval) {
@@ -349,7 +360,12 @@ class Game {
                 if (this.spawnTimer > 0) {
                     this.spawnTimer--;
                 } else {
-                    this.enemies.push(new Enemy(this.map.path, this.currentWaveDef.type, this.currentWaveDef.hpMult));
+                    const newEnemy = new Enemy(this.map.path, this.currentWaveDef.type, this.currentWaveDef.hpMult);
+                    if (this.freezeTimer > 0) {
+                        newEnemy.frozen = true;
+                        newEnemy.frozenFrames = this.freezeTimer;
+                    }
+                    this.enemies.push(newEnemy);
                     this.enemiesSpawned++;
                     this.spawnTimer = this.currentWaveDef.spawnRate;
                 }
@@ -795,6 +811,16 @@ class Game {
         this.upgradeEffects.push({ x: x, y: y, radius: radius * 0.2, alpha: 1, airstrike: true });
         this.upgradeEffects.push({ x: x, y: y, radius: radius * 0.5, alpha: 0.8, airstrike: true });
         SoundFX.build();
+    }
+
+    // M2: Freeze ability. Stops all enemy movement for `frames` (at 60 fps).
+    freezeAllEnemies(frames) {
+        this.freezeTimer = frames;
+        for (const e of this.enemies) {
+            if (!e.active) continue;
+            e.frozen = true;
+            e.frozenFrames = frames;
+        }
     }
 
     gameOver() {

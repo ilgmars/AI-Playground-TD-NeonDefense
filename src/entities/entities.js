@@ -56,7 +56,14 @@ class Enemy {
 
     update() {
         if (!this.active) return;
-        
+
+        // M2: Freeze ability halts movement while frozenFrames > 0.
+        if (this.frozen && this.frozenFrames > 0) {
+            this.frozenFrames--;
+            if (this.frozenFrames === 0) this.frozen = false;
+            return;
+        }
+
         if (this.isAir) {
             if (this.followsPath) {
                 // Air enemy following the path
@@ -125,6 +132,20 @@ class Enemy {
     draw(ctx) {
         if (!this.active) return;
         drawEnemy(ctx, this.x, this.y, this.radius, this.type, this.hp / this.maxHp, this.currentSlow < 1);
+
+        // M2: Freeze ability — blue glow ring overlay.
+        if (this.frozen) {
+            ctx.save();
+            ctx.globalAlpha = 0.6;
+            ctx.strokeStyle = '#60a5fa';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius + 3, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(96, 165, 250, 0.25)';
+            ctx.fill();
+            ctx.restore();
+        }
     }
 }
 
