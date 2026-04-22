@@ -23,6 +23,8 @@ class Autopilot {
 
     // Entry point — called from Game.update() on each autopilot tick.
     run() {
+        this._tryUseAbilities();
+
         const state = this._analyzeState();
 
         // Build has priority; if we built, we're done for this tick.
@@ -356,5 +358,46 @@ class Autopilot {
         if (state.savingForTower && g.money - cost < state.savingCost) return;
 
         g.buyPotion();
+    }
+
+    // -----------------------------------------------------------------
+    // Phase 0: abilities (runs before build/upgrade/potion)
+    // -----------------------------------------------------------------
+
+    // M3: Autopilot triggers Airstrike on dense clusters and Freeze on low HP.
+    // Scan is ignored (pure info).
+    _tryUseAbilities() {
+        if (!this.game.ability || !this.game.ability.isUsable()) return;
+        if (this.game.state !== 'playing') return;
+
+        const kind = this.game.ability.kind;
+        if (kind === 'target') {
+            // Airstrike — find densest cluster of enemies, strike if >= 8
+            let best = null;
+            let bestCount = 0;
+            for (const e of this.game.enemies) {
+                if (!e.active) continue;
+                let count = 0;
+                for (const o of this.game.enemies) {
+                    if (!o.active) continue;
+                    const dx = o.x - e.x, dy = o.y - e.y;
+                    if (dx*dx + dy*dy <= 80*80) count++;
+                }
+                if (count > bestCount) { bestCount = count; best = e; }
+            }
+            if (bestCount >= 8 && best) {
+                if (this.game.ability.tryUse()) {
+                    this.game.airstrike(best.x, best.y);
+                }
+            }
+        } else if (kind === 'instant') {
+            // Freeze — trigger when HP <= 3 (emergency save)
+            if (this.game.health <= 3) {
+                if (this.game.ability.tryUse()) {
+                    this.game.freezeAllEnemies(180);
+                }
+            }
+        }
+        // kind === 'reveal' (Scan): autopilot ignores info-only abilities.
     }
 }
