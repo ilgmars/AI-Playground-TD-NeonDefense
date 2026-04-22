@@ -68,6 +68,19 @@ class Game {
         this.ability = NeonAbilities.createInstance(this.loadout.abilityId);
         this.abilityTargetMode = false;   // true when awaiting click for Airstrike
         this.freezeTimer = 0;             // frames left on Freeze effect
+        // M3: Tower loadout (base → variant) drives buildTower resolution.
+        this.towerLoadout = this.loadout.towerLoadout || {};
+    }
+
+    // M3: Given a base tower type (e.g. 'basic'), return the effective type
+    // to build — either the base or its variant — based on this.towerLoadout.
+    // Also handles pass-through of variant ids directly.
+    getEffectiveTowerType(requestedType) {
+        // If caller already passed a variant id, use it.
+        if (requestedType && requestedType.includes('_')) return requestedType;
+        const chosen = this.towerLoadout[requestedType];
+        if (chosen && TOWERS[chosen]) return chosen;
+        return requestedType;
     }
 
     start() {
@@ -581,7 +594,8 @@ class Game {
     }
 
     canAfford(type) {
-        return this.money >= Math.floor(TOWERS[type].cost * this.towerCostMult);
+        const effType = this.getEffectiveTowerType(type);
+        return this.money >= Math.floor(TOWERS[effType].cost * this.towerCostMult);
     }
 
     buildTower(c, r, type) {
@@ -591,11 +605,12 @@ class Game {
             if (t.c === c && t.r === r) return false;
         }
 
-        let cost = Math.floor(TOWERS[type].cost * this.towerCostMult);
+        const effType = this.getEffectiveTowerType(type);
+        let cost = Math.floor(TOWERS[effType].cost * this.towerCostMult);
 
         if (this.money >= cost) {
             this.money -= cost;
-            this.towers.push(new Tower(c, r, type));
+            this.towers.push(new Tower(c, r, effType));
             this.uiDirty = true;
             SoundFX.build();
             return true;
