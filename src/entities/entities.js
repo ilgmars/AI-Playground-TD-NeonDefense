@@ -158,7 +158,7 @@ class Enemy {
 
     draw(ctx) {
         if (!this.active) return;
-        drawEnemy(ctx, this.x, this.y, this.radius, this.type, this.hp / this.maxHp, this.currentSlow < 1, this.burnFrames > 0, this.shielded && !this.shieldBroken);
+        drawEnemy(ctx, this.x, this.y, this.radius, this.type, this.hp / this.maxHp, this.currentSlow < 1, this.burnFrames > 0, this.shielded && !this.shieldBroken, this.splitterGeneration === 1);
 
         // M2: Freeze ability — blue glow ring overlay.
         if (this.frozen) {

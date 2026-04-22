@@ -68,7 +68,7 @@ function drawSpawnerTile(ctx, x, y, size) {
 
 // Entity drawing
 
-function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burning = false, shielded = false) {
+function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burning = false, shielded = false, splitter = false) {
     ctx.save();
     ctx.translate(x, y);
     
@@ -151,6 +151,16 @@ function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burni
         ctx.beginPath();
         ctx.arc(x, y, radius + 4, 0, Math.PI * 2);
         ctx.stroke();
+        ctx.restore();
+    }
+
+    // M3: Splitter marker — orange inner dot.
+    if (splitter) {
+        ctx.save();
+        ctx.fillStyle = '#f97316';
+        ctx.beginPath();
+        ctx.arc(x, y, radius * 0.3, 0, Math.PI * 2);
+        ctx.fill();
         ctx.restore();
     }
 }

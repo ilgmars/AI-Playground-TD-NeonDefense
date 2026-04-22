@@ -34,7 +34,7 @@ const ASCENSION_TIERS = [
     // A8-A10 are declared for UI completeness but NOT playable until M3 adds
     // the Shielded / Splitter / Boss enemy types. Run Setup must lock these.
     { tier: 8, label: 'A8',  name: 'Shielded enemy', modifier: { spawnShielded: true },                      kind: 'enemy-m3' },
-    { tier: 9, label: 'A9',  name: 'Splitter (M3)', modifier: null,                                          kind: 'enemy-m3' },
+    { tier: 9, label: 'A9',  name: 'Splitter enemy', modifier: { spawnSplitter: true },                     kind: 'enemy-m3' },
     { tier: 10, label: 'A10', name: 'Boss (M3)',    modifier: null,                                          kind: 'enemy-m3' }
 ];
 

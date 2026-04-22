@@ -403,6 +403,9 @@ class Game {
                         newEnemy.shielded = true;
                         newEnemy.shieldBroken = false;
                     }
+                    if (this.ascension.spawnSplitter && Math.random() < 0.3) {
+                        newEnemy.splitterGeneration = 1;
+                    }
                     this.enemies.push(newEnemy);
                     this.enemiesSpawned++;
                     this.spawnTimer = this.currentWaveDef.spawnRate;
@@ -502,6 +505,20 @@ class Game {
                 }
                 reward = Math.max(1, Math.floor(reward * this.ascension.payoutMult));
                 this.money += reward;
+                // M3: Splitter — spawn 2 half-HP, 0.75x-speed children at death site (generation 1 only).
+                if (e.splitterGeneration === 1) {
+                    for (let s = 0; s < 2; s++) {
+                        const child = new Enemy(this.map.path, e.type, 1);
+                        child.x = e.x + (s === 0 ? -8 : 8);
+                        child.y = e.y;
+                        child.hp = e.maxHp * 0.5;
+                        child.maxHp = e.maxHp * 0.5;
+                        child.speed *= 0.75;
+                        child.splitterGeneration = 2;
+                        child.pathIndex = e.pathIndex;
+                        this.enemies.push(child);
+                    }
+                }
                 this.enemies.splice(i, 1);
                 this.uiDirty = true;
             }
