@@ -202,8 +202,11 @@ class Tower {
         if (type === 'silo')  this.hoverRockets = [];
 
         this.totalSpent = this.baseCost;
+        // M3: Mastery XP attribution — incremented by every projectile hit
+        // and every frame of laser/tesla direct damage sourced from this tower.
+        this.damageDealt = 0;
     }
-    
+
     get level() {
         return 1 + this.upgrades[0] + this.upgrades[1] + this.upgrades[2];
     }
@@ -259,7 +262,7 @@ class Tower {
                 }
                 
                 if (target) {
-                    projectiles.push(new Projectile(rx, ry, target, this.damage, 'rocket', this.pierce, this.splash));
+                    projectiles.push(new Projectile(rx, ry, target, this.damage, 'rocket', this.pierce, this.splash, this));
                     this.hoverRockets.splice(i, 1);
                 }
             }
@@ -324,6 +327,7 @@ class Tower {
                 let dmg = this.damage;
                 if (target.isAir) dmg *= 0.4; // Ground towers are less effective vs air
                 target.hp -= dmg;
+                this.damageDealt += dmg;
                 if (this.slowEffect && this.slowEffect > 0) {
                     target.currentSlow = Math.max(0.1, 1 - this.slowEffect);
                 }
@@ -344,6 +348,7 @@ class Tower {
                         let dmg = this.damage;
                         if (currentTarget.isAir) dmg *= 0.4; // Electric less effective vs air
                         currentTarget.hp -= dmg;
+                        this.damageDealt += dmg;
                         if (currentTarget.hp <= 0) {
                             currentTarget.active = false;
                             SoundFX.explosion();
@@ -383,13 +388,14 @@ class Tower {
                         let offset = -spread/2 + (spread / Math.max(1, pc - 1)) * i;
                         if (pc === 1) offset = 0;
                         let proj = new Projectile(
-                            this.x + TILE_SIZE/2, 
-                            this.y + TILE_SIZE/2, 
-                            null, 
-                            this.damage, 
+                            this.x + TILE_SIZE/2,
+                            this.y + TILE_SIZE/2,
+                            null,
+                            this.damage,
                             this.type,
                             this.pierce,
-                            this.splash
+                            this.splash,
+                            this
                         );
                         proj.isDumbFire = true;
                         proj.angle = baseAngle + offset;
@@ -412,13 +418,14 @@ class Tower {
                             if (altTarget) finalTarget = altTarget;
                         }
                         projectiles.push(new Projectile(
-                            this.x + TILE_SIZE/2, 
-                            this.y + TILE_SIZE/2, 
-                            finalTarget, 
-                            this.damage, 
+                            this.x + TILE_SIZE/2,
+                            this.y + TILE_SIZE/2,
+                            finalTarget,
+                            this.damage,
                             this.type,
                             this.pierce,
-                            this.splash
+                            this.splash,
+                            this
                         ));
                     }
                 }
@@ -461,7 +468,7 @@ class Tower {
 }
 
 class Projectile {
-    constructor(x, y, target, damage, type, pierce = 1, splash = 0) {
+    constructor(x, y, target, damage, type, pierce = 1, splash = 0, tower) {
         this.x = x;
         this.y = y;
         this.target = target;
@@ -470,6 +477,7 @@ class Projectile {
         this.pierce = pierce;
         this.splash = splash;
         this.hitEnemies = new Set();
+        this.sourceTower = tower || null;
         
         this.speed = type === 'sniper' ? 12 : type === 'rapid' ? 8 : type === 'rocket' ? 5 : type === 'flak' ? 14 : 8;
         this.active = true;
@@ -514,12 +522,13 @@ class Projectile {
                     else if (this.type !== 'flak' && e.isAir) dmg *= 0.4;
                     
                     e.hp -= dmg;
+                    if (this.sourceTower) this.sourceTower.damageDealt += dmg;
                     SoundFX.hit();
                     if (e.hp <= 0) {
                         e.active = false;
                         SoundFX.explosion();
                     }
-                    
+
                     // Check pierce
                     this.pierce--;
                     if (this.pierce <= 0) {
@@ -609,6 +618,7 @@ class Projectile {
                     else if (this.type !== 'flak' && e.isAir) dmg *= 0.4; // Ground towers less effective vs air
                     
                     e.hp -= dmg;
+                    if (this.sourceTower) this.sourceTower.damageDealt += dmg;
                     if (e.hp <= 0) {
                         e.active = false;
                         SoundFX.explosion();
@@ -623,13 +633,14 @@ class Projectile {
                 else if (this.type !== 'flak' && this.target.isAir) dmg *= 0.4; // Ground towers less effective vs air
                 
                 this.target.hp -= dmg;
+                if (this.sourceTower) this.sourceTower.damageDealt += dmg;
                 SoundFX.hit();
                 if (this.target.hp <= 0) {
                     this.target.active = false;
                     SoundFX.explosion();
                 }
             }
-            
+
             this.pierce--;
             if (this.pierce <= 0 || !this.target.active) {
                 this.active = false;
