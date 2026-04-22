@@ -57,8 +57,8 @@ const WAVE_CONFIG = {
     // Fraction of air enemies that follow the ground path instead of flying straight.
     airPathFollowChance: 0.2,
     // Wave-end payout: base + perWave * waveNumber.
-    endOfWavePayoutBase: 20,
-    endOfWavePayoutPerWave: 5
+    endOfWavePayoutBase: 26,      // Better economy for early game
+    endOfWavePayoutPerWave: 6     // Better scaling
 };
 
 // -------------------------------------------------------------------------
@@ -80,15 +80,15 @@ const AUTOPILOT_CONFIG = {
 
     // For each tower type: (wave) => desired count on the board.
     wantedCount: {
-        basic:    w => Math.max(4, Math.ceil(w / 3.5)),        // More basics, scale faster
-        flak:     w => w >= 4  ? Math.max(2, Math.min(8, 2 + Math.floor(w / 8))) : 0,  // More flak for air waves
-        rapid:    w => w >= 2  ? Math.ceil(w / 4.5) : 0,       // More rapids, scale faster
-        laser:    w => w >= 3  ? Math.min(8, Math.ceil(w / 5)) : 0,  // More lasers for slow
-        sniper:   w => w >= 5  ? Math.ceil(w / 5.5) : 0,       // More snipers, scale faster
-        rocket:   w => w >= 6  ? Math.ceil(w / 6)   : 0,       // More rockets, scale faster
-        electric: w => w >= 8  ? Math.ceil(w / 7.5)   : 0,     // More electric, scale faster
-        silo:     w => w >= 12 ? Math.ceil(w / 8)  : 0,        // More silos, scale faster
-        income:   w => w >= 8 ? Math.max(1, Math.floor(w / 7))  : 0  // Earlier income, more relays
+        basic:    w => Math.max(4, Math.ceil(w / 3)),          // Solid basic coverage
+        flak:     w => w >= 3  ? Math.max(2, Math.min(9, 2 + Math.floor(w / 7))) : 0,  // Good flak coverage
+        rapid:    w => w >= 2  ? Math.ceil(w / 4) : 0,         // Balanced rapids
+        laser:    w => w >= 3  ? Math.min(9, Math.ceil(w / 4.2)) : 0,  // Slightly more lasers
+        sniper:   w => w >= 4  ? Math.ceil(w / 5) : 0,         // Balanced snipers
+        rocket:   w => w >= 6  ? Math.ceil(w / 5.5)   : 0,     // Balanced rockets
+        electric: w => w >= 7  ? Math.ceil(w / 6.5)   : 0,     // Balanced electric
+        silo:     w => w >= 10 ? Math.ceil(w / 7.5)  : 0,      // Balanced silos
+        income:   w => w >= 7 ? Math.max(1, Math.floor(w / 6.5))  : 0  // Balanced income
     },
 
     // Order used when scanning for the biggest tower-count deficit.
@@ -98,7 +98,7 @@ const AUTOPILOT_CONFIG = {
     upgradeValue: { silo: 10, rocket: 9, electric: 8, sniper: 7, laser: 6, flak: 5, rapid: 4, basic: 3, income: 2 },
 
     // (wave) => probability that the autopilot builds vs upgrades this tick.
-    buildChance: w => w < 10 ? 0.85 : w < 20 ? 0.7 : w < 40 ? 0.6 : 0.55,
+    buildChance: w => w < 15 ? 0.85 : w < 30 ? 0.7 : w < 50 ? 0.6 : 0.55,
 
     // A wave is "air imminent" if <= N waves away (or currently active).
     airImminentWindow: 2,
@@ -119,8 +119,8 @@ const AUTOPILOT_CONFIG = {
     saveEarlyTowerTotal: 8,    // saveDeficitModerate only kicks in while this few total towers
 
     // Build urgency thresholds.
-    mustBuildMinTowers: 6,       // always build if fewer towers than this (increased from 5)
-    mustBuildWantedFraction: 0.7 // or if below 70% of totalWanted (more aggressive)
+    mustBuildMinTowers: 7,       // balanced (was 8)
+    mustBuildWantedFraction: 0.68 // or if below 68% of totalWanted
 };
 
 // -------------------------------------------------------------------------
