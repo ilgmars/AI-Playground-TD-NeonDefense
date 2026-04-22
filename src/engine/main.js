@@ -21,6 +21,13 @@ let selectedHero    = (save.lastLoadout && save.lastLoadout.heroId   && NeonSave
 let selectedKit     = (save.lastLoadout && save.lastLoadout.kitId    && NeonSave.hasUnlocked(save, save.lastLoadout.kitId))    ? save.lastLoadout.kitId    : 'kit.' + DEFAULT_KIT;
 let selectedAbility = (save.lastLoadout && save.lastLoadout.abilityId && NeonSave.hasUnlocked(save, save.lastLoadout.abilityId)) ? save.lastLoadout.abilityId : 'ability.none';
 
+// M3: Per-base-type variant selection. Map of baseType → effective tower id.
+// Example: { basic: 'basic_cryo', sniper: 'sniper', ... } — 'sniper' means base form.
+// Initialized from save.lastLoadout.towerLoadout if present.
+let selectedTowerLoadout = (save.lastLoadout && save.lastLoadout.towerLoadout)
+    ? { ...save.lastLoadout.towerLoadout }
+    : {};
+
 function setTier(tier) {
     const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER_M1);
     if (tier < 0 || tier > unlockedMax) return;
@@ -93,7 +100,52 @@ function renderLoadoutDropdowns() {
     renderOneLoadoutSelect('run-hero-select', 'selectedHero', 'hero.pioneer', HEROES);
     renderOneLoadoutSelect('run-kit-select',  'selectedKit',  'kit.standard', STARTER_KITS);
     renderOneAbilitySelect();
+    renderTowerVariantGrid();
     if (typeof refreshSkipsetupRow === 'function') refreshSkipsetupRow();
+}
+
+// M3: Populate the tower-variant grid. One row per base tower type;
+// row is visible only if the player has unlocked that tower's variant
+// (towerMastery[type].milestones.m1). If no variants are unlocked, the
+// entire row is hidden.
+function renderTowerVariantGrid() {
+    const row = document.getElementById('tower-loadout-row');
+    const grid = document.getElementById('tower-variant-grid');
+    if (!row || !grid) return;
+    grid.innerHTML = '';
+
+    let anyUnlocked = false;
+    for (const baseType of NeonSave.TOWER_TYPES) {
+        const variantId = TOWER_VARIANTS[baseType];
+        const variantUnlocked = save.towerMastery[baseType] && save.towerMastery[baseType].milestones && save.towerMastery[baseType].milestones.m1;
+        if (!variantUnlocked) continue;
+        anyUnlocked = true;
+
+        const cell = document.createElement('div');
+        cell.className = 'tower-variant-row';
+
+        const label = document.createElement('span');
+        label.className = 'variant-base';
+        label.textContent = TOWERS[baseType].displayName;
+
+        const sel = document.createElement('select');
+        sel.innerHTML = `
+            <option value="${baseType}">${TOWERS[baseType].displayName}</option>
+            <option value="${variantId}">${TOWERS[variantId].displayName}</option>
+        `;
+        const current = selectedTowerLoadout[baseType] || baseType;
+        sel.value = current;
+        sel.addEventListener('change', e => {
+            selectedTowerLoadout[baseType] = e.target.value;
+        });
+
+        cell.appendChild(label);
+        cell.appendChild(sel);
+        grid.appendChild(cell);
+    }
+
+    if (anyUnlocked) row.classList.remove('hidden');
+    else row.classList.add('hidden');
 }
 
 function renderOneLoadoutSelect(elementId, globalName, fallbackId, catalog) {
@@ -467,7 +519,8 @@ function init() {
     game = new Game(canvas, urlSeed, selectedTier, {
         heroId: selectedHero,
         kitId: selectedKit,
-        abilityId: selectedAbility
+        abilityId: selectedAbility,
+        towerLoadout: { ...selectedTowerLoadout }
     });
 
     game.draw();
@@ -532,7 +585,8 @@ function init() {
         // Rebuild preview Game on the daily seed and go to Run Setup.
         const canvas = document.getElementById('game-canvas');
         game = new Game(canvas, dailySeed, selectedTier, {
-            heroId: selectedHero, kitId: selectedKit, abilityId: selectedAbility
+            heroId: selectedHero, kitId: selectedKit, abilityId: selectedAbility,
+            towerLoadout: { ...selectedTowerLoadout }
         });
         game.draw();
         updateSeedDisplay();
@@ -568,7 +622,12 @@ function init() {
 
     document.getElementById('start-btn').addEventListener('click', () => {
         // M2: Persist chosen loadout for next run.
-        save.lastLoadout = { heroId: selectedHero, kitId: selectedKit, abilityId: selectedAbility };
+        save.lastLoadout = {
+            heroId: selectedHero,
+            kitId: selectedKit,
+            abilityId: selectedAbility,
+            towerLoadout: { ...selectedTowerLoadout }
+        };
         NeonSave.write(save);
 
         const seedVal = document.getElementById('start-seed-input').value.trim();
@@ -752,7 +811,8 @@ function init() {
         game = new Game(canvas, useSeed, selectedTier, {
             heroId: selectedHero,
             kitId: selectedKit,
-            abilityId: selectedAbility
+            abilityId: selectedAbility,
+            towerLoadout: { ...selectedTowerLoadout }
         });
         game.start();
         updateSeedDisplay();

@@ -26,7 +26,12 @@ const NeonSave = (function () {
             unlockedNodes: ['hero.pioneer', 'kit.standard'],   // M2 pre-unlocked tree nodes
             towerMastery: mastery,                             // filled in M3
             highScores: highScores,                            // per-Ascension top-5 lists of { name, wave }
-            lastLoadout: null,                                 // M2: remembered for qol.skipsetup
+            lastLoadout: {
+                heroId: 'hero.pioneer',
+                kitId: 'kit.standard',
+                abilityId: 'ability.none',
+                towerLoadout: null  // M3: null → all base types. Filled per-type when user selects a variant.
+            },
             settings: { skipRunSetup: false }
         };
     }
@@ -104,7 +109,13 @@ const NeonSave = (function () {
         if (!Array.isArray(save.unlockedNodes)) save.unlockedNodes = [];
         if (!save.unlockedNodes.includes('hero.pioneer')) save.unlockedNodes.push('hero.pioneer');
         if (!save.unlockedNodes.includes('kit.standard')) save.unlockedNodes.push('kit.standard');
-        if (typeof save.lastLoadout === 'undefined') save.lastLoadout = null;
+        if (save.lastLoadout === undefined || save.lastLoadout === null) {
+            save.lastLoadout = { heroId: 'hero.pioneer', kitId: 'kit.standard', abilityId: 'ability.none', towerLoadout: null };
+        }
+        if (typeof save.lastLoadout !== 'object' || save.lastLoadout === null) {
+            save.lastLoadout = { heroId: 'hero.pioneer', kitId: 'kit.standard', abilityId: 'ability.none', towerLoadout: null };
+        }
+        if (typeof save.lastLoadout.towerLoadout === 'undefined') save.lastLoadout.towerLoadout = null;
         if (!save.settings || typeof save.settings !== 'object') save.settings = { skipRunSetup: false };
         if (typeof save.settings.skipRunSetup !== 'boolean') save.settings.skipRunSetup = false;
         write(save);

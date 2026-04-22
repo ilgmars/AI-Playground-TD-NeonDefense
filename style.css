@@ -1044,3 +1044,39 @@ button.danger:hover {
     opacity: 1;
     color: #a3e635;
 }
+
+/* M3: Run Setup tower-variant grid */
+.tower-variant-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    max-width: 340px;
+}
+.tower-variant-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(56, 189, 248, 0.15);
+    border-radius: 3px;
+}
+.tower-variant-row .variant-base {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+}
+.tower-variant-row select {
+    font-size: 0.72rem;
+    padding: 2px 4px;
+    background: rgba(0, 0, 0, 0.5);
+    color: var(--text-main);
+    border: 1px solid var(--accent);
+    border-radius: 2px;
+    font-family: inherit;
+    cursor: pointer;
+}
+.tower-variant-row select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
