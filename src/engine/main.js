@@ -183,9 +183,75 @@ function updateMainMenuState() {
     }
 }
 
-// M2: Tech Tree screen — stub. Replaced in Task 6.
+// M2: Tech Tree screen. Renders 3 tier columns of nodes, each styled
+// by ownership / eligibility / affordability. Click affordable node to
+// purchase; XP is deducted and loadout dropdowns refresh.
 function navigateToTechTree() {
-    alert('Tech Tree coming in next task');
+    hideScreen('main-menu');
+    hideScreen('start-screen');
+    hideScreen('game-over');
+    showScreen('tech-tree');
+    renderTechTree();
+}
+
+function renderTechTree() {
+    const bal = document.getElementById('tree-xp-balance');
+    if (bal) bal.textContent = save.metaXP;
+
+    for (const tierKey of ['tier1', 'tier2', 'tier3']) {
+        const tierEl = document.querySelector(`.tree-tier[data-tier="${tierKey}"]`);
+        const body   = document.querySelector(`.tree-nodes[data-tier-body="${tierKey}"]`);
+        if (!tierEl || !body) continue;
+
+        const open = NeonTree.isTierOpen(save, tierKey);
+        tierEl.classList.toggle('locked', !open);
+
+        body.innerHTML = '';
+        for (const node of TECH_TREE[tierKey].nodes) {
+            body.appendChild(buildTreeNodeEl(node, tierKey, open));
+        }
+    }
+}
+
+function buildTreeNodeEl(node, tierKey, tierOpen) {
+    const el = document.createElement('div');
+    el.className = 'tree-node';
+
+    const owned     = NeonSave.hasUnlocked(save, node.id);
+    const cost      = TECH_TREE[tierKey].cost;
+    const canAfford = save.metaXP >= cost;
+    let status = cost + ' XP';
+    if (owned) { el.classList.add('owned'); status = 'OWNED'; }
+    else if (!tierOpen) { el.classList.add('locked'); status = 'LOCKED'; }
+    else if (!canAfford) { el.classList.add('too-expensive'); status = cost + ' XP (need more)'; }
+
+    const nameRow = document.createElement('div');
+    nameRow.className = 'tree-node-name';
+    const displayName = (node.kind === 'hero' && HEROES[node.id.slice(5)]) ? HEROES[node.id.slice(5)].name
+                      : (node.kind === 'kit'  && STARTER_KITS[node.id.slice(4)]) ? STARTER_KITS[node.id.slice(4)].name
+                      : (node.kind === 'ability' && ABILITIES[node.id.slice(8)]) ? ABILITIES[node.id.slice(8)].name
+                      : (node.kind === 'qol' && QOL_NODES[node.id]) ? QOL_NODES[node.id].name
+                      : node.id;
+    nameRow.innerHTML = `<span>${displayName}</span><span class="node-status">${status}</span>`;
+
+    const desc = document.createElement('div');
+    desc.className = 'tree-node-desc';
+    desc.textContent = node.desc;
+
+    el.appendChild(nameRow);
+    el.appendChild(desc);
+
+    if (!owned && tierOpen && canAfford) {
+        el.addEventListener('click', () => {
+            if (NeonTree.purchase(save, node.id)) {
+                renderTechTree();
+                renderLoadoutDropdowns();
+                updateMainMenuState();
+            }
+        });
+    }
+
+    return el;
 }
 
 // Renders the XP breakdown in the game-over overlay. Called by
@@ -328,6 +394,10 @@ function init() {
 
     // M2: Run Setup BACK button goes to Main Menu.
     document.getElementById('setup-back-btn').addEventListener('click', () => {
+        navigateToMainMenu();
+    });
+
+    document.getElementById('tree-back-btn').addEventListener('click', () => {
         navigateToMainMenu();
     });
 

@@ -193,6 +193,28 @@
                         <button id="start-btn">INITIALIZE</button>
                     </div>
                 </div>
+
+                <div id="tech-tree" class="overlay hidden">
+                    <h2>TECH TREE</h2>
+                    <div class="tree-balance-row">
+                        Meta-XP Balance: <span id="tree-xp-balance">0</span>
+                    </div>
+                    <div class="tech-tree-grid">
+                        <div class="tree-tier" data-tier="tier1">
+                            <h3>TIER 1 · 50 XP</h3>
+                            <div class="tree-nodes" data-tier-body="tier1"></div>
+                        </div>
+                        <div class="tree-tier" data-tier="tier2">
+                            <h3>TIER 2 · 200 XP</h3>
+                            <div class="tree-nodes" data-tier-body="tier2"></div>
+                        </div>
+                        <div class="tree-tier" data-tier="tier3">
+                            <h3>TIER 3 · 500 XP</h3>
+                            <div class="tree-nodes" data-tier-body="tier3"></div>
+                        </div>
+                    </div>
+                    <button id="tree-back-btn" class="secondary">BACK</button>
+                </div>
             </div>
 
             <div id="build-menu" class="panel">

@@ -814,3 +814,103 @@ button.danger:hover {
     border-color: var(--accent);
     color: var(--accent);
 }
+
+/* M2: Tech Tree overlay */
+#tech-tree {
+    padding: 24px;
+    overflow-y: auto;
+}
+#tech-tree h2 {
+    margin-bottom: 10px;
+}
+.tree-balance-row {
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--accent);
+    letter-spacing: 2px;
+    margin-bottom: 18px;
+    font-family: monospace;
+}
+.tech-tree-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    max-width: 900px;
+    margin: 0 auto 16px;
+}
+.tree-tier {
+    flex: 1 1 260px;
+    min-width: 260px;
+    max-width: 300px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 8px;
+}
+.tree-tier h3 {
+    text-align: center;
+    color: var(--accent);
+    letter-spacing: 3px;
+    margin-bottom: 10px;
+    font-size: 0.85rem;
+}
+.tree-tier.locked {
+    opacity: 0.5;
+    border-style: dashed;
+}
+.tree-tier.locked h3::after {
+    content: ' · LOCKED';
+    color: var(--text-muted);
+}
+.tree-nodes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.tree-node {
+    padding: 8px 10px;
+    border: 1px solid var(--text-muted);
+    border-radius: 5px;
+    background: rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.tree-node:hover:not(.owned):not(.locked):not(.too-expensive) {
+    border-color: var(--accent);
+    background: rgba(56, 189, 248, 0.12);
+}
+.tree-node.owned {
+    border-color: #a3e635;
+    background: rgba(163, 230, 53, 0.1);
+    cursor: default;
+}
+.tree-node.locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+    border-style: dashed;
+}
+.tree-node.too-expensive {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.tree-node-name {
+    font-weight: 700;
+    color: var(--text-main);
+    font-size: 0.9rem;
+    display: flex;
+    justify-content: space-between;
+}
+.tree-node-name .node-status {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+}
+.tree-node.owned .node-status {
+    color: #a3e635;
+}
+.tree-node-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
