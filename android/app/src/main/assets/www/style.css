@@ -81,6 +81,20 @@ body {
     align-items: center;
 }
 
+/* WAVE stat-box: relative container so the countdown floats below without
+   adding height to the flex row. All other stat boxes stay unaffected. */
+#top-bar-stats .stat-box:first-child {
+    position: relative;
+}
+
+#air-countdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    white-space: nowrap;
+    margin-top: 2px;
+}
+
 /* Overflow grouping: inline on desktop, popover on mobile. */
 #top-bar-overflow {
     display: flex;
