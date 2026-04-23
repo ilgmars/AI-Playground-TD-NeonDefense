@@ -1,3 +1,5 @@
+// Module-level ref so proxy buttons (set up outside init()) can reset the timer.
+let _resetOverflowTimer = null;
 let game;
 let selectedTowerType = null;
 let mousePos = { x: 0, y: 0 };
@@ -510,6 +512,12 @@ function init() {
     window.COLS = 24;
     window.ROWS = 16;
     window.TILE_SIZE = 40;
+
+    // Declare speed state early so updateSpeedColor() can reference them
+    // regardless of call order within init().
+    let speedClickCount = 0;
+    let speedClickTimer = null;
+    let ultraSpeedUnlocked = false;
     
     resizeCanvas(); // Scale to fit screen and set High-DPI bounds
 
@@ -536,6 +544,7 @@ function init() {
     game.updateUI();
     updateSeedDisplay();
     updateModeDisplay();
+    updateSpeedColor();
 
     // Populate all three Ascension selectors.
     renderAscensionSelector('start');
@@ -649,9 +658,26 @@ function init() {
         }
     });
 
-    let speedClickCount = 0;
-    let speedClickTimer = null;
-    let ultraSpeedUnlocked = false;
+    // Speed display: white (1x) → orange → red (max). Uses a gradient mapped
+    // to log2 of the current speed so each doubling steps the hue evenly.
+    function updateSpeedColor() {
+        const el = document.getElementById('speed-display');
+        const maxSteps = ultraSpeedUnlocked ? 8 : 4; // log2(256)=8, log2(16)=4
+        const step = gameSpeed <= 1 ? 0 : Math.log2(gameSpeed);
+        const t = Math.min(step / maxSteps, 1);
+        // white(255,255,255) → red(239,68,68)
+        const r = Math.round(255);
+        const g = Math.round(255 * (1 - t));
+        const b = Math.round(255 * (1 - t));
+        el.style.color = `rgb(${r},${g},${b})`;
+        el.style.textShadow = t > 0 ? `0 0 10px rgba(239,68,68,${t * 0.7})` : '';
+        // Keep proxy in sync (MutationObserver handles text, but not style)
+        const proxy = document.querySelector('#speed-btn-proxy .proxy-value');
+        if (proxy) {
+            proxy.style.color = el.style.color;
+            proxy.style.textShadow = el.style.textShadow;
+        }
+    }
 
     document.getElementById('speed-btn').addEventListener('click', () => {
         speedClickCount++;
@@ -675,9 +701,8 @@ function init() {
             speedDisplay.textContent = 'ULTRA!';
             
             setTimeout(() => {
-                speedDisplay.style.color = originalColor;
-                speedDisplay.style.textShadow = '';
                 speedDisplay.textContent = gameSpeed + 'X';
+                updateSpeedColor();
             }, 1500);
         }
         
@@ -691,6 +716,7 @@ function init() {
         }
         
         document.getElementById('speed-display').textContent = gameSpeed + 'X';
+        updateSpeedColor();
     });
     document.getElementById('pause-btn').addEventListener('click', () => {
         togglePause();
@@ -700,10 +726,12 @@ function init() {
         if (game.state === 'playing') {
             game.state = 'paused';
             document.getElementById('pause-display').textContent = 'ON';
-            document.getElementById('pause-display').classList.add('paused');
+            document.getElementById('pause-display').classList.add('on');
+            document.getElementById('pause-display').classList.remove('paused');
         } else if (game.state === 'paused') {
             game.state = 'playing';
             document.getElementById('pause-display').textContent = 'OFF';
+            document.getElementById('pause-display').classList.remove('on');
             document.getElementById('pause-display').classList.remove('paused');
         }
     }
@@ -797,28 +825,63 @@ function init() {
     window.maybeShowStrategistPreview = maybeShowStrategistPreview;
 
     document.getElementById('restart-btn').addEventListener('click', () => {
-        if (game.state === 'playing') {
+        if (game.state === 'playing' || game.state === 'paused') {
             game.state = 'paused';
             document.getElementById('restart-confirm').classList.remove('hidden');
         }
     });
 
-    // Mobile overflow popover (SOUND/SEED/SYS). Desktop ignores this entirely —
-    // #overflow-btn is display:none and #top-bar-overflow is inline-flex.
-    const overflowBtn = document.getElementById('overflow-btn');
+    // Mobile overflow popover — auto-closes after 2 s of inactivity.
+    // Any interaction inside resets the countdown. A shrinking progress bar
+    // gives visual feedback of the remaining time.
+    const overflowBtn   = document.getElementById('overflow-btn');
     const overflowPanel = document.getElementById('top-bar-overflow');
     if (overflowBtn && overflowPanel) {
+        let overflowTimer = null;
+        const OVERFLOW_TTL = 2000; // ms
+
+        function openOverflow() {
+            overflowPanel.classList.add('open');
+            resetOverflowTimer();
+        }
+
+        function closeOverflow() {
+            overflowPanel.classList.remove('open');
+            clearTimeout(overflowTimer);
+            overflowTimer = null;
+            // Reset the CSS progress bar
+            overflowPanel.style.setProperty('--overflow-progress', '100%');
+        }
+
+        function resetOverflowTimer() {
+            clearTimeout(overflowTimer);
+            overflowPanel.classList.remove('overflow-counting');
+            void overflowPanel.offsetWidth;
+            overflowPanel.classList.add('overflow-counting');
+            overflowTimer = setTimeout(closeOverflow, OVERFLOW_TTL);
+        }
+        // Expose so proxy buttons outside init() can call it
+        _resetOverflowTimer = resetOverflowTimer;
+
         overflowBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            overflowPanel.classList.toggle('open');
+            if (overflowPanel.classList.contains('open')) {
+                closeOverflow();
+            } else {
+                openOverflow();
+            }
         });
-        // Any tap inside the popover (on SOUND/SEED/SYS) should also close it.
-        overflowPanel.addEventListener('click', () => {
-            overflowPanel.classList.remove('open');
+
+        // Any interaction inside the popover resets the countdown (but keeps it open)
+        overflowPanel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            resetOverflowTimer();
         });
+
+        // Click outside closes immediately
         document.addEventListener('click', (e) => {
             if (!overflowPanel.contains(e.target) && e.target !== overflowBtn && !overflowBtn.contains(e.target)) {
-                overflowPanel.classList.remove('open');
+                closeOverflow();
             }
         });
     }
@@ -849,6 +912,11 @@ function init() {
 
         gameSpeed = 1;
         document.getElementById('speed-display').textContent = '1X';
+        updateSpeedColor();
+
+        const pauseEl = document.getElementById('pause-display');
+        pauseEl.textContent = 'OFF';
+        pauseEl.classList.remove('on', 'paused');
 
         const autoEl = document.getElementById('autopilot-display');
         autoEl.textContent = 'OFF';
@@ -1185,13 +1253,47 @@ function init() {
         }
 
         // Actively dragging — suppress scroll and update canvas preview.
+        // Offset the ghost UP by 1.5 tiles so the finger doesn't obscure it.
         e.preventDefault();
         const rect = canvas.getBoundingClientRect();
         const logicalWidth  = window.COLS * window.TILE_SIZE;
         const logicalHeight = window.ROWS * window.TILE_SIZE;
+        const scaleY = logicalHeight / rect.height;
+        const GHOST_OFFSET_PX = 72; // ~thumb size in screen pixels
         mousePos.x = (t.clientX - rect.left) * (logicalWidth  / rect.width);
-        mousePos.y = (t.clientY - rect.top)  * (logicalHeight / rect.height);
+        mousePos.y = (t.clientY - rect.top - GHOST_OFFSET_PX) * scaleY;
     }, { passive: false });
+
+    // Pending placement state: set when finger lifts over canvas, cleared on confirm/cancel.
+    let pendingPlacement = null; // { col, row, type, screenX, screenY }
+
+    function showPlaceConfirm(col, row, type, screenX, screenY) {
+        pendingPlacement = { col, row, type };
+        const el = document.getElementById('place-confirm');
+        el.classList.remove('hidden');
+        // Position the buttons at the ghost tile centre on screen
+        el.style.left = screenX + 'px';
+        el.style.top  = screenY + 'px';
+    }
+
+    function hidePlaceConfirm() {
+        pendingPlacement = null;
+        document.getElementById('place-confirm').classList.add('hidden');
+        selectedTowerType = null;
+        document.querySelectorAll('.tower-option').forEach(el => el.classList.remove('selected', 'dragging'));
+    }
+
+    document.getElementById('place-confirm-yes').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!pendingPlacement) return;
+        game.buildTower(pendingPlacement.col, pendingPlacement.row, pendingPlacement.type);
+        hidePlaceConfirm();
+    });
+
+    document.getElementById('place-confirm-no').addEventListener('click', (e) => {
+        e.stopPropagation();
+        hidePlaceConfirm();
+    });
 
     document.addEventListener('touchend', (e) => {
         if (!touchState) return;
@@ -1200,8 +1302,6 @@ function init() {
         clearTimeout(state.longPressTimer);
 
         if (state.longPressFired) {
-            // Long-press tooltip shown; release just schedules its dismissal
-            // and suppresses the synthetic click so the tower isn't selected.
             setTimeout(hideLongPressTooltip, 1200);
             e.preventDefault();
             state.el.classList.remove('dragging');
@@ -1209,27 +1309,42 @@ function init() {
         }
 
         if (state.dragging) {
-            // Drop: place tower if release was over the canvas.
+            state.el.classList.remove('dragging');
             const t = e.changedTouches[0];
             const rect = canvas.getBoundingClientRect();
+
             if (t.clientX >= rect.left && t.clientX <= rect.right &&
                 t.clientY >= rect.top  && t.clientY <= rect.bottom) {
+
                 const logicalWidth  = window.COLS * window.TILE_SIZE;
                 const logicalHeight = window.ROWS * window.TILE_SIZE;
+                const GHOST_OFFSET_PX = 72;
+                const scaleY = logicalHeight / rect.height;
+                // Use the same offset as the ghost so confirm appears at the ghost tile
                 const lx = (t.clientX - rect.left) * (logicalWidth  / rect.width);
-                const ly = (t.clientY - rect.top)  * (logicalHeight / rect.height);
-                const c = Math.floor(lx / window.TILE_SIZE);
-                const r = Math.floor(ly / window.TILE_SIZE);
-                game.buildTower(c, r, state.type);
+                const ly = (t.clientY - rect.top - GHOST_OFFSET_PX) * scaleY;
+                const col = Math.floor(lx / window.TILE_SIZE);
+                const row = Math.floor(ly / window.TILE_SIZE);
+
+                if (game.map.isBuildable(col, row) && game.canAfford(state.type)) {
+                    // Convert ghost tile centre back to screen coords for button positioning
+                    const tileCentreLogX = col * window.TILE_SIZE + window.TILE_SIZE / 2;
+                    const tileCentreLogY = row * window.TILE_SIZE + window.TILE_SIZE / 2;
+                    const sx = rect.left + tileCentreLogX / (logicalWidth  / rect.width);
+                    const sy = rect.top  + tileCentreLogY / (logicalHeight / rect.height);
+                    showPlaceConfirm(col, row, state.type, sx, sy);
+                } else {
+                    // Not buildable or can't afford — cancel silently
+                    hidePlaceConfirm();
+                }
+            } else {
+                hidePlaceConfirm();
             }
-            selectedTowerType = null;
-            document.querySelectorAll('.tower-option').forEach(el => el.classList.remove('selected', 'dragging'));
-            e.preventDefault(); // suppress synthetic click that would re-toggle selection
+            e.preventDefault();
             return;
         }
 
-        // Pure tap — fall through; browser will fire synthetic click,
-        // which hits the inline onclick=selectTower/buyPotion.
+        // Pure tap — fall through to synthetic click.
     }, { passive: false });
 
     document.addEventListener('touchcancel', () => {
@@ -1238,8 +1353,7 @@ function init() {
         hideLongPressTooltip();
         if (touchState.el) touchState.el.classList.remove('dragging');
         touchState = null;
-        selectedTowerType = null;
-        document.querySelectorAll('.tower-option').forEach(el => el.classList.remove('selected', 'dragging'));
+        hidePlaceConfirm();
     });
     // --- End mobile touch handling ---
 
@@ -1328,8 +1442,16 @@ function init() {
         }
 
         if ((game.state === 'playing' || game.state === 'paused') && selectedTowerType) {
-            const c = Math.floor(mousePos.x / TILE_SIZE);
-            const r = Math.floor(mousePos.y / TILE_SIZE);
+            // During pending confirmation, lock ghost to the confirmed tile
+            const ghostX = (pendingPlacement && pendingPlacement.type === selectedTowerType)
+                ? pendingPlacement.col * window.TILE_SIZE + window.TILE_SIZE / 2
+                : mousePos.x;
+            const ghostY = (pendingPlacement && pendingPlacement.type === selectedTowerType)
+                ? pendingPlacement.row * window.TILE_SIZE + window.TILE_SIZE / 2
+                : mousePos.y;
+
+            const c = Math.floor(ghostX / TILE_SIZE);
+            const r = Math.floor(ghostY / TILE_SIZE);
             
             const ctx = game.ctx;
             const px = c * TILE_SIZE;
@@ -1438,5 +1560,58 @@ document.addEventListener('click', (e) => {
 
 document.addEventListener('DOMContentLoaded', init);
 
+// Mobile overflow proxy buttons — inline the real action so clicks stay
+// inside the panel's event boundary, then reset the auto-close timer.
+(function setupOverflowProxies() {
+    document.addEventListener('DOMContentLoaded', () => {
+        // SPEED proxy
+        const speedProxy = document.getElementById('speed-btn-proxy');
+        if (speedProxy) {
+            speedProxy.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.getElementById('speed-btn').dispatchEvent(new MouseEvent('click', { bubbles: false }));
+                if (_resetOverflowTimer) _resetOverflowTimer();
+            });
+        }
+
+        // AUTO proxy
+        const autoProxy = document.getElementById('auto-btn-proxy');
+        if (autoProxy) {
+            autoProxy.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.getElementById('autopilot-btn').dispatchEvent(new MouseEvent('click', { bubbles: false }));
+                if (_resetOverflowTimer) _resetOverflowTimer();
+            });
+        }
+
+        // Keep proxy display values in sync via MutationObserver
+        const proxyMap = [
+            { proxyId: 'speed-btn-proxy',  displayId: 'speed-display'     },
+            { proxyId: 'auto-btn-proxy',   displayId: 'autopilot-display' },
+        ];
+        proxyMap.forEach(({ proxyId, displayId }) => {
+            const proxy   = document.getElementById(proxyId);
+            const display = document.getElementById(displayId);
+            if (!proxy || !display) return;
+            const proxyValue = proxy.querySelector('.proxy-value');
+            if (!proxyValue) return;
+
+            const sync = () => {
+                proxyValue.textContent  = display.textContent;
+                // Copy classes (carries .on etc) but keep proxy-value class
+                proxyValue.className    = display.className + ' proxy-value';
+                // Copy inline colour set by updateSpeedColor()
+                proxyValue.style.color      = display.style.color;
+                proxyValue.style.textShadow = display.style.textShadow;
+            };
+            sync();
+            new MutationObserver(sync).observe(display, {
+                childList: true, characterData: true, subtree: true, attributes: true
+            });
+            // Also watch inline style changes (not covered by MutationObserver attributes on style)
+            new MutationObserver(sync).observe(display, { attributeFilter: ['style'] });
+        });
+    });
+})();
 
 
