@@ -1276,8 +1276,23 @@ function init() {
             clearTimeout(touchState.longPressTimer);
             hideLongPressTooltip();
 
-            // Horizontal-leaning movement = scroll intent; release to browser.
-            if (Math.abs(dx) > Math.abs(dy) * 1.2 || !touchState.canDrag) {
+            // Detect scroll intent based on build menu orientation:
+            // Portrait: menu scrolls horizontally (bottom bar) - block horizontal drags
+            // Landscape: menu scrolls vertically (side bar) - block vertical drags
+            const isLandscape = window.innerWidth > window.innerHeight;
+            let isScrollIntent = false;
+            
+            if (isLandscape) {
+                // In landscape, only block if moving vertically along the side menu
+                // Allow horizontal and diagonal movements for tower placement
+                isScrollIntent = Math.abs(dy) > Math.abs(dx) * 1.5;
+            } else {
+                // In portrait, only block if moving horizontally along the bottom menu
+                // Allow vertical and diagonal movements for tower placement
+                isScrollIntent = Math.abs(dx) > Math.abs(dy) * 1.5;
+            }
+            
+            if (isScrollIntent || !touchState.canDrag) {
                 touchState = null;
                 return;
             }
