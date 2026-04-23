@@ -1,0 +1,17 @@
+package_update: true
+package_upgrade: true
+users:
+  - default
+chpasswd:
+  list: |
+    ubuntu:yourpassword   # 🔒 Replace 'yourpassword' with a secure password!
+  expire: False
+packages:
+  - xrdp
+  - ubuntu-desktop
+# Uncomment to run additional commands after setup:
+# runcmd:
+#   - echo 'VM setup complete!'
+
+### Source: https://guillaumeblanchet.medium.com/the-fastest-way-to-run-ubuntu-desktop-on-your-machine-with-multipass-2930e59a6bab
+## multipass launch --memory 8G --disk 40G --cloud-init ./cloud-init.yaml

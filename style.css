@@ -63,7 +63,7 @@ body {
     flex-shrink: 0;
     background: var(--panel-bg);
     border-bottom: 1px solid var(--border-color);
-    z-index: 10;
+    z-index: 110;
     position: relative;
 }
 
@@ -91,6 +91,12 @@ body {
 
 #overflow-btn {
     display: none; /* desktop: hidden; mobile query flips this on */
+}
+
+/* Proxy items only exist for the mobile overflow popover — hide on desktop */
+.overflow-speed-proxy,
+.overflow-auto-proxy {
+    display: none;
 }
 
 .stat-box {
@@ -129,14 +135,18 @@ body {
     transition: all 0.2s; 
 }
 
-#pause-display.paused {
-    color: #ef4444;
-    text-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+/* All toggle buttons go green when ON — consistent colour language */
+#pause-display.on,
+#autopilot-display.on,
+#sound-display.on {
+    color: #4ade80;
+    text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
 }
 
-#autopilot-display.on {
-    color: var(--accent) !important;
-    text-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+/* Keep legacy .paused class working (used elsewhere) */
+#pause-display.paused {
+    color: #4ade80;
+    text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
 }
 
 #content {
@@ -425,19 +435,25 @@ button.danger:hover {
    are wider than 768 but still phones. */
 @media (max-width: 768px), (max-height: 500px) {
     #top-bar {
-        padding: 6px 10px;
+        padding: 6px 16px;
         padding-top: max(6px, env(safe-area-inset-top));
-        padding-left: max(10px, env(safe-area-inset-left));
-        padding-right: max(10px, env(safe-area-inset-right));
+        padding-left: max(16px, env(safe-area-inset-left));
+        padding-right: max(16px, env(safe-area-inset-right));
         gap: 6px;
     }
 
     #top-bar-stats {
         gap: 14px;
+        /* Stats are mission-critical — never let them shrink away */
+        flex-shrink: 0;
     }
 
     #top-bar-controls {
         gap: 10px;
+        /* Controls side can shrink/wrap to give stats room */
+        flex-shrink: 1;
+        flex-wrap: nowrap;
+        overflow: visible;
     }
 
     .stat-box .label {
@@ -475,7 +491,7 @@ button.danger:hover {
     #top-bar-overflow {
         position: absolute;
         top: 100%;
-        right: 4px;
+        right: max(4px, env(safe-area-inset-right));
         background: var(--panel-bg);
         border: 1px solid var(--border-color);
         border-top: none;
@@ -485,13 +501,36 @@ button.danger:hover {
         gap: 10px;
         align-items: stretch;
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-        z-index: 15;
+        z-index: 120;
         display: none;
-        min-width: 120px;
+        min-width: 130px;
+        overflow: hidden;
     }
 
     #top-bar-overflow.open {
         display: flex;
+    }
+
+    /* Countdown progress bar — shrinks from full width to 0 over 2 s.
+       Restarted by toggling the .overflow-counting class in JS. */
+    #top-bar-overflow.open::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 2px;
+        width: 100%;
+        background: var(--accent);
+        transform-origin: left center;
+        transform: scaleX(1);
+        border-radius: 0 0 8px 8px;
+    }
+    #top-bar-overflow.overflow-counting::after {
+        animation: overflow-countdown 2s linear forwards;
+    }
+    @keyframes overflow-countdown {
+        from { transform: scaleX(1); opacity: 1; }
+        to   { transform: scaleX(0); opacity: 0.4; }
     }
 
     #top-bar-overflow .stat-box.interactive {
@@ -513,6 +552,8 @@ button.danger:hover {
 
     #overflow-btn {
         display: flex;
+        /* Always visible — it's the gateway to hidden controls */
+        flex-shrink: 0;
     }
 
     #overflow-btn .value {
@@ -520,32 +561,44 @@ button.danger:hover {
         line-height: 1;
     }
 
+    /* On mobile: hide SPEED, ABILITY, AUTO from the main bar row —
+       they live in the overflow popover instead. */
+    #speed-btn,
+    #ability-btn,
+    #autopilot-btn {
+        display: none !important;
+    }
+
+    /* Show the proxy copies inside the overflow popover */
+    .overflow-speed-proxy,
+    .overflow-auto-proxy {
+        display: flex;
+    }
+
     #content {
         flex-direction: column;
     }
 
-    /* Build dock: compact icon-first row at bottom.
-       touch-action: pan-x lets the browser scroll the dock horizontally
-       while the JS drag-to-canvas handler owns vertical gestures. */
+    /* Build dock: horizontal scrollable row at bottom.
+       Extra bottom padding lifts the content above the home bar / rounded corners.
+       touch-action: pan-x lets the browser handle horizontal swipes. */
     #build-menu {
         width: 100%;
         height: auto;
         flex-direction: row;
         border-left: none;
         border-top: 1px solid var(--border-color);
-        padding: 10px 12px;
-        padding-bottom: max(14px, env(safe-area-inset-bottom));
-        padding-left: max(12px, env(safe-area-inset-left));
-        padding-right: max(12px, env(safe-area-inset-right));
+        padding: 10px 16px;
+        padding-bottom: max(44px, env(safe-area-inset-bottom));
+        padding-left: max(16px, env(safe-area-inset-left));
+        padding-right: max(16px, env(safe-area-inset-right));
         overflow-x: auto;
         overflow-y: hidden;
         gap: 8px;
         -webkit-overflow-scrolling: touch;
         touch-action: pan-x;
-        /* Lift the dock slightly so it's easier to reach with thumbs */
-        min-height: 90px;
+        min-height: 100px;
         scroll-snap-type: x proximity;
-        /* Wider scroll hit area */
         align-items: center;
     }
 
@@ -740,16 +793,31 @@ button.danger:hover {
     }
 }
 
-/* Narrow phones (≤400px): pull overflow dock to single-column, tighter stats. */
+/* Narrow phones (≤400px): tighter stats, fluid font sizes so nothing clips. */
 @media (max-width: 400px) {
+    #top-bar {
+        /* Extra side padding for rounded-corner screens */
+        padding-left: max(20px, env(safe-area-inset-left));
+        padding-right: max(20px, env(safe-area-inset-right));
+    }
     #top-bar-stats {
         gap: 8px;
     }
+    /* Use fluid font so labels/values scale with viewport width instead of
+       hard-coding a size that clips on very narrow devices (≤360px). */
     #top-bar-stats .stat-box .label {
-        font-size: 0.55rem;
+        font-size: clamp(0.45rem, 2.2vw, 0.6rem);
     }
     #top-bar-stats .stat-box .value {
-        font-size: 0.85rem;
+        font-size: clamp(0.75rem, 3.8vw, 1rem);
+    }
+    /* Controls side: tighten gap so MORE button stays reachable */
+    #top-bar-controls {
+        gap: 6px;
+    }
+    .stat-box.interactive {
+        min-width: 38px;
+        padding: 2px 3px;
     }
     .tower-option {
         width: 68px;

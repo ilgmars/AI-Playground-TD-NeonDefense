@@ -32,6 +32,7 @@
                 </div>
             </div>
             <div id="top-bar-controls">
+                <!-- SPEED and ABILITY: visible on desktop, move to overflow on mobile via CSS -->
                 <div class="stat-box interactive" id="speed-btn">
                     <span class="label">SPEED</span>
                     <span id="speed-display" class="value">1X</span>
@@ -49,6 +50,15 @@
                     <span id="autopilot-display" class="value">OFF</span>
                 </div>
                 <div id="top-bar-overflow">
+                    <!-- These appear first in the popover on mobile -->
+                    <div class="stat-box interactive overflow-speed-proxy" id="speed-btn-proxy" aria-hidden="true">
+                        <span class="label">SPEED</span>
+                        <span class="value proxy-value" data-proxy="speed-display">1X</span>
+                    </div>
+                    <div class="stat-box interactive overflow-auto-proxy" id="auto-btn-proxy" aria-hidden="true">
+                        <span class="label">AUTO</span>
+                        <span class="value proxy-value" data-proxy="autopilot-display">OFF</span>
+                    </div>
                     <div class="stat-box interactive" id="sound-btn">
                         <span class="label">SOUND</span>
                         <span id="sound-display" class="value">OFF</span>

@@ -653,6 +653,27 @@ function init() {
     let speedClickTimer = null;
     let ultraSpeedUnlocked = false;
 
+    // Speed display: white (1x) → orange → red (max). Uses a gradient mapped
+    // to log2 of the current speed so each doubling steps the hue evenly.
+    function updateSpeedColor() {
+        const el = document.getElementById('speed-display');
+        const maxSteps = ultraSpeedUnlocked ? 8 : 4; // log2(256)=8, log2(16)=4
+        const step = gameSpeed <= 1 ? 0 : Math.log2(gameSpeed);
+        const t = Math.min(step / maxSteps, 1);
+        // white(255,255,255) → red(239,68,68)
+        const r = Math.round(255);
+        const g = Math.round(255 * (1 - t));
+        const b = Math.round(255 * (1 - t));
+        el.style.color = `rgb(${r},${g},${b})`;
+        el.style.textShadow = t > 0 ? `0 0 10px rgba(239,68,68,${t * 0.7})` : '';
+        // Keep proxy in sync (MutationObserver handles text, but not style)
+        const proxy = document.querySelector('#speed-btn-proxy .proxy-value');
+        if (proxy) {
+            proxy.style.color = el.style.color;
+            proxy.style.textShadow = el.style.textShadow;
+        }
+    }
+
     document.getElementById('speed-btn').addEventListener('click', () => {
         speedClickCount++;
         
@@ -675,9 +696,8 @@ function init() {
             speedDisplay.textContent = 'ULTRA!';
             
             setTimeout(() => {
-                speedDisplay.style.color = originalColor;
-                speedDisplay.style.textShadow = '';
                 speedDisplay.textContent = gameSpeed + 'X';
+                updateSpeedColor();
             }, 1500);
         }
         
@@ -691,6 +711,7 @@ function init() {
         }
         
         document.getElementById('speed-display').textContent = gameSpeed + 'X';
+        updateSpeedColor();
     });
     document.getElementById('pause-btn').addEventListener('click', () => {
         togglePause();
@@ -700,10 +721,12 @@ function init() {
         if (game.state === 'playing') {
             game.state = 'paused';
             document.getElementById('pause-display').textContent = 'ON';
-            document.getElementById('pause-display').classList.add('paused');
+            document.getElementById('pause-display').classList.add('on');
+            document.getElementById('pause-display').classList.remove('paused');
         } else if (game.state === 'paused') {
             game.state = 'playing';
             document.getElementById('pause-display').textContent = 'OFF';
+            document.getElementById('pause-display').classList.remove('on');
             document.getElementById('pause-display').classList.remove('paused');
         }
     }
@@ -803,22 +826,57 @@ function init() {
         }
     });
 
-    // Mobile overflow popover (SOUND/SEED/SYS). Desktop ignores this entirely —
-    // #overflow-btn is display:none and #top-bar-overflow is inline-flex.
-    const overflowBtn = document.getElementById('overflow-btn');
+    // Mobile overflow popover — auto-closes after 2 s of inactivity.
+    // Any interaction inside resets the countdown. A shrinking progress bar
+    // gives visual feedback of the remaining time.
+    const overflowBtn   = document.getElementById('overflow-btn');
     const overflowPanel = document.getElementById('top-bar-overflow');
     if (overflowBtn && overflowPanel) {
+        let overflowTimer = null;
+        const OVERFLOW_TTL = 2000; // ms
+
+        function openOverflow() {
+            overflowPanel.classList.add('open');
+            resetOverflowTimer();
+        }
+
+        function closeOverflow() {
+            overflowPanel.classList.remove('open');
+            clearTimeout(overflowTimer);
+            overflowTimer = null;
+            // Reset the CSS progress bar
+            overflowPanel.style.setProperty('--overflow-progress', '100%');
+        }
+
+        function resetOverflowTimer() {
+            clearTimeout(overflowTimer);
+            // Restart the CSS shrink animation by toggling the class
+            overflowPanel.classList.remove('overflow-counting');
+            // Force reflow so the animation restarts
+            void overflowPanel.offsetWidth;
+            overflowPanel.classList.add('overflow-counting');
+            overflowTimer = setTimeout(closeOverflow, OVERFLOW_TTL);
+        }
+
         overflowBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            overflowPanel.classList.toggle('open');
+            if (overflowPanel.classList.contains('open')) {
+                closeOverflow();
+            } else {
+                openOverflow();
+            }
         });
-        // Any tap inside the popover (on SOUND/SEED/SYS) should also close it.
-        overflowPanel.addEventListener('click', () => {
-            overflowPanel.classList.remove('open');
+
+        // Any interaction inside the popover resets the countdown (but keeps it open)
+        overflowPanel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            resetOverflowTimer();
         });
+
+        // Click outside closes immediately
         document.addEventListener('click', (e) => {
             if (!overflowPanel.contains(e.target) && e.target !== overflowBtn && !overflowBtn.contains(e.target)) {
-                overflowPanel.classList.remove('open');
+                closeOverflow();
             }
         });
     }
@@ -849,6 +907,7 @@ function init() {
 
         gameSpeed = 1;
         document.getElementById('speed-display').textContent = '1X';
+        updateSpeedColor();
 
         const autoEl = document.getElementById('autopilot-display');
         autoEl.textContent = 'OFF';
@@ -1438,5 +1497,38 @@ document.addEventListener('click', (e) => {
 
 document.addEventListener('DOMContentLoaded', init);
 
+// Mobile overflow proxy buttons — delegate clicks to the real buttons and
+// keep displayed values in sync via a MutationObserver.
+(function setupOverflowProxies() {
+    const proxyMap = [
+        { proxyId: 'speed-btn-proxy',  realId: 'speed-btn',     displayId: 'speed-display'     },
+        { proxyId: 'auto-btn-proxy',   realId: 'autopilot-btn', displayId: 'autopilot-display' },
+    ];
+
+    proxyMap.forEach(({ proxyId, realId, displayId }) => {
+        const proxy   = document.getElementById(proxyId);
+        const real    = document.getElementById(realId);
+        const display = document.getElementById(displayId);
+        if (!proxy || !real || !display) return;
+
+        // Delegate click to the real button
+        proxy.addEventListener('click', () => real.click());
+
+        // Mirror the current value into the proxy
+        const proxyValue = proxy.querySelector('.proxy-value');
+        if (!proxyValue) return;
+
+        const sync = () => {
+            proxyValue.textContent    = display.textContent;
+            proxyValue.className      = display.className + ' proxy-value';
+        };
+        sync();
+
+        // Watch for text/class changes on the real display element
+        new MutationObserver(sync).observe(display, {
+            childList: true, characterData: true, subtree: true, attributes: true
+        });
+    });
+})();
 
 
