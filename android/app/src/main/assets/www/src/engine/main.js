@@ -1270,13 +1270,13 @@ function init() {
         }
 
         // Actively dragging — suppress scroll and update canvas preview.
-        // Offset the ghost UP by 1.5 tiles so the finger doesn't obscure it.
+        // Offset the ghost UP so the finger doesn't obscure it.
         e.preventDefault();
         const rect = canvas.getBoundingClientRect();
         const logicalWidth  = window.COLS * window.TILE_SIZE;
         const logicalHeight = window.ROWS * window.TILE_SIZE;
         const scaleY = logicalHeight / rect.height;
-        const GHOST_OFFSET_PX = 72; // ~thumb size in screen pixels
+        const GHOST_OFFSET_PX = Math.min(90, Math.max(40, rect.height * 0.18));
         mousePos.x = (t.clientX - rect.left) * (logicalWidth  / rect.width);
         mousePos.y = (t.clientY - rect.top - GHOST_OFFSET_PX) * scaleY;
     }, { passive: false });
@@ -1335,7 +1335,7 @@ function init() {
 
                 const logicalWidth  = window.COLS * window.TILE_SIZE;
                 const logicalHeight = window.ROWS * window.TILE_SIZE;
-                const GHOST_OFFSET_PX = 72;
+                const GHOST_OFFSET_PX = Math.min(90, Math.max(40, rect.height * 0.18));
                 const scaleY = logicalHeight / rect.height;
                 // Use the same offset as the ghost so confirm appears at the ghost tile
                 const lx = (t.clientX - rect.left) * (logicalWidth  / rect.width);
