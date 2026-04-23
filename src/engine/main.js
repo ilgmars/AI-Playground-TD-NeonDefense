@@ -509,6 +509,18 @@ window.addEventListener('resize', () => {
     window._resizeDebounce = setTimeout(resizeCanvas, 100);
 });
 
+// Handle viewport changes when address bar shows/hides on mobile browsers
+let lastHeight = window.innerHeight;
+window.visualViewport?.addEventListener('resize', () => {
+    const currentHeight = window.visualViewport.height;
+    // Only resize if the change is significant (more than 50px)
+    // to avoid constant redraws during scrolling
+    if (Math.abs(currentHeight - lastHeight) > 50) {
+        lastHeight = currentHeight;
+        resizeCanvas();
+    }
+});
+
 // Touch vs mouse detection — runs immediately, before init().
 // Adds body.touch-ui when a touch device is detected, removes it if the
 // user switches to a real mouse (pointer move with no buttons pressed and
@@ -1283,14 +1295,19 @@ function init() {
 
         // Actively dragging — suppress scroll and update canvas preview.
         // Offset the ghost UP so the finger doesn't obscure it.
-        // Scale offset to canvas height so it works in both portrait and landscape.
+        // Use a thumb-sized offset (~80-100px) that adapts to orientation.
         e.preventDefault();
         const rect = canvas.getBoundingClientRect();
         const logicalWidth  = window.COLS * window.TILE_SIZE;
         const logicalHeight = window.ROWS * window.TILE_SIZE;
+        const scaleX = logicalWidth / rect.width;
         const scaleY = logicalHeight / rect.height;
-        const GHOST_OFFSET_PX = Math.min(90, Math.max(40, rect.height * 0.18));
-        mousePos.x = (t.clientX - rect.left) * (logicalWidth  / rect.width);
+        
+        // Thumb offset: larger in portrait (more vertical space), smaller in landscape
+        const isLandscape = window.innerWidth > window.innerHeight;
+        const GHOST_OFFSET_PX = isLandscape ? 70 : 100;
+        
+        mousePos.x = (t.clientX - rect.left) * scaleX;
         mousePos.y = (t.clientY - rect.top - GHOST_OFFSET_PX) * scaleY;
     }, { passive: false });
 
@@ -1348,10 +1365,14 @@ function init() {
 
                 const logicalWidth  = window.COLS * window.TILE_SIZE;
                 const logicalHeight = window.ROWS * window.TILE_SIZE;
-                const GHOST_OFFSET_PX = Math.min(90, Math.max(40, rect.height * 0.18));
+                const scaleX = logicalWidth / rect.width;
                 const scaleY = logicalHeight / rect.height;
-                // Use the same offset as the ghost so confirm appears at the ghost tile
-                const lx = (t.clientX - rect.left) * (logicalWidth  / rect.width);
+                
+                // Use same thumb offset as touchmove for consistency
+                const isLandscape = window.innerWidth > window.innerHeight;
+                const GHOST_OFFSET_PX = isLandscape ? 70 : 100;
+                
+                const lx = (t.clientX - rect.left) * scaleX;
                 const ly = (t.clientY - rect.top - GHOST_OFFSET_PX) * scaleY;
                 const col = Math.floor(lx / window.TILE_SIZE);
                 const row = Math.floor(ly / window.TILE_SIZE);
@@ -1360,8 +1381,8 @@ function init() {
                     // Convert ghost tile centre back to screen coords for button positioning
                     const tileCentreLogX = col * window.TILE_SIZE + window.TILE_SIZE / 2;
                     const tileCentreLogY = row * window.TILE_SIZE + window.TILE_SIZE / 2;
-                    const sx = rect.left + tileCentreLogX / (logicalWidth  / rect.width);
-                    const sy = rect.top  + tileCentreLogY / (logicalHeight / rect.height);
+                    const sx = rect.left + tileCentreLogX / scaleX;
+                    const sy = rect.top  + tileCentreLogY / scaleY;
                     showPlaceConfirm(col, row, state.type, sx, sy);
                 } else {
                     // Not buildable or can't afford — cancel silently

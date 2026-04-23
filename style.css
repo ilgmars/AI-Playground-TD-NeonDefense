@@ -27,9 +27,13 @@ body {
     justify-content: center;
     align-items: center;
     height: 100vh;
+    /* Use dynamic viewport height to handle address bar on mobile */
+    height: 100dvh;
     width: 100vw;
     margin: 0;
     overflow: hidden;
+    /* Prevent pull-to-refresh on mobile */
+    overscroll-behavior: none;
 }
 
 #app {
@@ -37,6 +41,8 @@ body {
     flex-direction: column;
     width: 100vw;
     height: 100vh;
+    /* Use dynamic viewport height to handle address bar on mobile */
+    height: 100dvh;
     padding: 0;
     gap: 0;
 }
@@ -1376,6 +1382,11 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     gap: 16px;
     transform: translate(-50%, -50%);
     pointer-events: all;
+    /* Add backdrop for better visibility */
+    padding: 8px;
+    border-radius: 50px;
+    background: rgba(15, 23, 42, 0.3);
+    backdrop-filter: blur(4px);
 }
 #place-confirm.hidden { display: none; }
 #place-confirm button {
@@ -1388,25 +1399,31 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     display: flex;
     align-items: center;
     justify-content: center;
-    border-width: 2px;
+    border-width: 3px;
     letter-spacing: 0;
     box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    /* Ensure buttons are always tappable */
+    touch-action: manipulation;
 }
 #place-confirm-yes {
     color: #4ade80;
     border-color: #4ade80;
+    background: rgba(74, 222, 128, 0.1);
     box-shadow: 0 0 16px rgba(74, 222, 128, 0.4);
 }
-#place-confirm-yes:hover {
+#place-confirm-yes:hover,
+#place-confirm-yes:active {
     background: #4ade80;
     color: #0f172a;
 }
 #place-confirm-no {
     color: var(--health);
     border-color: var(--health);
+    background: rgba(251, 113, 133, 0.1);
     box-shadow: 0 0 16px rgba(251, 113, 133, 0.4);
 }
-#place-confirm-no:hover {
+#place-confirm-no:hover,
+#place-confirm-no:active {
     background: var(--health);
     color: #0f172a;
 }
