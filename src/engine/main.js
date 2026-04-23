@@ -499,10 +499,14 @@ window.addEventListener('resize', resizeCanvas);
 // `resize`, and landscape-portrait switches reshape the layout. Re-run the
 // DPR-aware sizing after the browser has committed the new orientation.
 window.addEventListener('orientationchange', () => {
-    // Small delay: some browsers report dimensions before the new orientation
-    // has actually been applied to the layout.
     setTimeout(resizeCanvas, 50);
     setTimeout(resizeCanvas, 250);
+    setTimeout(resizeCanvas, 600); // extra pass after flex layout settles
+});
+// Also catch resize events that follow orientation changes on Android
+window.addEventListener('resize', () => {
+    clearTimeout(window._resizeDebounce);
+    window._resizeDebounce = setTimeout(resizeCanvas, 100);
 });
 
 // Touch vs mouse detection — runs immediately, before init().

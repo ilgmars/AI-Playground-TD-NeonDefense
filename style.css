@@ -830,7 +830,9 @@ body.touch-ui .upg-cost { font-size: 0.9rem; }
         display: flex;
     }
 
-    #content {
+    /* Content direction is handled by body.touch-ui portrait/landscape rules.
+       Only apply column here for non-touch small screens. */
+    body:not(.touch-ui) #content {
         flex-direction: column;
     }
 
