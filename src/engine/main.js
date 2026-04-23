@@ -1276,15 +1276,8 @@ function init() {
             clearTimeout(touchState.longPressTimer);
             hideLongPressTooltip();
 
-            // Check for scroll intent based on orientation:
-            // Portrait: build menu scrolls horizontally, so horizontal movement = scroll
-            // Landscape: build menu scrolls vertically, so vertical movement = scroll
-            const isLandscape = window.innerWidth > window.innerHeight;
-            const isScrollIntent = isLandscape 
-                ? Math.abs(dy) > Math.abs(dx) * 1.2  // Landscape: vertical scroll
-                : Math.abs(dx) > Math.abs(dy) * 1.2; // Portrait: horizontal scroll
-            
-            if (isScrollIntent || !touchState.canDrag) {
+            // Horizontal-leaning movement = scroll intent; release to browser.
+            if (Math.abs(dx) > Math.abs(dy) * 1.2 || !touchState.canDrag) {
                 touchState = null;
                 return;
             }
@@ -1314,8 +1307,9 @@ function init() {
         const isLandscape = window.innerWidth > window.innerHeight;
         const GHOST_OFFSET_PX = isLandscape ? 70 : 100;
         
+        // Apply offset in screen space, then scale to logical coordinates
         mousePos.x = (t.clientX - rect.left) * scaleX;
-        mousePos.y = (t.clientY - rect.top - GHOST_OFFSET_PX) * scaleY;
+        mousePos.y = ((t.clientY - GHOST_OFFSET_PX) - rect.top) * scaleY;
     }, { passive: false });
 
     // Pending placement state: set when finger lifts over canvas, cleared on confirm/cancel.
@@ -1379,8 +1373,9 @@ function init() {
                 const isLandscape = window.innerWidth > window.innerHeight;
                 const GHOST_OFFSET_PX = isLandscape ? 70 : 100;
                 
+                // Apply offset in screen space, then scale to logical coordinates
                 const lx = (t.clientX - rect.left) * scaleX;
-                const ly = (t.clientY - rect.top - GHOST_OFFSET_PX) * scaleY;
+                const ly = ((t.clientY - GHOST_OFFSET_PX) - rect.top) * scaleY;
                 const col = Math.floor(lx / window.TILE_SIZE);
                 const row = Math.floor(ly / window.TILE_SIZE);
 
