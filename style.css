@@ -58,6 +58,7 @@ body {
     align-items: center;
     padding: 8px 20px;
     padding-top: max(8px, env(safe-area-inset-top));
+    padding-bottom: 20px;
     padding-left: max(20px, env(safe-area-inset-left));
     padding-right: max(20px, env(safe-area-inset-right));
     flex-shrink: 0;
@@ -96,7 +97,8 @@ body {
     top: 100%;
     left: 0;
     white-space: nowrap;
-    margin-top: 2px;
+    margin-top: -1px;
+    line-height: 1;
 }
 
 #top-bar-overflow {
@@ -559,10 +561,11 @@ body.touch-ui .overflow-speed-proxy,
 body.touch-ui .overflow-auto-proxy {
     display: flex;
 }
-/* In landscape on a touch device, keep the side-dock (handled by the
-   orientation media query below). In portrait, stack vertically. */
-body.touch-ui:not([data-landscape]) #content {
-    flex-direction: column;
+/* Portrait only — landscape overrides to row below */
+@media (orientation: portrait) {
+    body.touch-ui #content {
+        flex-direction: column;
+    }
 }
 body.touch-ui #build-menu {
     width: 100%;
