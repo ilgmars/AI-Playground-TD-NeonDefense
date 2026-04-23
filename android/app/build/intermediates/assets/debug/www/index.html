@@ -16,7 +16,7 @@
                 <div class="stat-box">
                     <span class="label">WAVE</span>
                     <span id="wave-display" class="value">1</span>
-                    <span id="air-countdown" style="font-size: 0.65rem; color: #60a5fa; font-weight: bold; margin-top: -2px; letter-spacing: 1px;">✈ IN 4</span>
+                    <span id="air-countdown" style="font-size: 0.65rem; color: #60a5fa; font-weight: bold; letter-spacing: 1px;">✈ IN 4</span>
                 </div>
                 <div class="stat-box">
                     <span class="label">MODE</span>
@@ -32,6 +32,7 @@
                 </div>
             </div>
             <div id="top-bar-controls">
+                <!-- SPEED and ABILITY: visible on desktop, move to overflow on mobile via CSS -->
                 <div class="stat-box interactive" id="speed-btn">
                     <span class="label">SPEED</span>
                     <span id="speed-display" class="value">1X</span>
@@ -49,6 +50,15 @@
                     <span id="autopilot-display" class="value">OFF</span>
                 </div>
                 <div id="top-bar-overflow">
+                    <!-- These appear first in the popover on mobile -->
+                    <div class="stat-box interactive overflow-speed-proxy" id="speed-btn-proxy" aria-hidden="true">
+                        <span class="label">SPEED</span>
+                        <span class="value proxy-value" data-proxy="speed-display">1X</span>
+                    </div>
+                    <div class="stat-box interactive overflow-auto-proxy" id="auto-btn-proxy" aria-hidden="true">
+                        <span class="label">AUTO</span>
+                        <span class="value proxy-value" data-proxy="autopilot-display">OFF</span>
+                    </div>
                     <div class="stat-box interactive" id="sound-btn">
                         <span class="label">SOUND</span>
                         <span id="sound-display" class="value">OFF</span>
@@ -332,6 +342,11 @@
         <div id="tt-name"></div>
         <div id="tt-desc"></div>
         <div id="tt-stats"></div>
+    </div>
+
+    <div id="place-confirm" class="hidden">
+        <button id="place-confirm-yes" aria-label="Confirm placement">✓</button>
+        <button id="place-confirm-no" aria-label="Cancel placement">✗</button>
     </div>
 
     <script src="src/config/config.js"></script>

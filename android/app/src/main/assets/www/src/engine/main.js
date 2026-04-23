@@ -658,15 +658,20 @@ function init() {
         }
     });
 
+    // Speed display: white (1x) → orange → red (max). Uses a gradient mapped
+    // to log2 of the current speed so each doubling steps the hue evenly.
     function updateSpeedColor() {
         const el = document.getElementById('speed-display');
-        const maxSteps = ultraSpeedUnlocked ? 8 : 4;
+        const maxSteps = ultraSpeedUnlocked ? 8 : 4; // log2(256)=8, log2(16)=4
         const step = gameSpeed <= 1 ? 0 : Math.log2(gameSpeed);
         const t = Math.min(step / maxSteps, 1);
+        // white(255,255,255) → red(239,68,68)
+        const r = Math.round(255);
         const g = Math.round(255 * (1 - t));
         const b = Math.round(255 * (1 - t));
-        el.style.color = `rgb(255,${g},${b})`;
+        el.style.color = `rgb(${r},${g},${b})`;
         el.style.textShadow = t > 0 ? `0 0 10px rgba(239,68,68,${t * 0.7})` : '';
+        // Keep proxy in sync (MutationObserver handles text, but not style)
         const proxy = document.querySelector('#speed-btn-proxy .proxy-value');
         if (proxy) {
             proxy.style.color = el.style.color;
@@ -677,16 +682,20 @@ function init() {
     document.getElementById('speed-btn').addEventListener('click', () => {
         speedClickCount++;
         
+        // Reset counter after 2 seconds of no clicks
         clearTimeout(speedClickTimer);
         speedClickTimer = setTimeout(() => {
             speedClickCount = 0;
         }, 2000);
         
+        // Easter egg: unlock x256 mode after 15 clicks
         if (speedClickCount >= 15 && !ultraSpeedUnlocked) {
             ultraSpeedUnlocked = true;
             speedClickCount = 0;
             
+            // Visual feedback
             const speedDisplay = document.getElementById('speed-display');
+            const originalColor = speedDisplay.style.color;
             speedDisplay.style.color = '#fbbf24';
             speedDisplay.style.textShadow = '0 0 20px rgba(251, 191, 36, 0.8)';
             speedDisplay.textContent = 'ULTRA!';
@@ -697,6 +706,7 @@ function init() {
             }, 1500);
         }
         
+        // Normal speed cycling
         if (ultraSpeedUnlocked) {
             gameSpeed *= 2;
             if (gameSpeed > 256) gameSpeed = 1;
@@ -839,6 +849,7 @@ function init() {
             overflowPanel.classList.remove('open');
             clearTimeout(overflowTimer);
             overflowTimer = null;
+            // Reset the CSS progress bar
             overflowPanel.style.setProperty('--overflow-progress', '100%');
         }
 
@@ -849,6 +860,7 @@ function init() {
             overflowPanel.classList.add('overflow-counting');
             overflowTimer = setTimeout(closeOverflow, OVERFLOW_TTL);
         }
+        // Expose so proxy buttons outside init() can call it
         _resetOverflowTimer = resetOverflowTimer;
 
         overflowBtn.addEventListener('click', (e) => {
@@ -860,11 +872,13 @@ function init() {
             }
         });
 
+        // Any interaction inside the popover resets the countdown (but keeps it open)
         overflowPanel.addEventListener('click', (e) => {
             e.stopPropagation();
             resetOverflowTimer();
         });
 
+        // Click outside closes immediately
         document.addEventListener('click', (e) => {
             if (!overflowPanel.contains(e.target) && e.target !== overflowBtn && !overflowBtn.contains(e.target)) {
                 closeOverflow();
@@ -1245,18 +1259,19 @@ function init() {
         const logicalWidth  = window.COLS * window.TILE_SIZE;
         const logicalHeight = window.ROWS * window.TILE_SIZE;
         const scaleY = logicalHeight / rect.height;
-        const GHOST_OFFSET_PX = 72;
+        const GHOST_OFFSET_PX = 72; // ~thumb size in screen pixels
         mousePos.x = (t.clientX - rect.left) * (logicalWidth  / rect.width);
         mousePos.y = (t.clientY - rect.top - GHOST_OFFSET_PX) * scaleY;
     }, { passive: false });
 
     // Pending placement state: set when finger lifts over canvas, cleared on confirm/cancel.
-    let pendingPlacement = null;
+    let pendingPlacement = null; // { col, row, type, screenX, screenY }
 
     function showPlaceConfirm(col, row, type, screenX, screenY) {
         pendingPlacement = { col, row, type };
         const el = document.getElementById('place-confirm');
         el.classList.remove('hidden');
+        // Position the buttons at the ghost tile centre on screen
         el.style.left = screenX + 'px';
         el.style.top  = screenY + 'px';
     }
@@ -1305,18 +1320,21 @@ function init() {
                 const logicalHeight = window.ROWS * window.TILE_SIZE;
                 const GHOST_OFFSET_PX = 72;
                 const scaleY = logicalHeight / rect.height;
+                // Use the same offset as the ghost so confirm appears at the ghost tile
                 const lx = (t.clientX - rect.left) * (logicalWidth  / rect.width);
                 const ly = (t.clientY - rect.top - GHOST_OFFSET_PX) * scaleY;
                 const col = Math.floor(lx / window.TILE_SIZE);
                 const row = Math.floor(ly / window.TILE_SIZE);
 
                 if (game.map.isBuildable(col, row) && game.canAfford(state.type)) {
+                    // Convert ghost tile centre back to screen coords for button positioning
                     const tileCentreLogX = col * window.TILE_SIZE + window.TILE_SIZE / 2;
                     const tileCentreLogY = row * window.TILE_SIZE + window.TILE_SIZE / 2;
                     const sx = rect.left + tileCentreLogX / (logicalWidth  / rect.width);
                     const sy = rect.top  + tileCentreLogY / (logicalHeight / rect.height);
                     showPlaceConfirm(col, row, state.type, sx, sy);
                 } else {
+                    // Not buildable or can't afford — cancel silently
                     hidePlaceConfirm();
                 }
             } else {
@@ -1336,6 +1354,7 @@ function init() {
         if (touchState.el) touchState.el.classList.remove('dragging');
         touchState = null;
         hidePlaceConfirm();
+    });
     // --- End mobile touch handling ---
 
     let lastClickTime = 0;
@@ -1545,6 +1564,7 @@ document.addEventListener('DOMContentLoaded', init);
 // inside the panel's event boundary, then reset the auto-close timer.
 (function setupOverflowProxies() {
     document.addEventListener('DOMContentLoaded', () => {
+        // SPEED proxy
         const speedProxy = document.getElementById('speed-btn-proxy');
         if (speedProxy) {
             speedProxy.addEventListener('click', (e) => {
@@ -1554,6 +1574,7 @@ document.addEventListener('DOMContentLoaded', init);
             });
         }
 
+        // AUTO proxy
         const autoProxy = document.getElementById('auto-btn-proxy');
         if (autoProxy) {
             autoProxy.addEventListener('click', (e) => {
@@ -1563,6 +1584,7 @@ document.addEventListener('DOMContentLoaded', init);
             });
         }
 
+        // Keep proxy display values in sync via MutationObserver
         const proxyMap = [
             { proxyId: 'speed-btn-proxy',  displayId: 'speed-display'     },
             { proxyId: 'auto-btn-proxy',   displayId: 'autopilot-display' },
@@ -1575,8 +1597,10 @@ document.addEventListener('DOMContentLoaded', init);
             if (!proxyValue) return;
 
             const sync = () => {
-                proxyValue.textContent      = display.textContent;
-                proxyValue.className        = display.className + ' proxy-value';
+                proxyValue.textContent  = display.textContent;
+                // Copy classes (carries .on etc) but keep proxy-value class
+                proxyValue.className    = display.className + ' proxy-value';
+                // Copy inline colour set by updateSpeedColor()
                 proxyValue.style.color      = display.style.color;
                 proxyValue.style.textShadow = display.style.textShadow;
             };
@@ -1584,7 +1608,10 @@ document.addEventListener('DOMContentLoaded', init);
             new MutationObserver(sync).observe(display, {
                 childList: true, characterData: true, subtree: true, attributes: true
             });
+            // Also watch inline style changes (not covered by MutationObserver attributes on style)
             new MutationObserver(sync).observe(display, { attributeFilter: ['style'] });
         });
     });
 })();
+
+

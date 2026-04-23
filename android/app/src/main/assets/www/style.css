@@ -87,6 +87,10 @@ body {
     position: relative;
 }
 
+#wave-display {
+    /* no special positioning needed — countdown anchors to the stat-box */
+}
+
 #air-countdown {
     position: absolute;
     top: 100%;
@@ -95,7 +99,6 @@ body {
     margin-top: 2px;
 }
 
-/* Overflow grouping: inline on desktop, popover on mobile. */
 #top-bar-overflow {
     display: flex;
     flex-direction: row;
