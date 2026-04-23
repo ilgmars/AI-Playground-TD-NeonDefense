@@ -1,3 +1,5 @@
+// Module-level ref so proxy buttons (set up outside init()) can reset the timer.
+let _resetOverflowTimer = null;
 let game;
 let selectedTowerType = null;
 let mousePos = { x: 0, y: 0 };
@@ -510,6 +512,12 @@ function init() {
     window.COLS = 24;
     window.ROWS = 16;
     window.TILE_SIZE = 40;
+
+    // Declare speed state early so updateSpeedColor() can reference them
+    // regardless of call order within init().
+    let speedClickCount = 0;
+    let speedClickTimer = null;
+    let ultraSpeedUnlocked = false;
     
     resizeCanvas(); // Scale to fit screen and set High-DPI bounds
 
@@ -536,6 +544,7 @@ function init() {
     game.updateUI();
     updateSeedDisplay();
     updateModeDisplay();
+    updateSpeedColor();
 
     // Populate all three Ascension selectors.
     renderAscensionSelector('start');
@@ -648,10 +657,6 @@ function init() {
             restartGame(game.seed);
         }
     });
-
-    let speedClickCount = 0;
-    let speedClickTimer = null;
-    let ultraSpeedUnlocked = false;
 
     // Speed display: white (1x) → orange → red (max). Uses a gradient mapped
     // to log2 of the current speed so each doubling steps the hue evenly.
@@ -850,13 +855,13 @@ function init() {
 
         function resetOverflowTimer() {
             clearTimeout(overflowTimer);
-            // Restart the CSS shrink animation by toggling the class
             overflowPanel.classList.remove('overflow-counting');
-            // Force reflow so the animation restarts
             void overflowPanel.offsetWidth;
             overflowPanel.classList.add('overflow-counting');
             overflowTimer = setTimeout(closeOverflow, OVERFLOW_TTL);
         }
+        // Expose so proxy buttons outside init() can call it
+        _resetOverflowTimer = resetOverflowTimer;
 
         overflowBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1497,36 +1502,56 @@ document.addEventListener('click', (e) => {
 
 document.addEventListener('DOMContentLoaded', init);
 
-// Mobile overflow proxy buttons — delegate clicks to the real buttons and
-// keep displayed values in sync via a MutationObserver.
+// Mobile overflow proxy buttons — inline the real action so clicks stay
+// inside the panel's event boundary, then reset the auto-close timer.
 (function setupOverflowProxies() {
-    const proxyMap = [
-        { proxyId: 'speed-btn-proxy',  realId: 'speed-btn',     displayId: 'speed-display'     },
-        { proxyId: 'auto-btn-proxy',   realId: 'autopilot-btn', displayId: 'autopilot-display' },
-    ];
+    document.addEventListener('DOMContentLoaded', () => {
+        // SPEED proxy
+        const speedProxy = document.getElementById('speed-btn-proxy');
+        if (speedProxy) {
+            speedProxy.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.getElementById('speed-btn').dispatchEvent(new MouseEvent('click', { bubbles: false }));
+                if (_resetOverflowTimer) _resetOverflowTimer();
+            });
+        }
 
-    proxyMap.forEach(({ proxyId, realId, displayId }) => {
-        const proxy   = document.getElementById(proxyId);
-        const real    = document.getElementById(realId);
-        const display = document.getElementById(displayId);
-        if (!proxy || !real || !display) return;
+        // AUTO proxy
+        const autoProxy = document.getElementById('auto-btn-proxy');
+        if (autoProxy) {
+            autoProxy.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.getElementById('autopilot-btn').dispatchEvent(new MouseEvent('click', { bubbles: false }));
+                if (_resetOverflowTimer) _resetOverflowTimer();
+            });
+        }
 
-        // Delegate click to the real button
-        proxy.addEventListener('click', () => real.click());
+        // Keep proxy display values in sync via MutationObserver
+        const proxyMap = [
+            { proxyId: 'speed-btn-proxy',  displayId: 'speed-display'     },
+            { proxyId: 'auto-btn-proxy',   displayId: 'autopilot-display' },
+        ];
+        proxyMap.forEach(({ proxyId, displayId }) => {
+            const proxy   = document.getElementById(proxyId);
+            const display = document.getElementById(displayId);
+            if (!proxy || !display) return;
+            const proxyValue = proxy.querySelector('.proxy-value');
+            if (!proxyValue) return;
 
-        // Mirror the current value into the proxy
-        const proxyValue = proxy.querySelector('.proxy-value');
-        if (!proxyValue) return;
-
-        const sync = () => {
-            proxyValue.textContent    = display.textContent;
-            proxyValue.className      = display.className + ' proxy-value';
-        };
-        sync();
-
-        // Watch for text/class changes on the real display element
-        new MutationObserver(sync).observe(display, {
-            childList: true, characterData: true, subtree: true, attributes: true
+            const sync = () => {
+                proxyValue.textContent  = display.textContent;
+                // Copy classes (carries .on etc) but keep proxy-value class
+                proxyValue.className    = display.className + ' proxy-value';
+                // Copy inline colour set by updateSpeedColor()
+                proxyValue.style.color      = display.style.color;
+                proxyValue.style.textShadow = display.style.textShadow;
+            };
+            sync();
+            new MutationObserver(sync).observe(display, {
+                childList: true, characterData: true, subtree: true, attributes: true
+            });
+            // Also watch inline style changes (not covered by MutationObserver attributes on style)
+            new MutationObserver(sync).observe(display, { attributeFilter: ['style'] });
         });
     });
 })();
