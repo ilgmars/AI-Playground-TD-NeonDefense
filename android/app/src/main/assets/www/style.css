@@ -27,9 +27,13 @@ body {
     justify-content: center;
     align-items: center;
     height: 100vh;
+    /* Use dynamic viewport height to handle address bar on mobile */
+    height: 100dvh;
     width: 100vw;
     margin: 0;
     overflow: hidden;
+    /* Prevent pull-to-refresh on mobile */
+    overscroll-behavior: none;
 }
 
 #app {
@@ -37,6 +41,8 @@ body {
     flex-direction: column;
     width: 100vw;
     height: 100vh;
+    /* Use dynamic viewport height to handle address bar on mobile */
+    height: 100dvh;
     padding: 0;
     gap: 0;
 }
@@ -456,6 +462,8 @@ button.danger:hover {
    Applied via body.touch-ui (set by JS input detection) so any touchscreen
    gets the touch-friendly layout regardless of screen size.
    Pure mouse users never get this class, so desktop experience is unchanged.
+   The existing @media (max-width: 768px) block below acts as a size-based
+   fallback for small screens that haven't fired a touch event yet.
    ─────────────────────────────────────────────────────────────────────────── */
 body.touch-ui #top-bar {
     padding: 6px 16px;
@@ -464,72 +472,173 @@ body.touch-ui #top-bar {
     padding-right: max(16px, env(safe-area-inset-right));
     gap: 6px;
 }
-body.touch-ui #top-bar-stats { gap: 14px; flex-shrink: 0; }
-body.touch-ui #top-bar-controls { gap: 10px; flex-shrink: 1; flex-wrap: nowrap; overflow: visible; }
-body.touch-ui .stat-box .label { font-size: 0.6rem; letter-spacing: 0.6px; line-height: 1; }
-body.touch-ui .stat-box .value { font-size: 1rem; line-height: 1.1; }
-body.touch-ui .stat-box.interactive { min-width: 44px; min-height: 44px; justify-content: center; padding: 2px 4px; border-radius: 6px; }
-body.touch-ui #top-bar-stats .stat-box { min-width: 0; min-height: 0; padding: 0; }
-body.touch-ui #air-countdown { font-size: 0.5rem !important; }
+body.touch-ui #top-bar-stats {
+    gap: 14px;
+    flex-shrink: 0;
+}
+body.touch-ui #top-bar-controls {
+    gap: 10px;
+    flex-shrink: 1;
+    flex-wrap: nowrap;
+    overflow: visible;
+}
+body.touch-ui .stat-box .label {
+    font-size: 0.6rem;
+    letter-spacing: 0.6px;
+    line-height: 1;
+}
+body.touch-ui .stat-box .value {
+    font-size: 1rem;
+    line-height: 1.1;
+}
+body.touch-ui .stat-box.interactive {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+    padding: 2px 4px;
+    border-radius: 6px;
+}
+body.touch-ui #top-bar-stats .stat-box {
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+}
+body.touch-ui #air-countdown {
+    font-size: 0.5rem !important;
+}
 body.touch-ui #top-bar-overflow {
-    position: absolute; top: 100%;
+    position: absolute;
+    top: 100%;
     right: max(4px, env(safe-area-inset-right));
     background: var(--panel-bg);
     border: 1px solid var(--border-color);
-    border-top: none; border-radius: 0 0 8px 8px;
-    padding: 8px 12px; flex-direction: column; gap: 10px; align-items: stretch;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-    z-index: 120; display: none; min-width: 130px; overflow: hidden;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 8px 12px;
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    z-index: 120;
+    display: none;
+    min-width: 130px;
+    overflow: hidden;
 }
-body.touch-ui #top-bar-overflow.open { display: flex; }
+body.touch-ui #top-bar-overflow.open {
+    display: flex;
+}
 body.touch-ui #top-bar-overflow.open::after {
-    content: ''; position: absolute; bottom: 0; left: 0;
-    height: 2px; width: 100%; background: var(--accent);
-    transform-origin: left center; transform: scaleX(1);
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0;
+    height: 2px; width: 100%;
+    background: var(--accent);
+    transform-origin: left center;
+    transform: scaleX(1);
     border-radius: 0 0 8px 8px;
 }
-body.touch-ui #top-bar-overflow.overflow-counting::after { animation: overflow-countdown 2s linear forwards; }
-body.touch-ui #top-bar-overflow .stat-box.interactive { flex-direction: row; justify-content: space-between; align-items: center; min-height: 40px; padding: 6px 10px; gap: 12px; }
+body.touch-ui #top-bar-overflow.overflow-counting::after {
+    animation: overflow-countdown 2s linear forwards;
+}
+body.touch-ui #top-bar-overflow .stat-box.interactive {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 40px;
+    padding: 6px 10px;
+    gap: 12px;
+}
 body.touch-ui #top-bar-overflow .stat-box .label { font-size: 0.65rem; }
 body.touch-ui #top-bar-overflow .stat-box .value { font-size: 0.95rem; }
-body.touch-ui #overflow-btn { display: flex; flex-shrink: 0; }
-body.touch-ui #overflow-btn .value { font-size: 1.4rem; line-height: 1; }
-body.touch-ui #speed-btn, body.touch-ui #ability-btn, body.touch-ui #autopilot-btn { display: none !important; }
-body.touch-ui .overflow-speed-proxy, body.touch-ui .overflow-auto-proxy { display: flex; }
+body.touch-ui #overflow-btn {
+    display: flex;
+    flex-shrink: 0;
+}
+body.touch-ui #overflow-btn .value {
+    font-size: 1.4rem;
+    line-height: 1;
+}
+body.touch-ui #speed-btn,
+body.touch-ui #ability-btn,
+body.touch-ui #autopilot-btn {
+    display: none !important;
+}
+body.touch-ui .overflow-speed-proxy,
+body.touch-ui .overflow-auto-proxy {
+    display: flex;
+}
 /* Portrait only — landscape overrides to row below */
 @media (orientation: portrait) {
-    body.touch-ui #content { flex-direction: column; }
+    body.touch-ui #content {
+        flex-direction: column;
+    }
 }
 body.touch-ui #build-menu {
-    width: 100%; height: auto; flex-direction: row;
-    border-left: none; border-top: 1px solid var(--border-color);
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    border-left: none;
+    border-top: 1px solid var(--border-color);
     padding: 10px 16px;
     padding-bottom: max(44px, env(safe-area-inset-bottom));
     padding-left: max(16px, env(safe-area-inset-left));
     padding-right: max(16px, env(safe-area-inset-right));
-    overflow-x: auto; overflow-y: hidden; gap: 8px;
-    -webkit-overflow-scrolling: touch; touch-action: pan-x;
-    min-height: 100px; scroll-snap-type: x proximity; align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 8px;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    min-height: 100px;
+    scroll-snap-type: x proximity;
+    align-items: center;
 }
-body.touch-ui #build-menu > h3, body.touch-ui #build-menu > hr { display: none; }
+body.touch-ui #build-menu > h3,
+body.touch-ui #build-menu > hr {
+    display: none;
+}
 body.touch-ui .tower-option {
-    flex-shrink: 0; width: 76px; min-height: 78px; flex-direction: column;
-    padding: 8px 6px; gap: 4px; align-items: center; justify-content: center;
-    text-align: center; scroll-snap-align: start;
+    flex-shrink: 0;
+    width: 76px;
+    min-height: 78px;
+    flex-direction: column;
+    padding: 8px 6px;
+    gap: 4px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    scroll-snap-align: start;
 }
-body.touch-ui .tower-option.dragging { opacity: 0.4; border-color: var(--accent); transform: scale(0.95); }
+body.touch-ui .tower-option.dragging {
+    opacity: 0.4;
+    border-color: var(--accent);
+    transform: scale(0.95);
+}
 body.touch-ui .tower-icon { width: 32px; height: 32px; }
 body.touch-ui .tower-info { align-items: center; text-align: center; }
-body.touch-ui .tower-info .name { font-size: 0.7rem; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px; }
+body.touch-ui .tower-info .name {
+    font-size: 0.7rem;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 60px;
+}
 body.touch-ui .tower-info .cost { font-size: 0.7rem; font-weight: 700; }
 body.touch-ui #upgrade-menu {
-    position: fixed; width: 100%; left: 0; right: 0; top: auto; bottom: 0;
-    max-height: 50vh; border-radius: 14px 14px 0 0;
-    border: 1px solid var(--accent); border-bottom: none;
-    padding: 14px 16px; padding-bottom: max(14px, env(safe-area-inset-bottom));
+    position: fixed;
+    width: 100%;
+    left: 0; right: 0;
+    top: auto; bottom: 0;
+    max-height: 50vh;
+    border-radius: 14px 14px 0 0;
+    border: 1px solid var(--accent);
+    border-bottom: none;
+    padding: 14px 16px;
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
     overflow-y: auto;
     box-shadow: 0 -8px 24px rgba(0,0,0,0.5), 0 0 20px rgba(56,189,248,0.3);
-    z-index: 50; animation: sheet-up 0.18s ease-out;
+    z-index: 50;
+    animation: sheet-up 0.18s ease-out;
 }
 body.touch-ui .upgrade-header { font-size: 1.1rem; }
 body.touch-ui .upgrade-stats  { font-size: 0.85rem; padding: 8px 10px; }
@@ -538,20 +647,41 @@ body.touch-ui .upg-name { font-size: 0.9rem; }
 body.touch-ui .upg-desc { font-size: 0.72rem; }
 body.touch-ui .upg-cost { font-size: 0.9rem; }
 
+/* Landscape touch: side-dock instead of bottom bar */
 @media (orientation: landscape) {
     body.touch-ui #content { flex-direction: row; }
     body.touch-ui #build-menu {
-        width: 84px; height: auto; flex-direction: column;
-        border-top: none; border-left: 1px solid var(--border-color);
-        padding: 4px; padding-right: max(4px, env(safe-area-inset-right));
-        overflow-x: hidden; overflow-y: auto; touch-action: pan-y; min-height: unset;
+        width: 84px;
+        height: auto;
+        flex-direction: column;
+        border-top: none;
+        border-left: 1px solid var(--border-color);
+        padding: 4px;
+        padding-right: max(4px, env(safe-area-inset-right));
+        overflow-x: hidden;
+        overflow-y: auto;
+        touch-action: pan-y;
+        min-height: unset;
     }
-    body.touch-ui .tower-option { width: 100%; min-height: 54px; padding: 3px 4px; }
+    body.touch-ui .tower-option {
+        width: 100%;
+        min-height: 54px;
+        padding: 3px 4px;
+    }
     body.touch-ui .tower-icon { width: 26px; height: 26px; }
     body.touch-ui .tower-info .name { font-size: 0.65rem; max-width: 70px; }
     body.touch-ui .tower-info .cost { font-size: 0.65rem; }
-    body.touch-ui #upgrade-menu { max-height: 45vh; width: calc(100% - 84px); left: 0; right: 84px; padding: 10px 14px; border-radius: 12px 12px 0 0; }
-    body.touch-ui #top-bar { padding: 3px 16px; padding-top: max(3px, env(safe-area-inset-top)); }
+    body.touch-ui #upgrade-menu {
+        max-height: 45vh;
+        width: calc(100% - 84px);
+        left: 0; right: 84px;
+        padding: 10px 14px;
+        border-radius: 12px 12px 0 0;
+    }
+    body.touch-ui #top-bar {
+        padding: 3px 16px;
+        padding-top: max(3px, env(safe-area-inset-top));
+    }
     body.touch-ui #top-bar-stats { gap: 12px; }
     body.touch-ui #top-bar-controls { gap: 8px; }
     body.touch-ui .stat-box .label { font-size: 0.55rem; }
@@ -828,7 +958,8 @@ body.touch-ui .upg-cost { font-size: 0.9rem; }
 }
 
 /* ── Touch-UI overlay scrolling ─────────────────────────────────────────────
-   Applies to any touch device regardless of screen size / orientation.     */
+   Applies to any touch device regardless of screen size / orientation.
+   Overlays become scrollable so menus are reachable in landscape too.       */
 body.touch-ui .overlay {
     overflow-y: auto;
     justify-content: flex-start;
@@ -854,6 +985,8 @@ body.touch-ui #tower-mastery { padding: 20px 14px; }
 body.touch-ui .tower-variant-grid { grid-template-columns: repeat(2, 1fr); max-width: 300px; }
 body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 
+/* In landscape, compact the overlay vertically so it fits without needing
+   as much scroll */
 @media (orientation: landscape) {
     body.touch-ui .overlay h1 { font-size: 1.6rem; letter-spacing: 2px; margin-bottom: 6px; }
     body.touch-ui .overlay h2 { font-size: 1.4rem; margin-bottom: 10px; }
@@ -1249,6 +1382,11 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     gap: 16px;
     transform: translate(-50%, -50%);
     pointer-events: all;
+    /* Add backdrop for better visibility */
+    padding: 8px;
+    border-radius: 50px;
+    background: rgba(15, 23, 42, 0.3);
+    backdrop-filter: blur(4px);
 }
 #place-confirm.hidden { display: none; }
 #place-confirm button {
@@ -1261,25 +1399,31 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     display: flex;
     align-items: center;
     justify-content: center;
-    border-width: 2px;
+    border-width: 3px;
     letter-spacing: 0;
     box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    /* Ensure buttons are always tappable */
+    touch-action: manipulation;
 }
 #place-confirm-yes {
     color: #4ade80;
     border-color: #4ade80;
+    background: rgba(74, 222, 128, 0.1);
     box-shadow: 0 0 16px rgba(74, 222, 128, 0.4);
 }
-#place-confirm-yes:hover {
+#place-confirm-yes:hover,
+#place-confirm-yes:active {
     background: #4ade80;
     color: #0f172a;
 }
 #place-confirm-no {
     color: var(--health);
     border-color: var(--health);
+    background: rgba(251, 113, 133, 0.1);
     box-shadow: 0 0 16px rgba(251, 113, 133, 0.4);
 }
-#place-confirm-no:hover {
+#place-confirm-no:hover,
+#place-confirm-no:active {
     background: var(--health);
     color: #0f172a;
 }
