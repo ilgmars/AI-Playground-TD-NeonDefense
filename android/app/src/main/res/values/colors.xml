@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="neon_bg">#0A0E27</color>
+    <color name="neon_accent">#22D3EE</color>
+    <color name="neon_accent_dark">#0F172A</color>
+</resources>
