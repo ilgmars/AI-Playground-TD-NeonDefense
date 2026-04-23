@@ -1239,13 +1239,46 @@ function init() {
         }
 
         // Actively dragging — suppress scroll and update canvas preview.
+        // Offset the ghost UP by 1.5 tiles so the finger doesn't obscure it.
         e.preventDefault();
         const rect = canvas.getBoundingClientRect();
         const logicalWidth  = window.COLS * window.TILE_SIZE;
         const logicalHeight = window.ROWS * window.TILE_SIZE;
+        const scaleY = logicalHeight / rect.height;
+        const GHOST_OFFSET_PX = 72;
         mousePos.x = (t.clientX - rect.left) * (logicalWidth  / rect.width);
-        mousePos.y = (t.clientY - rect.top)  * (logicalHeight / rect.height);
+        mousePos.y = (t.clientY - rect.top - GHOST_OFFSET_PX) * scaleY;
     }, { passive: false });
+
+    // Pending placement state: set when finger lifts over canvas, cleared on confirm/cancel.
+    let pendingPlacement = null;
+
+    function showPlaceConfirm(col, row, type, screenX, screenY) {
+        pendingPlacement = { col, row, type };
+        const el = document.getElementById('place-confirm');
+        el.classList.remove('hidden');
+        el.style.left = screenX + 'px';
+        el.style.top  = screenY + 'px';
+    }
+
+    function hidePlaceConfirm() {
+        pendingPlacement = null;
+        document.getElementById('place-confirm').classList.add('hidden');
+        selectedTowerType = null;
+        document.querySelectorAll('.tower-option').forEach(el => el.classList.remove('selected', 'dragging'));
+    }
+
+    document.getElementById('place-confirm-yes').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!pendingPlacement) return;
+        game.buildTower(pendingPlacement.col, pendingPlacement.row, pendingPlacement.type);
+        hidePlaceConfirm();
+    });
+
+    document.getElementById('place-confirm-no').addEventListener('click', (e) => {
+        e.stopPropagation();
+        hidePlaceConfirm();
+    });
 
     document.addEventListener('touchend', (e) => {
         if (!touchState) return;
@@ -1254,8 +1287,6 @@ function init() {
         clearTimeout(state.longPressTimer);
 
         if (state.longPressFired) {
-            // Long-press tooltip shown; release just schedules its dismissal
-            // and suppresses the synthetic click so the tower isn't selected.
             setTimeout(hideLongPressTooltip, 1200);
             e.preventDefault();
             state.el.classList.remove('dragging');
@@ -1263,27 +1294,39 @@ function init() {
         }
 
         if (state.dragging) {
-            // Drop: place tower if release was over the canvas.
+            state.el.classList.remove('dragging');
             const t = e.changedTouches[0];
             const rect = canvas.getBoundingClientRect();
+
             if (t.clientX >= rect.left && t.clientX <= rect.right &&
                 t.clientY >= rect.top  && t.clientY <= rect.bottom) {
+
                 const logicalWidth  = window.COLS * window.TILE_SIZE;
                 const logicalHeight = window.ROWS * window.TILE_SIZE;
+                const GHOST_OFFSET_PX = 72;
+                const scaleY = logicalHeight / rect.height;
                 const lx = (t.clientX - rect.left) * (logicalWidth  / rect.width);
-                const ly = (t.clientY - rect.top)  * (logicalHeight / rect.height);
-                const c = Math.floor(lx / window.TILE_SIZE);
-                const r = Math.floor(ly / window.TILE_SIZE);
-                game.buildTower(c, r, state.type);
+                const ly = (t.clientY - rect.top - GHOST_OFFSET_PX) * scaleY;
+                const col = Math.floor(lx / window.TILE_SIZE);
+                const row = Math.floor(ly / window.TILE_SIZE);
+
+                if (game.map.isBuildable(col, row) && game.canAfford(state.type)) {
+                    const tileCentreLogX = col * window.TILE_SIZE + window.TILE_SIZE / 2;
+                    const tileCentreLogY = row * window.TILE_SIZE + window.TILE_SIZE / 2;
+                    const sx = rect.left + tileCentreLogX / (logicalWidth  / rect.width);
+                    const sy = rect.top  + tileCentreLogY / (logicalHeight / rect.height);
+                    showPlaceConfirm(col, row, state.type, sx, sy);
+                } else {
+                    hidePlaceConfirm();
+                }
+            } else {
+                hidePlaceConfirm();
             }
-            selectedTowerType = null;
-            document.querySelectorAll('.tower-option').forEach(el => el.classList.remove('selected', 'dragging'));
-            e.preventDefault(); // suppress synthetic click that would re-toggle selection
+            e.preventDefault();
             return;
         }
 
-        // Pure tap — fall through; browser will fire synthetic click,
-        // which hits the inline onclick=selectTower/buyPotion.
+        // Pure tap — fall through to synthetic click.
     }, { passive: false });
 
     document.addEventListener('touchcancel', () => {
@@ -1292,9 +1335,7 @@ function init() {
         hideLongPressTooltip();
         if (touchState.el) touchState.el.classList.remove('dragging');
         touchState = null;
-        selectedTowerType = null;
-        document.querySelectorAll('.tower-option').forEach(el => el.classList.remove('selected', 'dragging'));
-    });
+        hidePlaceConfirm();
     // --- End mobile touch handling ---
 
     let lastClickTime = 0;
@@ -1382,8 +1423,16 @@ function init() {
         }
 
         if ((game.state === 'playing' || game.state === 'paused') && selectedTowerType) {
-            const c = Math.floor(mousePos.x / TILE_SIZE);
-            const r = Math.floor(mousePos.y / TILE_SIZE);
+            // During pending confirmation, lock ghost to the confirmed tile
+            const ghostX = (pendingPlacement && pendingPlacement.type === selectedTowerType)
+                ? pendingPlacement.col * window.TILE_SIZE + window.TILE_SIZE / 2
+                : mousePos.x;
+            const ghostY = (pendingPlacement && pendingPlacement.type === selectedTowerType)
+                ? pendingPlacement.row * window.TILE_SIZE + window.TILE_SIZE / 2
+                : mousePos.y;
+
+            const c = Math.floor(ghostX / TILE_SIZE);
+            const r = Math.floor(ghostY / TILE_SIZE);
             
             const ctx = game.ctx;
             const px = c * TILE_SIZE;
