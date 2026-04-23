@@ -533,15 +533,20 @@ button.danger:hover {
         flex-direction: row;
         border-left: none;
         border-top: 1px solid var(--border-color);
-        padding: 6px 8px;
-        padding-bottom: max(6px, env(safe-area-inset-bottom));
-        padding-left: max(8px, env(safe-area-inset-left));
-        padding-right: max(8px, env(safe-area-inset-right));
+        padding: 10px 12px;
+        padding-bottom: max(14px, env(safe-area-inset-bottom));
+        padding-left: max(12px, env(safe-area-inset-left));
+        padding-right: max(12px, env(safe-area-inset-right));
         overflow-x: auto;
         overflow-y: hidden;
-        gap: 6px;
+        gap: 8px;
         -webkit-overflow-scrolling: touch;
         touch-action: pan-x;
+        /* Lift the dock slightly so it's easier to reach with thumbs */
+        min-height: 90px;
+        scroll-snap-type: x proximity;
+        /* Wider scroll hit area */
+        align-items: center;
     }
 
     /* Hide the "DEFENSES" heading and the hr separator — they waste screen on phones. */
@@ -552,14 +557,15 @@ button.danger:hover {
 
     .tower-option {
         flex-shrink: 0;
-        width: 68px;
-        min-height: 72px;
+        width: 76px;
+        min-height: 78px;
         flex-direction: column;
-        padding: 6px 4px;
+        padding: 8px 6px;
         gap: 4px;
         align-items: center;
         justify-content: center;
         text-align: center;
+        scroll-snap-align: start;
     }
 
     .tower-option.dragging {
@@ -746,11 +752,11 @@ button.danger:hover {
         font-size: 0.85rem;
     }
     .tower-option {
-        width: 60px;
-        min-height: 68px;
+        width: 68px;
+        min-height: 74px;
     }
     .tower-info .name {
-        max-width: 54px;
+        max-width: 60px;
     }
 }
 
