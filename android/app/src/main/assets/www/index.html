@@ -5,28 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Neon Defense</title>
-    <script>
-        (function () {
-            function showErr(msg) {
-                var box = document.getElementById('__err_box__');
-                if (!box) {
-                    box = document.createElement('div');
-                    box.id = '__err_box__';
-                    box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#7f1d1d;color:#fff;font:12px/1.4 monospace;padding:8px;white-space:pre-wrap;max-height:50vh;overflow:auto;border-bottom:2px solid #f87171';
-                    (document.body || document.documentElement).appendChild(box);
-                }
-                box.textContent += msg + '\n';
-            }
-            window.addEventListener('error', function (e) {
-                showErr('[err] ' + (e.message || e.error) + ' @ ' + (e.filename || '?') + ':' + (e.lineno || '?'));
-            });
-            window.addEventListener('unhandledrejection', function (e) {
-                showErr('[unhandledrejection] ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
-            });
-            window.__showErr = showErr;
-        })();
-    </script>
     <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
 </head>
 
 <body>
@@ -68,17 +48,23 @@
                     <span class="label">AUTO</span>
                     <span id="autopilot-display" class="value">OFF</span>
                 </div>
-                <div class="stat-box interactive" id="sound-btn">
-                    <span class="label">SOUND</span>
-                    <span id="sound-display" class="value">OFF</span>
+                <div id="top-bar-overflow">
+                    <div class="stat-box interactive" id="sound-btn">
+                        <span class="label">SOUND</span>
+                        <span id="sound-display" class="value">OFF</span>
+                    </div>
+                    <div class="stat-box interactive" id="seed-btn" title="Click to copy seed link">
+                        <span class="label">SEED</span>
+                        <span id="seed-display" class="value">—</span>
+                    </div>
+                    <div class="stat-box interactive" id="restart-btn">
+                        <span class="label">SYS</span>
+                        <span id="restart-display" class="value">RST</span>
+                    </div>
                 </div>
-                <div class="stat-box interactive" id="seed-btn" title="Click to copy seed link">
-                    <span class="label">SEED</span>
-                    <span id="seed-display" class="value">—</span>
-                </div>
-                <div class="stat-box interactive" id="restart-btn">
-                    <span class="label">SYS</span>
-                    <span id="restart-display" class="value">RST</span>
+                <div class="stat-box interactive" id="overflow-btn" title="More options" aria-label="More options">
+                    <span class="label">MORE</span>
+                    <span class="value" aria-hidden="true">⋯</span>
                 </div>
             </div>
         </div>

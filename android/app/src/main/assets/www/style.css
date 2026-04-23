@@ -57,10 +57,14 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 8px 20px;
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
     flex-shrink: 0;
     background: var(--panel-bg);
     border-bottom: 1px solid var(--border-color);
     z-index: 10;
+    position: relative;
 }
 
 #top-bar-stats {
@@ -75,6 +79,18 @@ body {
     flex-direction: row;
     gap: 24px;
     align-items: center;
+}
+
+/* Overflow grouping: inline on desktop, popover on mobile. */
+#top-bar-overflow {
+    display: flex;
+    flex-direction: row;
+    gap: 24px;
+    align-items: center;
+}
+
+#overflow-btn {
+    display: none; /* desktop: hidden; mobile query flips this on */
 }
 
 .stat-box {
@@ -404,15 +420,20 @@ button.danger:hover {
     box-shadow: 0 0 20px rgba(251, 113, 133, 0.6);
 }
 
-/* Mobile Responsive */
-@media (max-width: 768px) {
+/* Mobile Responsive: narrow phones OR short (landscape-phone) screens.
+   The second clause catches devices like Pixel 7 landscape (915×412) which
+   are wider than 768 but still phones. */
+@media (max-width: 768px), (max-height: 500px) {
     #top-bar {
-        padding: 4px 10px;
+        padding: 6px 10px;
+        padding-top: max(6px, env(safe-area-inset-top));
+        padding-left: max(10px, env(safe-area-inset-left));
+        padding-right: max(10px, env(safe-area-inset-right));
         gap: 6px;
     }
 
     #top-bar-stats {
-        gap: 10px;
+        gap: 14px;
     }
 
     #top-bar-controls {
@@ -420,66 +441,410 @@ button.danger:hover {
     }
 
     .stat-box .label {
-        font-size: 0.5rem;
-        letter-spacing: 0.5px;
+        font-size: 0.6rem;
+        letter-spacing: 0.6px;
         line-height: 1;
     }
 
     .stat-box .value {
-        font-size: 0.8rem;
+        font-size: 1rem;
         line-height: 1.1;
     }
 
+    /* 44×44 minimum touch target for interactive controls. */
+    .stat-box.interactive {
+        min-width: 44px;
+        min-height: 44px;
+        justify-content: center;
+        padding: 2px 4px;
+        border-radius: 6px;
+    }
+
+    /* Stats don't need 44px height — keep them compact. */
+    #top-bar-stats .stat-box {
+        min-width: 0;
+        min-height: 0;
+        padding: 0;
+    }
+
     #air-countdown {
-        font-size: 0.45rem !important;
+        font-size: 0.5rem !important;
+    }
+
+    /* Overflow popover: shown when #top-bar-overflow.open */
+    #top-bar-overflow {
+        position: absolute;
+        top: 100%;
+        right: 4px;
+        background: var(--panel-bg);
+        border: 1px solid var(--border-color);
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        padding: 8px 12px;
+        flex-direction: column;
+        gap: 10px;
+        align-items: stretch;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+        z-index: 15;
+        display: none;
+        min-width: 120px;
+    }
+
+    #top-bar-overflow.open {
+        display: flex;
+    }
+
+    #top-bar-overflow .stat-box.interactive {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        min-height: 40px;
+        padding: 6px 10px;
+        gap: 12px;
+    }
+
+    #top-bar-overflow .stat-box .label {
+        font-size: 0.65rem;
+    }
+
+    #top-bar-overflow .stat-box .value {
+        font-size: 0.95rem;
+    }
+
+    #overflow-btn {
+        display: flex;
+    }
+
+    #overflow-btn .value {
+        font-size: 1.4rem;
+        line-height: 1;
     }
 
     #content {
         flex-direction: column;
     }
 
+    /* Build dock: compact icon-first row at bottom.
+       touch-action: pan-x lets the browser scroll the dock horizontally
+       while the JS drag-to-canvas handler owns vertical gestures. */
     #build-menu {
         width: 100%;
-        height: 110px;
+        height: auto;
         flex-direction: row;
         border-left: none;
         border-top: 1px solid var(--border-color);
         padding: 6px 8px;
-        padding-bottom: 20px;
+        padding-bottom: max(6px, env(safe-area-inset-bottom));
+        padding-left: max(8px, env(safe-area-inset-left));
+        padding-right: max(8px, env(safe-area-inset-right));
         overflow-x: auto;
         overflow-y: hidden;
         gap: 6px;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-x;
+    }
+
+    /* Hide the "DEFENSES" heading and the hr separator — they waste screen on phones. */
+    #build-menu > h3,
+    #build-menu > hr {
+        display: none;
     }
 
     .tower-option {
         flex-shrink: 0;
-        width: 90px;
-        padding: 6px 8px;
-        gap: 6px;
+        width: 68px;
+        min-height: 72px;
+        flex-direction: column;
+        padding: 6px 4px;
+        gap: 4px;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
     }
 
     .tower-option.dragging {
         opacity: 0.4;
         border-color: var(--accent);
+        transform: scale(0.95);
     }
 
     .tower-icon {
-        width: 22px;
-        height: 22px;
+        width: 32px;
+        height: 32px;
+    }
+
+    .tower-info {
+        align-items: center;
+        text-align: center;
     }
 
     .tower-info .name {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
+        line-height: 1.1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 60px;
+    }
+
+    .tower-info .cost {
+        font-size: 0.7rem;
+        font-weight: 700;
+    }
+
+    /* Upgrade menu slides up from the bottom — keeps the play field visible. */
+    #upgrade-menu {
+        position: fixed;
+        width: 100%;
+        left: 0;
+        right: 0;
+        top: auto;
+        bottom: 0;
+        max-height: 50vh;
+        border-radius: 14px 14px 0 0;
+        border: 1px solid var(--accent);
+        border-bottom: none;
+        padding: 14px 16px;
+        padding-bottom: max(14px, env(safe-area-inset-bottom));
+        overflow-y: auto;
+        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5), 0 0 20px rgba(56, 189, 248, 0.3);
+        z-index: 50;
+        animation: sheet-up 0.18s ease-out;
+    }
+
+    @keyframes sheet-up {
+        from { transform: translateY(100%); }
+        to   { transform: translateY(0); }
+    }
+
+    .upgrade-header {
+        font-size: 1.1rem;
+    }
+
+    .upgrade-stats {
+        font-size: 0.85rem;
+        padding: 8px 10px;
+    }
+
+    .upgrade-item {
+        padding: 10px 12px;
+        min-height: 44px;
+    }
+    .upg-name  { font-size: 0.9rem; }
+    .upg-desc  { font-size: 0.72rem; }
+    .upg-cost  { font-size: 0.9rem; }
+}
+
+/* Overlay scrolling and scaled titles on phones. Applies to every overlay:
+   main-menu, start-screen, game-over, restart-confirm, tech-tree, tower-mastery. */
+@media (max-width: 768px), (max-height: 500px) {
+    .overlay {
+        overflow-y: auto;
+        justify-content: flex-start;
+        padding: 24px 14px;
+        padding-top: max(24px, env(safe-area-inset-top));
+        padding-bottom: max(24px, env(safe-area-inset-bottom));
+    }
+
+    .overlay h1 {
+        font-size: 2.2rem;
+        letter-spacing: 3px;
+    }
+
+    .overlay h2 {
+        font-size: 1.9rem;
+    }
+
+    .overlay p {
+        font-size: 0.95rem;
+        margin-bottom: 20px;
+    }
+
+    .menu-buttons {
+        min-width: 0;
+        width: 100%;
+        max-width: 320px;
+    }
+
+    .menu-buttons button {
+        min-height: 44px;
+    }
+
+    button {
+        padding: 10px 22px;
+        font-size: 1rem;
+    }
+
+    /* Run-setup dropdowns / ascension buttons — let them breathe. */
+    .loadout-select {
+        min-width: 0;
+        width: 100%;
+        max-width: 320px;
+    }
+
+    .ascension-buttons {
+        max-width: 100%;
+    }
+
+    .seed-input-row input {
+        width: 80%;
+        max-width: 240px;
+    }
+
+    /* Tech tree: stack tiers vertically, reduce padding. */
+    #tech-tree {
+        padding: 20px 14px;
+    }
+
+    .tech-tree-grid {
+        gap: 12px;
+    }
+
+    .tree-tier {
+        min-width: 0;
+        width: 100%;
+        flex: 1 1 auto;
+    }
+
+    /* Score tabs on narrow screens — smaller gap, smaller font */
+    .score-tabs {
+        gap: 2px;
+    }
+
+    /* Game-over scoreboard fits the phone width */
+    #scoreboard {
+        width: 100% !important;
+        max-width: 280px;
+    }
+
+    /* Tower Mastery */
+    #tower-mastery {
+        padding: 20px 14px;
+    }
+
+    /* Tower variants grid: 2 columns instead of 3 at small widths */
+    .tower-variant-grid {
+        grid-template-columns: repeat(2, 1fr);
+        max-width: 300px;
+    }
+
+    /* Tower tooltip on mobile (long-press) — constrain width */
+    #tower-tooltip {
+        max-width: min(260px, calc(100vw - 16px));
+    }
+}
+
+/* Narrow phones (≤400px): pull overflow dock to single-column, tighter stats. */
+@media (max-width: 400px) {
+    #top-bar-stats {
+        gap: 8px;
+    }
+    #top-bar-stats .stat-box .label {
+        font-size: 0.55rem;
+    }
+    #top-bar-stats .stat-box .value {
+        font-size: 0.85rem;
+    }
+    .tower-option {
+        width: 60px;
+        min-height: 68px;
+    }
+    .tower-info .name {
+        max-width: 54px;
+    }
+}
+
+/* Landscape phones (Pixel 7 landscape = 915×412, etc): keep the dock on the
+   right side so vertical real estate survives. Applies whenever we're short
+   and in landscape, regardless of width. */
+@media (orientation: landscape) and (max-height: 500px) {
+    /* Tighter top bar — vertical pixels are precious in landscape. */
+    #top-bar {
+        padding: 3px 10px;
+        padding-top: max(3px, env(safe-area-inset-top));
+    }
+    #top-bar-stats { gap: 12px; }
+    #top-bar-controls { gap: 8px; }
+    .stat-box .label { font-size: 0.55rem; }
+    .stat-box .value { font-size: 0.9rem; }
+    .stat-box.interactive {
+        min-height: 38px;
+        min-width: 40px;
+        padding: 1px 4px;
+    }
+    #overflow-btn .value { font-size: 1.2rem; }
+    #air-countdown { font-size: 0.45rem !important; }
+
+    /* Side-dock layout for landscape: canvas left, build strip on right. */
+    #content {
+        flex-direction: row;
+    }
+
+    #build-menu {
+        width: 84px;
+        height: auto;
+        flex-direction: column;
+        border-top: none;
+        border-left: 1px solid var(--border-color);
+        padding: 4px 4px;
+        padding-bottom: 4px;
+        padding-right: max(4px, env(safe-area-inset-right));
+        overflow-x: hidden;
+        overflow-y: auto;
+        gap: 4px;
+        touch-action: pan-y;
+    }
+
+    #build-menu > h3,
+    #build-menu > hr {
+        display: none;
+    }
+
+    .tower-option {
+        width: 100%;
+        min-height: 54px;
+        padding: 3px 4px;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .tower-icon {
+        width: 26px;
+        height: 26px;
+    }
+
+    .tower-info .name {
+        font-size: 0.65rem;
+        max-width: 70px;
     }
 
     .tower-info .cost {
         font-size: 0.65rem;
     }
 
+    /* Upgrade menu: keep bottom-sheet but shorter so gameplay stays visible.
+       At 412px height, 45% ≈ 185px — covers the bottom of the canvas but
+       leaves enough play area to see what you're upgrading. */
     #upgrade-menu {
-        width: calc(100% - 40px);
-        left: 20px;
-        top: 20px;
+        max-height: 45vh;
+        width: calc(100% - 84px);   /* leave the side dock visible */
+        left: 0;
+        right: 84px;
+        bottom: 0;
+        padding: 10px 14px;
+        border-radius: 12px 12px 0 0;
+    }
+
+    .upgrade-header   { font-size: 1rem; }
+    .upgrade-stats    { font-size: 0.78rem; padding: 6px 8px; }
+    .upgrade-item     { padding: 6px 10px; min-height: 38px; }
+    .upg-name         { font-size: 0.8rem; }
+    .upg-desc         { font-size: 0.68rem; }
+    .upg-cost         { font-size: 0.8rem; }
+
+    /* Overflow popover: don't clip off right edge when MORE is near it. */
+    #top-bar-overflow {
+        right: 4px;
     }
 }
 
