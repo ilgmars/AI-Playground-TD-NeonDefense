@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:2:1-29:12
-INJECTED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:2:1-29:12
-INJECTED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:2:1-29:12
-INJECTED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:2:1-29:12
+ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:2:1-30:12
+INJECTED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:2:1-30:12
+INJECTED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:2:1-30:12
+INJECTED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:2:1-30:12
 MERGED from [androidx.appcompat:appcompat-resources:1.6.1] C:\Users\Janis\.gradle\caches\transforms-3\68b491ffcc6cd52d6dfc071349a68223\transformed\appcompat-resources-1.6.1\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.appcompat:appcompat:1.6.1] C:\Users\Janis\.gradle\caches\transforms-3\1269e761ba2b2764df14d796e474c793\transformed\appcompat-1.6.1\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.webkit:webkit:1.10.0] C:\Users\Janis\.gradle\caches\transforms-3\cebc4fa676c4a9a40dbe4ed91f6dbd4e\transformed\webkit-1.10.0\AndroidManifest.xml:2:1-7:12
@@ -42,8 +42,8 @@ MERGED from [androidx.annotation:annotation-experimental:1.3.0] C:\Users\Janis\.
 	xmlns:android
 		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:2:11-69
 application
-ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:4:5-28:19
-INJECTED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:4:5-28:19
+ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:4:5-29:19
+INJECTED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:4:5-29:19
 MERGED from [androidx.emoji2:emoji2:1.2.0] C:\Users\Janis\.gradle\caches\transforms-3\4db699d37aeb53b95d33ff3db7cc3cca\transformed\emoji2-1.2.0\AndroidManifest.xml:23:5-33:19
 MERGED from [androidx.emoji2:emoji2:1.2.0] C:\Users\Janis\.gradle\caches\transforms-3\4db699d37aeb53b95d33ff3db7cc3cca\transformed\emoji2-1.2.0\AndroidManifest.xml:23:5-33:19
 MERGED from [androidx.core:core:1.9.0] C:\Users\Janis\.gradle\caches\transforms-3\75919e89ab9acfe92b320b18b5eba894\transformed\core-1.9.0\AndroidManifest.xml:28:5-89
@@ -59,47 +59,49 @@ MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\Ja
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.9.0] C:\Users\Janis\.gradle\caches\transforms-3\75919e89ab9acfe92b320b18b5eba894\transformed\core-1.9.0\AndroidManifest.xml:28:18-86
 	android:label
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:8:9-41
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:9:9-41
 	android:hardwareAccelerated
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:13:9-43
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:14:9-43
 	android:fullBackupContent
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:6:9-41
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:7:9-41
 	android:roundIcon
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:9:9-48
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:10:9-48
 	android:icon
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:7:9-43
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:8:9-43
 	android:allowBackup
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:5:9-35
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:6:9-35
 	android:theme
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:10:9-49
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:11:9-49
 	android:networkSecurityConfig
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:12:9-69
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:13:9-69
 	android:usesCleartextTraffic
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:11:9-45
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:12:9-45
+	android:name
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:5:9-39
 activity#com.neondefense.game.MainActivity
-ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:15:9-27:20
+ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:16:9-28:20
 	android:screenOrientation
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:19:13-56
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:20:13-56
 	android:launchMode
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:18:13-44
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:19:13-44
 	android:exported
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:17:13-36
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:18:13-36
 	android:configChanges
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:20:13-102
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:21:13-102
 	android:theme
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:21:13-64
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:22:13-64
 	android:name
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:16:13-41
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:17:13-41
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:23:13-26:29
+ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:24:13-27:29
 action#android.intent.action.MAIN
-ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:24:17-69
+ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:25:17-69
 	android:name
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:24:25-66
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:25:25-66
 category#android.intent.category.LAUNCHER
-ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:25:17-77
+ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:26:17-77
 	android:name
-		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:25:27-74
+		ADDED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml:26:27-74
 uses-sdk
 INJECTED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from C:\Users\Janis\AI-Playground-TD-NeonDefense\android\app\src\main\AndroidManifest.xml

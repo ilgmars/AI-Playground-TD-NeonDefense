@@ -1,8 +1,11 @@
 package com.neondefense.game;
 
 import android.annotation.SuppressLint;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.Window;
@@ -16,6 +19,10 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.webkit.WebViewAssetLoader;
@@ -30,9 +37,27 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        enableImmersiveMode();
+        NeonDefenseApp.installCrashHandler(this);
 
+        String prevCrash = NeonDefenseApp.readCrashAndClear(this);
+        if (prevCrash != null) {
+            showCrashReport(prevCrash);
+            return;
+        }
+
+        try {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            setupWebView();
+            enableImmersiveMode();
+        } catch (Throwable t) {
+            NeonDefenseApp.writeCrash(this, Thread.currentThread(), t);
+            showCrashReport("Crash during MainActivity.onCreate\n\n"
+                    + android.util.Log.getStackTraceString(t));
+        }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private void setupWebView() {
         assetLoader = new WebViewAssetLoader.Builder()
                 .setDomain("appassets.androidplatform.net")
                 .setHttpAllowed(false)
@@ -80,9 +105,73 @@ public class MainActivity extends AppCompatActivity {
                 }
                 return null;
             }
+
+            @Override
+            public boolean onRenderProcessGone(WebView view,
+                                               android.webkit.RenderProcessGoneDetail detail) {
+                String msg = "WebView render process gone. didCrash="
+                        + (detail != null && detail.didCrash());
+                NeonDefenseApp.writeCrash(MainActivity.this,
+                        Thread.currentThread(), new RuntimeException(msg));
+                recreate();
+                return true;
+            }
         });
 
-        webView.loadUrl("https://appassets.androidplatform.net/assets/index.html");
+        webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html");
+    }
+
+    private void showCrashReport(String text) {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.parseColor("#0A0E27"));
+        root.setPadding(24, 48, 24, 24);
+
+        TextView title = new TextView(this);
+        title.setText("Neon Defense — last-run crash");
+        title.setTextColor(Color.parseColor("#F87171"));
+        title.setTextSize(18);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setPadding(0, 0, 0, 12);
+        root.addView(title);
+
+        TextView hint = new TextView(this);
+        hint.setText("Copy/screenshot and send this to fix the crash.");
+        hint.setTextColor(Color.parseColor("#94A3B8"));
+        hint.setTextSize(12);
+        hint.setPadding(0, 0, 0, 12);
+        root.addView(hint);
+
+        ScrollView scroll = new ScrollView(this);
+        TextView body = new TextView(this);
+        body.setText(text);
+        body.setTextIsSelectable(true);
+        body.setTextColor(Color.parseColor("#F1F5F9"));
+        body.setTypeface(Typeface.MONOSPACE);
+        body.setTextSize(11);
+        body.setPadding(12, 12, 12, 12);
+        body.setBackgroundColor(Color.parseColor("#1E293B"));
+        scroll.addView(body);
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+        root.addView(scroll, slp);
+
+        Button retry = new Button(this);
+        retry.setText("Try again");
+        retry.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                recreate();
+            }
+        });
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        blp.topMargin = 16;
+        root.addView(retry, blp);
+
+        root.setGravity(Gravity.TOP);
+        setContentView(root);
     }
 
     @Override
@@ -102,6 +191,10 @@ public class MainActivity extends AppCompatActivity {
 
     private void enableImmersiveMode() {
         Window window = getWindow();
+        if (window == null) return;
+        View decor = window.getDecorView();
+        if (decor == null) return;
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.setDecorFitsSystemWindows(false);
             WindowInsetsController ctl = window.getInsetsController();
@@ -111,7 +204,6 @@ public class MainActivity extends AppCompatActivity {
                         WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
             }
         } else {
-            View decor = window.getDecorView();
             decor.setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                             | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
