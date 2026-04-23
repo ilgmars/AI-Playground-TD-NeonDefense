@@ -505,6 +505,23 @@ window.addEventListener('orientationchange', () => {
     setTimeout(resizeCanvas, 250);
 });
 
+// Touch vs mouse detection — runs immediately, before init().
+(function detectInputMode() {
+    if (window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0) {
+        document.body.classList.add('touch-ui');
+    }
+    window.addEventListener('pointermove', (e) => {
+        if (e.pointerType === 'mouse') {
+            document.body.classList.remove('touch-ui');
+        }
+    }, { passive: true });
+    window.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+            document.body.classList.add('touch-ui');
+        }
+    }, { passive: true });
+})();
+
 function init() {
     const canvas = document.getElementById('game-canvas');
     
@@ -1130,7 +1147,7 @@ function init() {
     // Replaces the old unconditional-drag-on-touchstart logic, which broke
     // horizontal scrolling of the tower dock and had no tooltip on touch.
     function isMobile() {
-        return window.innerWidth <= 768;
+        return document.body.classList.contains('touch-ui') || window.innerWidth <= 768;
     }
 
     // Shared with the older hover path; this hash is (re)declared further

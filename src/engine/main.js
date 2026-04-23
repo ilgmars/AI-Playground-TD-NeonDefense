@@ -505,9 +505,34 @@ window.addEventListener('orientationchange', () => {
     setTimeout(resizeCanvas, 250);
 });
 
+// Touch vs mouse detection — runs immediately, before init().
+// Adds body.touch-ui when a touch device is detected, removes it if the
+// user switches to a real mouse (pointer move with no buttons pressed and
+// pointerType === 'mouse'). This lets CSS target touch users at any screen
+// size without affecting desktop mouse users.
+(function detectInputMode() {
+    // Start in touch mode if the device reports touch support.
+    if (window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0) {
+        document.body.classList.add('touch-ui');
+    }
+
+    // Upgrade to mouse mode the first time a real mouse moves.
+    window.addEventListener('pointermove', (e) => {
+        if (e.pointerType === 'mouse') {
+            document.body.classList.remove('touch-ui');
+        }
+    }, { passive: true });
+
+    // Switch back to touch mode on first touch.
+    window.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+            document.body.classList.add('touch-ui');
+        }
+    }, { passive: true });
+})();
+
 function init() {
     const canvas = document.getElementById('game-canvas');
-    
     // Fixed logical resolution for perfect game balance
     window.COLS = 24;
     window.ROWS = 16;
@@ -1144,7 +1169,7 @@ function init() {
     // Replaces the old unconditional-drag-on-touchstart logic, which broke
     // horizontal scrolling of the tower dock and had no tooltip on touch.
     function isMobile() {
-        return window.innerWidth <= 768;
+        return document.body.classList.contains('touch-ui') || window.innerWidth <= 768;
     }
 
     // Shared with the older hover path; this hash is (re)declared further
