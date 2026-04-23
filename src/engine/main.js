@@ -825,7 +825,7 @@ function init() {
     window.maybeShowStrategistPreview = maybeShowStrategistPreview;
 
     document.getElementById('restart-btn').addEventListener('click', () => {
-        if (game.state === 'playing') {
+        if (game.state === 'playing' || game.state === 'paused') {
             game.state = 'paused';
             document.getElementById('restart-confirm').classList.remove('hidden');
         }
@@ -913,6 +913,10 @@ function init() {
         gameSpeed = 1;
         document.getElementById('speed-display').textContent = '1X';
         updateSpeedColor();
+
+        const pauseEl = document.getElementById('pause-display');
+        pauseEl.textContent = 'OFF';
+        pauseEl.classList.remove('on', 'paused');
 
         const autoEl = document.getElementById('autopilot-display');
         autoEl.textContent = 'OFF';
