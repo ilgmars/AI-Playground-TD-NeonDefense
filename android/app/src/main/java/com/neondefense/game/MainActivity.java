@@ -18,10 +18,12 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.webkit.WebViewAssetLoader;
 
 public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
+    private WebViewAssetLoader assetLoader;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -31,6 +33,12 @@ public class MainActivity extends AppCompatActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         enableImmersiveMode();
 
+        assetLoader = new WebViewAssetLoader.Builder()
+                .setDomain("appassets.androidplatform.net")
+                .setHttpAllowed(false)
+                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .build();
+
         webView = new WebView(this);
         setContentView(webView);
 
@@ -38,8 +46,6 @@ public class MainActivity extends AppCompatActivity {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
-        s.setAllowFileAccess(true);
-        s.setAllowContentAccess(true);
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(false);
         s.setMediaPlaybackRequiresUserGesture(false);
@@ -47,7 +53,6 @@ public class MainActivity extends AppCompatActivity {
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
         webView.setBackgroundColor(0xFF0A0E27);
-        webView.setScrollbarFadingEnabled(true);
         webView.setVerticalScrollBarEnabled(false);
         webView.setHorizontalScrollBarEnabled(false);
 
@@ -55,7 +60,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public boolean onConsoleMessage(ConsoleMessage m) {
                 android.util.Log.d("NeonDefense",
-                        m.message() + " @ " + m.sourceId() + ":" + m.lineNumber());
+                        "[" + m.messageLevel() + "] " + m.message()
+                                + " @ " + m.sourceId() + ":" + m.lineNumber());
                 return true;
             }
         });
@@ -63,16 +69,20 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                String url = request.getUrl().toString();
-                if (url.startsWith("http://") || url.startsWith("https://")) {
+                String host = request.getUrl().getHost();
+                String scheme = request.getUrl().getScheme();
+                if ("appassets.androidplatform.net".equals(host)) {
+                    return assetLoader.shouldInterceptRequest(request.getUrl());
+                }
+                if ("http".equals(scheme) || "https".equals(scheme)) {
                     return new WebResourceResponse("text/plain", "utf-8",
                             new java.io.ByteArrayInputStream(new byte[0]));
                 }
-                return super.shouldInterceptRequest(view, request);
+                return null;
             }
         });
 
-        webView.loadUrl("file:///android_asset/www/index.html");
+        webView.loadUrl("https://appassets.androidplatform.net/assets/index.html");
     }
 
     @Override

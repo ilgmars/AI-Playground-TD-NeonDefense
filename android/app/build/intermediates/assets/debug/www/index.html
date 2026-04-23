@@ -5,6 +5,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Neon Defense</title>
+    <script>
+        (function () {
+            function showErr(msg) {
+                var box = document.getElementById('__err_box__');
+                if (!box) {
+                    box = document.createElement('div');
+                    box.id = '__err_box__';
+                    box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#7f1d1d;color:#fff;font:12px/1.4 monospace;padding:8px;white-space:pre-wrap;max-height:50vh;overflow:auto;border-bottom:2px solid #f87171';
+                    (document.body || document.documentElement).appendChild(box);
+                }
+                box.textContent += msg + '\n';
+            }
+            window.addEventListener('error', function (e) {
+                showErr('[err] ' + (e.message || e.error) + ' @ ' + (e.filename || '?') + ':' + (e.lineno || '?'));
+            });
+            window.addEventListener('unhandledrejection', function (e) {
+                showErr('[unhandledrejection] ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
+            });
+            window.__showErr = showErr;
+        })();
+    </script>
     <link rel="stylesheet" href="style.css">
 </head>
 
