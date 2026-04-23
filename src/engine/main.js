@@ -493,6 +493,15 @@ function resizeCanvas() {
 }
 
 window.addEventListener('resize', resizeCanvas);
+// iOS Safari sometimes fires `orientationchange` without a subsequent
+// `resize`, and landscape-portrait switches reshape the layout. Re-run the
+// DPR-aware sizing after the browser has committed the new orientation.
+window.addEventListener('orientationchange', () => {
+    // Small delay: some browsers report dimensions before the new orientation
+    // has actually been applied to the layout.
+    setTimeout(resizeCanvas, 50);
+    setTimeout(resizeCanvas, 250);
+});
 
 function init() {
     const canvas = document.getElementById('game-canvas');
@@ -794,6 +803,26 @@ function init() {
         }
     });
 
+    // Mobile overflow popover (SOUND/SEED/SYS). Desktop ignores this entirely —
+    // #overflow-btn is display:none and #top-bar-overflow is inline-flex.
+    const overflowBtn = document.getElementById('overflow-btn');
+    const overflowPanel = document.getElementById('top-bar-overflow');
+    if (overflowBtn && overflowPanel) {
+        overflowBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            overflowPanel.classList.toggle('open');
+        });
+        // Any tap inside the popover (on SOUND/SEED/SYS) should also close it.
+        overflowPanel.addEventListener('click', () => {
+            overflowPanel.classList.remove('open');
+        });
+        document.addEventListener('click', (e) => {
+            if (!overflowPanel.contains(e.target) && e.target !== overflowBtn && !overflowBtn.contains(e.target)) {
+                overflowPanel.classList.remove('open');
+            }
+        });
+    }
+
     function restartGame(seed) {
         document.getElementById('restart-confirm').classList.add('hidden');
         document.getElementById('game-over').classList.add('hidden');
@@ -1043,78 +1072,176 @@ function init() {
         mousePos.y = pos.y;
     });
 
-    // --- Mobile drag & drop ---
-    let dragType = null;
-    let dragPos = { x: -999, y: -999 }; // screen coords for ghost
-    let isDragging = false;
-
+    // --- Mobile touch handling: tap + drag-threshold + long-press tooltip ---
+    // Replaces the old unconditional-drag-on-touchstart logic, which broke
+    // horizontal scrolling of the tower dock and had no tooltip on touch.
     function isMobile() {
         return window.innerWidth <= 768;
     }
 
-    // Touch start on a tower option — begin drag
-    document.querySelectorAll('.tower-option[data-type]').forEach(el => {
+    // Shared with the older hover path; this hash is (re)declared further
+    // down in init() — via closure it's available by the time any callback
+    // runs, so we capture a reference lazily inside handlers.
+    const DRAG_THRESHOLD_PX = 10;
+    const LONG_PRESS_MS     = 450;
+    let touchState = null; // { type, el, startX, startY, dragging, longPressFired, longPressTimer, canDrag }
+
+    function getTowerTypeFromEl(el) {
+        if (el.dataset && el.dataset.type) return el.dataset.type;
+        if (el.id === 'potion-btn') return 'potion';
+        return null;
+    }
+
+    function showLongPressTooltip(type, anchorEl) {
+        const info = (typeof TOWER_INFO !== 'undefined') ? TOWER_INFO[type] : null;
+        if (!info) return;
+        const tip = document.getElementById('tower-tooltip');
+        document.getElementById('tt-name').textContent = info.name;
+        document.getElementById('tt-desc').textContent = info.desc;
+        document.getElementById('tt-stats').innerHTML =
+            `<span>DMG <b>${info.dmg}</b></span>` +
+            `<span>RNG <b>${info.rng}</b></span>` +
+            `<span>SPD <b>${info.spd}</b></span>` +
+            (info.special ? `<span>FX <b>${info.special}</b></span>` : '');
+        tip.classList.remove('hidden');
+        // Position above the anchor so finger isn't covering the text.
+        const r = anchorEl.getBoundingClientRect();
+        requestAnimationFrame(() => {
+            const tipR = tip.getBoundingClientRect();
+            let left = r.left + r.width / 2 - tipR.width / 2;
+            let top  = r.top - tipR.height - 10;
+            if (left < 4) left = 4;
+            if (left + tipR.width > window.innerWidth - 4) left = window.innerWidth - tipR.width - 4;
+            if (top < 4) top = r.bottom + 10;
+            tip.style.left = left + 'px';
+            tip.style.top  = top + 'px';
+        });
+    }
+
+    function hideLongPressTooltip() {
+        const tip = document.getElementById('tower-tooltip');
+        if (tip) tip.classList.add('hidden');
+    }
+
+    document.querySelectorAll('.tower-option').forEach(el => {
         el.addEventListener('touchstart', (e) => {
             if (!isMobile()) return;
             if (game.state !== 'playing' && game.state !== 'paused') return;
-            const type = el.dataset.type;
-            if (!game.canAfford(type)) return;
-            e.preventDefault();
-            dragType = type;
-            isDragging = true;
-            el.classList.add('dragging');
+            const type = getTowerTypeFromEl(el);
+            if (!type) return;
+
             const t = e.touches[0];
-            dragPos.x = t.clientX;
-            dragPos.y = t.clientY;
-        }, { passive: false });
+            // Clear any previous state cleanly.
+            if (touchState) {
+                clearTimeout(touchState.longPressTimer);
+                if (touchState.el) touchState.el.classList.remove('dragging');
+            }
+            touchState = {
+                type, el,
+                startX: t.clientX, startY: t.clientY,
+                dragging: false,
+                longPressFired: false,
+                // Potion is tap-only; towers support drag-to-place.
+                canDrag: type !== 'potion',
+                longPressTimer: setTimeout(() => {
+                    if (!touchState || touchState.dragging) return;
+                    touchState.longPressFired = true;
+                    showLongPressTooltip(type, el);
+                }, LONG_PRESS_MS),
+            };
+            // Deliberately do not preventDefault — lets the browser handle
+            // horizontal scroll of the dock if the user pans sideways.
+        }, { passive: true });
     });
 
     document.addEventListener('touchmove', (e) => {
-        if (!isDragging || !dragType) return;
-        e.preventDefault();
+        if (!touchState) return;
         const t = e.touches[0];
-        dragPos.x = t.clientX;
-        dragPos.y = t.clientY;
+        const dx = t.clientX - touchState.startX;
+        const dy = t.clientY - touchState.startY;
 
-        // Update mousePos so the canvas preview renders
-        const rect = canvas.getBoundingClientRect();
-        const logicalWidth = window.COLS * window.TILE_SIZE;
-        const logicalHeight = window.ROWS * window.TILE_SIZE;
-        mousePos.x = (t.clientX - rect.left) * (logicalWidth / rect.width);
-        mousePos.y = (t.clientY - rect.top) * (logicalHeight / rect.height);
+        if (!touchState.dragging) {
+            if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
 
-        // Activate tower type for preview rendering
-        if (selectedTowerType !== dragType) {
-            // Silently set without toggling UI selection
-            selectedTowerType = dragType;
+            // Beyond threshold — a gesture is committing. Kill long-press.
+            clearTimeout(touchState.longPressTimer);
+            hideLongPressTooltip();
+
+            // Horizontal-leaning movement = scroll intent; release to browser.
+            if (Math.abs(dx) > Math.abs(dy) * 1.2 || !touchState.canDrag) {
+                touchState = null;
+                return;
+            }
+
+            // Can't afford? Abort drag; let the user notice via disabled state.
+            if (!game.canAfford(touchState.type)) {
+                touchState = null;
+                return;
+            }
+
+            touchState.dragging = true;
+            touchState.el.classList.add('dragging');
+            selectedTowerType = touchState.type;
         }
+
+        // Actively dragging — suppress scroll and update canvas preview.
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const logicalWidth  = window.COLS * window.TILE_SIZE;
+        const logicalHeight = window.ROWS * window.TILE_SIZE;
+        mousePos.x = (t.clientX - rect.left) * (logicalWidth  / rect.width);
+        mousePos.y = (t.clientY - rect.top)  * (logicalHeight / rect.height);
     }, { passive: false });
 
     document.addEventListener('touchend', (e) => {
-        if (!isDragging || !dragType) return;
-        isDragging = false;
+        if (!touchState) return;
+        const state = touchState;
+        touchState = null;
+        clearTimeout(state.longPressTimer);
 
-        const t = e.changedTouches[0];
-        const rect = canvas.getBoundingClientRect();
-
-        // Only place if finger lifted over the canvas
-        if (t.clientX >= rect.left && t.clientX <= rect.right &&
-            t.clientY >= rect.top  && t.clientY <= rect.bottom) {
-            const logicalWidth = window.COLS * window.TILE_SIZE;
-            const logicalHeight = window.ROWS * window.TILE_SIZE;
-            const lx = (t.clientX - rect.left) * (logicalWidth / rect.width);
-            const ly = (t.clientY - rect.top)  * (logicalHeight / rect.height);
-            const c = Math.floor(lx / TILE_SIZE);
-            const r = Math.floor(ly / TILE_SIZE);
-            game.buildTower(c, r, dragType);
+        if (state.longPressFired) {
+            // Long-press tooltip shown; release just schedules its dismissal
+            // and suppresses the synthetic click so the tower isn't selected.
+            setTimeout(hideLongPressTooltip, 1200);
+            e.preventDefault();
+            state.el.classList.remove('dragging');
+            return;
         }
 
-        dragType = null;
-        selectedTowerType = null;
-        document.querySelectorAll('.tower-option').forEach(el => el.classList.remove('selected', 'dragging'));
+        if (state.dragging) {
+            // Drop: place tower if release was over the canvas.
+            const t = e.changedTouches[0];
+            const rect = canvas.getBoundingClientRect();
+            if (t.clientX >= rect.left && t.clientX <= rect.right &&
+                t.clientY >= rect.top  && t.clientY <= rect.bottom) {
+                const logicalWidth  = window.COLS * window.TILE_SIZE;
+                const logicalHeight = window.ROWS * window.TILE_SIZE;
+                const lx = (t.clientX - rect.left) * (logicalWidth  / rect.width);
+                const ly = (t.clientY - rect.top)  * (logicalHeight / rect.height);
+                const c = Math.floor(lx / window.TILE_SIZE);
+                const r = Math.floor(ly / window.TILE_SIZE);
+                game.buildTower(c, r, state.type);
+            }
+            selectedTowerType = null;
+            document.querySelectorAll('.tower-option').forEach(el => el.classList.remove('selected', 'dragging'));
+            e.preventDefault(); // suppress synthetic click that would re-toggle selection
+            return;
+        }
+
+        // Pure tap — fall through; browser will fire synthetic click,
+        // which hits the inline onclick=selectTower/buyPotion.
     }, { passive: false });
 
-    // --- End drag & drop ---
+    document.addEventListener('touchcancel', () => {
+        if (!touchState) return;
+        clearTimeout(touchState.longPressTimer);
+        hideLongPressTooltip();
+        if (touchState.el) touchState.el.classList.remove('dragging');
+        touchState = null;
+        selectedTowerType = null;
+        document.querySelectorAll('.tower-option').forEach(el => el.classList.remove('selected', 'dragging'));
+    });
+    // --- End mobile touch handling ---
 
     let lastClickTime = 0;
     let lastClickedType = null;
