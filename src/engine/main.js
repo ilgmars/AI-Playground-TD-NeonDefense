@@ -1276,8 +1276,15 @@ function init() {
             clearTimeout(touchState.longPressTimer);
             hideLongPressTooltip();
 
-            // Horizontal-leaning movement = scroll intent; release to browser.
-            if (Math.abs(dx) > Math.abs(dy) * 1.2 || !touchState.canDrag) {
+            // Check for scroll intent based on orientation:
+            // Portrait: build menu scrolls horizontally, so horizontal movement = scroll
+            // Landscape: build menu scrolls vertically, so vertical movement = scroll
+            const isLandscape = window.innerWidth > window.innerHeight;
+            const isScrollIntent = isLandscape 
+                ? Math.abs(dy) > Math.abs(dx) * 1.2  // Landscape: vertical scroll
+                : Math.abs(dx) > Math.abs(dy) * 1.2; // Portrait: horizontal scroll
+            
+            if (isScrollIntent || !touchState.canDrag) {
                 touchState = null;
                 return;
             }
