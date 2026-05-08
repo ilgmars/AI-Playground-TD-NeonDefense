@@ -67,6 +67,7 @@ async function runGame(params, workerId, ascensionTier = 0) {
         let maxWaveReached = 0;
         let totalRunTime = 0;
         let currentAscension = ascensionTier;
+        let lastLoggedWave = 0;
 
         // Poll game state until game-over or wave 300 (restart logic)
         while (true) {
@@ -95,15 +96,26 @@ async function runGame(params, workerId, ascensionTier = 0) {
                 }
             });
 
+            // Log progress every 10 waves
+            if (state.ready && state.wave % 10 === 0 && state.wave !== lastLoggedWave) {
+                lastLoggedWave = state.wave;
+                const elapsed = Math.round((Date.now() - runStart) / 1000);
+                console.log(`[Worker ${workerId}] Asc=${currentAscension}, Wave ${state.wave}, HP=${state.health}, $=${state.money}, Time=${elapsed}s`);
+            }
+
             if (state.done) {
                 totalRunTime = Date.now() - runStart;
                 maxWaveReached = state.wave;
+                const elapsed = Math.round(totalRunTime / 1000);
+                console.log(`[Worker ${workerId}] GAMEOVER at Asc=${currentAscension}, Wave ${state.wave}, Time=${elapsed}s`);
                 break;
             }
 
             if (state.ready && state.wave >= 300) {
                 // Wave 300 reached: escalate ascension and restart
                 currentAscension++;
+                const elapsed = Math.round((Date.now() - runStart) / 1000);
+                console.log(`[Worker ${workerId}] Wave 300 reached! Escalating to Asc=${currentAscension}, Time=${elapsed}s`);
                 await page.reload({ waitUntil: 'domcontentloaded' });
                 await injectSetup(page, SEED);
                 await page.evaluate((paramsStr) => {
