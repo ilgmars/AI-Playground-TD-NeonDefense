@@ -4,7 +4,7 @@ const { spawn } = require('child_process');
 function startServer(port) {
     return new Promise((resolve, reject) => {
         const server = spawn('python3', ['-m', 'http.server', String(port)], {
-            cwd: '/home/claude/AI-Playground-TD-NeonDefense',
+            cwd: '/home/claude/AI-Playground-TD-NeonDefense-TEST',
             stdio: 'ignore'
         });
 

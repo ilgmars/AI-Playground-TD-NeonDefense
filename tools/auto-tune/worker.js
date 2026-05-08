@@ -43,17 +43,17 @@ async function runGame(params, workerId, ascensionTier = 0) {
 
         // Set ascension tier and start game
         await page.click('#menu-start-btn');
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(800);
 
-        // Select ascension tier (with retries)
-        for (let i = 0; i < ascensionTier; i++) {
-            try {
-                const tierBtn = await page.waitForSelector(`button[data-tier="${i + 1}"]`, { timeout: 5000 });
-                if (tierBtn) await tierBtn.click();
-                await page.waitForTimeout(100);
-            } catch (e) {
-                console.log(`[Worker ${workerId}] Warning: Could not select tier ${i + 1}`);
-            }
+        // Set ascension tier directly via JS — bypasses locked UI buttons
+        if (ascensionTier > 0) {
+            await page.evaluate((tier) => {
+                if (typeof setTier === 'function') setTier(tier);
+                else if (typeof selectedTier !== 'undefined') {
+                    selectedTier = tier;
+                }
+            }, ascensionTier);
+            await page.waitForTimeout(300);
         }
 
         await page.waitForSelector('#start-btn', { timeout: 5000 });
