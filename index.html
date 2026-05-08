@@ -71,6 +71,10 @@
                         <span class="label">SYS</span>
                         <span id="restart-display" class="value">RST</span>
                     </div>
+                    <div class="stat-box interactive hidden" id="retire-btn">
+                        <span class="label">RETIRE</span>
+                        <span class="value" style="color:#4ade80;">✓</span>
+                    </div>
                 </div>
                 <div class="stat-box interactive" id="overflow-btn" title="More options" aria-label="More options">
                     <span class="label">MORE</span>
@@ -153,6 +157,52 @@
                     <button id="game-over-restart">RESTART</button>
                     <div class="seed-input-row" style="margin-top: 10px;">
                         <input type="number" id="gameover-seed-input" placeholder="SEED (optional)" />
+                    </div>
+                </div>
+
+                <div id="retire-confirm" class="hidden overlay">
+                    <h2>RETIRE?</h2>
+                    <p>End this run and claim your rewards.</p>
+                    <p style="font-size:0.85rem; color:var(--text-muted);">You'll receive a <span style="color:#4ade80;">+50% XP bonus</span> for retiring instead of dying.</p>
+                    <div style="display:flex; gap:20px; margin-top:10px;">
+                        <button id="retire-confirm-yes" style="background:rgba(74,222,128,0.15); border-color:#4ade80; color:#4ade80;">RETIRE</button>
+                        <button id="retire-confirm-no">CANCEL</button>
+                    </div>
+                </div>
+
+                <div id="victory" class="hidden overlay">
+                    <h2 style="color:#4ade80; text-shadow:0 0 20px rgba(74,222,128,0.5);">MISSION COMPLETE</h2>
+                    <p>Survived to Wave <span id="victory-wave"></span></p>
+                    <div class="xp-breakdown" id="victory-xp-breakdown">
+                        <div class="xp-breakdown-title">META-XP EARNED</div>
+                        <div class="xp-breakdown-row">
+                            <span>Wave XP</span><span id="victory-xp-wave">0</span>
+                        </div>
+                        <div class="xp-breakdown-row" id="victory-xp-clear-row">
+                            <span>Clear Bonus</span><span id="victory-xp-clear">0</span>
+                        </div>
+                        <div class="xp-breakdown-row" id="victory-xp-first-row">
+                            <span>First-Clear Bonus</span><span id="victory-xp-first">0</span>
+                        </div>
+                        <div class="xp-breakdown-row" style="color:#4ade80;">
+                            <span>Retire Bonus (+50%)</span><span id="victory-xp-retire">0</span>
+                        </div>
+                        <div class="xp-breakdown-total">
+                            <span>Total</span><span id="victory-xp-total">0</span>
+                        </div>
+                        <div class="xp-breakdown-balance">
+                            Balance: <span id="victory-xp-balance">0</span>
+                        </div>
+                        <div class="xp-breakdown-unlock hidden" id="victory-xp-unlock"></div>
+                    </div>
+                    <div class="ascension-row" style="margin-top:20px;">
+                        <span class="ascension-label">ASCENSION</span>
+                        <div class="ascension-buttons" data-context="victory"></div>
+                        <div class="ascension-modifiers-preview" data-context="victory">—</div>
+                    </div>
+                    <button id="victory-restart">PLAY AGAIN</button>
+                    <div class="seed-input-row" style="margin-top:10px;">
+                        <input type="number" id="victory-seed-input" placeholder="SEED (optional)" />
                     </div>
                 </div>
 

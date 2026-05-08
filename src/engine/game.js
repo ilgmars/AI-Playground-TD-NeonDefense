@@ -845,6 +845,10 @@ class Game {
             }
         });
 
+        // Retire button: unlocks after wave 10
+        const retireBtn = document.getElementById('retire-btn');
+        if (retireBtn) retireBtn.classList.toggle('hidden', this.wave < 10);
+
         // Potion button
         let potionBtn = document.getElementById('potion-btn');
         let potionCost = this.getPotionCost();
@@ -912,7 +916,14 @@ class Game {
         document.getElementById('final-wave').textContent = this.wave;
         document.getElementById('score-entry').style.display = 'flex';
         document.getElementById('player-name').value = '';
-        if (window.onRunEnded) window.onRunEnded({ wave: this.wave, tier: this.ascensionTier });
+        if (window.onRunEnded) window.onRunEnded({ wave: this.wave, tier: this.ascensionTier, retired: false });
         if (window.loadScores) window.loadScores();
+    }
+
+    victory() {
+        this.state = 'victory';
+        document.getElementById('victory').classList.remove('hidden');
+        document.getElementById('victory-wave').textContent = this.wave;
+        if (window.onRunEnded) window.onRunEnded({ wave: this.wave, tier: this.ascensionTier, retired: true });
     }
 }
