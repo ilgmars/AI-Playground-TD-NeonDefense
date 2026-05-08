@@ -128,13 +128,16 @@ async function runGame(params, workerId, ascensionTier = 0) {
             await page.waitForTimeout(100);
         }
 
-        // Calculate XP/sec
+        // Calculate XP/sec (use wave as proxy for XP)
         const elapsedSec = (totalRunTime || (Date.now() - runStart)) / 1000;
-        const finalState = await page.evaluate(() => ({
-            totalXP: (typeof game !== 'undefined' && game.totalXP) || 0
-        }));
+        const finalState = await page.evaluate(() => {
+            if (typeof game === 'undefined') return { totalXP: 0, finalWave: 0 };
+            // Try to get totalXP, fallback to wave * 100 as proxy
+            const xp = game.totalXP || (game.wave || 0) * 100;
+            return { totalXP: xp, finalWave: game.wave || 0 };
+        });
 
-        const xpPerSec = finalState.totalXP / Math.max(elapsedSec, 1);
+        const xpPerSec = Math.max(finalState.totalXP, maxWaveReached * 100) / Math.max(elapsedSec, 1);
 
         await browser.close();
 

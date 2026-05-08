@@ -77,16 +77,20 @@ async function runIteration(paramSets, ascensionTier = 0) {
             console.log(`  Worker ${i}: Asc=${r.ascension}, Wave=${r.finalWave}, XP/sec=${r.xpPerSec.toFixed(2)}`);
         });
 
-        // Pick winner: highest ascension, then highest xps
+        // Pick winner: highest ascension, then highest wave, then highest xps
         let winner = results[0];
         for (let i = 1; i < results.length; i++) {
-            if (results[i].ascension > winner.ascension ||
-                (results[i].ascension === winner.ascension && results[i].xpPerSec > winner.xpPerSec)) {
-                winner = results[i];
+            const r = results[i];
+            const w = results[i === 0 ? 0 : i];
+
+            if (r.ascension > winner.ascension ||
+                (r.ascension === winner.ascension && r.finalWave > winner.finalWave) ||
+                (r.ascension === winner.ascension && r.finalWave === winner.finalWave && r.xpPerSec > winner.xpPerSec)) {
+                winner = r;
             }
         }
 
-        console.log(`\nWinner: Worker with Asc=${winner.ascension}, Wave=${winner.finalWave}, XP/sec=${winner.xpPerSec.toFixed(2)}`);
+        console.log(`\n[WINNER] Asc=${winner.ascension}, Wave=${winner.finalWave}, XP/sec=${winner.xpPerSec.toFixed(2)}, RunTime=${winner.runTime}ms`);
 
         // Handle commit/push logic
         const { improved, committed, iteration } = handleWinner(winner);
