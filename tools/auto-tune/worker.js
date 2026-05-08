@@ -54,9 +54,14 @@ async function runGame(params, workerId, ascensionTier = 0) {
         await page.click('#start-btn');
         await page.waitForTimeout(800);
 
-        // Enable autopilot and set speed
+        // Enable autopilot
         await page.click('#autopilot-btn');
-        await page.evaluate((speed) => { gameSpeed = speed; }, GAME_SPEED);
+
+        // Wait for game to be initialized, then set speed
+        await page.waitForTimeout(500);
+        await page.evaluate((speed) => {
+            eval(`gameSpeed = ${speed}`);
+        }, GAME_SPEED);
 
         const runStart = Date.now();
         let maxWaveReached = 0;
@@ -122,7 +127,10 @@ async function runGame(params, workerId, ascensionTier = 0) {
                 await page.click('#start-btn');
                 await page.waitForTimeout(800);
                 await page.click('#autopilot-btn');
-                await page.evaluate((speed) => { gameSpeed = speed; }, GAME_SPEED);
+                await page.waitForTimeout(500);
+                await page.evaluate((speed) => {
+                    eval(`gameSpeed = ${speed}`);
+                }, GAME_SPEED);
             }
 
             if (Date.now() - runStart > MAX_WALL_TIME) {
