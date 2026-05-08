@@ -1,35 +1,35 @@
 {
-  "xpPerSec": 671.4517249363279,
+  "xpPerSec": 650.2971185110438,
   "ascension": 0,
   "finalWave": 58,
   "params": {
-    "xpPerSec": 460.75751659508006,
+    "xpPerSec": 472.23005356639413,
     "ascension": 0,
-    "finalWave": 59,
+    "finalWave": 67,
     "params": {
-      "xpPerSec": 453.0188237131922,
+      "xpPerSec": 549.9114549352223,
       "ascension": 0,
-      "finalWave": 58,
+      "finalWave": 59,
       "params": {
-        "xpPerSec": 497.9561501300632,
+        "xpPerSec": 605.4279749478079,
         "ascension": 0,
-        "finalWave": 67,
+        "finalWave": 58,
         "params": {
-          "xpPerSec": 421.0832002323218,
+          "xpPerSec": 506.6552168312581,
           "ascension": 0,
-          "finalWave": 58,
+          "finalWave": 59,
           "params": {
-            "xpPerSec": 509.576524336672,
+            "xpPerSec": 507.4395802872624,
             "ascension": 0,
-            "finalWave": 58,
+            "finalWave": 59,
             "params": {
-              "xpPerSec": 334.3710365502133,
+              "xpPerSec": 329.59052566895707,
               "ascension": 0,
-              "finalWave": 58,
+              "finalWave": 59,
               "params": {
                 "xpPerSec": 0,
                 "ascension": 0,
-                "finalWave": 58,
+                "finalWave": 59,
                 "params": {
                   "tickInterval": 30,
                   "laserSynergyRange": 3,
@@ -67,27 +67,27 @@
                     "income": 2
                   }
                 },
-                "runTime": 13248,
+                "runTime": 15306,
                 "totalXP": 0
               },
-              "runTime": 17346,
-              "totalXP": 5800
+              "runTime": 17901,
+              "totalXP": 5900
             },
-            "runTime": 11382,
-            "totalXP": 5800
+            "runTime": 11627,
+            "totalXP": 5900
           },
-          "runTime": 13774,
-          "totalXP": 5800
+          "runTime": 11645,
+          "totalXP": 5900
         },
-        "runTime": 13455,
-        "totalXP": 6700
+        "runTime": 9580,
+        "totalXP": 5800
       },
-      "runTime": 12803,
-      "totalXP": 5800
+      "runTime": 10729,
+      "totalXP": 5900
     },
-    "runTime": 12805,
-    "totalXP": 5900
+    "runTime": 14188,
+    "totalXP": 6700
   },
-  "runTime": 8638,
+  "runTime": 8919,
   "totalXP": 5800
 }
