@@ -80,3 +80,37 @@ Autopilot strategy knobs live in `AUTOPILOT_CONFIG`; the class only implements t
 - When changing balance, play at least through wave 28+ (that's where recent regressions have landed — see commit history).
 - **Balance changes go in [src/config/config.js](src/config/config.js) first.** Tower stats, enemy stats, wave timing, autopilot strategy, and upgrade trees all live there as single-source-of-truth objects. Only touch `entities.js` / `game.js` / `autopilot.js` if the change is logic, not numbers.
 - Keep seed compatibility in mind: any change to `GameMap.generateMap()` RNG call order invalidates every shared seed.
+
+## Auto-tune iterative testing harness
+
+Lives under [tools/auto-tune/](tools/auto-tune/). Runs the game headless in 6 parallel Playwright browsers, mutates `AUTOPILOT_CONFIG` knobs each iteration, and auto-commits winners.
+
+### Original prompt (verbatim, LV)
+
+> Tu esi spēļu AI un MLOps inženieris. Tavs uzdevums ir papildināt mūsu Tower Defense deterministisko testēšanas vidi ar automātisku labākās stratēģijas saglabāšanu un publicēšanu (git push).
+>
+> **Galvenās arhitektūras prasības:**
+> - **Deterministiskā vide un Paralēlisms:** 6 Node.js `worker_threads` darbojas headless režīmā (×2000 ātrums). Visiem workeriem nodod identisku PRNG sēklu (`const SEED = fiksēts_skaitlis`). Pilnībā aizstāj `Math.random()`.
+> - **Dinamiskā grūtība un Mērķis:** 'Retire' bonuss ir aizliegts. Bots cīnās līdz galam. Ja bots sasniedz noteiktu robežu (piem., Wave 300), Workeris nekavējoties pārstartē simulāciju šai pašai stratēģijai ar nākamo grūtības pakāpi (`ascensionLevel + 1`).
+> - **Stratēģiju vērtēšana:** Katrs no 6 workeriem izmanto atšķirīgus `autopilot.js` parametrus. Pēc visu workera sesiju pabeigšanas Main pavediens izvēlas to, kuram ir augstākais $XP/sec$ pie augstākā $Ascension$ līmeņa.
+> - **Automātiskais Git Commit:** Kad labākais bots ir noteikts, Main pavediens saglabā uzvarētāja parametrus, izveido detalizētu commit ziņojumu (`Auto-tune: Best bot found. Ascension: {A}, Wave: {W}, XP/sec: {E}, Params: {P}.`), un izpilda `git add . && git commit && git push` caur `child_process.execSync`.
+>
+> **Iteratīvais cikls (papildinājums):**
+> - Labākā bota kods kļūst par bāzi nākamās iterācijas variantiem (1 kontrole + 5 mutācijas), ko laist paralēli.
+> - Katrā iterācijā, kur redzams uzlabojums → `commit + push`.
+> - Ja uzlabojuma nav → `commit + push` katru piekto iterāciju.
+> - Neprasi confirmation darbībām — automātiski akceptē.
+
+### Invariants
+
+- **PRNG:** every `Math.random()` call site (entities.js, autopilot.js, game.js, audio.js, map.js) must read from the same seeded mulberry32. Seed is constant across workers and across iterations.
+- **No retire:** the harness disables the retire path entirely; runs end only at game-over.
+- **Speed:** workers force `gameSpeed = 2048` (256× hidden tier × 8).
+- **Ascension escalation:** on reaching wave 300, worker reloads the page with the same params and `ascensionTier += 1`.
+- **Scoring:** primary key = highest ascension reached; tie-break = highest `XP/sec`.
+
+### Commit policy
+
+- Improvement (winner score > stored best) → commit + push *that iteration*.
+- No improvement → commit + push every 5th iteration anyway, so progress (or lack thereof) is recorded.
+- All harness commits use the literal subject `Auto-tune: Best bot found. Ascension: {A}, Wave: {W}, XP/sec: {E}, Params: {P}` (P is the param diff, not the full set).
