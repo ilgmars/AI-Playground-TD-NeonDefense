@@ -10,7 +10,7 @@ const { injectSetup } = require('./inject-utils');
 const SEED = 42069; // fixed seed for reproducibility
 const PORT_BASE = 8765;
 const MAX_WALL_TIME = 600000; // 10 min per run (safeguard)
-const GAME_SPEED = 2048;
+const GAME_SPEED = 3000;
 
 async function runGame(params, workerId, ascensionTier = 0) {
     const port = PORT_BASE + workerId;
