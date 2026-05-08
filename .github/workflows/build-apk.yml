@@ -47,11 +47,20 @@ jobs:
       - name: Set local.properties (point to CI SDK)
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
 
+      - name: Decode release keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/neon-release.keystore
+
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
       - name: Build release APK
         working-directory: android
+        env:
+          KEYSTORE_PATH: neon-release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease --no-daemon --console=plain
 
       - name: Rename APK
@@ -65,7 +74,6 @@ jobs:
           retention-days: 30
 
       - name: Publish APK to GitHub Release
-        run: |
-          gh release upload Games NeonDefense.apk --clobber
+        run: gh release upload Games NeonDefense.apk --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

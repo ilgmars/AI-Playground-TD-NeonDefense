@@ -10,8 +10,20 @@ android {
         applicationId "com.neondefense.game"
         minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1"
+    }
+
+    signingConfigs {
+        release {
+            // Keystore is decoded from KEYSTORE_BASE64 env var in CI (see workflow).
+            // For local builds, place neon-release.keystore in android/ directory.
+            def ksPath = System.getenv("KEYSTORE_PATH") ?: file("neon-release.keystore").absolutePath
+            storeFile     file(ksPath)
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "neondefense2024"
+            keyAlias      System.getenv("KEY_ALIAS")         ?: "neon-release"
+            keyPassword   System.getenv("KEY_PASSWORD")      ?: "neondefense2024"
+        }
     }
 
     buildTypes {
@@ -20,7 +32,7 @@ android {
         }
         release {
             minifyEnabled false
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
         }
     }
 
