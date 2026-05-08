@@ -21,11 +21,16 @@ function loadState() {
     if (fs.existsSync(STATE_FILE)) {
         return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
     }
-    return { iteration: 0, lastCommit: -1 };
+    return { iteration: 0, lastCommit: -1, maxAscensionReached: 0 };
 }
 
 function saveState(state) {
     fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+}
+
+function updateMaxAscension(ascension, state) {
+    state.maxAscensionReached = Math.max(state.maxAscensionReached || 0, ascension);
+    saveState(state);
 }
 
 function scoreKey(result) {
@@ -98,4 +103,4 @@ function handleWinner(result) {
     return { improved, committed, iteration: state.iteration };
 }
 
-module.exports = { handleWinner, loadBestParams, saveBestParams, loadState, saveState };
+module.exports = { handleWinner, loadBestParams, saveBestParams, loadState, saveState, updateMaxAscension };

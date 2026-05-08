@@ -5,7 +5,7 @@
 const { Worker } = require('worker_threads');
 const path = require('path');
 const { generateNextParamSets } = require('./mutate');
-const { handleWinner, loadBestParams, saveBestParams } = require('./commit');
+const { handleWinner, loadBestParams, saveBestParams, loadState, updateMaxAscension } = require('./commit');
 
 const WORKER_COUNT = 6;
 const WORKER_FILE = path.join(__dirname, 'worker.js');
@@ -109,7 +109,10 @@ async function main() {
 
     let best = loadBestParams() || DEFAULT_PARAMS;
     let paramSets = generateNextParamSets(best);
-    let ascensionTier = 0;
+    let state = loadState();
+    let ascensionTier = state.maxAscensionReached || 0;
+
+    console.log(`Starting from Ascension ${ascensionTier} (max reached: ${state.maxAscensionReached})`);
 
     // Run indefinitely, escalating ascension when benchmarking is solid
     for (let iter = 0; iter < 1000; iter++) {
@@ -118,9 +121,13 @@ async function main() {
             best = winner;
             paramSets = generateNextParamSets(best);
 
+            // Track max ascension reached
+            updateMaxAscension(winner.ascension, state);
+
             // Every 5 iterations, escalate difficulty if we're reaching wave 100 consistently
             if ((iter + 1) % 5 === 0 && ascensionTier < 10) {
                 ascensionTier++;
+                updateMaxAscension(ascensionTier, state);
                 console.log(`\n*** Escalating to Ascension ${ascensionTier} ***\n`);
             }
         } catch (error) {
