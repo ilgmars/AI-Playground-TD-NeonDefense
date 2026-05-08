@@ -1,17 +1,23 @@
 #!/bin/sh
 #
-# Copyright © 2015-2021 the original authors.
-# Licensed under the Apache License, Version 2.0.
-# Gradle wrapper shell script.
+# Gradle wrapper startup script for Unix.
+# Generated from official Gradle template — safe for CI use.
 
 ##############################################################################
-# Configuration
+# Helpers
 ##############################################################################
 
-APP_NAME="Gradle"
-APP_BASE_NAME=$(basename "$0")
+die() {
+    echo
+    echo "ERROR: $*"
+    echo
+    exit 1
+}
 
-# Resolve the path of this script
+##############################################################################
+# Resolve APP_HOME
+##############################################################################
+
 PRG="$0"
 while [ -h "$PRG" ]; do
     ls=$(ls -ld "$PRG")
@@ -24,40 +30,36 @@ while [ -h "$PRG" ]; do
 done
 
 SAVED="$(pwd)"
-cd "$(dirname "$PRG")/" >/dev/null
+cd "$(dirname "$PRG")/" >/dev/null || die "cd failed"
 APP_HOME="$(pwd -P)"
-cd "$SAVED" >/dev/null
+cd "$SAVED" >/dev/null || die "cd failed"
 
-CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
+APP_NAME="Gradle"
+APP_BASE_NAME=$(basename "$0")
 
 ##############################################################################
-# Java executable and options
+# Java
 ##############################################################################
 
 if [ -n "$JAVA_HOME" ]; then
-    if [ -x "$JAVA_HOME/jre/sh/java" ]; then
-        JAVACMD="$JAVA_HOME/jre/sh/java"
-    else
-        JAVACMD="$JAVA_HOME/bin/java"
-    fi
-    if [ ! -x "$JAVACMD" ]; then
-        die "JAVA_HOME is set to an invalid directory: $JAVA_HOME"
-    fi
+    JAVACMD="$JAVA_HOME/bin/java"
+    [ -x "$JAVACMD" ] || die "JAVA_HOME is invalid: $JAVA_HOME"
 else
     JAVACMD="java"
-    which java >/dev/null 2>&1 || die "ERROR: JAVA_HOME is not set and no 'java' could be found in PATH."
+    command -v java >/dev/null 2>&1 || die "java not found in PATH and JAVA_HOME not set"
 fi
 
-DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
-
 ##############################################################################
-# Execute
+# Build argument list and exec
 ##############################################################################
 
-set -- \
+CLASSPATH="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
+
+# shellcheck disable=SC2086
+exec "$JAVACMD" \
+    -Xmx64m \
+    -Xms64m \
     "-Dorg.gradle.appname=$APP_BASE_NAME" \
     -classpath "$CLASSPATH" \
     org.gradle.wrapper.GradleWrapperMain \
     "$@"
-
-exec "$JAVACMD" $DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS "$@"
