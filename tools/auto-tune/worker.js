@@ -43,16 +43,22 @@ async function runGame(params, workerId, ascensionTier = 0) {
 
         // Set ascension tier and start game
         await page.click('#menu-start-btn');
-        await page.waitForTimeout(200);
+        await page.waitForTimeout(500);
 
-        // Select ascension tier
+        // Select ascension tier (with retries)
         for (let i = 0; i < ascensionTier; i++) {
-            const tierBtn = await page.$(`button[data-tier="${i + 1}"]`);
-            if (tierBtn) await tierBtn.click();
+            try {
+                const tierBtn = await page.waitForSelector(`button[data-tier="${i + 1}"]`, { timeout: 5000 });
+                if (tierBtn) await tierBtn.click();
+                await page.waitForTimeout(100);
+            } catch (e) {
+                console.log(`[Worker ${workerId}] Warning: Could not select tier ${i + 1}`);
+            }
         }
 
+        await page.waitForSelector('#start-btn', { timeout: 5000 });
         await page.click('#start-btn');
-        await page.waitForTimeout(800);
+        await page.waitForTimeout(1000);
 
         // Enable autopilot
         await page.click('#autopilot-btn');
