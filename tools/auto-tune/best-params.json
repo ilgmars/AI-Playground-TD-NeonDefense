@@ -1,149 +1,156 @@
 {
-  "xpPerSec": 462.1030217913288,
-  "ascension": 9,
+  "xpPerSec": 461.3505812112714,
+  "ascension": 10,
   "finalWave": 100,
   "params": {
-    "xpPerSec": 435.4136429608128,
+    "xpPerSec": 462.1030217913288,
     "ascension": 9,
     "finalWave": 100,
     "params": {
-      "xpPerSec": 471.89451769604443,
-      "ascension": 7,
+      "xpPerSec": 435.4136429608128,
+      "ascension": 9,
       "finalWave": 100,
       "params": {
-        "xpPerSec": 469.59163942728236,
-        "ascension": 4,
+        "xpPerSec": 471.89451769604443,
+        "ascension": 7,
         "finalWave": 100,
         "params": {
-          "xpPerSec": 449.1215710448682,
+          "xpPerSec": 469.59163942728236,
           "ascension": 4,
           "finalWave": 100,
           "params": {
-            "xpPerSec": 237.5850181682661,
-            "ascension": 2,
+            "xpPerSec": 449.1215710448682,
+            "ascension": 4,
             "finalWave": 100,
             "params": {
-              "xpPerSec": 243.87911247130836,
+              "xpPerSec": 237.5850181682661,
               "ascension": 2,
               "finalWave": 100,
               "params": {
-                "xpPerSec": 269.60589961145035,
+                "xpPerSec": 243.87911247130836,
                 "ascension": 2,
                 "finalWave": 100,
                 "params": {
-                  "xpPerSec": 293.88884086783645,
-                  "ascension": 1,
+                  "xpPerSec": 269.60589961145035,
+                  "ascension": 2,
                   "finalWave": 100,
                   "params": {
-                    "xpPerSec": 289.34528537387945,
+                    "xpPerSec": 293.88884086783645,
                     "ascension": 1,
                     "finalWave": 100,
                     "params": {
-                      "xpPerSec": 302.6885868597543,
-                      "ascension": 0,
+                      "xpPerSec": 289.34528537387945,
+                      "ascension": 1,
                       "finalWave": 100,
                       "params": {
-                        "xpPerSec": 285.44243577545194,
+                        "xpPerSec": 302.6885868597543,
                         "ascension": 0,
                         "finalWave": 100,
                         "params": {
-                          "xpPerSec": 242.8397971573459,
+                          "xpPerSec": 285.44243577545194,
                           "ascension": 0,
                           "finalWave": 100,
                           "params": {
-                            "xpPerSec": 298.997479040863,
+                            "xpPerSec": 242.8397971573459,
                             "ascension": 0,
                             "finalWave": 100,
                             "params": {
-                              "xpPerSec": 220.52841176722475,
+                              "xpPerSec": 298.997479040863,
                               "ascension": 0,
                               "finalWave": 100,
                               "params": {
-                                "xpPerSec": 0,
+                                "xpPerSec": 220.52841176722475,
                                 "ascension": 0,
                                 "finalWave": 100,
                                 "params": {
-                                  "tickInterval": 30,
-                                  "laserSynergyRange": 3,
-                                  "laserSynergyScore": 40,
-                                  "saveBufferFlakUrgent": 100,
-                                  "saveBufferFlakNeeded": 50,
-                                  "saveDeficitSevere": 2,
-                                  "saveDeficitModerate": 1,
-                                  "saveEarlyTowerTotal": 8,
-                                  "mustBuildMinTowers": 7,
-                                  "mustBuildWantedFraction": 0.68,
-                                  "upgradeAlongsideBuild": 200,
-                                  "potionHealthThreshold": 12,
-                                  "airImminentWindow": 2,
-                                  "wantedCountCapMult": {
-                                    "basic": 1,
-                                    "flak": 1,
-                                    "rapid": 1,
-                                    "laser": 1,
-                                    "sniper": 1,
-                                    "rocket": 1,
-                                    "electric": 1,
-                                    "silo": 1,
-                                    "income": 1
+                                  "xpPerSec": 0,
+                                  "ascension": 0,
+                                  "finalWave": 100,
+                                  "params": {
+                                    "tickInterval": 30,
+                                    "laserSynergyRange": 3,
+                                    "laserSynergyScore": 40,
+                                    "saveBufferFlakUrgent": 100,
+                                    "saveBufferFlakNeeded": 50,
+                                    "saveDeficitSevere": 2,
+                                    "saveDeficitModerate": 1,
+                                    "saveEarlyTowerTotal": 8,
+                                    "mustBuildMinTowers": 7,
+                                    "mustBuildWantedFraction": 0.68,
+                                    "upgradeAlongsideBuild": 200,
+                                    "potionHealthThreshold": 12,
+                                    "airImminentWindow": 2,
+                                    "wantedCountCapMult": {
+                                      "basic": 1,
+                                      "flak": 1,
+                                      "rapid": 1,
+                                      "laser": 1,
+                                      "sniper": 1,
+                                      "rocket": 1,
+                                      "electric": 1,
+                                      "silo": 1,
+                                      "income": 1
+                                    },
+                                    "upgradeValue": {
+                                      "silo": 10,
+                                      "rocket": 9,
+                                      "electric": 8,
+                                      "sniper": 7,
+                                      "laser": 6,
+                                      "flak": 5,
+                                      "rapid": 4,
+                                      "basic": 3,
+                                      "income": 2
+                                    }
                                   },
-                                  "upgradeValue": {
-                                    "silo": 10,
-                                    "rocket": 9,
-                                    "electric": 8,
-                                    "sniper": 7,
-                                    "laser": 6,
-                                    "flak": 5,
-                                    "rapid": 4,
-                                    "basic": 3,
-                                    "income": 2
-                                  }
+                                  "runTime": 32896,
+                                  "totalXP": 0
                                 },
-                                "runTime": 32896,
-                                "totalXP": 0
+                                "runTime": 46706,
+                                "totalXP": 10300
                               },
-                              "runTime": 46706,
-                              "totalXP": 10300
+                              "runTime": 34114,
+                              "totalXP": 10200
                             },
-                            "runTime": 34114,
+                            "runTime": 42003,
                             "totalXP": 10200
                           },
-                          "runTime": 42003,
+                          "runTime": 35734,
                           "totalXP": 10200
                         },
-                        "runTime": 35734,
+                        "runTime": 33698,
                         "totalXP": 10200
                       },
-                      "runTime": 33698,
+                      "runTime": 35252,
                       "totalXP": 10200
                     },
-                    "runTime": 35252,
+                    "runTime": 34707,
                     "totalXP": 10200
                   },
-                  "runTime": 34707,
+                  "runTime": 37833,
                   "totalXP": 10200
                 },
-                "runTime": 37833,
+                "runTime": 41824,
                 "totalXP": 10200
               },
-              "runTime": 41824,
+              "runTime": 42932,
               "totalXP": 10200
             },
-            "runTime": 42932,
+            "runTime": 22711,
             "totalXP": 10200
           },
-          "runTime": 22711,
+          "runTime": 21721,
           "totalXP": 10200
         },
-        "runTime": 21721,
+        "runTime": 21615,
         "totalXP": 10200
       },
-      "runTime": 21615,
+      "runTime": 23426,
       "totalXP": 10200
     },
-    "runTime": 23426,
+    "runTime": 22073,
     "totalXP": 10200
   },
-  "runTime": 22073,
+  "runTime": 22109,
   "totalXP": 10200
 }
