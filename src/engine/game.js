@@ -281,10 +281,10 @@ class Game {
             }
             
             this.currentWaveDef = {
-                count: Math.floor(airCount * this.ascension.countMult),
+                count: Math.min(300, Math.floor(airCount * this.ascension.countMult)),
                 type: 'air',
                 spawnRate: Math.max(20, 50 - Math.floor(this.wave / 8)),
-                hpMult: finalHpMult * 0.98 // Slightly weaker than ground
+                hpMult: finalHpMult * 0.98
             };
             this.enemiesSpawned = 0;
             this.spawnTimer = 60;
@@ -327,10 +327,10 @@ class Game {
         }
 
         this.currentWaveDef = {
-            count: Math.floor(def.count * countMult * this.ascension.countMult),
+            count: Math.min(300, Math.floor(def.count * countMult * this.ascension.countMult)),
             type: def.type,
             spawnRate: Math.max(12, def.spawnRate - loops * 2),
-            hpMult: def.hpMult * finalHpMult // HP scales with wave + investment
+            hpMult: def.hpMult * finalHpMult
         };
 
         this.enemiesSpawned = 0;
@@ -393,7 +393,9 @@ class Game {
 
         if (this.currentWaveDef) {
             if (this.enemiesSpawned < this.currentWaveDef.count) {
-                if (this.spawnTimer > 0) {
+                if (this.enemiesSpawned >= 10 && this.enemies.filter(e => e.active).length === 0) {
+                    this.enemiesSpawned = this.currentWaveDef.count;
+                } else if (this.spawnTimer > 0) {
                     this.spawnTimer--;
                 } else if (this.isBossWave && this.enemiesSpawned === 0) {
                     // M3: Boss wave — spawn one boss and short-circuit further spawns.
