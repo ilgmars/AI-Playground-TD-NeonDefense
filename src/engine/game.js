@@ -875,7 +875,7 @@ class Game {
             const dx = enemy.x - x;
             const dy = enemy.y - y;
             if (dx*dx + dy*dy <= r2) {
-                enemy.hp -= damage;
+                enemy.takeDamage(damage);
                 if (enemy.hp <= 0) enemy.active = false;
             }
         }

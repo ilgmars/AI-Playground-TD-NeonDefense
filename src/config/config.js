@@ -157,10 +157,10 @@ const TOWER_VARIANTS = {
 // Enemy base stats. hp is multiplied by the wave's hpMultiplier.
 // -------------------------------------------------------------------------
 const ENEMIES = {
-    normal: { hp: 20, speed: 1,   reward: 5,  radius: 12 },
-    fast:   { hp: 10, speed: 1.8, reward: 3,  radius: 10 },
-    tank:   { hp: 60, speed: 0.6, reward: 10, radius: 15 },
-    air:    { hp: 25, speed: 0.6, reward: 8,  radius: 14 }
+    normal: { hp: 20, speed: 1,   reward: 5,  radius: 12, defense: 0    },
+    fast:   { hp: 10, speed: 1.8, reward: 3,  radius: 10, defense: 0    },
+    tank:   { hp: 60, speed: 0.6, reward: 10, radius: 15, defense: 0.20 },
+    air:    { hp: 25, speed: 0.6, reward: 8,  radius: 14, defense: 0.08 }
 };
 
 // -------------------------------------------------------------------------

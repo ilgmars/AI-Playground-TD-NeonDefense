@@ -18,6 +18,7 @@ class Enemy {
         this.speed = cfg.speed;
         this.reward = cfg.reward;
         this.radius = cfg.radius;
+        this.defense = cfg.defense || 0;
 
         this.active = true;
         this.reachedEnd = false;
@@ -76,8 +77,8 @@ class Enemy {
             this.burnFrames--;
             if (this.burnFrames % 10 === 0) {
                 const d = this.burnDamage || 1;
-                this.hp -= d;
-                if (this.burnSource) this.burnSource.damageDealt += d;
+                const dealt = this.takeDamage(d);
+                if (this.burnSource) this.burnSource.damageDealt += dealt;
                 if (this.hp <= 0) this.active = false;
             }
         }
@@ -188,6 +189,12 @@ class Enemy {
             ctx.fillRect(bx, by, barW * frac, barH);
             ctx.restore();
         }
+    }
+
+    takeDamage(dmg) {
+        const eff = Math.max(1, dmg * (1 - this.defense));
+        this.hp -= eff;
+        return eff;
     }
 }
 
@@ -371,9 +378,9 @@ class Tower {
             } else if (this.type === 'laser') {
                 const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
                 let dmg = effectiveDamage;
-                if (target.isAir) dmg *= 0.4; // Ground towers are less effective vs air
-                target.hp -= dmg;
-                this.damageDealt += dmg;
+                if (target.isAir) dmg *= 0.4;
+                const laserDealt = target.takeDamage(dmg);
+                this.damageDealt += laserDealt;
                 if (this.slowEffect && this.slowEffect > 0) {
                     target.currentSlow = Math.max(0.1, 1 - this.slowEffect);
                 }
@@ -394,8 +401,8 @@ class Tower {
                         const dx = e.x - tx;
                         const dy = e.y - ty;
                         if (dx*dx + dy*dy > r2) continue;
-                        e.hp -= effectiveDamage;
-                        this.damageDealt += effectiveDamage;
+                        const plasmaDealt = e.takeDamage(effectiveDamage);
+                        this.damageDealt += plasmaDealt;
                         if (e.hp <= 0) e.active = false;
                     }
                     this.cooldown = 1; // effectively every frame (fireRate=1)
@@ -415,8 +422,8 @@ class Tower {
                         if (currentTarget.shielded && !currentTarget.shieldBroken) {
                             currentTarget.shieldBroken = true;
                         } else {
-                            currentTarget.hp -= dmg;
-                            this.damageDealt += dmg;
+                            const teslaDealt = currentTarget.takeDamage(dmg);
+                            this.damageDealt += teslaDealt;
                             if (currentTarget.hp <= 0) {
                                 currentTarget.active = false;
                                 SoundFX.explosion();
@@ -468,8 +475,8 @@ class Tower {
                         while (diff > Math.PI) diff -= Math.PI * 2;
                         while (diff < -Math.PI) diff += Math.PI * 2;
                         if (Math.abs(diff) <= coneAngle / 2) {
-                            e.hp -= effectiveDamage;
-                            this.damageDealt += effectiveDamage;
+                            const flameDealt = e.takeDamage(effectiveDamage);
+                            this.damageDealt += flameDealt;
                             if (e.hp <= 0) e.active = false;
                             // Start/refresh burn DoT
                             e.burnFrames = Math.max(e.burnFrames || 0, this.burnDuration || 120);
@@ -624,16 +631,14 @@ class Projectile {
                     // M3: Shielded enemy absorbs first projectile hit — no damage, no XP.
                     if (e.shielded && !e.shieldBroken) {
                         e.shieldBroken = true;
-                        // Cryo slow still applies — shield absorbs damage but not effects.
                         if (this.sourceTower && this.sourceTower.slowEffect) {
                             const newSlow = 1 - this.sourceTower.slowEffect;
                             e.currentSlow = Math.min(e.currentSlow, newSlow);
                             e.slowExpireFrame = this.sourceTower.slowDuration || 60;
                         }
                     } else {
-                        e.hp -= dmg;
-                        if (this.sourceTower) this.sourceTower.damageDealt += dmg;
-                        // M3: Cryo Blaster slow effect — applied if the source tower defines slowEffect.
+                        const dumbDealt = e.takeDamage(dmg);
+                        if (this.sourceTower) this.sourceTower.damageDealt += dumbDealt;
                         if (this.sourceTower && this.sourceTower.slowEffect) {
                             const newSlow = 1 - this.sourceTower.slowEffect;
                             e.currentSlow = Math.min(e.currentSlow, newSlow);
@@ -737,27 +742,23 @@ class Projectile {
                     // M3: Shielded enemy absorbs first projectile hit — no damage, no XP.
                     if (e.shielded && !e.shieldBroken) {
                         e.shieldBroken = true;
-                        // Cryo slow still applies — shield absorbs damage but not effects.
                         if (this.sourceTower && this.sourceTower.slowEffect) {
                             const newSlow = 1 - this.sourceTower.slowEffect;
                             e.currentSlow = Math.min(e.currentSlow, newSlow);
                             e.slowExpireFrame = this.sourceTower.slowDuration || 60;
                         }
-                        // M3: EMP Flak stun still applies through shield.
                         if (this.sourceTower && this.sourceTower.stunDuration && e.isAir) {
                             e.stunned = true;
                             e.stunFrames = this.sourceTower.stunDuration;
                         }
                     } else {
-                        e.hp -= dmg;
-                        if (this.sourceTower) this.sourceTower.damageDealt += dmg;
-                        // M3: Cryo Blaster slow effect — applied if the source tower defines slowEffect.
+                        const splashDealt = e.takeDamage(dmg);
+                        if (this.sourceTower) this.sourceTower.damageDealt += splashDealt;
                         if (this.sourceTower && this.sourceTower.slowEffect) {
                             const newSlow = 1 - this.sourceTower.slowEffect;
                             e.currentSlow = Math.min(e.currentSlow, newSlow);
                             e.slowExpireFrame = this.sourceTower.slowDuration || 60;
                         }
-                        // M3: EMP Flak stuns air targets on hit.
                         if (this.sourceTower && this.sourceTower.stunDuration && e.isAir) {
                             e.stunned = true;
                             e.stunFrames = this.sourceTower.stunDuration;
@@ -804,16 +805,14 @@ class Projectile {
                 // M3: Shielded enemy absorbs first projectile hit — no damage, no XP.
                 if (this.target.shielded && !this.target.shieldBroken) {
                     this.target.shieldBroken = true;
-                    // Cryo slow still applies — shield absorbs damage but not effects.
                     if (this.sourceTower && this.sourceTower.slowEffect) {
                         const newSlow = 1 - this.sourceTower.slowEffect;
                         this.target.currentSlow = Math.min(this.target.currentSlow, newSlow);
                         this.target.slowExpireFrame = this.sourceTower.slowDuration || 60;
                     }
                 } else {
-                    this.target.hp -= dmg;
-                    if (this.sourceTower) this.sourceTower.damageDealt += dmg;
-                    // M3: Cryo Blaster slow effect — applied if the source tower defines slowEffect.
+                    const directDealt = this.target.takeDamage(dmg);
+                    if (this.sourceTower) this.sourceTower.damageDealt += directDealt;
                     if (this.sourceTower && this.sourceTower.slowEffect) {
                         const newSlow = 1 - this.sourceTower.slowEffect;
                         this.target.currentSlow = Math.min(this.target.currentSlow, newSlow);
