@@ -60,6 +60,14 @@ async function runGame(params, workerId, ascensionTier = 0) {
         await page.click('#start-btn');
         await page.waitForTimeout(1000);
 
+        // Verify actual game ascension tier
+        const tierVerify = await page.evaluate(() => ({
+            tier: typeof game !== 'undefined' ? game.ascensionTier : -1,
+            hpMult: typeof game !== 'undefined' ? game.ascension.hpMult : -1,
+            spawnBoss: typeof game !== 'undefined' ? game.ascension.spawnBoss : null
+        }));
+        console.log(`[Worker ${workerId}] Game running at Asc=${tierVerify.tier}, hpMult=${tierVerify.hpMult}, boss=${tierVerify.spawnBoss}`);
+
         // Enable autopilot
         await page.click('#autopilot-btn');
 
