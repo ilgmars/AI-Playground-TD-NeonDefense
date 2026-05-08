@@ -487,10 +487,16 @@ function resizeCanvas() {
     canvas.style.width = cssWidth + 'px';
     canvas.style.height = cssHeight + 'px';
 
-    // High-DPI display scaling
-    const dpr = window.devicePixelRatio || 1;
+    // High-DPI display scaling — cap at 2× so mobile WebView doesn't render
+    // 9× the pixels (3× DPR² = 9×) and tank frame rate.
+    const rawDpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(rawDpr, 2);
     canvas.width = cssWidth * dpr;
     canvas.height = cssHeight * dpr;
+
+    // Expose performance flag: true when the device pixel ratio was capped.
+    // Used by draw code to skip expensive shadow/glow effects on low-power paths.
+    window.NEON_LOW_PERF = rawDpr > 2;
 
     const logicalWidth = window.COLS * window.TILE_SIZE;
     window.RENDER_SCALE = (cssWidth * dpr) / logicalWidth;

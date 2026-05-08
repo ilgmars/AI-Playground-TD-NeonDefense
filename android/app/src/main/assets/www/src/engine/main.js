@@ -387,26 +387,34 @@ function renderTowerMastery() {
 
 // Renders the XP breakdown in the game-over overlay. Called by
 // window.onRunEnded after XP has been applied to the save.
-function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults }) {
-    // M3: Clear any stale mastery banners from prior runs.
+function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults, retired }) {
     document.querySelectorAll('.xp-breakdown-unlock.mastery-banner').forEach(el => el.remove());
-    document.getElementById('xp-wave').textContent     = xp.waveXP;
-    document.getElementById('xp-clear').textContent    = xp.clearBonus;
-    document.getElementById('xp-first').textContent    = xp.firstBonus;
-    document.getElementById('xp-total').textContent    = xp.total;
-    document.getElementById('xp-balance').textContent  = save.metaXP;
 
-    // Hide the clear-bonus row when no clear, first-bonus row when no first clear.
-    document.getElementById('xp-clear-row').classList.toggle('hidden', xp.clearBonus === 0);
-    document.getElementById('xp-first-row').classList.toggle('hidden', xp.firstBonus === 0);
+    if (retired) {
+        document.getElementById('victory-xp-wave').textContent    = xp.waveXP;
+        document.getElementById('victory-xp-clear').textContent   = xp.clearBonus;
+        document.getElementById('victory-xp-first').textContent   = xp.firstBonus;
+        document.getElementById('victory-xp-retire').textContent  = xp.retireBonus || 0;
+        document.getElementById('victory-xp-total').textContent   = xp.total;
+        document.getElementById('victory-xp-balance').textContent = save.metaXP;
+        document.getElementById('victory-xp-clear-row').classList.toggle('hidden', xp.clearBonus === 0);
+        document.getElementById('victory-xp-first-row').classList.toggle('hidden', xp.firstBonus === 0);
+    } else {
+        document.getElementById('xp-wave').textContent     = xp.waveXP;
+        document.getElementById('xp-clear').textContent    = xp.clearBonus;
+        document.getElementById('xp-first').textContent    = xp.firstBonus;
+        document.getElementById('xp-total').textContent    = xp.total;
+        document.getElementById('xp-balance').textContent  = save.metaXP;
+        document.getElementById('xp-clear-row').classList.toggle('hidden', xp.clearBonus === 0);
+        document.getElementById('xp-first-row').classList.toggle('hidden', xp.firstBonus === 0);
+    }
 
-    const unlock = document.getElementById('xp-unlock');
+    const unlockId = retired ? 'victory-xp-unlock' : 'xp-unlock';
+    const unlock = document.getElementById(unlockId);
     if (firstClear) {
         const nextTier = Math.min(tier + 1, ASCENSION_MAX_TIER);
         const nextSpec = ASCENSION_TIERS[nextTier];
-        let text = nextTier > tier
-            ? `UNLOCKED: ${nextSpec.label} — ${nextSpec.name}`
-            : `MAXED`;
+        let text = nextTier > tier ? `UNLOCKED: ${nextSpec.label} — ${nextSpec.name}` : `MAXED`;
         if (autoUnlockedNodeId) {
             const node = getTreeNode(autoUnlockedNodeId);
             if (node) text += ` · FREE NODE: ${autoUnlockedNodeId}`;
@@ -417,8 +425,7 @@ function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, mas
         unlock.classList.add('hidden');
     }
 
-    // M3: Mastery milestone banner — only appended if at least one milestone fired.
-    if (masteryResults && masteryResults.length > 0) {
+    if (!retired && masteryResults && masteryResults.length > 0) {
         const milestoneHits = masteryResults.filter(r => r.newMilestones && r.newMilestones.length > 0);
         if (milestoneHits.length > 0) {
             const lines = milestoneHits.map(r => {
@@ -480,10 +487,16 @@ function resizeCanvas() {
     canvas.style.width = cssWidth + 'px';
     canvas.style.height = cssHeight + 'px';
 
-    // High-DPI display scaling
-    const dpr = window.devicePixelRatio || 1;
+    // High-DPI display scaling — cap at 2× so mobile WebView doesn't render
+    // 9× the pixels (3× DPR² = 9×) and tank frame rate.
+    const rawDpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(rawDpr, 2);
     canvas.width = cssWidth * dpr;
     canvas.height = cssHeight * dpr;
+
+    // Expose performance flag: true when the device pixel ratio was capped.
+    // Used by draw code to skip expensive shadow/glow effects on low-power paths.
+    window.NEON_LOW_PERF = rawDpr > 2;
 
     const logicalWidth = window.COLS * window.TILE_SIZE;
     window.RENDER_SCALE = (cssWidth * dpr) / logicalWidth;
@@ -872,6 +885,22 @@ function init() {
         }
     });
 
+    document.getElementById('retire-btn').addEventListener('click', () => {
+        if (game.state === 'playing' || game.state === 'paused') {
+            game.state = 'paused';
+            document.getElementById('retire-confirm').classList.remove('hidden');
+        }
+    });
+    document.getElementById('retire-confirm-yes').addEventListener('click', () => {
+        document.getElementById('retire-confirm').classList.add('hidden');
+        renderAscensionSelector('victory');
+        game.victory();
+    });
+    document.getElementById('retire-confirm-no').addEventListener('click', () => {
+        document.getElementById('retire-confirm').classList.add('hidden');
+        if (game.state === 'paused') game.state = 'playing';
+    });
+
     // Mobile overflow popover — auto-closes after 2 s of inactivity.
     // Any interaction inside resets the countdown. A shrinking progress bar
     // gives visual feedback of the remaining time.
@@ -929,6 +958,8 @@ function init() {
 
     function restartGame(seed) {
         document.getElementById('restart-confirm').classList.add('hidden');
+        document.getElementById('retire-confirm').classList.add('hidden');
+        document.getElementById('victory').classList.add('hidden');
         document.getElementById('game-over').classList.add('hidden');
         document.getElementById('start-screen').classList.add('hidden');
         document.getElementById('upgrade-menu').classList.add('hidden');
@@ -983,6 +1014,12 @@ function init() {
     });
     document.getElementById('game-over-restart').addEventListener('click', () => {
         const seedVal = document.getElementById('gameover-seed-input').value.trim();
+        const parsed = seedVal !== '' ? parseInt(seedVal) : null;
+        restartGame(!isNaN(parsed) && parsed !== null ? parsed : null);
+    });
+
+    document.getElementById('victory-restart').addEventListener('click', () => {
+        const seedVal = document.getElementById('victory-seed-input').value.trim();
         const parsed = seedVal !== '' ? parseInt(seedVal) : null;
         restartGame(!isNaN(parsed) && parsed !== null ? parsed : null);
     });
@@ -1061,10 +1098,13 @@ function init() {
     // (whether or not the player submits a name) and updates ascensionCleared.
     // Exposes the XP breakdown to renderRunResultXP for the overlay.
     window.onRunEnded = function (result) {
-        const { wave, tier } = result;
+        const { wave, tier, retired } = result;
         const firstClear = wave >= 30 && tier > save.ascensionCleared;
 
         const xp = NeonSave.calculateRunXP(wave, tier, firstClear);
+        const retireBonus = retired ? Math.floor(xp.total * 0.5) : 0;
+        xp.retireBonus = retireBonus;
+        xp.total += retireBonus;
         save.metaXP        += xp.total;
         save.totalXPEarned += xp.total;
 
@@ -1080,15 +1120,15 @@ function init() {
             renderAscensionSelector('start');
             renderAscensionSelector('gameover');
             renderAscensionSelector('restart');
+            renderAscensionSelector('victory');
             renderLoadoutDropdowns();
             updateMainMenuState();
         }
 
-        // M3: Mastery XP from damage dealt this run.
         const masteryResults = NeonSave.tallyMastery(save, game.towers);
 
         if (typeof renderRunResultXP === 'function') {
-            renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults });
+            renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults, retired });
         }
     };
 

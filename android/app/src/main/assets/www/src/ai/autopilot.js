@@ -27,11 +27,24 @@ class Autopilot {
 
         const state = this._analyzeState();
 
-        // Build has priority; if we built, we're done for this tick.
-        if (this._tryBuild(state)) return;
-
-        this._tryUpgrade(state);
+        // Buy potion first — survival beats everything else.
         this._tryBuyPotion(state);
+
+        // After potential potion purchase, decide if we need to save for one.
+        // savingForPotion blocks builds AND upgrades so money can accumulate.
+        const g = this.game;
+        state.savingForPotion = (
+            g.health <= AUTOPILOT_CONFIG.potionHealthThreshold &&
+            g.health < g.maxHealth &&
+            g.money < g.getPotionCost()
+        );
+
+        const built = this._tryBuild(state);
+
+        // Allow upgrade in same tick if we have excess money.
+        if (!built || g.money >= AUTOPILOT_CONFIG.upgradeAlongsideBuild) {
+            this._tryUpgrade(state);
+        }
     }
 
     // -----------------------------------------------------------------
@@ -140,25 +153,47 @@ class Autopilot {
     // -----------------------------------------------------------------
 
     _tryBuild(state) {
+        if (state.savingForPotion) return false;
         if (!state.preferBuild) return false;
 
         const spots = this._findBuildableSpots();
-        if (spots.length === 0) return false;
+        if (spots.length === 0) {
+            state.savingForTower = null; // map full — allow upgrades
+            return false;
+        }
 
-        const buildType = this._pickAffordableType(state);
-        if (!buildType) return false;
+        let chosenType = this._pickAffordableType(state);
+        if (!chosenType) return false;
 
-        const bestSpot = this._pickBestSpot(spots, buildType);
-        if (!bestSpot) return false;
+        let bestSpot = this._pickBestSpot(spots, chosenType);
 
-        this.game.buildTower(bestSpot.c, bestSpot.r, buildType);
+        // If target type has no valid placement, try alternatives in build-order priority.
+        if (!bestSpot) {
+            for (const t of AUTOPILOT_CONFIG.buildOrder) {
+                if (t === chosenType) continue;
+                if (this.game.money < TOWERS[t].cost) continue;
+                if ((state.counts[t] || 0) >= (state.wanted[t] || 0)) continue;
+                bestSpot = this._pickBestSpot(spots, t);
+                if (bestSpot) { chosenType = t; break; }
+            }
+        }
+
+        if (!bestSpot) {
+            // No tower can be placed usefully; allow upgrades instead of hoarding.
+            state.savingForTower = null;
+            return false;
+        }
+
+        this.game.buildTower(bestSpot.c, bestSpot.r, chosenType);
         return true;
     }
 
-    // All empty tiles adjacent to at least one path tile.
+    // Returns path-adjacent tiles first; falls back to all buildable tiles
+    // when path-adjacent spots are exhausted, so towers keep being placed.
     _findBuildableSpots() {
         const g = this.game;
-        const spots = [];
+        const adjacent = [];
+        const allSpots = [];
         const neighbors = [[0,1],[1,0],[0,-1],[-1,0],[1,1],[-1,-1],[1,-1],[-1,1]];
 
         for (let r = 0; r < ROWS; r++) {
@@ -177,10 +212,12 @@ class Autopilot {
                         if (i < 4) orthoNeighbors++;
                     }
                 }
-                if (pathNeighbors > 0) spots.push({ c, r, pathNeighbors, orthoNeighbors });
+                const spot = { c, r, pathNeighbors, orthoNeighbors };
+                allSpots.push(spot);
+                if (pathNeighbors > 0) adjacent.push(spot);
             }
         }
-        return spots;
+        return adjacent.length > 0 ? adjacent : allSpots;
     }
 
     // If we can't afford the target, fall back to the best affordable alternative.
@@ -222,10 +259,13 @@ class Autopilot {
         const g = this.game;
         const range = TOWERS[buildType].range;
 
-        let score = Math.random();
-
         // How many path tiles this spot can reach with its range.
         const pathCoverage = this._pathTilesInRange(spot, range);
+
+        // Combat towers that can't reach any path tile from a non-adjacent spot are useless.
+        if (range > 0 && pathCoverage === 0 && spot.pathNeighbors === 0) return -9999;
+
+        let score = Math.random();
         score += pathCoverage * 0.3;
 
         score += this._typeShapeBonus(spot, buildType, pathCoverage);
@@ -268,8 +308,12 @@ class Autopilot {
             // Prefer open space with some path visibility.
             return -spot.orthoNeighbors * 2 + pathCoverage * 0.2;
         }
-        if (buildType === 'rocket' || buildType === 'silo') {
-            // Central-ish, away from directly-adjacent path tiles.
+        if (buildType === 'silo') {
+            // Range is only 100px (2.5 tiles) — must hug the path.
+            return spot.orthoNeighbors * 3 + pathCoverage * 0.5;
+        }
+        if (buildType === 'rocket') {
+            // Longer range (200px), slightly prefer central position.
             return -(Math.abs(spot.c - COLS / 2) + Math.abs(spot.r - ROWS / 2)) * 0.3
                    - spot.orthoNeighbors * 1;
         }
@@ -298,6 +342,7 @@ class Autopilot {
 
     _tryUpgrade(state) {
         if (state.savingForTower) return;
+        if (state.savingForPotion) return;
 
         const g = this.game;
 
@@ -350,13 +395,9 @@ class Autopilot {
         const g = this.game;
         if (g.health > AUTOPILOT_CONFIG.potionHealthThreshold) return;
         if (g.health >= g.maxHealth) return;
-
         const cost = g.getPotionCost();
         if (g.money < cost) return;
-
-        // Don't raid the savings if it would drop us below the target tower's cost.
-        if (state.savingForTower && g.money - cost < state.savingCost) return;
-
+        // Survival beats tower savings — buy potion unconditionally when affordable.
         g.buyPotion();
     }
 

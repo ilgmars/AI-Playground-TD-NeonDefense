@@ -77,6 +77,13 @@ public class MainActivity extends AppCompatActivity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
+        // Performance: hint the GPU compositor to keep the WebView layer on the GPU.
+        // This avoids the software-rendering fallback that makes canvas animation lag.
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+
+        // Keep the CPU from throttling during active gameplay.
+        webView.setKeepScreenOn(true);
+
         webView.setBackgroundColor(0xFF0A0E27);
         webView.setVerticalScrollBarEnabled(false);
         webView.setHorizontalScrollBarEnabled(false);

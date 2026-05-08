@@ -281,10 +281,10 @@ class Game {
             }
             
             this.currentWaveDef = {
-                count: Math.floor(airCount * this.ascension.countMult),
+                count: Math.min(300, Math.floor(airCount * this.ascension.countMult)),
                 type: 'air',
                 spawnRate: Math.max(20, 50 - Math.floor(this.wave / 8)),
-                hpMult: finalHpMult * 0.98 // Slightly weaker than ground
+                hpMult: finalHpMult * 0.98
             };
             this.enemiesSpawned = 0;
             this.spawnTimer = 60;
@@ -327,10 +327,10 @@ class Game {
         }
 
         this.currentWaveDef = {
-            count: Math.floor(def.count * countMult * this.ascension.countMult),
+            count: Math.min(300, Math.floor(def.count * countMult * this.ascension.countMult)),
             type: def.type,
             spawnRate: Math.max(12, def.spawnRate - loops * 2),
-            hpMult: def.hpMult * finalHpMult // HP scales with wave + investment
+            hpMult: def.hpMult * finalHpMult
         };
 
         this.enemiesSpawned = 0;
@@ -393,7 +393,9 @@ class Game {
 
         if (this.currentWaveDef) {
             if (this.enemiesSpawned < this.currentWaveDef.count) {
-                if (this.spawnTimer > 0) {
+                if (this.enemiesSpawned >= 10 && this.enemies.filter(e => e.active).length === 0) {
+                    this.enemiesSpawned = this.currentWaveDef.count;
+                } else if (this.spawnTimer > 0) {
                     this.spawnTimer--;
                 } else if (this.isBossWave && this.enemiesSpawned === 0) {
                     // M3: Boss wave — spawn one boss and short-circuit further spawns.
@@ -530,6 +532,15 @@ class Game {
                         child.speed *= 0.75;
                         child.splitterGeneration = 2;
                         child.pathIndex = e.pathIndex;
+                        if (child.isAir && !child.followsPath) {
+                            const dx = child.endX - child.x;
+                            const dy = child.endY - child.y;
+                            const dist = Math.hypot(dx, dy);
+                            if (dist > 0) {
+                                child.vx = (dx / dist) * child.speed;
+                                child.vy = (dy / dist) * child.speed;
+                            }
+                        }
                         this.enemies.push(child);
                     }
                 }
@@ -834,6 +845,10 @@ class Game {
             }
         });
 
+        // Retire button: unlocks after wave 10
+        const retireBtn = document.getElementById('retire-btn');
+        if (retireBtn) retireBtn.classList.toggle('hidden', this.wave < 10);
+
         // Potion button
         let potionBtn = document.getElementById('potion-btn');
         let potionCost = this.getPotionCost();
@@ -875,7 +890,7 @@ class Game {
             const dx = enemy.x - x;
             const dy = enemy.y - y;
             if (dx*dx + dy*dy <= r2) {
-                enemy.hp -= damage;
+                enemy.takeDamage(damage);
                 if (enemy.hp <= 0) enemy.active = false;
             }
         }
@@ -901,7 +916,14 @@ class Game {
         document.getElementById('final-wave').textContent = this.wave;
         document.getElementById('score-entry').style.display = 'flex';
         document.getElementById('player-name').value = '';
-        if (window.onRunEnded) window.onRunEnded({ wave: this.wave, tier: this.ascensionTier });
+        if (window.onRunEnded) window.onRunEnded({ wave: this.wave, tier: this.ascensionTier, retired: false });
         if (window.loadScores) window.loadScores();
+    }
+
+    victory() {
+        this.state = 'victory';
+        document.getElementById('victory').classList.remove('hidden');
+        document.getElementById('victory-wave').textContent = this.wave;
+        if (window.onRunEnded) window.onRunEnded({ wave: this.wave, tier: this.ascensionTier, retired: true });
     }
 }

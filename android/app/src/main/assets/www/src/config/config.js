@@ -157,10 +157,10 @@ const TOWER_VARIANTS = {
 // Enemy base stats. hp is multiplied by the wave's hpMultiplier.
 // -------------------------------------------------------------------------
 const ENEMIES = {
-    normal: { hp: 20, speed: 1,   reward: 5,  radius: 12 },
-    fast:   { hp: 10, speed: 1.8, reward: 3,  radius: 10 },
-    tank:   { hp: 60, speed: 0.6, reward: 10, radius: 15 },
-    air:    { hp: 25, speed: 0.6, reward: 8,  radius: 14 }
+    normal: { hp: 20, speed: 1,   reward: 5,  radius: 12, defense: 0    },
+    fast:   { hp: 10, speed: 1.8, reward: 3,  radius: 10, defense: 0    },
+    tank:   { hp: 60, speed: 0.6, reward: 10, radius: 15, defense: 0.20 },
+    air:    { hp: 25, speed: 0.6, reward: 8,  radius: 14, defense: 0.08 }
 };
 
 // -------------------------------------------------------------------------
@@ -198,19 +198,19 @@ const AUTOPILOT_CONFIG = {
 
     // For each tower type: (wave) => desired count on the board.
     wantedCount: {
-        basic:    w => Math.max(4, Math.ceil(w / 3)),          // Solid basic coverage
-        flak:     w => w >= 3  ? Math.max(2, Math.min(9, 2 + Math.floor(w / 7))) : 0,  // Good flak coverage
-        rapid:    w => w >= 2  ? Math.ceil(w / 4) : 0,         // Balanced rapids
-        laser:    w => w >= 3  ? Math.min(9, Math.ceil(w / 4.2)) : 0,  // Slightly more lasers
-        sniper:   w => w >= 4  ? Math.ceil(w / 5) : 0,         // Balanced snipers
-        rocket:   w => w >= 6  ? Math.ceil(w / 5.5)   : 0,     // Balanced rockets
-        electric: w => w >= 7  ? Math.ceil(w / 6.5)   : 0,     // Balanced electric
-        silo:     w => w >= 10 ? Math.ceil(w / 7.5)  : 0,      // Balanced silos
-        income:   w => w >= 7 ? Math.max(1, Math.floor(w / 6.5))  : 0  // Balanced income
+        basic:    w => Math.min(20, Math.max(5, Math.ceil(w / 4))),              // capped — filler not primary
+        flak:     w => w >= 3  ? Math.min(18, 2 + Math.floor(w / 5)) : 0,       // higher cap, air is critical
+        rapid:    w => w >= 2  ? Math.min(15, Math.ceil(w / 7)) : 0,            // moderate — short range
+        laser:    w => w >= 3  ? Math.min(30, Math.ceil(w / 3)) : 0,            // TOP priority — slow is critical
+        sniper:   w => w >= 4  ? Math.min(40, Math.ceil(w / 5)) : 0,            // reduced — doesn't slow enemies
+        rocket:   w => w >= 6  ? Math.min(45, Math.ceil(w / 4)) : 0,            // reduced vs sniper
+        electric: w => w >= 7  ? Math.min(20, Math.ceil(w / 6)) : 0,            // moderate
+        silo:     w => w >= 10 ? Math.min(25, Math.ceil(w / 5)) : 0,            // moderate
+        income:   w => w >= 7 ? Math.min(12, Math.max(1, Math.floor(w / 12))) : 0  // capped — don't overinvest
     },
 
     // Order used when scanning for the biggest tower-count deficit.
-    buildOrder: ['flak', 'laser', 'income', 'basic', 'rapid', 'sniper', 'rocket', 'electric', 'silo'],
+    buildOrder: ['flak', 'laser', 'sniper', 'rocket', 'silo', 'electric', 'basic', 'rapid', 'income'],
 
     // Priority weight when choosing which tower to upgrade (higher = prefer).
     upgradeValue: { silo: 10, rocket: 9, electric: 8, sniper: 7, laser: 6, flak: 5, rapid: 4, basic: 3, income: 2 },
@@ -222,7 +222,7 @@ const AUTOPILOT_CONFIG = {
     airImminentWindow: 2,
 
     // Auto-potion when health drops to or below this threshold.
-    potionHealthThreshold: 5,  // Buy potions earlier (was 3)
+    potionHealthThreshold: 12, // Buy before critical — saves for potion if needed
 
     // Bonus awarded when placing near an existing laser (synergy nudge).
     laserSynergyRange: 3,     // tiles
@@ -238,7 +238,11 @@ const AUTOPILOT_CONFIG = {
 
     // Build urgency thresholds.
     mustBuildMinTowers: 7,       // balanced (was 8)
-    mustBuildWantedFraction: 0.68 // or if below 68% of totalWanted
+    mustBuildWantedFraction: 0.68, // or if below 68% of totalWanted
+
+    // If money is above this after building, also upgrade in the same tick.
+    // Prevents late-game income from piling up unused when build opportunities remain.
+    upgradeAlongsideBuild: 200
 };
 
 // -------------------------------------------------------------------------

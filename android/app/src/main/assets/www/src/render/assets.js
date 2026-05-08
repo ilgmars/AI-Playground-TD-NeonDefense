@@ -1,5 +1,17 @@
 // Procedural assets drawing
 
+// On high-DPR mobile devices (DPR > 2) NEON_LOW_PERF is set in main.js.
+// Shadow/glow calls are wrapped in setGlow/clearGlow so they can be skipped.
+function setGlow(ctx, color, blur) {
+    if (window.NEON_LOW_PERF) return;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = blur;
+}
+function clearGlow(ctx) {
+    if (window.NEON_LOW_PERF) return;
+    ctx.shadowBlur = 0;
+}
+
 function drawGridTile(ctx, x, y, size) {
     ctx.fillStyle = '#0f172a'; // dark background
     ctx.fillRect(x, y, size, size);
@@ -39,12 +51,11 @@ function drawBaseTile(ctx, x, y, size) {
 
     // Inner core
     ctx.fillStyle = '#fb7185';
-    ctx.shadowColor = '#fb7185';
-    ctx.shadowBlur = 15;
+    setGlow(ctx, '#fb7185', 15);
     ctx.beginPath();
     ctx.arc(x + size/2, y + size/2, size/4, 0, Math.PI*2);
     ctx.fill();
-    ctx.shadowBlur = 0; // reset
+    clearGlow(ctx);
 }
 
 function drawSpawnerTile(ctx, x, y, size) {
@@ -52,18 +63,17 @@ function drawSpawnerTile(ctx, x, y, size) {
     
     ctx.strokeStyle = '#c084fc';
     ctx.lineWidth = 2;
-    ctx.shadowColor = '#c084fc';
-    ctx.shadowBlur = 10;
-    
+    setGlow(ctx, '#c084fc', 10);
+
     // Draw a portal/spawner
     ctx.beginPath();
     ctx.arc(x + size/2, y + size/2, size/3, 0, Math.PI*2);
     ctx.stroke();
-    
+
     // Inner pulse
     ctx.fillStyle = 'rgba(192, 132, 252, 0.3)';
     ctx.fill();
-    ctx.shadowBlur = 0;
+    clearGlow(ctx);
 }
 
 // Entity drawing
@@ -76,21 +86,20 @@ function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burni
     let color = type === 'fast' ? '#fde047' : type === 'tank' ? '#f87171' : type === 'air' ? '#60a5fa' : '#a7f3d0';
     if (isSlowed) color = '#38bdf8'; // Override glow to light blue when frozen
     
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 10;
-    
+    setGlow(ctx, color, 10);
+
     // Body
     ctx.fillStyle = '#0f172a';
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
-    
+
     if (type === 'air') {
-        ctx.shadowBlur = 0;
+        clearGlow(ctx);
         ctx.fillStyle = 'rgba(0,0,0,0.4)';
         ctx.beginPath();
         ctx.arc(0, 20, radius/2, 0, Math.PI*2);
         ctx.fill();
-        ctx.shadowBlur = 10;
+        setGlow(ctx, color, 10);
         ctx.fillStyle = '#0f172a';
         
         ctx.beginPath();
@@ -121,8 +130,8 @@ function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burni
         ctx.stroke();
     }
     
-    ctx.shadowBlur = 0;
-    
+    clearGlow(ctx);
+
     // Health bar
     ctx.fillStyle = '#ef4444';
     ctx.fillRect(-radius, -radius - 8, radius*2, 4);
@@ -168,8 +177,7 @@ function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burni
     if (isBoss) {
         ctx.save();
         ctx.globalAlpha = 0.6;
-        ctx.shadowColor = '#a855f7';
-        ctx.shadowBlur = 14;
+        setGlow(ctx, '#a855f7', 14);
         ctx.strokeStyle = '#a855f7';
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -197,8 +205,7 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
 
     let color = type === 'sniper' ? '#f472b6' : type === 'rapid' ? '#a3e635' : type === 'laser' ? '#8b5cf6' : type === 'rocket' ? '#f97316' : type === 'electric' ? '#0ea5e9' : type === 'flak' ? '#60a5fa' : type === 'silo' ? '#ef4444' : type === 'income' ? '#fbbf24' : '#38bdf8';
     
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 8;
+    setGlow(ctx, color, 8);
     ctx.fillStyle = '#0f172a';
     ctx.strokeStyle = color;
     
@@ -303,7 +310,7 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
         ctx.font = `bold ${Math.floor(size/2.5)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.shadowBlur = 0;
+        clearGlow(ctx);
         ctx.fillText('¢', 0, 1);
     }
     
@@ -314,10 +321,9 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 10px sans-serif';
         ctx.textAlign = 'center';
-        ctx.shadowColor = 'black';
-        ctx.shadowBlur = 2;
+        setGlow(ctx, 'black', 2);
         ctx.fillText('★' + level, x + size/2, y + size - 2);
-        ctx.shadowBlur = 0;
+        clearGlow(ctx);
     }
 }
 
@@ -329,10 +335,9 @@ function drawProjectile(ctx, x, y, type, angle = 0) {
     ctx.translate(x, y);
     if (type === 'rocket') ctx.rotate(angle);
     
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 10;
+    setGlow(ctx, color, 10);
     ctx.fillStyle = color;
-    
+
     if (type === 'rocket') {
         ctx.beginPath();
         ctx.moveTo(size*1.5, 0); 
