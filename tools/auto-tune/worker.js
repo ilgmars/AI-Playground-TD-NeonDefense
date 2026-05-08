@@ -110,11 +110,19 @@ async function runGame(params, workerId, ascensionTier = 0) {
                 }
             });
 
-            // Log progress every 10 waves
-            if (state.ready && state.wave % 10 === 0 && state.wave !== lastLoggedWave) {
+            // Log every wave for first 15 waves, then every 10
+            const shouldLog = state.ready && state.wave !== lastLoggedWave &&
+                (state.wave <= 15 || state.wave % 10 === 0);
+            if (shouldLog) {
                 lastLoggedWave = state.wave;
                 const elapsed = Math.round((Date.now() - runStart) / 1000);
-                console.log(`[Worker ${workerId}] Asc=${currentAscension}, Wave ${state.wave}, HP=${state.health}, $=${state.money}, Time=${elapsed}s`);
+                // Get flak count and detailed state for early-game debug
+                const detail = await page.evaluate(() => {
+                    if (typeof game === 'undefined') return {};
+                    const flakCount = game.towers.filter(t => (t.type || '').startsWith('flak')).length;
+                    return { flak: flakCount, totalTowers: game.towers.length };
+                });
+                console.log(`[Worker ${workerId}] Asc=${currentAscension}, Wave ${state.wave}, HP=${state.health}, $=${state.money}, Towers=${detail.totalTowers}(flak:${detail.flak}), Time=${elapsed}s`);
             }
 
             if (state.done) {
