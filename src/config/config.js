@@ -198,14 +198,14 @@ const AUTOPILOT_CONFIG = {
 
     // For each tower type: (wave) => desired count on the board.
     wantedCount: {
-        basic:    w => Math.min(20, Math.max(4, Math.ceil(w / 4))),              // capped — filler not primary
+        basic:    w => Math.min(20, Math.max(5, Math.ceil(w / 4))),              // capped — filler not primary
         flak:     w => w >= 3  ? Math.min(18, 2 + Math.floor(w / 5)) : 0,       // higher cap, air is critical
-        rapid:    w => w >= 2  ? Math.min(15, Math.ceil(w / 6)) : 0,            // lower priority than sniper
-        laser:    w => w >= 3  ? Math.min(18, Math.ceil(w / 4)) : 0,            // more lasers — slow is strong
-        sniper:   w => w >= 4  ? Math.min(60, Math.ceil(w / 3)) : 0,            // high cap — ideal non-adjacent
-        rocket:   w => w >= 6  ? Math.min(60, Math.ceil(w / 3.5)) : 0,          // high cap — splash + non-adjacent
-        electric: w => w >= 7  ? Math.min(25, Math.ceil(w / 5)) : 0,            // moderate
-        silo:     w => w >= 10 ? Math.min(35, Math.ceil(w / 4.5)) : 0,          // higher priority, powerful late
+        rapid:    w => w >= 2  ? Math.min(15, Math.ceil(w / 7)) : 0,            // moderate — short range
+        laser:    w => w >= 3  ? Math.min(30, Math.ceil(w / 3)) : 0,            // TOP priority — slow is critical
+        sniper:   w => w >= 4  ? Math.min(40, Math.ceil(w / 5)) : 0,            // reduced — doesn't slow enemies
+        rocket:   w => w >= 6  ? Math.min(45, Math.ceil(w / 4)) : 0,            // reduced vs sniper
+        electric: w => w >= 7  ? Math.min(20, Math.ceil(w / 6)) : 0,            // moderate
+        silo:     w => w >= 10 ? Math.min(25, Math.ceil(w / 5)) : 0,            // moderate
         income:   w => w >= 7 ? Math.min(12, Math.max(1, Math.floor(w / 12))) : 0  // capped — don't overinvest
     },
 
@@ -222,7 +222,7 @@ const AUTOPILOT_CONFIG = {
     airImminentWindow: 2,
 
     // Auto-potion when health drops to or below this threshold.
-    potionHealthThreshold: 5,  // Buy potions earlier (was 3)
+    potionHealthThreshold: 12, // Buy before critical — saves for potion if needed
 
     // Bonus awarded when placing near an existing laser (synergy nudge).
     laserSynergyRange: 3,     // tiles
@@ -238,7 +238,11 @@ const AUTOPILOT_CONFIG = {
 
     // Build urgency thresholds.
     mustBuildMinTowers: 7,       // balanced (was 8)
-    mustBuildWantedFraction: 0.68 // or if below 68% of totalWanted
+    mustBuildWantedFraction: 0.68, // or if below 68% of totalWanted
+
+    // If money is above this after building, also upgrade in the same tick.
+    // Prevents late-game income from piling up unused when build opportunities remain.
+    upgradeAlongsideBuild: 200
 };
 
 // -------------------------------------------------------------------------

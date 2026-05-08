@@ -4,7 +4,8 @@ const { spawn } = require('child_process');
 const SNAPSHOT_WAVES = [10, 20, 30, 50, 75, 100, 150, 200, 250, 300];
 const MAX_WAIT_MS = 300000;
 const PORT = parseInt(process.env.PORT || '8765');
-const GAME_SPEED = parseInt(process.env.SPEED || '512');
+const GAME_SPEED = parseInt(process.env.SPEED || '2048');
+const SEED = process.env.SEED || '';
 
 async function main() {
     const server = spawn('python3', ['-m', 'http.server', String(PORT)], {
@@ -19,7 +20,8 @@ async function main() {
     const jsErrors = [];
     page.on('pageerror', e => jsErrors.push(e.message));
 
-    await page.goto(`http://localhost:${PORT}`);
+    const seedHash = SEED ? `#${SEED}` : '';
+    await page.goto(`http://localhost:${PORT}/${seedHash}`);
     await page.waitForTimeout(500);
 
     // Navigate to game directly — expose game to window

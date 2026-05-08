@@ -27,11 +27,24 @@ class Autopilot {
 
         const state = this._analyzeState();
 
-        // Build has priority; if we built, we're done for this tick.
-        if (this._tryBuild(state)) return;
-
-        this._tryUpgrade(state);
+        // Buy potion first — survival beats everything else.
         this._tryBuyPotion(state);
+
+        // After potential potion purchase, decide if we need to save for one.
+        // savingForPotion blocks builds AND upgrades so money can accumulate.
+        const g = this.game;
+        state.savingForPotion = (
+            g.health <= AUTOPILOT_CONFIG.potionHealthThreshold &&
+            g.health < g.maxHealth &&
+            g.money < g.getPotionCost()
+        );
+
+        const built = this._tryBuild(state);
+
+        // Allow upgrade in same tick if we have excess money.
+        if (!built || g.money >= AUTOPILOT_CONFIG.upgradeAlongsideBuild) {
+            this._tryUpgrade(state);
+        }
     }
 
     // -----------------------------------------------------------------
@@ -140,6 +153,7 @@ class Autopilot {
     // -----------------------------------------------------------------
 
     _tryBuild(state) {
+        if (state.savingForPotion) return false;
         if (!state.preferBuild) return false;
 
         const spots = this._findBuildableSpots();
@@ -294,8 +308,12 @@ class Autopilot {
             // Prefer open space with some path visibility.
             return -spot.orthoNeighbors * 2 + pathCoverage * 0.2;
         }
-        if (buildType === 'rocket' || buildType === 'silo') {
-            // Central-ish, away from directly-adjacent path tiles.
+        if (buildType === 'silo') {
+            // Range is only 100px (2.5 tiles) — must hug the path.
+            return spot.orthoNeighbors * 3 + pathCoverage * 0.5;
+        }
+        if (buildType === 'rocket') {
+            // Longer range (200px), slightly prefer central position.
             return -(Math.abs(spot.c - COLS / 2) + Math.abs(spot.r - ROWS / 2)) * 0.3
                    - spot.orthoNeighbors * 1;
         }
@@ -324,6 +342,7 @@ class Autopilot {
 
     _tryUpgrade(state) {
         if (state.savingForTower) return;
+        if (state.savingForPotion) return;
 
         const g = this.game;
 
@@ -376,13 +395,9 @@ class Autopilot {
         const g = this.game;
         if (g.health > AUTOPILOT_CONFIG.potionHealthThreshold) return;
         if (g.health >= g.maxHealth) return;
-
         const cost = g.getPotionCost();
         if (g.money < cost) return;
-
-        // Don't raid the savings if it would drop us below the target tower's cost.
-        if (state.savingForTower && g.money - cost < state.savingCost) return;
-
+        // Survival beats tower savings — buy potion unconditionally when affordable.
         g.buyPotion();
     }
 
