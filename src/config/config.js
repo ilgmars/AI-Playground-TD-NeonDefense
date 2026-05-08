@@ -198,19 +198,19 @@ const AUTOPILOT_CONFIG = {
 
     // For each tower type: (wave) => desired count on the board.
     wantedCount: {
-        basic:    w => Math.max(4, Math.ceil(w / 3)),          // Solid basic coverage
-        flak:     w => w >= 3  ? Math.max(2, Math.min(9, 2 + Math.floor(w / 7))) : 0,  // Good flak coverage
-        rapid:    w => w >= 2  ? Math.ceil(w / 4) : 0,         // Balanced rapids
-        laser:    w => w >= 3  ? Math.min(9, Math.ceil(w / 4.2)) : 0,  // Slightly more lasers
-        sniper:   w => w >= 4  ? Math.ceil(w / 5) : 0,         // Balanced snipers
-        rocket:   w => w >= 6  ? Math.ceil(w / 5.5)   : 0,     // Balanced rockets
-        electric: w => w >= 7  ? Math.ceil(w / 6.5)   : 0,     // Balanced electric
-        silo:     w => w >= 10 ? Math.ceil(w / 7.5)  : 0,      // Balanced silos
-        income:   w => w >= 7 ? Math.max(1, Math.floor(w / 6.5))  : 0  // Balanced income
+        basic:    w => Math.min(20, Math.max(4, Math.ceil(w / 4))),              // capped — filler not primary
+        flak:     w => w >= 3  ? Math.min(18, 2 + Math.floor(w / 5)) : 0,       // higher cap, air is critical
+        rapid:    w => w >= 2  ? Math.min(15, Math.ceil(w / 6)) : 0,            // lower priority than sniper
+        laser:    w => w >= 3  ? Math.min(18, Math.ceil(w / 4)) : 0,            // more lasers — slow is strong
+        sniper:   w => w >= 4  ? Math.min(60, Math.ceil(w / 3)) : 0,            // high cap — ideal non-adjacent
+        rocket:   w => w >= 6  ? Math.min(60, Math.ceil(w / 3.5)) : 0,          // high cap — splash + non-adjacent
+        electric: w => w >= 7  ? Math.min(25, Math.ceil(w / 5)) : 0,            // moderate
+        silo:     w => w >= 10 ? Math.min(35, Math.ceil(w / 4.5)) : 0,          // higher priority, powerful late
+        income:   w => w >= 7 ? Math.min(12, Math.max(1, Math.floor(w / 12))) : 0  // capped — don't overinvest
     },
 
     // Order used when scanning for the biggest tower-count deficit.
-    buildOrder: ['flak', 'laser', 'income', 'basic', 'rapid', 'sniper', 'rocket', 'electric', 'silo'],
+    buildOrder: ['flak', 'laser', 'sniper', 'rocket', 'silo', 'electric', 'basic', 'rapid', 'income'],
 
     // Priority weight when choosing which tower to upgrade (higher = prefer).
     upgradeValue: { silo: 10, rocket: 9, electric: 8, sniper: 7, laser: 6, flak: 5, rapid: 4, basic: 3, income: 2 },

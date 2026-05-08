@@ -143,22 +143,43 @@ class Autopilot {
         if (!state.preferBuild) return false;
 
         const spots = this._findBuildableSpots();
-        if (spots.length === 0) return false;
+        if (spots.length === 0) {
+            state.savingForTower = null; // map full — allow upgrades
+            return false;
+        }
 
-        const buildType = this._pickAffordableType(state);
-        if (!buildType) return false;
+        let chosenType = this._pickAffordableType(state);
+        if (!chosenType) return false;
 
-        const bestSpot = this._pickBestSpot(spots, buildType);
-        if (!bestSpot) return false;
+        let bestSpot = this._pickBestSpot(spots, chosenType);
 
-        this.game.buildTower(bestSpot.c, bestSpot.r, buildType);
+        // If target type has no valid placement, try alternatives in build-order priority.
+        if (!bestSpot) {
+            for (const t of AUTOPILOT_CONFIG.buildOrder) {
+                if (t === chosenType) continue;
+                if (this.game.money < TOWERS[t].cost) continue;
+                if ((state.counts[t] || 0) >= (state.wanted[t] || 0)) continue;
+                bestSpot = this._pickBestSpot(spots, t);
+                if (bestSpot) { chosenType = t; break; }
+            }
+        }
+
+        if (!bestSpot) {
+            // No tower can be placed usefully; allow upgrades instead of hoarding.
+            state.savingForTower = null;
+            return false;
+        }
+
+        this.game.buildTower(bestSpot.c, bestSpot.r, chosenType);
         return true;
     }
 
-    // All empty tiles adjacent to at least one path tile.
+    // Returns path-adjacent tiles first; falls back to all buildable tiles
+    // when path-adjacent spots are exhausted, so towers keep being placed.
     _findBuildableSpots() {
         const g = this.game;
-        const spots = [];
+        const adjacent = [];
+        const allSpots = [];
         const neighbors = [[0,1],[1,0],[0,-1],[-1,0],[1,1],[-1,-1],[1,-1],[-1,1]];
 
         for (let r = 0; r < ROWS; r++) {
@@ -177,10 +198,12 @@ class Autopilot {
                         if (i < 4) orthoNeighbors++;
                     }
                 }
-                if (pathNeighbors > 0) spots.push({ c, r, pathNeighbors, orthoNeighbors });
+                const spot = { c, r, pathNeighbors, orthoNeighbors };
+                allSpots.push(spot);
+                if (pathNeighbors > 0) adjacent.push(spot);
             }
         }
-        return spots;
+        return adjacent.length > 0 ? adjacent : allSpots;
     }
 
     // If we can't afford the target, fall back to the best affordable alternative.
@@ -222,10 +245,13 @@ class Autopilot {
         const g = this.game;
         const range = TOWERS[buildType].range;
 
-        let score = Math.random();
-
         // How many path tiles this spot can reach with its range.
         const pathCoverage = this._pathTilesInRange(spot, range);
+
+        // Combat towers that can't reach any path tile from a non-adjacent spot are useless.
+        if (range > 0 && pathCoverage === 0 && spot.pathNeighbors === 0) return -9999;
+
+        let score = Math.random();
         score += pathCoverage * 0.3;
 
         score += this._typeShapeBonus(spot, buildType, pathCoverage);
