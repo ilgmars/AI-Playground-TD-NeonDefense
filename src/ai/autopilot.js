@@ -60,12 +60,15 @@ class Autopilot {
         const wanted = this._wantedCounts(w);
 
         const isAirWave     = g.currentWaveDef && g.currentWaveDef.type === 'air';
-        const wavesUntilAir = isAirWave ? 0 : (5 - (w % 5)) % 5;
+        const airInterval   = (g.ascension && g.ascension.airWaveInterval) || 5;
+        const wavesUntilAir = isAirWave ? 0 : (airInterval - (w % airInterval)) % airInterval;
         const isAirImminent = isAirWave || wavesUntilAir <= AUTOPILOT_CONFIG.airImminentWindow;
 
-        // Role-critical needs: before wave 5 (flak) and starting wave 3 (laser).
-        const needFlak   = w >= 4 && counts.flak < wanted.flak;
-        const urgentFlak = w === 4 && !g.currentWaveDef && counts.flak === 0;
+        // Role-critical needs: before next air wave and starting wave 3 (laser).
+        const nextAirWave   = w + (isAirWave ? 0 : wavesUntilAir);
+        const needFlak      = w >= airInterval && counts.flak < wanted.flak;
+        // urgentFlak: no active wave, flak deficit >= 1, air wave within 2 waves
+        const urgentFlak    = !g.currentWaveDef && counts.flak < wanted.flak && wavesUntilAir <= 2 && w >= airInterval - 1;
         const needLaser  = w >= 3 && counts.laser === 0;
 
         const targetType = this._pickTargetType(counts, wanted, urgentFlak, needFlak, needLaser);
@@ -132,7 +135,7 @@ class Autopilot {
         if (urgentFlak && g.money < TOWERS.flak.cost + CFG.saveBufferFlakUrgent) {
             return { forTower: 'flak', cost: TOWERS.flak.cost + CFG.saveBufferFlakUrgent };
         }
-        if (needFlak && counts.flak < 1 && g.money < TOWERS.flak.cost + CFG.saveBufferFlakNeeded) {
+        if (needFlak && g.money < TOWERS.flak.cost + CFG.saveBufferFlakNeeded) {
             return { forTower: 'flak', cost: TOWERS.flak.cost + CFG.saveBufferFlakNeeded };
         }
         if (needLaser && g.money < TOWERS.laser.cost) {

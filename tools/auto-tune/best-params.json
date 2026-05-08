@@ -1,115 +1,115 @@
 {
-  "xpPerSec": 1700,
-  "ascension": 10,
-  "finalWave": 17,
+  "xpPerSec": 1000,
+  "ascension": 8,
+  "finalWave": 10,
   "params": {
-    "xpPerSec": 1000,
-    "ascension": 9,
-    "finalWave": 10,
+    "xpPerSec": 800,
+    "ascension": 7,
+    "finalWave": 8,
     "params": {
-      "xpPerSec": 1000,
-      "ascension": 9,
-      "finalWave": 10,
+      "xpPerSec": 800,
+      "ascension": 7,
+      "finalWave": 8,
       "params": {
-        "xpPerSec": 1000,
-        "ascension": 9,
-        "finalWave": 10,
+        "xpPerSec": 800,
+        "ascension": 7,
+        "finalWave": 8,
         "params": {
-          "xpPerSec": 1000,
-          "ascension": 9,
-          "finalWave": 10,
+          "xpPerSec": 800,
+          "ascension": 7,
+          "finalWave": 8,
           "params": {
-            "xpPerSec": 1000,
-            "ascension": 9,
-            "finalWave": 10,
+            "xpPerSec": 800,
+            "ascension": 7,
+            "finalWave": 8,
             "params": {
-              "xpPerSec": 1000,
-              "ascension": 8,
-              "finalWave": 10,
+              "xpPerSec": 1700,
+              "ascension": 10,
+              "finalWave": 17,
               "params": {
-                "xpPerSec": 1000,
-                "ascension": 8,
-                "finalWave": 10,
+                "xpPerSec": 1700,
+                "ascension": 10,
+                "finalWave": 17,
                 "params": {
-                  "xpPerSec": 1000,
-                  "ascension": 8,
-                  "finalWave": 10,
+                  "xpPerSec": 1700,
+                  "ascension": 10,
+                  "finalWave": 17,
                   "params": {
-                    "xpPerSec": 1000,
-                    "ascension": 8,
-                    "finalWave": 10,
+                    "xpPerSec": 1700,
+                    "ascension": 10,
+                    "finalWave": 17,
                     "params": {
-                      "xpPerSec": 1000,
-                      "ascension": 8,
-                      "finalWave": 10,
+                      "xpPerSec": 1700,
+                      "ascension": 10,
+                      "finalWave": 17,
                       "params": {
-                        "xpPerSec": 800,
-                        "ascension": 7,
-                        "finalWave": 8,
+                        "xpPerSec": 1700,
+                        "ascension": 10,
+                        "finalWave": 17,
                         "params": {
-                          "xpPerSec": 800,
-                          "ascension": 7,
-                          "finalWave": 8,
+                          "xpPerSec": 1700,
+                          "ascension": 10,
+                          "finalWave": 17,
                           "params": {
-                            "xpPerSec": 800,
-                            "ascension": 7,
-                            "finalWave": 8,
+                            "xpPerSec": 1000,
+                            "ascension": 9,
+                            "finalWave": 10,
                             "params": {
-                              "xpPerSec": 800,
-                              "ascension": 7,
-                              "finalWave": 8,
+                              "xpPerSec": 1000,
+                              "ascension": 9,
+                              "finalWave": 10,
                               "params": {
-                                "xpPerSec": 800,
-                                "ascension": 7,
-                                "finalWave": 8,
+                                "xpPerSec": 1000,
+                                "ascension": 9,
+                                "finalWave": 10,
                                 "params": {
-                                  "xpPerSec": 1700,
-                                  "ascension": 10,
-                                  "finalWave": 17,
+                                  "xpPerSec": 1000,
+                                  "ascension": 9,
+                                  "finalWave": 10,
                                   "params": {
-                                    "xpPerSec": 1700,
-                                    "ascension": 10,
-                                    "finalWave": 17,
+                                    "xpPerSec": 1000,
+                                    "ascension": 9,
+                                    "finalWave": 10,
                                     "params": {
-                                      "xpPerSec": 1700,
-                                      "ascension": 10,
-                                      "finalWave": 17,
+                                      "xpPerSec": 1000,
+                                      "ascension": 8,
+                                      "finalWave": 10,
                                       "params": {
-                                        "xpPerSec": 1700,
-                                        "ascension": 10,
-                                        "finalWave": 17,
+                                        "xpPerSec": 1000,
+                                        "ascension": 8,
+                                        "finalWave": 10,
                                         "params": {
-                                          "xpPerSec": 1700,
-                                          "ascension": 10,
-                                          "finalWave": 17,
+                                          "xpPerSec": 1000,
+                                          "ascension": 8,
+                                          "finalWave": 10,
                                           "params": {
-                                            "xpPerSec": 1700,
-                                            "ascension": 10,
-                                            "finalWave": 17,
+                                            "xpPerSec": 1000,
+                                            "ascension": 8,
+                                            "finalWave": 10,
                                             "params": {
-                                              "xpPerSec": 1700,
-                                              "ascension": 10,
-                                              "finalWave": 17,
+                                              "xpPerSec": 1000,
+                                              "ascension": 8,
+                                              "finalWave": 10,
                                               "params": {
-                                                "xpPerSec": 1700,
-                                                "ascension": 10,
-                                                "finalWave": 17,
+                                                "xpPerSec": 800,
+                                                "ascension": 7,
+                                                "finalWave": 8,
                                                 "params": {
-                                                  "xpPerSec": 1700,
-                                                  "ascension": 10,
-                                                  "finalWave": 17,
+                                                  "xpPerSec": 800,
+                                                  "ascension": 7,
+                                                  "finalWave": 8,
                                                   "params": {
-                                                    "xpPerSec": 1700,
-                                                    "ascension": 10,
-                                                    "finalWave": 17,
+                                                    "xpPerSec": 800,
+                                                    "ascension": 7,
+                                                    "finalWave": 8,
                                                     "params": {
-                                                      "xpPerSec": 1700,
-                                                      "ascension": 10,
-                                                      "finalWave": 17,
+                                                      "xpPerSec": 800,
+                                                      "ascension": 7,
+                                                      "finalWave": 8,
                                                       "params": {
-                                                        "xpPerSec": 1700,
-                                                        "ascension": 10,
-                                                        "finalWave": 17,
+                                                        "xpPerSec": 800,
+                                                        "ascension": 7,
+                                                        "finalWave": 8,
                                                         "params": {
                                                           "xpPerSec": 1700,
                                                           "ascension": 10,
@@ -175,353 +175,437 @@
                                                                                         "ascension": 10,
                                                                                         "finalWave": 17,
                                                                                         "params": {
-                                                                                          "xpPerSec": 441.84535412605584,
+                                                                                          "xpPerSec": 1700,
                                                                                           "ascension": 10,
-                                                                                          "finalWave": 100,
+                                                                                          "finalWave": 17,
                                                                                           "params": {
-                                                                                            "xpPerSec": 466.9688229638786,
-                                                                                            "ascension": 5,
-                                                                                            "finalWave": 100,
+                                                                                            "xpPerSec": 1700,
+                                                                                            "ascension": 10,
+                                                                                            "finalWave": 17,
                                                                                             "params": {
-                                                                                              "xpPerSec": 435.32072894882845,
-                                                                                              "ascension": 5,
-                                                                                              "finalWave": 100,
+                                                                                              "xpPerSec": 1700,
+                                                                                              "ascension": 10,
+                                                                                              "finalWave": 17,
                                                                                               "params": {
-                                                                                                "xpPerSec": 450.01323568340246,
+                                                                                                "xpPerSec": 1700,
                                                                                                 "ascension": 10,
-                                                                                                "finalWave": 100,
+                                                                                                "finalWave": 17,
                                                                                                 "params": {
-                                                                                                  "xpPerSec": 460.8711368154708,
+                                                                                                  "xpPerSec": 1700,
                                                                                                   "ascension": 10,
-                                                                                                  "finalWave": 100,
+                                                                                                  "finalWave": 17,
                                                                                                   "params": {
-                                                                                                    "xpPerSec": 461.7892068091271,
+                                                                                                    "xpPerSec": 1700,
                                                                                                     "ascension": 10,
-                                                                                                    "finalWave": 100,
+                                                                                                    "finalWave": 17,
                                                                                                     "params": {
-                                                                                                      "xpPerSec": 466.05135703189256,
+                                                                                                      "xpPerSec": 1700,
                                                                                                       "ascension": 10,
-                                                                                                      "finalWave": 100,
+                                                                                                      "finalWave": 17,
                                                                                                       "params": {
-                                                                                                        "xpPerSec": 478.53624208304007,
+                                                                                                        "xpPerSec": 1700,
                                                                                                         "ascension": 10,
-                                                                                                        "finalWave": 100,
+                                                                                                        "finalWave": 17,
                                                                                                         "params": {
-                                                                                                          "xpPerSec": 463.9526950193314,
+                                                                                                          "xpPerSec": 1700,
                                                                                                           "ascension": 10,
-                                                                                                          "finalWave": 100,
+                                                                                                          "finalWave": 17,
                                                                                                           "params": {
-                                                                                                            "xpPerSec": 461.3505812112714,
+                                                                                                            "xpPerSec": 1700,
                                                                                                             "ascension": 10,
-                                                                                                            "finalWave": 100,
+                                                                                                            "finalWave": 17,
                                                                                                             "params": {
-                                                                                                              "xpPerSec": 462.1030217913288,
-                                                                                                              "ascension": 9,
-                                                                                                              "finalWave": 100,
+                                                                                                              "xpPerSec": 1700,
+                                                                                                              "ascension": 10,
+                                                                                                              "finalWave": 17,
                                                                                                               "params": {
-                                                                                                                "xpPerSec": 435.4136429608128,
-                                                                                                                "ascension": 9,
-                                                                                                                "finalWave": 100,
+                                                                                                                "xpPerSec": 1700,
+                                                                                                                "ascension": 10,
+                                                                                                                "finalWave": 17,
                                                                                                                 "params": {
-                                                                                                                  "xpPerSec": 471.89451769604443,
-                                                                                                                  "ascension": 7,
+                                                                                                                  "xpPerSec": 441.84535412605584,
+                                                                                                                  "ascension": 10,
                                                                                                                   "finalWave": 100,
                                                                                                                   "params": {
-                                                                                                                    "xpPerSec": 469.59163942728236,
-                                                                                                                    "ascension": 4,
+                                                                                                                    "xpPerSec": 466.9688229638786,
+                                                                                                                    "ascension": 5,
                                                                                                                     "finalWave": 100,
                                                                                                                     "params": {
-                                                                                                                      "xpPerSec": 449.1215710448682,
-                                                                                                                      "ascension": 4,
+                                                                                                                      "xpPerSec": 435.32072894882845,
+                                                                                                                      "ascension": 5,
                                                                                                                       "finalWave": 100,
                                                                                                                       "params": {
-                                                                                                                        "xpPerSec": 237.5850181682661,
-                                                                                                                        "ascension": 2,
+                                                                                                                        "xpPerSec": 450.01323568340246,
+                                                                                                                        "ascension": 10,
                                                                                                                         "finalWave": 100,
                                                                                                                         "params": {
-                                                                                                                          "xpPerSec": 243.87911247130836,
-                                                                                                                          "ascension": 2,
+                                                                                                                          "xpPerSec": 460.8711368154708,
+                                                                                                                          "ascension": 10,
                                                                                                                           "finalWave": 100,
                                                                                                                           "params": {
-                                                                                                                            "xpPerSec": 269.60589961145035,
-                                                                                                                            "ascension": 2,
+                                                                                                                            "xpPerSec": 461.7892068091271,
+                                                                                                                            "ascension": 10,
                                                                                                                             "finalWave": 100,
                                                                                                                             "params": {
-                                                                                                                              "xpPerSec": 293.88884086783645,
-                                                                                                                              "ascension": 1,
+                                                                                                                              "xpPerSec": 466.05135703189256,
+                                                                                                                              "ascension": 10,
                                                                                                                               "finalWave": 100,
                                                                                                                               "params": {
-                                                                                                                                "xpPerSec": 289.34528537387945,
-                                                                                                                                "ascension": 1,
+                                                                                                                                "xpPerSec": 478.53624208304007,
+                                                                                                                                "ascension": 10,
                                                                                                                                 "finalWave": 100,
                                                                                                                                 "params": {
-                                                                                                                                  "xpPerSec": 302.6885868597543,
-                                                                                                                                  "ascension": 0,
+                                                                                                                                  "xpPerSec": 463.9526950193314,
+                                                                                                                                  "ascension": 10,
                                                                                                                                   "finalWave": 100,
                                                                                                                                   "params": {
-                                                                                                                                    "xpPerSec": 285.44243577545194,
-                                                                                                                                    "ascension": 0,
+                                                                                                                                    "xpPerSec": 461.3505812112714,
+                                                                                                                                    "ascension": 10,
                                                                                                                                     "finalWave": 100,
                                                                                                                                     "params": {
-                                                                                                                                      "xpPerSec": 242.8397971573459,
-                                                                                                                                      "ascension": 0,
+                                                                                                                                      "xpPerSec": 462.1030217913288,
+                                                                                                                                      "ascension": 9,
                                                                                                                                       "finalWave": 100,
                                                                                                                                       "params": {
-                                                                                                                                        "xpPerSec": 298.997479040863,
-                                                                                                                                        "ascension": 0,
+                                                                                                                                        "xpPerSec": 435.4136429608128,
+                                                                                                                                        "ascension": 9,
                                                                                                                                         "finalWave": 100,
                                                                                                                                         "params": {
-                                                                                                                                          "xpPerSec": 220.52841176722475,
-                                                                                                                                          "ascension": 0,
+                                                                                                                                          "xpPerSec": 471.89451769604443,
+                                                                                                                                          "ascension": 7,
                                                                                                                                           "finalWave": 100,
                                                                                                                                           "params": {
-                                                                                                                                            "xpPerSec": 0,
-                                                                                                                                            "ascension": 0,
+                                                                                                                                            "xpPerSec": 469.59163942728236,
+                                                                                                                                            "ascension": 4,
                                                                                                                                             "finalWave": 100,
                                                                                                                                             "params": {
-                                                                                                                                              "tickInterval": 30,
-                                                                                                                                              "laserSynergyRange": 3,
-                                                                                                                                              "laserSynergyScore": 40,
-                                                                                                                                              "saveBufferFlakUrgent": 100,
-                                                                                                                                              "saveBufferFlakNeeded": 50,
-                                                                                                                                              "saveDeficitSevere": 2,
-                                                                                                                                              "saveDeficitModerate": 1,
-                                                                                                                                              "saveEarlyTowerTotal": 8,
-                                                                                                                                              "mustBuildMinTowers": 7,
-                                                                                                                                              "mustBuildWantedFraction": 0.68,
-                                                                                                                                              "upgradeAlongsideBuild": 200,
-                                                                                                                                              "potionHealthThreshold": 12,
-                                                                                                                                              "airImminentWindow": 2,
-                                                                                                                                              "wantedCountCapMult": {
-                                                                                                                                                "basic": 1,
-                                                                                                                                                "flak": 1,
-                                                                                                                                                "rapid": 1,
-                                                                                                                                                "laser": 1,
-                                                                                                                                                "sniper": 1,
-                                                                                                                                                "rocket": 1,
-                                                                                                                                                "electric": 1,
-                                                                                                                                                "silo": 1,
-                                                                                                                                                "income": 1
+                                                                                                                                              "xpPerSec": 449.1215710448682,
+                                                                                                                                              "ascension": 4,
+                                                                                                                                              "finalWave": 100,
+                                                                                                                                              "params": {
+                                                                                                                                                "xpPerSec": 237.5850181682661,
+                                                                                                                                                "ascension": 2,
+                                                                                                                                                "finalWave": 100,
+                                                                                                                                                "params": {
+                                                                                                                                                  "xpPerSec": 243.87911247130836,
+                                                                                                                                                  "ascension": 2,
+                                                                                                                                                  "finalWave": 100,
+                                                                                                                                                  "params": {
+                                                                                                                                                    "xpPerSec": 269.60589961145035,
+                                                                                                                                                    "ascension": 2,
+                                                                                                                                                    "finalWave": 100,
+                                                                                                                                                    "params": {
+                                                                                                                                                      "xpPerSec": 293.88884086783645,
+                                                                                                                                                      "ascension": 1,
+                                                                                                                                                      "finalWave": 100,
+                                                                                                                                                      "params": {
+                                                                                                                                                        "xpPerSec": 289.34528537387945,
+                                                                                                                                                        "ascension": 1,
+                                                                                                                                                        "finalWave": 100,
+                                                                                                                                                        "params": {
+                                                                                                                                                          "xpPerSec": 302.6885868597543,
+                                                                                                                                                          "ascension": 0,
+                                                                                                                                                          "finalWave": 100,
+                                                                                                                                                          "params": {
+                                                                                                                                                            "xpPerSec": 285.44243577545194,
+                                                                                                                                                            "ascension": 0,
+                                                                                                                                                            "finalWave": 100,
+                                                                                                                                                            "params": {
+                                                                                                                                                              "xpPerSec": 242.8397971573459,
+                                                                                                                                                              "ascension": 0,
+                                                                                                                                                              "finalWave": 100,
+                                                                                                                                                              "params": {
+                                                                                                                                                                "xpPerSec": 298.997479040863,
+                                                                                                                                                                "ascension": 0,
+                                                                                                                                                                "finalWave": 100,
+                                                                                                                                                                "params": {
+                                                                                                                                                                  "xpPerSec": 220.52841176722475,
+                                                                                                                                                                  "ascension": 0,
+                                                                                                                                                                  "finalWave": 100,
+                                                                                                                                                                  "params": {
+                                                                                                                                                                    "xpPerSec": 0,
+                                                                                                                                                                    "ascension": 0,
+                                                                                                                                                                    "finalWave": 100,
+                                                                                                                                                                    "params": {
+                                                                                                                                                                      "tickInterval": 30,
+                                                                                                                                                                      "laserSynergyRange": 3,
+                                                                                                                                                                      "laserSynergyScore": 40,
+                                                                                                                                                                      "saveBufferFlakUrgent": 100,
+                                                                                                                                                                      "saveBufferFlakNeeded": 50,
+                                                                                                                                                                      "saveDeficitSevere": 2,
+                                                                                                                                                                      "saveDeficitModerate": 1,
+                                                                                                                                                                      "saveEarlyTowerTotal": 8,
+                                                                                                                                                                      "mustBuildMinTowers": 7,
+                                                                                                                                                                      "mustBuildWantedFraction": 0.68,
+                                                                                                                                                                      "upgradeAlongsideBuild": 200,
+                                                                                                                                                                      "potionHealthThreshold": 12,
+                                                                                                                                                                      "airImminentWindow": 2,
+                                                                                                                                                                      "wantedCountCapMult": {
+                                                                                                                                                                        "basic": 1,
+                                                                                                                                                                        "flak": 1,
+                                                                                                                                                                        "rapid": 1,
+                                                                                                                                                                        "laser": 1,
+                                                                                                                                                                        "sniper": 1,
+                                                                                                                                                                        "rocket": 1,
+                                                                                                                                                                        "electric": 1,
+                                                                                                                                                                        "silo": 1,
+                                                                                                                                                                        "income": 1
+                                                                                                                                                                      },
+                                                                                                                                                                      "upgradeValue": {
+                                                                                                                                                                        "silo": 10,
+                                                                                                                                                                        "rocket": 9,
+                                                                                                                                                                        "electric": 8,
+                                                                                                                                                                        "sniper": 7,
+                                                                                                                                                                        "laser": 6,
+                                                                                                                                                                        "flak": 5,
+                                                                                                                                                                        "rapid": 4,
+                                                                                                                                                                        "basic": 3,
+                                                                                                                                                                        "income": 2
+                                                                                                                                                                      }
+                                                                                                                                                                    },
+                                                                                                                                                                    "runTime": 32896,
+                                                                                                                                                                    "totalXP": 0
+                                                                                                                                                                  },
+                                                                                                                                                                  "runTime": 46706,
+                                                                                                                                                                  "totalXP": 10300
+                                                                                                                                                                },
+                                                                                                                                                                "runTime": 34114,
+                                                                                                                                                                "totalXP": 10200
+                                                                                                                                                              },
+                                                                                                                                                              "runTime": 42003,
+                                                                                                                                                              "totalXP": 10200
+                                                                                                                                                            },
+                                                                                                                                                            "runTime": 35734,
+                                                                                                                                                            "totalXP": 10200
+                                                                                                                                                          },
+                                                                                                                                                          "runTime": 33698,
+                                                                                                                                                          "totalXP": 10200
+                                                                                                                                                        },
+                                                                                                                                                        "runTime": 35252,
+                                                                                                                                                        "totalXP": 10200
+                                                                                                                                                      },
+                                                                                                                                                      "runTime": 34707,
+                                                                                                                                                      "totalXP": 10200
+                                                                                                                                                    },
+                                                                                                                                                    "runTime": 37833,
+                                                                                                                                                    "totalXP": 10200
+                                                                                                                                                  },
+                                                                                                                                                  "runTime": 41824,
+                                                                                                                                                  "totalXP": 10200
+                                                                                                                                                },
+                                                                                                                                                "runTime": 42932,
+                                                                                                                                                "totalXP": 10200
                                                                                                                                               },
-                                                                                                                                              "upgradeValue": {
-                                                                                                                                                "silo": 10,
-                                                                                                                                                "rocket": 9,
-                                                                                                                                                "electric": 8,
-                                                                                                                                                "sniper": 7,
-                                                                                                                                                "laser": 6,
-                                                                                                                                                "flak": 5,
-                                                                                                                                                "rapid": 4,
-                                                                                                                                                "basic": 3,
-                                                                                                                                                "income": 2
-                                                                                                                                              }
+                                                                                                                                              "runTime": 22711,
+                                                                                                                                              "totalXP": 10200
                                                                                                                                             },
-                                                                                                                                            "runTime": 32896,
-                                                                                                                                            "totalXP": 0
+                                                                                                                                            "runTime": 21721,
+                                                                                                                                            "totalXP": 10200
                                                                                                                                           },
-                                                                                                                                          "runTime": 46706,
-                                                                                                                                          "totalXP": 10300
+                                                                                                                                          "runTime": 21615,
+                                                                                                                                          "totalXP": 10200
                                                                                                                                         },
-                                                                                                                                        "runTime": 34114,
+                                                                                                                                        "runTime": 23426,
                                                                                                                                         "totalXP": 10200
                                                                                                                                       },
-                                                                                                                                      "runTime": 42003,
+                                                                                                                                      "runTime": 22073,
                                                                                                                                       "totalXP": 10200
                                                                                                                                     },
-                                                                                                                                    "runTime": 35734,
+                                                                                                                                    "runTime": 22109,
                                                                                                                                     "totalXP": 10200
                                                                                                                                   },
-                                                                                                                                  "runTime": 33698,
+                                                                                                                                  "runTime": 21985,
                                                                                                                                   "totalXP": 10200
                                                                                                                                 },
-                                                                                                                                "runTime": 35252,
+                                                                                                                                "runTime": 21315,
                                                                                                                                 "totalXP": 10200
                                                                                                                               },
-                                                                                                                              "runTime": 34707,
+                                                                                                                              "runTime": 21886,
                                                                                                                               "totalXP": 10200
                                                                                                                             },
-                                                                                                                            "runTime": 37833,
+                                                                                                                            "runTime": 22088,
                                                                                                                             "totalXP": 10200
                                                                                                                           },
-                                                                                                                          "runTime": 41824,
+                                                                                                                          "runTime": 22132,
                                                                                                                           "totalXP": 10200
                                                                                                                         },
-                                                                                                                        "runTime": 42932,
+                                                                                                                        "runTime": 22666,
                                                                                                                         "totalXP": 10200
                                                                                                                       },
-                                                                                                                      "runTime": 22711,
+                                                                                                                      "runTime": 23431,
                                                                                                                       "totalXP": 10200
                                                                                                                     },
-                                                                                                                    "runTime": 21721,
+                                                                                                                    "runTime": 21843,
                                                                                                                     "totalXP": 10200
                                                                                                                   },
-                                                                                                                  "runTime": 21615,
+                                                                                                                  "runTime": 23085,
                                                                                                                   "totalXP": 10200
                                                                                                                 },
-                                                                                                                "runTime": 23426,
-                                                                                                                "totalXP": 10200
+                                                                                                                "runTime": 516,
+                                                                                                                "totalXP": 1700
                                                                                                               },
-                                                                                                              "runTime": 22073,
-                                                                                                              "totalXP": 10200
+                                                                                                              "runTime": 519,
+                                                                                                              "totalXP": 1700
                                                                                                             },
-                                                                                                            "runTime": 22109,
-                                                                                                            "totalXP": 10200
+                                                                                                            "runTime": 533,
+                                                                                                            "totalXP": 1700
                                                                                                           },
-                                                                                                          "runTime": 21985,
-                                                                                                          "totalXP": 10200
+                                                                                                          "runTime": 544,
+                                                                                                          "totalXP": 1700
                                                                                                         },
-                                                                                                        "runTime": 21315,
-                                                                                                        "totalXP": 10200
+                                                                                                        "runTime": 502,
+                                                                                                        "totalXP": 1700
                                                                                                       },
-                                                                                                      "runTime": 21886,
-                                                                                                      "totalXP": 10200
+                                                                                                      "runTime": 539,
+                                                                                                      "totalXP": 1700
                                                                                                     },
-                                                                                                    "runTime": 22088,
-                                                                                                    "totalXP": 10200
+                                                                                                    "runTime": 549,
+                                                                                                    "totalXP": 1700
                                                                                                   },
-                                                                                                  "runTime": 22132,
-                                                                                                  "totalXP": 10200
+                                                                                                  "runTime": 518,
+                                                                                                  "totalXP": 1700
                                                                                                 },
-                                                                                                "runTime": 22666,
-                                                                                                "totalXP": 10200
+                                                                                                "runTime": 513,
+                                                                                                "totalXP": 1700
                                                                                               },
-                                                                                              "runTime": 23431,
-                                                                                              "totalXP": 10200
+                                                                                              "runTime": 502,
+                                                                                              "totalXP": 1700
                                                                                             },
-                                                                                            "runTime": 21843,
-                                                                                            "totalXP": 10200
+                                                                                            "runTime": 496,
+                                                                                            "totalXP": 1700
                                                                                           },
-                                                                                          "runTime": 23085,
-                                                                                          "totalXP": 10200
+                                                                                          "runTime": 534,
+                                                                                          "totalXP": 1700
                                                                                         },
-                                                                                        "runTime": 516,
+                                                                                        "runTime": 489,
                                                                                         "totalXP": 1700
                                                                                       },
-                                                                                      "runTime": 519,
+                                                                                      "runTime": 483,
                                                                                       "totalXP": 1700
                                                                                     },
-                                                                                    "runTime": 533,
+                                                                                    "runTime": 466,
                                                                                     "totalXP": 1700
                                                                                   },
-                                                                                  "runTime": 544,
+                                                                                  "runTime": 526,
                                                                                   "totalXP": 1700
                                                                                 },
-                                                                                "runTime": 502,
+                                                                                "runTime": 516,
                                                                                 "totalXP": 1700
                                                                               },
-                                                                              "runTime": 539,
+                                                                              "runTime": 543,
                                                                               "totalXP": 1700
                                                                             },
-                                                                            "runTime": 549,
+                                                                            "runTime": 510,
                                                                             "totalXP": 1700
                                                                           },
-                                                                          "runTime": 518,
+                                                                          "runTime": 464,
                                                                           "totalXP": 1700
                                                                         },
-                                                                        "runTime": 513,
+                                                                        "runTime": 427,
                                                                         "totalXP": 1700
                                                                       },
-                                                                      "runTime": 502,
+                                                                      "runTime": 493,
                                                                       "totalXP": 1700
                                                                     },
-                                                                    "runTime": 496,
+                                                                    "runTime": 485,
                                                                     "totalXP": 1700
                                                                   },
-                                                                  "runTime": 534,
+                                                                  "runTime": 571,
                                                                   "totalXP": 1700
                                                                 },
-                                                                "runTime": 489,
+                                                                "runTime": 482,
                                                                 "totalXP": 1700
                                                               },
-                                                              "runTime": 483,
+                                                              "runTime": 572,
                                                               "totalXP": 1700
                                                             },
-                                                            "runTime": 466,
+                                                            "runTime": 454,
                                                             "totalXP": 1700
                                                           },
-                                                          "runTime": 526,
+                                                          "runTime": 479,
                                                           "totalXP": 1700
                                                         },
-                                                        "runTime": 516,
-                                                        "totalXP": 1700
+                                                        "runTime": 215,
+                                                        "totalXP": 800
                                                       },
-                                                      "runTime": 543,
-                                                      "totalXP": 1700
+                                                      "runTime": 159,
+                                                      "totalXP": 800
                                                     },
-                                                    "runTime": 510,
-                                                    "totalXP": 1700
+                                                    "runTime": 213,
+                                                    "totalXP": 800
                                                   },
-                                                  "runTime": 464,
-                                                  "totalXP": 1700
+                                                  "runTime": 220,
+                                                  "totalXP": 800
                                                 },
-                                                "runTime": 427,
-                                                "totalXP": 1700
+                                                "runTime": 166,
+                                                "totalXP": 800
                                               },
-                                              "runTime": 493,
-                                              "totalXP": 1700
+                                              "runTime": 313,
+                                              "totalXP": 1000
                                             },
-                                            "runTime": 485,
-                                            "totalXP": 1700
+                                            "runTime": 348,
+                                            "totalXP": 1000
                                           },
-                                          "runTime": 571,
-                                          "totalXP": 1700
+                                          "runTime": 329,
+                                          "totalXP": 1000
                                         },
-                                        "runTime": 482,
-                                        "totalXP": 1700
+                                        "runTime": 301,
+                                        "totalXP": 1000
                                       },
-                                      "runTime": 572,
-                                      "totalXP": 1700
+                                      "runTime": 353,
+                                      "totalXP": 1000
                                     },
-                                    "runTime": 454,
-                                    "totalXP": 1700
+                                    "runTime": 410,
+                                    "totalXP": 1000
                                   },
-                                  "runTime": 479,
-                                  "totalXP": 1700
+                                  "runTime": 332,
+                                  "totalXP": 1000
                                 },
-                                "runTime": 215,
-                                "totalXP": 800
+                                "runTime": 370,
+                                "totalXP": 1000
                               },
-                              "runTime": 159,
-                              "totalXP": 800
+                              "runTime": 379,
+                              "totalXP": 1000
                             },
-                            "runTime": 213,
-                            "totalXP": 800
+                            "runTime": 371,
+                            "totalXP": 1000
                           },
-                          "runTime": 220,
-                          "totalXP": 800
+                          "runTime": 476,
+                          "totalXP": 1700
                         },
-                        "runTime": 166,
-                        "totalXP": 800
+                        "runTime": 528,
+                        "totalXP": 1700
                       },
-                      "runTime": 313,
-                      "totalXP": 1000
+                      "runTime": 530,
+                      "totalXP": 1700
                     },
-                    "runTime": 348,
-                    "totalXP": 1000
+                    "runTime": 580,
+                    "totalXP": 1700
                   },
-                  "runTime": 329,
-                  "totalXP": 1000
+                  "runTime": 545,
+                  "totalXP": 1700
                 },
-                "runTime": 301,
-                "totalXP": 1000
+                "runTime": 517,
+                "totalXP": 1700
               },
-              "runTime": 353,
-              "totalXP": 1000
+              "runTime": 562,
+              "totalXP": 1700
             },
-            "runTime": 410,
-            "totalXP": 1000
+            "runTime": 305,
+            "totalXP": 800
           },
-          "runTime": 332,
-          "totalXP": 1000
+          "runTime": 165,
+          "totalXP": 800
         },
-        "runTime": 370,
-        "totalXP": 1000
+        "runTime": 181,
+        "totalXP": 800
       },
-      "runTime": 379,
-      "totalXP": 1000
+      "runTime": 231,
+      "totalXP": 800
     },
-    "runTime": 371,
-    "totalXP": 1000
+    "runTime": 234,
+    "totalXP": 800
   },
-  "runTime": 476,
-  "totalXP": 1700
+  "runTime": 304,
+  "totalXP": 1000
 }
