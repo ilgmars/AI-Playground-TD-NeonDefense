@@ -530,6 +530,15 @@ class Game {
                         child.speed *= 0.75;
                         child.splitterGeneration = 2;
                         child.pathIndex = e.pathIndex;
+                        if (child.isAir && !child.followsPath) {
+                            const dx = child.endX - child.x;
+                            const dy = child.endY - child.y;
+                            const dist = Math.hypot(dx, dy);
+                            if (dist > 0) {
+                                child.vx = (dx / dist) * child.speed;
+                                child.vy = (dy / dist) * child.speed;
+                            }
+                        }
                         this.enemies.push(child);
                     }
                 }

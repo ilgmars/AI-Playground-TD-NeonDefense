@@ -90,6 +90,15 @@ class Enemy {
         }
 
         if (this.isAir) {
+            if (!this.followsPath) {
+                const mapW = window.COLS * window.TILE_SIZE;
+                const mapH = window.ROWS * window.TILE_SIZE;
+                if (this.x < -200 || this.x > mapW + 200 || this.y < -200 || this.y > mapH + 200) {
+                    this.reachedEnd = true;
+                    this.active = false;
+                    return;
+                }
+            }
             if (this.followsPath) {
                 // Air enemy following the path
                 let target = this.path[this.pathIndex];
