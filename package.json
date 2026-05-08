@@ -1,0 +1,26 @@
+{
+  "name": "ai-playground-td-neondefense",
+  "version": "1.0.0",
+  "description": "https://ilgmars.github.io/AI-Playground-TD-NeonDefense/",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ilgmars/AI-Playground-TD-NeonDefense.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ilgmars/AI-Playground-TD-NeonDefense/issues"
+  },
+  "homepage": "https://github.com/ilgmars/AI-Playground-TD-NeonDefense#readme",
+  "dependencies": {
+    "playwright": "^1.59.1"
+  }
+}
