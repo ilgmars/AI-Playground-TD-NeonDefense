@@ -1,83 +1,83 @@
 {
-  "xpPerSec": 215.4216562123804,
+  "xpPerSec": 324.4392235833753,
   "ascension": 0,
-  "finalWave": 100,
+  "finalWave": 58,
   "params": {
-    "xpPerSec": 245.88385603741293,
+    "xpPerSec": 449.8565112851935,
     "ascension": 0,
-    "finalWave": 100,
+    "finalWave": 58,
     "params": {
-      "xpPerSec": 256.88165814591883,
+      "xpPerSec": 464.33432071091187,
       "ascension": 0,
-      "finalWave": 100,
+      "finalWave": 58,
       "params": {
-        "xpPerSec": 238.77522355915536,
+        "xpPerSec": 327.0553738581256,
         "ascension": 0,
-        "finalWave": 100,
+        "finalWave": 58,
         "params": {
-          "xpPerSec": 493.1461049816115,
+          "xpPerSec": 250.1943256898562,
           "ascension": 0,
-          "finalWave": 59,
+          "finalWave": 100,
           "params": {
-            "xpPerSec": 548.8882686761559,
+            "xpPerSec": 564.2023346303503,
             "ascension": 0,
-            "finalWave": 59,
+            "finalWave": 58,
             "params": {
-              "xpPerSec": 260.1667087648396,
+              "xpPerSec": 642.2323109290222,
               "ascension": 0,
-              "finalWave": 100,
+              "finalWave": 58,
               "params": {
-                "xpPerSec": 671.2186089572966,
+                "xpPerSec": 486.45475132097624,
                 "ascension": 0,
                 "finalWave": 58,
                 "params": {
-                  "xpPerSec": 611.0408765276021,
+                  "xpPerSec": 629.6135475466783,
                   "ascension": 0,
                   "finalWave": 58,
                   "params": {
-                    "xpPerSec": 527.4645325572935,
+                    "xpPerSec": 469.0234511725586,
                     "ascension": 0,
-                    "finalWave": 58,
+                    "finalWave": 67,
                     "params": {
-                      "xpPerSec": 486.3264730758387,
+                      "xpPerSec": 595.8392243991113,
                       "ascension": 0,
-                      "finalWave": 69,
+                      "finalWave": 59,
                       "params": {
-                        "xpPerSec": 488.28933211950675,
+                        "xpPerSec": 437.765436131983,
                         "ascension": 0,
-                        "finalWave": 59,
+                        "finalWave": 67,
                         "params": {
-                          "xpPerSec": 588.8324873096446,
+                          "xpPerSec": 671.4517249363279,
                           "ascension": 0,
                           "finalWave": 58,
                           "params": {
-                            "xpPerSec": 460.8654897672239,
+                            "xpPerSec": 460.75751659508006,
                             "ascension": 0,
                             "finalWave": 59,
                             "params": {
-                              "xpPerSec": 425.9259259259259,
+                              "xpPerSec": 453.0188237131922,
                               "ascension": 0,
-                              "finalWave": 69,
+                              "finalWave": 58,
                               "params": {
-                                "xpPerSec": 511.57547906008847,
+                                "xpPerSec": 497.9561501300632,
                                 "ascension": 0,
-                                "finalWave": 59,
+                                "finalWave": 67,
                                 "params": {
-                                  "xpPerSec": 415.62164098889286,
+                                  "xpPerSec": 421.0832002323218,
                                   "ascension": 0,
                                   "finalWave": 58,
                                   "params": {
-                                    "xpPerSec": 536.9982706835351,
+                                    "xpPerSec": 509.576524336672,
                                     "ascension": 0,
-                                    "finalWave": 59,
+                                    "finalWave": 58,
                                     "params": {
-                                      "xpPerSec": 338.18640376017424,
+                                      "xpPerSec": 334.3710365502133,
                                       "ascension": 0,
-                                      "finalWave": 59,
+                                      "finalWave": 58,
                                       "params": {
                                         "xpPerSec": 0,
                                         "ascension": 0,
-                                        "finalWave": 100,
+                                        "finalWave": 58,
                                         "params": {
                                           "tickInterval": 30,
                                           "laserSynergyRange": 3,
@@ -115,63 +115,63 @@
                                             "income": 2
                                           }
                                         },
-                                        "runTime": 32896,
+                                        "runTime": 13248,
                                         "totalXP": 0
                                       },
-                                      "runTime": 17446,
-                                      "totalXP": 5900
+                                      "runTime": 17346,
+                                      "totalXP": 5800
                                     },
-                                    "runTime": 10987,
-                                    "totalXP": 5900
+                                    "runTime": 11382,
+                                    "totalXP": 5800
                                   },
-                                  "runTime": 13955,
+                                  "runTime": 13774,
                                   "totalXP": 5800
                                 },
-                                "runTime": 11533,
-                                "totalXP": 5900
+                                "runTime": 13455,
+                                "totalXP": 6700
                               },
-                              "runTime": 16200,
-                              "totalXP": 6900
+                              "runTime": 12803,
+                              "totalXP": 5800
                             },
-                            "runTime": 12802,
+                            "runTime": 12805,
                             "totalXP": 5900
                           },
-                          "runTime": 9850,
+                          "runTime": 8638,
                           "totalXP": 5800
                         },
-                        "runTime": 12083,
-                        "totalXP": 5900
+                        "runTime": 15305,
+                        "totalXP": 6700
                       },
-                      "runTime": 14188,
-                      "totalXP": 6900
+                      "runTime": 9902,
+                      "totalXP": 5900
                     },
-                    "runTime": 10996,
-                    "totalXP": 5800
+                    "runTime": 14285,
+                    "totalXP": 6700
                   },
-                  "runTime": 9492,
+                  "runTime": 9212,
                   "totalXP": 5800
                 },
-                "runTime": 8641,
+                "runTime": 11923,
                 "totalXP": 5800
               },
-              "runTime": 39590,
-              "totalXP": 10300
+              "runTime": 9031,
+              "totalXP": 5800
             },
-            "runTime": 10749,
-            "totalXP": 5900
+            "runTime": 10280,
+            "totalXP": 5800
           },
-          "runTime": 11964,
-          "totalXP": 5900
+          "runTime": 41168,
+          "totalXP": 10300
         },
-        "runTime": 42718,
-        "totalXP": 10200
+        "runTime": 17734,
+        "totalXP": 5800
       },
-      "runTime": 39707,
-      "totalXP": 10200
+      "runTime": 12491,
+      "totalXP": 5800
     },
-    "runTime": 41483,
-    "totalXP": 10200
+    "runTime": 12893,
+    "totalXP": 5800
   },
-  "runTime": 47349,
-  "totalXP": 10200
+  "runTime": 17877,
+  "totalXP": 5800
 }
