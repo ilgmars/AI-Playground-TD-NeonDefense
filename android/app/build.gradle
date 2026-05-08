@@ -16,10 +16,9 @@ android {
 
     signingConfigs {
         release {
-            // Keystore is decoded from KEYSTORE_BASE64 env var in CI (see workflow).
-            // For local builds, place neon-release.keystore in android/ directory.
-            def ksPath = System.getenv("KEYSTORE_PATH") ?: file("neon-release.keystore").absolutePath
-            storeFile     file(ksPath)
+            // CI decodes KEYSTORE_BASE64 secret into android/app/neon-release.keystore.
+            // For local builds, place neon-release.keystore in this directory.
+            storeFile     file("neon-release.keystore")
             storePassword System.getenv("KEYSTORE_PASSWORD") ?: "neondefense2024"
             keyAlias      System.getenv("KEY_ALIAS")         ?: "neon-release"
             keyPassword   System.getenv("KEY_PASSWORD")      ?: "neondefense2024"

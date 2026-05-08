@@ -1,2 +1,3 @@
 node_modules/
 android/neon-release.keystore
+android/app/neon-release.keystore
