@@ -10,7 +10,7 @@ const { injectSetup } = require('./inject-utils');
 const SEED = 42069; // fixed seed for reproducibility
 const PORT_BASE = 8765;
 const MAX_WALL_TIME = 600000; // 10 min per run (safeguard)
-const GAME_SPEED = 3000;
+const GAME_SPEED = 4000;
 
 async function runGame(params, workerId, ascensionTier = 0) {
     const port = PORT_BASE + workerId;
@@ -112,37 +112,12 @@ async function runGame(params, workerId, ascensionTier = 0) {
             }
 
             if (state.ready && state.wave >= 100) {
-                // Wave 100 reached: escalate ascension and restart
-                currentAscension++;
-                const elapsed = Math.round((Date.now() - runStart) / 1000);
-                console.log(`[Worker ${workerId}] Wave 100 reached! Escalating to Asc=${currentAscension}, Time=${elapsed}s`);
-                await page.reload({ waitUntil: 'domcontentloaded' });
-                await injectSetup(page, SEED);
-                await page.evaluate((paramsStr) => {
-                    const newParams = JSON.parse(paramsStr);
-                    if (typeof AUTOPILOT_CONFIG !== 'undefined') {
-                        for (const [key, val] of Object.entries(newParams)) {
-                            if (typeof val !== 'function') {
-                                AUTOPILOT_CONFIG[key] = val;
-                            }
-                        }
-                    }
-                }, paramJson);
-
-                // Set new ascension tier
-                await page.click('#menu-start-btn');
-                await page.waitForTimeout(200);
-                for (let i = 0; i < currentAscension; i++) {
-                    const tierBtn = await page.$(`button[data-tier="${i + 1}"]`);
-                    if (tierBtn) await tierBtn.click();
-                }
-                await page.click('#start-btn');
-                await page.waitForTimeout(800);
-                await page.click('#autopilot-btn');
-                await page.waitForTimeout(500);
-                await page.evaluate((speed) => {
-                    eval(`gameSpeed = ${speed}`);
-                }, GAME_SPEED);
+                // Wave 100 reached: end this iteration, don't continue
+                totalRunTime = Date.now() - runStart;
+                maxWaveReached = 100;
+                const elapsed = Math.round(totalRunTime / 1000);
+                console.log(`[Worker ${workerId}] Wave 100 reached! Iteration complete at Asc=${currentAscension}, Time=${elapsed}s`);
+                break;
             }
 
             if (Date.now() - runStart > MAX_WALL_TIME) {

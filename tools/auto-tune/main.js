@@ -42,8 +42,8 @@ const DEFAULT_PARAMS = {
 };
 
 // Run one iteration: spawn 6 workers, wait for all, pick winner
-async function runIteration(paramSets) {
-    console.log(`\nStarting iteration with ${paramSets.length} param variants...`);
+async function runIteration(paramSets, ascensionTier = 0) {
+    console.log(`\nStarting iteration Asc=${ascensionTier} with ${paramSets.length} param variants...`);
 
     const workers = paramSets.map((params, idx) => {
         return new Promise((resolve, reject) => {
@@ -63,8 +63,8 @@ async function runIteration(paramSets) {
                 }
             });
 
-            // Send params to worker
-            worker.postMessage({ params, workerId: idx });
+            // Send params and ascension tier to worker
+            worker.postMessage({ params, workerId: idx, ascensionTier });
         });
     });
 
@@ -105,13 +105,20 @@ async function main() {
 
     let best = loadBestParams() || DEFAULT_PARAMS;
     let paramSets = generateNextParamSets(best);
+    let ascensionTier = 0;
 
-    // Run indefinitely
+    // Run indefinitely, escalating ascension when benchmarking is solid
     for (let iter = 0; iter < 1000; iter++) {
         try {
-            const winner = await runIteration(paramSets);
+            const winner = await runIteration(paramSets, ascensionTier);
             best = winner;
             paramSets = generateNextParamSets(best);
+
+            // Every 5 iterations, escalate difficulty if we're reaching wave 100 consistently
+            if ((iter + 1) % 5 === 0 && ascensionTier < 10) {
+                ascensionTier++;
+                console.log(`\n*** Escalating to Ascension ${ascensionTier} ***\n`);
+            }
         } catch (error) {
             console.error(`Iteration ${iter} failed:`, error.message);
             // Continue to next iteration
