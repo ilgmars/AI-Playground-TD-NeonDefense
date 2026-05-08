@@ -15,8 +15,8 @@ const DEFAULT_PARAMS = {
     tickInterval: 30,
     laserSynergyRange: 3,
     laserSynergyScore: 40,
-    saveBufferFlakUrgent: 100,
-    saveBufferFlakNeeded: 50,
+    saveBufferFlakUrgent: 0,
+    saveBufferFlakNeeded: 0,
     saveDeficitSevere: 2,
     saveDeficitModerate: 1,
     saveEarlyTowerTotal: 8,
@@ -124,11 +124,11 @@ async function main() {
             // Track max ascension reached
             updateMaxAscension(winner.ascension, state);
 
-            // Every 5 iterations, escalate difficulty if we're reaching wave 100 consistently
-            if ((iter + 1) % 5 === 0 && ascensionTier < 10) {
+            // Escalate difficulty only when a bot actually reaches wave 100
+            if (winner.finalWave >= 100 && ascensionTier < 10) {
                 ascensionTier++;
                 updateMaxAscension(ascensionTier, state);
-                console.log(`\n*** Escalating to Ascension ${ascensionTier} ***\n`);
+                console.log(`\n*** Wave 100 reached — escalating to Ascension ${ascensionTier} ***\n`);
             }
         } catch (error) {
             console.error(`Iteration ${iter} failed:`, error.message);

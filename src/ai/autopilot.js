@@ -64,11 +64,10 @@ class Autopilot {
         const wavesUntilAir = isAirWave ? 0 : (airInterval - (w % airInterval)) % airInterval;
         const isAirImminent = isAirWave || wavesUntilAir <= AUTOPILOT_CONFIG.airImminentWindow;
 
-        // Role-critical needs: before next air wave and starting wave 3 (laser).
-        const nextAirWave   = w + (isAirWave ? 0 : wavesUntilAir);
-        const needFlak      = w >= airInterval && counts.flak < wanted.flak;
-        // urgentFlak: no active wave, flak deficit >= 1, air wave within 2 waves
-        const urgentFlak    = !g.currentWaveDef && counts.flak < wanted.flak && wavesUntilAir <= 2 && w >= airInterval - 1;
+        // Role-critical: flak needed from first air wave onward; laser needed from wave 3.
+        const needFlak   = w >= airInterval && counts.flak < wanted.flak;
+        // urgentFlak: original behaviour (first-air-wave warning), kept for saving/upgrade priority.
+        const urgentFlak = w === airInterval && !g.currentWaveDef && counts.flak === 0;
         const needLaser  = w >= 3 && counts.laser === 0;
 
         const targetType = this._pickTargetType(counts, wanted, urgentFlak, needFlak, needLaser);
@@ -158,6 +157,11 @@ class Autopilot {
     _tryBuild(state) {
         if (state.savingForPotion) return false;
         if (!state.preferBuild) return false;
+        // After first air wave: hold money specifically for flak until we can afford it.
+        // Don't enforce before the first air wave — we need early towers to survive.
+        const g = this.game;
+        const airInterval = (g.ascension && g.ascension.airWaveInterval) || 5;
+        if (state.needFlak && state.w > airInterval && g.money < TOWERS.flak.cost) return false;
 
         const spots = this._findBuildableSpots();
         if (spots.length === 0) {
