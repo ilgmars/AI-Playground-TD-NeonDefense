@@ -111,11 +111,11 @@ async function runGame(params, workerId, ascensionTier = 0) {
                 break;
             }
 
-            if (state.ready && state.wave >= 300) {
-                // Wave 300 reached: escalate ascension and restart
+            if (state.ready && state.wave >= 100) {
+                // Wave 100 reached: escalate ascension and restart
                 currentAscension++;
                 const elapsed = Math.round((Date.now() - runStart) / 1000);
-                console.log(`[Worker ${workerId}] Wave 300 reached! Escalating to Asc=${currentAscension}, Time=${elapsed}s`);
+                console.log(`[Worker ${workerId}] Wave 100 reached! Escalating to Asc=${currentAscension}, Time=${elapsed}s`);
                 await page.reload({ waitUntil: 'domcontentloaded' });
                 await injectSetup(page, SEED);
                 await page.evaluate((paramsStr) => {
