@@ -1,11 +1,11 @@
 {
-  "xpPerSec": 220.52841176722475,
+  "xpPerSec": 334.3710365502133,
   "ascension": 0,
-  "finalWave": 100,
+  "finalWave": 58,
   "params": {
     "xpPerSec": 0,
     "ascension": 0,
-    "finalWave": 100,
+    "finalWave": 58,
     "params": {
       "tickInterval": 30,
       "laserSynergyRange": 3,
@@ -43,9 +43,9 @@
         "income": 2
       }
     },
-    "runTime": 32896,
+    "runTime": 13248,
     "totalXP": 0
   },
-  "runTime": 46706,
-  "totalXP": 10300
+  "runTime": 17346,
+  "totalXP": 5800
 }
