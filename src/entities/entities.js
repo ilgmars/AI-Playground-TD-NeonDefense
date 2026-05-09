@@ -249,9 +249,10 @@ class Tower {
         // and every frame of laser/tesla direct damage sourced from this tower.
         this.damageDealt = 0;
 
-        // Per-tower auto-upgrade flag — toggled from the upgrade menu.
-        // When true, Game._runAutoUpgrade buys the cheapest affordable upgrade.
-        this.autoUpgrade = false;
+        // Per-upgrade-slot auto-upgrade flags. Each entry, when true, lets
+        // Game._runAutoUpgrade buy that specific upgrade whenever money
+        // allows. Toggled from the small ⏶ button on each upgrade row.
+        this.autoUpgradeSlots = [false, false, false];
     }
 
     get level() {

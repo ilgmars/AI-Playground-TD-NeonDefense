@@ -799,6 +799,7 @@ class Game {
                         <span class="upg-desc"></span>
                     </div>
                     <span class="upg-cost"></span>
+                    <button class="upg-auto" type="button" title="Auto-buy this upgrade whenever it's affordable">⏶</button>
                 `;
                 list.appendChild(div);
             }
@@ -824,58 +825,59 @@ class Game {
             div.onclick = () => {
                 this.buyUpgrade(i);
             };
+
+            // Per-slot auto-upgrade toggle. Toggling on a bulk selection: if
+            // any tower has the slot OFF, turn all ON; else turn all OFF.
+            const autoBtn = div.querySelector('.upg-auto');
+            const slotOn  = this.selectedTowers.every(tw => tw.autoUpgradeSlots && tw.autoUpgradeSlots[i]);
+            const slotAny = this.selectedTowers.some(tw  => tw.autoUpgradeSlots && tw.autoUpgradeSlots[i]);
+            autoBtn.classList.toggle('on', slotOn);
+            autoBtn.classList.toggle('mixed', slotAny && !slotOn);
+            autoBtn.title = slotOn
+                ? 'Auto-buy this upgrade is ON — click to turn off'
+                : (slotAny ? 'Mixed: some selected towers auto-buy this upgrade — click to turn all on' : 'Auto-buy this upgrade whenever affordable');
+            autoBtn.onclick = (e) => {
+                e.stopPropagation();
+                if (!this.selectedTowers || this.selectedTowers.length === 0) return;
+                const anyOff = this.selectedTowers.some(tw => !(tw.autoUpgradeSlots && tw.autoUpgradeSlots[i]));
+                for (let tw of this.selectedTowers) {
+                    if (!tw.autoUpgradeSlots) tw.autoUpgradeSlots = [false, false, false];
+                    tw.autoUpgradeSlots[i] = anyOff;
+                }
+                this.updateUpgradeMenu();
+            };
         }
 
         let totalSell = this.selectedTowers.reduce((sum, current) => sum + current.getSellValue(), 0);
         let sellVal = document.getElementById('sell-value');
         if (sellVal) sellVal.textContent = totalSell + '¢';
 
-        // Per-tower auto-upgrade toggle: when on, Game._runAutoUpgrade buys the
-        // cheapest-available upgrade for that tower whenever money allows.
-        let autoBtn = document.getElementById('auto-upgrade-btn');
-        if (!autoBtn) {
-            autoBtn = document.createElement('button');
-            autoBtn.id = 'auto-upgrade-btn';
-            autoBtn.className = 'auto-upgrade-toggle';
-            autoBtn.textContent = 'AUTO ⏶ OFF';
-            autoBtn.title = 'Auto-buy the cheapest affordable upgrade for this tower';
-            const sellBtn = document.getElementById('sell-btn');
-            if (sellBtn && sellBtn.parentNode) sellBtn.parentNode.insertBefore(autoBtn, sellBtn);
-            autoBtn.addEventListener('click', () => {
-                if (!this.selectedTowers || this.selectedTowers.length === 0) return;
-                // If any selected tower is OFF, turn all ON; else turn all OFF.
-                const anyOff = this.selectedTowers.some(tw => !tw.autoUpgrade);
-                for (let tw of this.selectedTowers) tw.autoUpgrade = anyOff;
-                this.updateUpgradeMenu();
-            });
-        }
-        const allOn = this.selectedTowers.every(tw => tw.autoUpgrade);
-        const anyOn = this.selectedTowers.some(tw => tw.autoUpgrade);
-        autoBtn.classList.toggle('on', allOn);
-        autoBtn.classList.toggle('mixed', anyOn && !allOn);
-        autoBtn.textContent = 'AUTO ⏶ ' + (allOn ? 'ON' : (anyOn ? 'MIX' : 'OFF'));
+        // Carry-over from a previous design: an old per-tower AUTO ⏶ button
+        // may still be in the DOM if the panel was rebuilt mid-session.
+        const legacyAuto = document.getElementById('auto-upgrade-btn');
+        if (legacyAuto) legacyAuto.remove();
     }
 
-    // Per-tower auto-upgrade: each tick, for each tower with autoUpgrade=true,
-    // try to buy its cheapest affordable upgrade. Independent of the global
-    // Autopilot — towers can self-upgrade even with global Autopilot off.
+    // Per-slot auto-upgrade: for each tower, walk the slots whose flag is on
+    // and buy each one that's affordable this tick. Cheapest-first ordering
+    // maximises how many slots fit when the budget is tight. Independent of
+    // the global Autopilot — slots can self-upgrade with Autopilot off.
     _runAutoUpgrade() {
         if (!this.towers || this.towers.length === 0) return;
         let bought = false;
         for (let t of this.towers) {
-            if (!t.autoUpgrade) continue;
-            // Income towers have upgrades too (e.g. Network Bonus); allow all types.
-            let cheapestIdx = -1;
-            let cheapestCost = Infinity;
-            for (let i = 0; i < 3; i++) {
-                let cost = Math.floor(t.getUpgradeCost(i) * this.upgradeCostMult);
-                if (cost < cheapestCost) { cheapestCost = cost; cheapestIdx = i; }
-            }
-            if (cheapestIdx >= 0 && this.money >= cheapestCost) {
-                this.money -= cheapestCost;
-                t.upgrade(cheapestIdx);
-                this.addUpgradeEffect(t.x, t.y);
-                bought = true;
+            if (!t.autoUpgradeSlots) continue;
+            const slots = [0, 1, 2]
+                .filter(i => t.autoUpgradeSlots[i])
+                .sort((a, b) => t.getUpgradeCost(a) - t.getUpgradeCost(b));
+            for (const i of slots) {
+                const cost = Math.floor(t.getUpgradeCost(i) * this.upgradeCostMult);
+                if (this.money >= cost) {
+                    this.money -= cost;
+                    t.upgrade(i);
+                    this.addUpgradeEffect(t.x, t.y);
+                    bought = true;
+                }
             }
         }
         if (bought) {
