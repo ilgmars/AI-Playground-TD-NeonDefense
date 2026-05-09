@@ -1,11 +1,20 @@
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 
-const SNAPSHOT_WAVES = [10, 20, 30, 50, 75, 100, 150, 200, 250, 300];
+const args = Object.fromEntries(process.argv.slice(2).map(arg => {
+    const [key, value = 'true'] = arg.replace(/^--/, '').split('=');
+    return [key, value];
+}));
+
+const SNAPSHOT_WAVES = (args.snapshots || process.env.SNAPSHOTS || '2,3,4,5,6,7,8,9,10,15,20,30,50,75,100')
+    .split(',')
+    .map(n => parseInt(n.trim()))
+    .filter(n => Number.isFinite(n) && n > 0);
 const MAX_WAIT_MS = 300000;
-const PORT = parseInt(process.env.PORT || '8765');
-const GAME_SPEED = parseInt(process.env.SPEED || '2048');
-const SEED = process.env.SEED || '';
+const PORT = parseInt(args.port || process.env.PORT || '8765');
+const GAME_SPEED = parseInt(args.speed || process.env.SPEED || '5000');
+const SEED = args.seed || process.env.SEED || '';
+const ASCENSION = Math.max(0, Math.min(parseInt(args.ascension || process.env.ASCENSION || '6'), 10));
 
 async function main() {
     const server = spawn('python3', ['-m', 'http.server', String(PORT)], {
@@ -43,6 +52,12 @@ async function main() {
 
     await page.click('#menu-start-btn');
     await page.waitForTimeout(200);
+    if (ASCENSION > 0) {
+        await page.evaluate((tier) => {
+            eval(`selectedTier = ${tier}`);
+            if (typeof updateModeDisplay === 'function') updateModeDisplay(tier);
+        }, ASCENSION);
+    }
     await page.click('#start-btn');
     await page.waitForTimeout(800);
 
@@ -52,7 +67,7 @@ async function main() {
             // 'game' is a let at top level of main.js — accessible in same script scope
             const g = eval('game');
             if (!g) return { found: false };
-            return { found: true, state: g.state, wave: g.wave };
+            return { found: true, state: g.state, wave: g.wave, ascension: g.ascensionTier };
         } catch(e) {
             return { found: false, err: e.message };
         }

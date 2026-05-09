@@ -58,3 +58,64 @@
 
 > iedošu tev feedback no kolēģa. izstrādā sev stratēģiju kā šo ieviest un notestēt. spēles ātrumu vari mainīt, lai vieglāk notestētu. apskati visu kodu un tad ievies šo: [feedback pasted above]
 > katrai nozīmīgai izmaiņai veic git commit and push. testē lokālo kopiju. spēlē ir iebūvēts easter egg, kur saklikšķinot vairākas reizes ātruma reizinātāju var atslēgt lielāku ātrumu. labi noder testēšanai. izvairies no lieka clutter, komentāriem
+
+---
+
+# Claude Session — 2026-05-09
+
+## Autopilot builder performance pass
+
+### Changes made this session
+
+1. Main autopilot builder now rejects combat tower placements that cannot reach any path tile, so late-game money goes into upgrades instead of unreachable filler towers.
+2. Flak planning starts before the first air wave, but sustained Flak demand is lower so the builder does not overinvest in air-only towers.
+3. Basic tower demand is reduced from a hard floor of 5 to a cheaper filler profile, allowing earlier Laser/Rocket/Silo progression.
+4. `test-autopilot.js` now supports reusable CLI flags (`--ascension`, `--speed`, `--seed`, `--snapshots`, `--port`) and defaults to A6/5000x for stress testing without editing production unlock rules.
+5. Auto-tune harness can start at a chosen `ASCENSION` for local tests, bypassing locked tiers only inside test tooling.
+6. Auto-tune commit cadence changed to immediate commits for improvements and every 10th run for non-improvements, scoped to autopilot/test files.
+
+### Verification
+
+- `node test-autopilot.js --port=8909 --ascension=0 --speed=5000 --seed=42069 --snapshots=10,20,30,50,75,100,150,200,250,300`
+- Before this pass on seed `42069`, A0 died at wave 58.
+- After this pass on seed `42069`, A0 reached wave 301 with 13 HP.
+- A6 stress tests still die around wave 9-10 on seed `42069`; that remains a separate high-ascension opening problem.
+
+## Prompt used to initiate this session
+
+> read project, test git access improve autopilot function in game. come up with a viable strategy to improve the performance of the autopilot builder. you can run local tests as you have a very powerful machine at your disposal, you can run paralel instances and x5000 speed. make sure to optimize token use. document all prompts in the same way others are documented
+>
+> automatically raise the initial difficulty of the tests by choosing eg A5 or A6. be vary that they need to be unlocked, you can enable it for your tests ina seperate folder
+>
+> push to github each improvement. if no improvement, push every 10th run
+>
+> implement improvements in to the main build of the game
+>
+> figure out a way to run and implement these tests without my confirmation
+>
+> allow all commands
+>
+> are the improvements pushed to the main game as well? if not push them in to the main game as well.
+>
+> try seeing the rocket splash towers with upgrades, maybe that is the key?
+>
+> dont forget to commit and push if you improvement
+>
+> try commit and push to git, i do not see any commits by you.
+
+## Current handoff state
+
+- Main-game changes are currently uncommitted in `src/ai/autopilot.js` and `src/config/config.js`.
+- Test harness changes are currently uncommitted in `test-autopilot.js` and `tools/auto-tune/*`.
+- Prompt documentation is currently uncommitted in this file.
+- Git remote read access was verified with `git ls-remote`; push has not happened yet because the commit command needed escalated git metadata write access and the approval prompt was interrupted.
+- Best measured improvement so far: fixed seed `42069`, A0 improved from gameover at wave 58 to reaching wave 301 with 13 HP.
+- A5/A6 opening is still weak, usually dying around wave 9-10 on seed `42069`.
+- Rocket-forward hand tuning was tested and backed out because it performed worse before rockets could come online.
+- Next promising path: run a bounded high-parallel auto-tune sweep using the fixed mutation harness, starting at A5/A6 and mutating the winning config rather than hand guessing.
+
+Recommended next command after git approval:
+
+```bash
+WORKERS=12 ITERATIONS=5 ASCENSION=5 GAME_SPEED=5000 AUTOTUNE_COMMIT=0 node tools/auto-tune/main.js
+```

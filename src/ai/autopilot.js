@@ -65,7 +65,7 @@ class Autopilot {
         const isAirImminent = isAirWave || wavesUntilAir <= AUTOPILOT_CONFIG.airImminentWindow;
 
         // Role-critical: flak needed from first air wave onward; laser needed from wave 3.
-        const needFlak   = w >= airInterval && counts.flak < wanted.flak;
+        const needFlak   = w >= Math.max(3, airInterval - 1) && counts.flak < Math.max(1, wanted.flak);
         // urgentFlak: original behaviour (first-air-wave warning), kept for saving/upgrade priority.
         const urgentFlak = w === airInterval && !g.currentWaveDef && counts.flak === 0;
         const needLaser  = w >= 3 && counts.laser === 0;
@@ -162,6 +162,12 @@ class Autopilot {
     _tryBuild(state) {
         if (state.savingForPotion) return false;
         if (!state.preferBuild) return false;
+        const saveCommit = AUTOPILOT_CONFIG.saveCommitFraction || 0.75;
+        const savedTowerCost = state.savingForTower ? TOWERS[state.savingForTower].cost : 0;
+        if (state.savingForTower
+            && this.game.money >= state.savingCost * saveCommit
+            && this.game.money < savedTowerCost
+            && this.game.money < state.savingCost) return false;
         // After first air wave: hold money for the FIRST flak (0 flak on board).
         // Only block when "close" (within $75 of flak cost): too far away and we need defense now.
         // Once ≥1 flak exists, build/upgrade freely — subsequent flaks via buildOrder.
@@ -266,19 +272,19 @@ class Autopilot {
             const score = this._scorePlacement(spot, buildType);
             if (score > bestScore) { bestScore = score; bestSpot = spot; }
         }
+        if (bestScore <= -9999) return null;
         return bestSpot;
     }
 
     // Combined score: path coverage + tower-specific shape preferences + laser synergy.
     _scorePlacement(spot, buildType) {
-        const g = this.game;
         const range = TOWERS[buildType].range;
 
         // How many path tiles this spot can reach with its range.
         const pathCoverage = this._pathTilesInRange(spot, range);
 
-        // Combat towers that can't reach any path tile from a non-adjacent spot are useless.
-        if (range > 0 && pathCoverage === 0 && spot.pathNeighbors === 0) return -9999;
+        // Combat towers that cannot reach the path are dead spend; save money for upgrades.
+        if (range > 0 && pathCoverage === 0) return -9999;
 
         let score = Math.random();
         score += pathCoverage * 0.3;

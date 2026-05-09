@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 
-// Main orchestrator: spawns 6 workers in parallel, picks winner, mutates, repeats.
+// Main orchestrator: spawns workers in parallel, picks winner, mutates, repeats.
 
 const { Worker } = require('worker_threads');
 const path = require('path');
-const { generateNextParamSets } = require('./mutate');
+const { generateNextParamSets, paramsOnly } = require('./mutate');
 const { handleWinner, loadBestParams, saveBestParams, loadState, updateMaxAscension } = require('./commit');
 
-const WORKER_COUNT = 6;
+const WORKER_COUNT = Math.max(1, parseInt(process.env.WORKERS || '6'));
+const ITERATIONS = Math.max(1, parseInt(process.env.ITERATIONS || '1000'));
 const WORKER_FILE = path.join(__dirname, 'worker.js');
 
 // Default AUTOPILOT_CONFIG numeric params (functions are baked into the game)
@@ -15,20 +16,19 @@ const DEFAULT_PARAMS = {
     tickInterval: 30,
     laserSynergyRange: 3,
     laserSynergyScore: 40,
-    saveBufferFlakUrgent: 0,
-    saveBufferFlakNeeded: 0,
+    saveBufferFlakUrgent: 100,
+    saveBufferFlakNeeded: 50,
     saveDeficitSevere: 2,
     saveDeficitModerate: 1,
     saveEarlyTowerTotal: 8,
+    saveCommitFraction: 0.75,
     mustBuildMinTowers: 7,
     mustBuildWantedFraction: 0.68,
     upgradeAlongsideBuild: 200,
-    potionHealthThreshold: 8,
+    potionHealthThreshold: 12,
     airImminentWindow: 2,
-    // Cap multipliers for wantedCount (NOW ACTIVE — applied in autopilot._wantedCounts)
-    // Raise basic to 1.6 so bot builds 8+ basics instead of capping at 5.
     wantedCountCapMult: {
-        basic: 1.6,
+        basic: 1.0,
         flak: 1.0,
         rapid: 1.0,
         laser: 1.2,
@@ -107,20 +107,23 @@ async function runIteration(paramSets, ascensionTier = 0) {
 async function main() {
     console.log('=== Auto-tune Tower Defense Harness ===');
     console.log(`Workers: ${WORKER_COUNT}`);
+    console.log(`Iterations: ${ITERATIONS}`);
 
-    let best = loadBestParams() || DEFAULT_PARAMS;
-    let paramSets = generateNextParamSets(best);
+    let best = { ...DEFAULT_PARAMS, ...paramsOnly(loadBestParams()) };
+    let paramSets = generateNextParamSets(best, WORKER_COUNT);
     let state = loadState();
-    let ascensionTier = state.maxAscensionReached || 0;
+    let ascensionTier = Number.isFinite(Number(process.env.ASCENSION))
+        ? Math.max(0, Math.min(Number(process.env.ASCENSION), 10))
+        : (state.maxAscensionReached || 0);
 
     console.log(`Starting from Ascension ${ascensionTier} (max reached: ${state.maxAscensionReached})`);
 
     // Run indefinitely, escalating ascension when benchmarking is solid
-    for (let iter = 0; iter < 1000; iter++) {
+    for (let iter = 0; iter < ITERATIONS; iter++) {
         try {
             const winner = await runIteration(paramSets, ascensionTier);
-            best = winner;
-            paramSets = generateNextParamSets(best);
+            best = winner.params;
+            paramSets = generateNextParamSets(best, WORKER_COUNT);
 
             // Track max ascension reached
             updateMaxAscension(winner.ascension, state);

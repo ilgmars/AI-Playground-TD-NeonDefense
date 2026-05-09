@@ -10,7 +10,7 @@ const { injectSetup } = require('./inject-utils');
 const SEED = 42069; // fixed seed for reproducibility
 const PORT_BASE = 8765;
 const MAX_WALL_TIME = 600000; // 10 min per run (safeguard)
-const GAME_SPEED = 4000;
+const GAME_SPEED = Math.max(1, parseInt(process.env.GAME_SPEED || '5000'));
 
 async function runGame(params, workerId, ascensionTier = 0) {
     const port = PORT_BASE + workerId;
@@ -45,13 +45,12 @@ async function runGame(params, workerId, ascensionTier = 0) {
         await page.click('#menu-start-btn');
         await page.waitForTimeout(800);
 
-        // Set ascension tier directly via JS — bypasses locked UI buttons
+        // Test-only tier override. This bypasses progression locks inside the
+        // harness without changing the production selector rules.
         if (ascensionTier > 0) {
             await page.evaluate((tier) => {
-                if (typeof setTier === 'function') setTier(tier);
-                else if (typeof selectedTier !== 'undefined') {
-                    selectedTier = tier;
-                }
+                eval(`selectedTier = ${tier}`);
+                if (typeof updateModeDisplay === 'function') updateModeDisplay(tier);
             }, ascensionTier);
             await page.waitForTimeout(300);
         }

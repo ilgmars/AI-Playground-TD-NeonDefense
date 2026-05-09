@@ -199,8 +199,8 @@ const AUTOPILOT_CONFIG = {
 
     // For each tower type: (wave) => desired count on the board.
     wantedCount: {
-        basic:    w => Math.min(20, Math.max(5, Math.ceil(w / 4))),              // capped — filler not primary
-        flak:     w => w >= 3  ? Math.min(18, 2 + Math.floor(w / 5)) : 0,       // higher cap, air is critical
+        basic:    w => Math.min(18, Math.max(4, Math.ceil(w / 5))),              // cheap filler, not a role blocker
+        flak:     w => w >= 3  ? Math.min(12, 1 + Math.floor(w / 8)) : 0,       // first AA is critical; avoid overbuilding air-only towers
         rapid:    w => w >= 2  ? Math.min(15, Math.ceil(w / 7)) : 0,            // moderate — short range
         laser:    w => w >= 3  ? Math.min(30, Math.ceil(w / 3)) : 0,            // TOP priority — slow is critical
         sniper:   w => w >= 4  ? Math.min(40, Math.ceil(w / 5)) : 0,            // reduced — doesn't slow enemies
@@ -236,6 +236,7 @@ const AUTOPILOT_CONFIG = {
     saveDeficitSevere: 2,
     saveDeficitModerate: 1,
     saveEarlyTowerTotal: 8,    // saveDeficitModerate only kicks in while this few total towers
+    saveCommitFraction: 0.75,  // only block fallback builds once close to target cost
 
     // Build urgency thresholds.
     mustBuildMinTowers: 7,       // balanced (was 8)

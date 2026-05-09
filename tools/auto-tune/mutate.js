@@ -19,45 +19,68 @@ function deepCopy(obj) {
     return JSON.parse(JSON.stringify(obj));
 }
 
-// Generate 6 param sets: 1 control (exact winner) + 5 mutations
-function generateNextParamSets(winnerParams) {
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function paramsOnly(candidate) {
+    if (!candidate || typeof candidate !== 'object') return {};
+    let params = candidate;
+    while (params.params && typeof params.params === 'object') params = params.params;
+    return params;
+}
+
+// Generate N param sets: 1 control (exact winner) + mutations
+function generateNextParamSets(winnerParams, count = 6) {
     const sets = [];
+    const base = paramsOnly(winnerParams);
 
     // Control: exact winner
-    sets.push(deepCopy(winnerParams));
+    sets.push(deepCopy(base));
 
-    // 5 mutations
-    for (let i = 0; i < 5; i++) {
-        const variant = deepCopy(winnerParams);
+    for (let i = 1; i < count; i++) {
+        const variant = deepCopy(base);
 
         // Mutate key knobs
+        if ('tickInterval' in variant) {
+            variant.tickInterval = Math.round(clamp(mutate(variant.tickInterval, 0.15), 10, 45));
+        }
         if ('laserSynergyScore' in variant) {
-            variant.laserSynergyScore = mutate(variant.laserSynergyScore, 0.15);
+            variant.laserSynergyScore = Math.round(clamp(mutate(variant.laserSynergyScore, 0.25), 0, 120));
         }
         if ('mustBuildMinTowers' in variant) {
-            variant.mustBuildMinTowers = Math.round(mutate(variant.mustBuildMinTowers, 0.2));
+            variant.mustBuildMinTowers = Math.round(clamp(mutate(variant.mustBuildMinTowers, 0.25), 3, 12));
         }
         if ('laserSynergyRange' in variant) {
-            variant.laserSynergyRange = Math.round(mutate(variant.laserSynergyRange, 0.15));
+            variant.laserSynergyRange = Math.round(clamp(mutate(variant.laserSynergyRange, 0.2), 1, 8));
         }
         if ('potionHealthThreshold' in variant) {
-            variant.potionHealthThreshold = Math.round(mutate(variant.potionHealthThreshold, 0.15));
+            variant.potionHealthThreshold = Math.round(clamp(mutate(variant.potionHealthThreshold, 0.2), 4, 18));
         }
         if ('saveBufferFlakUrgent' in variant) {
-            variant.saveBufferFlakUrgent = Math.round(mutate(variant.saveBufferFlakUrgent, 0.2));
+            variant.saveBufferFlakUrgent = Math.round(clamp(mutate(variant.saveBufferFlakUrgent, 0.35), 0, 200));
         }
         if ('saveBufferFlakNeeded' in variant) {
-            variant.saveBufferFlakNeeded = Math.round(mutate(variant.saveBufferFlakNeeded, 0.2));
+            variant.saveBufferFlakNeeded = Math.round(clamp(mutate(variant.saveBufferFlakNeeded, 0.35), 0, 150));
+        }
+        if ('saveCommitFraction' in variant) {
+            variant.saveCommitFraction = clamp(mutate(variant.saveCommitFraction, 0.2), 0.45, 0.95);
         }
         if ('upgradeAlongsideBuild' in variant) {
-            variant.upgradeAlongsideBuild = Math.round(mutate(variant.upgradeAlongsideBuild, 0.2));
+            variant.upgradeAlongsideBuild = Math.round(clamp(mutate(variant.upgradeAlongsideBuild, 0.25), 50, 500));
+        }
+        if ('mustBuildWantedFraction' in variant) {
+            variant.mustBuildWantedFraction = clamp(mutate(variant.mustBuildWantedFraction, 0.2), 0.35, 0.95);
+        }
+        if ('airImminentWindow' in variant) {
+            variant.airImminentWindow = Math.round(clamp(mutate(variant.airImminentWindow, 0.35), 1, 4));
         }
 
         // Mutate wantedCount cap multipliers
         if ('wantedCountCapMult' in variant && typeof variant.wantedCountCapMult === 'object') {
             const newMults = deepCopy(variant.wantedCountCapMult);
             for (const type of Object.keys(newMults)) {
-                newMults[type] = Math.max(0.5, Math.min(2.0, mutate(newMults[type], 0.15)));
+                newMults[type] = clamp(mutate(newMults[type], 0.25), 0.35, 2.25);
             }
             variant.wantedCountCapMult = newMults;
         }
@@ -66,7 +89,7 @@ function generateNextParamSets(winnerParams) {
         if ('upgradeValue' in variant && typeof variant.upgradeValue === 'object') {
             const newValues = deepCopy(variant.upgradeValue);
             for (const [type, val] of Object.entries(newValues)) {
-                newValues[type] = Math.round(mutate(val, 0.15));
+                newValues[type] = Math.round(clamp(mutate(val, 0.25), 1, 20));
             }
             variant.upgradeValue = newValues;
         }
@@ -77,4 +100,4 @@ function generateNextParamSets(winnerParams) {
     return sets;
 }
 
-module.exports = { generateNextParamSets };
+module.exports = { generateNextParamSets, paramsOnly };
