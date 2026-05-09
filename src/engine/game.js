@@ -374,6 +374,14 @@ class Game {
             }
         }
 
+        // Per-tower auto-upgrade — runs at half the autopilot cadence so it
+        // remains responsive even when global autopilot is off.
+        this._autoUpgradeTimer = (this._autoUpgradeTimer || 0) + 1;
+        if (this._autoUpgradeTimer >= 30) {
+            this._autoUpgradeTimer = 0;
+            this._runAutoUpgrade();
+        }
+
         for (let i = this.upgradeEffects.length - 1; i >= 0; i--) {
             let eff = this.upgradeEffects[i];
             eff.radius += 1.5;
@@ -778,7 +786,7 @@ class Game {
         
         let list = document.getElementById('upgrades-list');
         let defs = TOWER_UPGRADES[t.type];
-        
+
         if (list.children.length === 0 || list.dataset.towerType !== t.type) {
             list.innerHTML = '';
             list.dataset.towerType = t.type;
@@ -795,27 +803,85 @@ class Game {
                 list.appendChild(div);
             }
         }
-        
+
         for (let i = 0; i < 3; i++) {
             let def = defs[i];
-            let cost = Math.floor(t.getUpgradeCost(i) * this.upgradeCostMult);
+            // Across all selected towers, show the CHEAPEST upgrade cost so the
+            // panel never appears stuck-disabled just because the first-clicked
+            // tower happens to be the highest-leveled one in the bulk set.
+            let costs = this.selectedTowers.map(tw => Math.floor(tw.getUpgradeCost(i) * this.upgradeCostMult));
+            let minCost = Math.min(...costs);
             let lvl = t.upgrades[i];
-            
+            let canAffordAny = this.selectedTowers.some((tw, j) => this.money >= costs[j]);
+
             let div = list.children[i];
-            div.className = 'upgrade-item' + (this.money >= cost ? '' : ' disabled');
+            div.className = 'upgrade-item' + (canAffordAny ? '' : ' disabled');
             div.querySelector('.upg-name').textContent = def.name;
             div.querySelector('.upg-level').textContent = this.selectedTowers.length > 1 ? 'Bulk' : ('Lvl ' + lvl);
             div.querySelector('.upg-desc').textContent = def.desc;
-            div.querySelector('.upg-cost').textContent = cost + '¢' + (this.selectedTowers.length > 1 ? '+' : '');
-            
+            div.querySelector('.upg-cost').textContent = minCost + '¢' + (this.selectedTowers.length > 1 ? '+' : '');
+
             div.onclick = () => {
                 this.buyUpgrade(i);
             };
         }
-        
+
         let totalSell = this.selectedTowers.reduce((sum, current) => sum + current.getSellValue(), 0);
         let sellVal = document.getElementById('sell-value');
         if (sellVal) sellVal.textContent = totalSell + '¢';
+
+        // Per-tower auto-upgrade toggle: when on, Game._runAutoUpgrade buys the
+        // cheapest-available upgrade for that tower whenever money allows.
+        let autoBtn = document.getElementById('auto-upgrade-btn');
+        if (!autoBtn) {
+            autoBtn = document.createElement('button');
+            autoBtn.id = 'auto-upgrade-btn';
+            autoBtn.className = 'auto-upgrade-toggle';
+            autoBtn.textContent = 'AUTO ⏶ OFF';
+            autoBtn.title = 'Auto-buy the cheapest affordable upgrade for this tower';
+            const sellBtn = document.getElementById('sell-btn');
+            if (sellBtn && sellBtn.parentNode) sellBtn.parentNode.insertBefore(autoBtn, sellBtn);
+            autoBtn.addEventListener('click', () => {
+                if (!this.selectedTowers || this.selectedTowers.length === 0) return;
+                // If any selected tower is OFF, turn all ON; else turn all OFF.
+                const anyOff = this.selectedTowers.some(tw => !tw.autoUpgrade);
+                for (let tw of this.selectedTowers) tw.autoUpgrade = anyOff;
+                this.updateUpgradeMenu();
+            });
+        }
+        const allOn = this.selectedTowers.every(tw => tw.autoUpgrade);
+        const anyOn = this.selectedTowers.some(tw => tw.autoUpgrade);
+        autoBtn.classList.toggle('on', allOn);
+        autoBtn.classList.toggle('mixed', anyOn && !allOn);
+        autoBtn.textContent = 'AUTO ⏶ ' + (allOn ? 'ON' : (anyOn ? 'MIX' : 'OFF'));
+    }
+
+    // Per-tower auto-upgrade: each tick, for each tower with autoUpgrade=true,
+    // try to buy its cheapest affordable upgrade. Independent of the global
+    // Autopilot — towers can self-upgrade even with global Autopilot off.
+    _runAutoUpgrade() {
+        if (!this.towers || this.towers.length === 0) return;
+        let bought = false;
+        for (let t of this.towers) {
+            if (!t.autoUpgrade) continue;
+            // Income towers have upgrades too (e.g. Network Bonus); allow all types.
+            let cheapestIdx = -1;
+            let cheapestCost = Infinity;
+            for (let i = 0; i < 3; i++) {
+                let cost = Math.floor(t.getUpgradeCost(i) * this.upgradeCostMult);
+                if (cost < cheapestCost) { cheapestCost = cost; cheapestIdx = i; }
+            }
+            if (cheapestIdx >= 0 && this.money >= cheapestCost) {
+                this.money -= cheapestCost;
+                t.upgrade(cheapestIdx);
+                this.addUpgradeEffect(t.x, t.y);
+                bought = true;
+            }
+        }
+        if (bought) {
+            this.uiDirty = true;
+            SoundFX.upgrade();
+        }
     }
 
     updateUI() {

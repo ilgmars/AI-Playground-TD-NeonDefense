@@ -248,6 +248,10 @@ class Tower {
         // M3: Mastery XP attribution — incremented by every projectile hit
         // and every frame of laser/tesla direct damage sourced from this tower.
         this.damageDealt = 0;
+
+        // Per-tower auto-upgrade flag — toggled from the upgrade menu.
+        // When true, Game._runAutoUpgrade buys the cheapest affordable upgrade.
+        this.autoUpgrade = false;
     }
 
     get level() {

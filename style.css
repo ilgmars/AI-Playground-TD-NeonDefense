@@ -384,6 +384,23 @@ canvas {
 .upgrade-item:hover .upg-cost { color: #0f172a; }
 .upg-level { font-size: 10px; background: #334155; padding: 2px 4px; border-radius: 4px; margin-left: 5px; color: #fff; }
 
+.auto-upgrade-toggle {
+    width: 100%;
+    font-size: 0.85rem;
+    padding: 6px 8px;
+    margin-bottom: 6px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+}
+.auto-upgrade-toggle:hover { background: rgba(255,255,255,0.1); }
+.auto-upgrade-toggle.on    { color: #4ade80; border-color: #4ade80; box-shadow: 0 0 10px rgba(74,222,128,0.25) inset; }
+.auto-upgrade-toggle.mixed { color: #fbbf24; border-color: #fbbf24; box-shadow: 0 0 10px rgba(251,191,36,0.25) inset; }
+
 /* Overlays */
 .overlay {
     position: absolute;
