@@ -911,9 +911,17 @@ class Game {
             }
         });
 
-        // Retire button: unlocks after wave 10
-        const retireBtn = document.getElementById('retire-btn');
-        if (retireBtn) retireBtn.classList.toggle('hidden', this.wave < 10);
+        // Combined SYS button: shows RST early, swaps to RETIRE once the
+        // player has earned the right to a retire bonus (wave 30 = clear).
+        const restartBtn = document.getElementById('restart-btn');
+        const restartDisplay = document.getElementById('restart-display');
+        if (restartBtn && restartDisplay) {
+            const eligible = this.wave >= 30;
+            restartBtn.dataset.action = eligible ? 'retire' : 'restart';
+            restartDisplay.textContent = eligible ? 'RETIRE' : 'RST';
+            restartDisplay.style.color = eligible ? '#4ade80' : '';
+            restartBtn.querySelector('.label').textContent = eligible ? 'RUN' : 'SYS';
+        }
 
         // Potion button
         let potionBtn = document.getElementById('potion-btn');

@@ -217,9 +217,15 @@ function navigateToMainMenu() {
     hideScreen('start-screen');
     hideScreen('game-over');
     hideScreen('restart-confirm');
+    hideScreen('exit-confirm');
+    hideScreen('retire-confirm');
     hideScreen('tech-tree');
     hideScreen('tower-mastery');
     showScreen('main-menu');
+    // Halt the in-progress run so update() bails — the menu owns the canvas now.
+    if (typeof game !== 'undefined' && (game.state === 'playing' || game.state === 'paused')) {
+        game.state = 'paused';
+    }
     updateMainMenuState();
 }
 
@@ -879,17 +885,30 @@ function init() {
     window.maybeShowStrategistPreview = maybeShowStrategistPreview;
 
     document.getElementById('restart-btn').addEventListener('click', () => {
-        if (game.state === 'playing' || game.state === 'paused') {
-            game.state = 'paused';
+        if (game.state !== 'playing' && game.state !== 'paused') return;
+        game.state = 'paused';
+        // Combined SYS button: swap target overlay based on current label.
+        const action = document.getElementById('restart-btn').dataset.action;
+        if (action === 'retire') {
+            document.getElementById('retire-confirm').classList.remove('hidden');
+        } else {
             document.getElementById('restart-confirm').classList.remove('hidden');
         }
     });
 
-    document.getElementById('retire-btn').addEventListener('click', () => {
-        if (game.state === 'playing' || game.state === 'paused') {
-            game.state = 'paused';
-            document.getElementById('retire-confirm').classList.remove('hidden');
-        }
+    document.getElementById('exit-menu-btn').addEventListener('click', () => {
+        if (game.state !== 'playing' && game.state !== 'paused') return;
+        game.state = 'paused';
+        document.getElementById('exit-confirm').classList.remove('hidden');
+    });
+    document.getElementById('exit-confirm-yes').addEventListener('click', () => {
+        document.getElementById('exit-confirm').classList.add('hidden');
+        document.getElementById('upgrade-menu').classList.add('hidden');
+        navigateToMainMenu();
+    });
+    document.getElementById('exit-confirm-no').addEventListener('click', () => {
+        document.getElementById('exit-confirm').classList.add('hidden');
+        if (game.state === 'paused') game.state = 'playing';
     });
     document.getElementById('retire-confirm-yes').addEventListener('click', () => {
         document.getElementById('retire-confirm').classList.add('hidden');
