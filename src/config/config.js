@@ -222,7 +222,9 @@ const AUTOPILOT_CONFIG = {
     buildChance: w => w < 15 ? 0.85 : w < 30 ? 0.7 : w < 50 ? 0.6 : 0.55,
 
     // A wave is "air imminent" if <= N waves away (or currently active).
-    airImminentWindow: 2,
+    // Bumped 2→3 since iter1's multi-action tick can absorb the extra prep
+    // builds without starving ground-defence; gives flak/laser more lead time.
+    airImminentWindow: 3,
 
     // Auto-potion when health drops to or below this threshold.
     potionHealthThreshold: 12, // Buy before critical — saves for potion if needed

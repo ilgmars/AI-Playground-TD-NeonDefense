@@ -120,4 +120,15 @@ AND `counts.flak === 0`, not just on the wave-start trigger.
 
 **Risk**: Minimal — same urgent code paths reused, just broader triggering.
 
+### Iteration 6 — Wider air-imminent window (2 → 3)
+
+**Hypothesis**: Iter 1's multi-action tick has slack — air prep builds no
+longer crowd out ground builds the way they did with 1 action / tick.
+Lengthening the prep window gives flak/laser priority more lead time.
+
+**Change**: `AUTOPILOT_CONFIG.airImminentWindow` 2 → 3.
+
+**Risk**: Slightly more flak/laser-biased upgrades waves N-3 through N-1.
+Bounded; combat priority resumes the moment the air wave clears.
+
 
