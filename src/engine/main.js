@@ -1553,7 +1553,7 @@ function init() {
     let lastTime = 0;
     function loop(time) {
         requestAnimationFrame(loop);
-        
+
         if (time - lastTime < 16) return;
         lastTime = time;
 
@@ -1561,6 +1561,30 @@ function init() {
             game.update();
         }
         game.draw();
+
+        // Bonus minigame hooks. Game.update() sets these flags at wave-start
+        // (alert) and wave-end (trigger) on every 15th-wave boundary; both are
+        // skipped when autopilot is enabled per spec.
+        if (game.pendingMinigameAlert) {
+            game.pendingMinigameAlert = false;
+            if (!game.autopilot) {
+                const toast = document.getElementById('minigame-toast');
+                if (toast) {
+                    toast.classList.remove('hidden');
+                    // Restart the fade animation if a previous toast is still on screen.
+                    toast.style.animation = 'none';
+                    void toast.offsetWidth;
+                    toast.style.animation = '';
+                    setTimeout(() => toast.classList.add('hidden'), 5000);
+                }
+            }
+        }
+        if (game.pendingMinigame) {
+            game.pendingMinigame = false;
+            if (!game.autopilot && window.NeonMinigame) {
+                window.NeonMinigame.open();
+            }
+        }
 
         // M2: Airstrike targeting crosshair.
         if ((game.state === 'playing' || game.state === 'paused') && game.abilityTargetMode && game.ability && game.ability.isUsable()) {

@@ -1439,6 +1439,63 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 #tower-tooltip.hidden { display: none; }
 
+/* Bonus tic-tac-toe minigame ──────────────────────────────────────────── */
+#mg-board {
+    display: grid;
+    grid-template-columns: repeat(3, 70px);
+    grid-template-rows: repeat(3, 70px);
+    gap: 6px;
+    margin: 14px 0 6px;
+}
+.mg-cell {
+    background: rgba(56, 189, 248, 0.06);
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: var(--accent);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+.mg-cell:not(.filled):hover {
+    background: rgba(56, 189, 248, 0.16);
+    border-color: var(--accent);
+}
+.mg-cell.filled { cursor: default; }
+.mg-cell.x { color: var(--accent); text-shadow: 0 0 12px rgba(56, 189, 248, 0.6); }
+.mg-cell.o { color: #fb7185;       text-shadow: 0 0 12px rgba(251, 113, 133, 0.6); }
+#mg-status { margin-top: 10px; font-size: 0.95rem; color: var(--text-muted); letter-spacing: 1.5px; min-height: 1.4em; }
+#mg-timer  { font-weight: 700; color: #fbbf24; font-variant-numeric: tabular-nums; }
+
+#minigame-toast {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-size: 0.85rem;
+    color: var(--accent);
+    letter-spacing: 2px;
+    font-weight: 700;
+    z-index: 200;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+    animation: mg-toast-fade 5s ease-out forwards;
+    pointer-events: none;
+}
+#minigame-toast.hidden { display: none; }
+@keyframes mg-toast-fade {
+    0%   { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+    10%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+    85%  { opacity: 1; }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+}
+
 /* Touch placement confirmation buttons */
 #place-confirm {
     position: fixed;

@@ -133,6 +133,9 @@ class Game {
         // M3: A10 — every 10th wave is a boss wave (one boss replaces normal spawns).
         this.isBossWave = this.ascension.spawnBoss && this.wave > 0 && this.wave % 10 === 0;
 
+        // Bonus tic-tac-toe minigame fires after every 15th wave; alert one wave earlier.
+        if ((this.wave + 1) % 15 === 0) this.pendingMinigameAlert = true;
+
         // M3: Research Node aura — boosts damage of all towers within auraRange
         // tiles of each Research Node by auraBonus. Recomputes each wave (stackable).
         for (const t of this.towers) t.auraDamageBonus = 0;
@@ -494,6 +497,9 @@ class Game {
                     for (const t of this.towers) {
                         if (t.type === 'income_research') t.damageDealt += 25;
                     }
+
+                    // Trigger bonus minigame on milestone waves; main.js drives the UI.
+                    if (this.wave > 0 && this.wave % 15 === 0) this.pendingMinigame = true;
                     
                     if ((this.wave + 1) % this.ascension.airWaveInterval === 0) {
                         SoundFX.siren();
