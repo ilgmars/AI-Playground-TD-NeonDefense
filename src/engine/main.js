@@ -895,15 +895,20 @@ function init() {
         }
     });
 
-    // EXIT TO MENU buttons live inside the restart-confirm and retire-confirm
-    // overlays (so the SYS button is the single entry point for "end this run
-    // somehow"). Each button carries data-from so we know which overlay to
-    // close before swapping to the main menu.
+    // EXIT TO MENU buttons live inside several overlays (restart-confirm,
+    // retire-confirm, game-over, victory) so the player can always bail to
+    // the main menu without having to start a new run first. Each button
+    // carries data-from so we know which overlay to close.
+    const EXIT_OVERLAY_FROM = {
+        restart:  'restart-confirm',
+        retire:   'retire-confirm',
+        gameover: 'game-over',
+        victory:  'victory',
+    };
     document.querySelectorAll('.exit-to-menu-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            const from = btn.dataset.from;
-            if (from === 'restart') document.getElementById('restart-confirm').classList.add('hidden');
-            if (from === 'retire')  document.getElementById('retire-confirm').classList.add('hidden');
+            const id = EXIT_OVERLAY_FROM[btn.dataset.from];
+            if (id) document.getElementById(id).classList.add('hidden');
             document.getElementById('upgrade-menu').classList.add('hidden');
             navigateToMainMenu();
         });

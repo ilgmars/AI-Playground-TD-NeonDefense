@@ -235,10 +235,23 @@ class Tower {
         this.chainCount = cfg.chainCount ?? 0;
         this.maxHover   = cfg.maxHover   ?? 0;
 
-        // Optional per-type extras.
+        // Optional per-type extras. Without these copies the variants'
+        // config values get silently shadowed by `this.X || <default>`
+        // fallbacks scattered through the combat code — fine for fields
+        // whose default happens to equal the config (Flamethrower's
+        // burnDamage: 2 matches the `|| 2` fallback) but a hidden trap
+        // when the variant wants a different value (e.g. Plasma Coil).
         if (cfg.pelletCount !== undefined)   this.pelletCount = cfg.pelletCount;
         if (cfg.spread !== undefined)        this.spread = cfg.spread;
         if (cfg.incomePerWave !== undefined) this.incomePerWave = cfg.incomePerWave;
+        if (cfg.burnDamage !== undefined)    this.burnDamage = cfg.burnDamage;
+        if (cfg.burnDuration !== undefined)  this.burnDuration = cfg.burnDuration;
+        if (cfg.slowDuration !== undefined)  this.slowDuration = cfg.slowDuration;
+        if (cfg.stunDuration !== undefined)  this.stunDuration = cfg.stunDuration;
+        if (cfg.coneAngle !== undefined)     this.coneAngle = cfg.coneAngle;
+        if (cfg.clusterCount !== undefined)  this.clusterCount = cfg.clusterCount;
+        if (cfg.auraBonus !== undefined)     this.auraBonus = cfg.auraBonus;
+        if (cfg.auraRange !== undefined)     this.auraRange = cfg.auraRange;
 
         // Per-type runtime state (not config).
         if (type === 'laser') this.laserTarget = null;
@@ -403,28 +416,11 @@ class Tower {
                     SoundFX.explosion();
                 }
                 this.laserTarget = {x: target.x, y: target.y};
-            } else if (this.type === 'electric_plasma') {
-                // M3: Plasma Coil — continuous AoE damage to all enemies in range per frame.
-                if (this.cooldown <= 0) {
-                    const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
-                    const tx = this.x + TILE_SIZE / 2;
-                    const ty = this.y + TILE_SIZE / 2;
-                    const r2 = this.range * this.range;
-                    for (const e of enemies) {
-                        if (!e.active) continue;
-                        const dx = e.x - tx;
-                        const dy = e.y - ty;
-                        if (dx*dx + dy*dy > r2) continue;
-                        const plasmaDealt = e.takeDamage(effectiveDamage);
-                        this.damageDealt += plasmaDealt;
-                        if (e.hp <= 0) e.active = false;
-                    }
-                    this.cooldown = 1; // effectively every frame (fireRate=1)
-                }
-            } else if (this.type === 'electric') {
+            } else if (this.type === 'electric' || this.type === 'electric_plasma') {
                 if (this.cooldown === 0) {
                     SoundFX.shootElectric();
-                    const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
+                    const effectiveDamage     = this.damage * (1 + (this.auraDamageBonus || 0));
+                    const effectiveBurnDamage = (this.burnDamage || 0) * (1 + (this.auraDamageBonus || 0));
                     let points = [{x: this.x + TILE_SIZE/2, y: this.y + TILE_SIZE/2}];
                     let currentTarget = target;
                     let hitCount = 0;
@@ -442,12 +438,20 @@ class Tower {
                                 currentTarget.active = false;
                                 SoundFX.explosion();
                             }
+                            // M3: Plasma Coil burn DoT — applied to every chained
+                            // enemy that takes a direct hit (skipped on a shield
+                            // soak, matching how Flamethrower handles burn).
+                            if (effectiveBurnDamage > 0 && currentTarget.active) {
+                                currentTarget.burnFrames = Math.max(currentTarget.burnFrames || 0, this.burnDuration || 90);
+                                currentTarget.burnDamage = effectiveBurnDamage;
+                                currentTarget.burnSource = this;
+                            }
                         }
 
                         points.push({x: currentTarget.x, y: currentTarget.y});
                         alreadyHit.add(currentTarget);
                         hitCount++;
-                        
+
                         let nextTarget = null;
                         let minJumpDist = 100;
                         for (let e of enemies) {
