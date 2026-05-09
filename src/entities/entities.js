@@ -647,6 +647,11 @@ class Projectile {
             this.turnSpeed = 0.08;
             this.currentSpeed = 1;
             this.trailTimer = 0;
+            // Seed fallback target now so a same-frame sibling kill (e.g. another
+            // silo's rocket exploded earlier in the projectile loop) doesn't
+            // vanish this rocket on its first update with savedTx===undefined.
+            this.savedTx = target.x;
+            this.savedTy = target.y;
         }
     }
 

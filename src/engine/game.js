@@ -485,14 +485,14 @@ class Game {
                     for (let t of incomeTowers) {
                         let bonus = t.incomePerWave + (t.networkBonus || 0) * 5 * (relayCount - 1);
                         this.money += bonus;
-                        // Income generated counts as mastery XP — relay earns XP
-                        // proportional to its output, reaching the 1k variant
-                        // milestone after ~50 productive waves.
-                        t.damageDealt += bonus;
+                        // Income generated × 5 counts as mastery XP — at 20¢/wave
+                        // base that's 100 XP/wave, so a Relay reaches the 1k
+                        // variant unlock in ~10 productive waves instead of 50.
+                        t.damageDealt += bonus * 5;
                     }
-                    // Research Node earns a fixed 5 XP per wave it's active.
+                    // Research Node earns 25 XP/wave it's active (no income to scale).
                     for (const t of this.towers) {
-                        if (t.type === 'income_research') t.damageDealt += 5;
+                        if (t.type === 'income_research') t.damageDealt += 25;
                     }
                     
                     if ((this.wave + 1) % this.ascension.airWaveInterval === 0) {
