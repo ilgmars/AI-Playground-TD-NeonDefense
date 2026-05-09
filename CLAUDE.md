@@ -81,6 +81,54 @@ Autopilot strategy knobs live in `AUTOPILOT_CONFIG`; the class only implements t
 - **Balance changes go in [src/config/config.js](src/config/config.js) first.** Tower stats, enemy stats, wave timing, autopilot strategy, and upgrade trees all live there as single-source-of-truth objects. Only touch `entities.js` / `game.js` / `autopilot.js` if the change is logic, not numbers.
 - Keep seed compatibility in mind: any change to `GameMap.generateMap()` RNG call order invalidates every shared seed.
 
+## UX bindings (controls)
+
+- **Hotkeys 1–9** select build types in dock order: Blaster, Sniper, Shotgun,
+  Laser, Rocket, Flak, Tesla, Silo, Relay. Same keys 1–3 buy upgrade slots
+  when a placed tower is selected.
+- **Hotkeys fire while paused** so users can pre-select the next build during
+  a tactical pause. Numeric input fields skip the hotkey handler.
+- **Shift+click on the canvas** keeps the chosen tower selected after a
+  successful placement → chain-build a row without re-selecting.
+- **Bulk select** (double-click a placed tower) selects all towers of that
+  type. The upgrade panel shows the **min cost** across the selection so it
+  doesn't appear locked when only the cheapest member is affordable.
+- **Per-tower AUTO ⏶ toggle** (in the upgrade menu) buys the cheapest
+  affordable upgrade for that tower roughly twice a second. Independent of
+  the global Autopilot.
+- **SYS button** doubles as the run-end button: shows "RST" early-game,
+  flips to "RETIRE" at wave ≥ 30 (same gate as the +50% retire XP bonus).
+- **EXIT (⌂)** in the overflow popover quits to the main menu, dropping the
+  current run.
+- The mobile overflow popover proxies (SPEED / AUTO) are hidden on desktop
+  via `.stat-box.overflow-*-proxy { display: none }` — bumping specificity
+  past `.stat-box { display: flex }` so they don't double up.
+
+## Original prompts (verbatim — /tasks runs)
+
+### Round 1: feature/QoL pass
+
+> implement autopilot findings, refactor and compact the project, write the prompts in claude md.
+> fixes that are needed.
+> on the large screen auto and speed buttons are doubled
+> when double clicking, upgrading system kind of breaks if you do not have enough money,
+> it always needs to show the lowest upgrade so that it is always possible to upgrade if you have money for some towers.
+> add buttor for auto upgrade for individual tower and upgrade.
+>
+> findings from other people:
+> 1. Hotkey lai Relay uztaisītu nestrādā
+> 2. Hotkey nestrādā kamer spele ir nopauzēta
+>    need a button to exit to menu.
+>    retire and rst can be combined. retire option appears after vawe 50 or whatever is required to ascend to next level
+>    Pievienot iespēju ātrāk uzlikt tornīšus. (Shift+click vai hotkeys lai izvēlētos ko būvēt)
+>
+> test change and git push each point
+
+Each bullet became a single commit on `main`. The retire-unlock threshold
+landed on wave 30 (matches the existing first-clear / XP-bonus logic) rather
+than the suggested 50 — stayed consistent with what the rest of the codebase
+already treats as "cleared".
+
 ## Auto-tune iterative testing harness
 
 Lives under [tools/auto-tune/](tools/auto-tune/). Runs the game headless in 6 parallel Playwright browsers, mutates `AUTOPILOT_CONFIG` knobs each iteration, and auto-commits winners.
