@@ -43,6 +43,13 @@
   - Result: run completed with variants enabled; no performance improvement beyond wave 9.
   - Iteration counter advanced to 2 during the run, confirming the stale-state overwrite fix.
   - Generated `tools/auto-tune/best-params.json` and `tools/auto-tune/state.json` changes were restored because they were no-commit sweep output, not a production improvement.
+- Investigated A6 opening with:
+  - `node test-autopilot.js --port=8932 --ascension=6 --speed=500 --seed=42069 --snapshots=1,2,3,4,5,6,7,8,9,10`
+  - Finding: at wave 5 the builder had `4 basic + 1 sniper`, no flak; by wave 10 it had only `4 basic + 1 sniper + 1 flak` and no laser.
+  - Root cause found in `_tryBuild()`: the save gate used `state.savingCost * saveCommit` where `state.savingCost` includes the buffer, then also required money below the raw tower cost. For first flak this made the gate unreachable at the important `$112-$149` range.
+- Tested an A6 save-gate change where the first-flak commit threshold used raw tower cost instead of buffered save target, plus a follow-up low-health emergency-spend bypass.
+  - Result: not an improvement; fixed seed `42069` still died at wave 9.
+  - These experimental `src/ai/autopilot.js` changes were backed out.
 
 ## Current Uncommitted Files
 
