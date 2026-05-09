@@ -207,14 +207,16 @@ const AUTOPILOT_CONFIG = {
         rocket:   w => w >= 6  ? Math.min(45, Math.ceil(w / 4)) : 0,            // reduced vs sniper
         electric: w => w >= 7  ? Math.min(20, Math.ceil(w / 6)) : 0,            // moderate
         silo:     w => w >= 10 ? Math.min(25, Math.ceil(w / 5)) : 0,            // moderate
-        income:   w => w >= 7 ? Math.min(12, Math.max(1, Math.floor(w / 12))) : 0  // capped — don't overinvest
+        income:   w => w >= 5 ? Math.min(14, Math.max(1, Math.floor(w / 7))) : 0  // earlier + denser — relays pay back fast and fund everything else
     },
 
     // Order used when scanning for the biggest tower-count deficit.
     buildOrder: ['flak', 'laser', 'sniper', 'rocket', 'silo', 'electric', 'basic', 'rapid', 'income'],
 
     // Priority weight when choosing which tower to upgrade (higher = prefer).
-    upgradeValue: { silo: 10, rocket: 9, electric: 8, sniper: 7, laser: 6, flak: 5, rapid: 4, basic: 3, income: 2 },
+    // Income bumped 2 → 6: relay upgrades have multiplicative payoff on every
+    // future wave, so they're competitive with mid-tier combat upgrades.
+    upgradeValue: { silo: 10, rocket: 9, electric: 8, sniper: 7, income: 6, laser: 6, flak: 5, rapid: 4, basic: 3 },
 
     // (wave) => probability that the autopilot builds vs upgrades this tick.
     buildChance: w => w < 15 ? 0.85 : w < 30 ? 0.7 : w < 50 ? 0.6 : 0.55,

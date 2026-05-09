@@ -54,4 +54,30 @@ prevents pathological infinite loops.
 1 tower/sec. No change to early-game pacing — early-game tick spends
 ~1 action anyway because money is the binding constraint.
 
+### Iteration 2 — Income economy (build earlier, denser, upgrade harder)
+
+**Hypothesis**: Relays compound — each one funds future builds and upgrades
+on every wave that follows. The current curve underbuilds them: 1 Relay by
+wave 12, ~3 by wave 36. With base 20¢/wave + 5¢/wave per other Relay
+(Network upgrade), each Relay pays its 200¢ cost back in ~10 waves and
+becomes pure profit thereafter — a strong argument for front-loading them.
+
+**Change**:
+- `wantedCount.income`: `w >= 7 ? min(12, max(1, floor(w/12))) : 0`
+  → `w >= 5 ? min(14, max(1, floor(w/7))) : 0`.
+  First Relay at wave 5 (was 7); 2 Relays at wave 14 (was 24);
+  4 Relays at wave 28 (was 48); cap raised 12 → 14.
+- `upgradeValue.income`: 2 → 6. Relay upgrades (Efficiency / Overcharge /
+  Network) are multiplicatively valuable across the rest of the run, so
+  they should compete with mid-tier combat upgrades instead of being last
+  priority.
+
+**Risk**: Over-investing in income at the cost of early defense. Bounded
+by the existing `buildOrder` (income is last) and the build-deficit
+selection — Relays only get picked when other deficits are satisfied or
+when the autopilot can afford to.
+
+**Expected impact**: Faster snowball after wave ~10. Slightly tighter
+early-game money pre-wave-5 (no change there).
+
 
