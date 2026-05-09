@@ -388,12 +388,11 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
     cursor: pointer;
     transition: all 0.2s;
 }
-/* Row highlight only fires when the mouse is NOT over the auto button —
-   :has() lets the parent opt out of its own :hover when a specific child is hot. */
+/* Row: lighter gray on hover. :has() suppresses it when the ⏶ button itself is hot
+   so only the button lights up in that case, not the whole row. */
 .upgrade-item:hover:not(:has(.upg-auto:hover)) {
-    background: #2dd4bf;
-    border-color: #2dd4bf;
-    color: #0f172a;
+    background: #2a3a52;
+    border-color: #475569;
 }
 .upgrade-item.disabled {
     opacity: 0.5;
@@ -411,7 +410,6 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
 .upg-name { font-weight: bold; font-size: 14px; }
 .upg-desc { font-size: 11px; opacity: 0.8; margin-top: 2px;}
 .upg-cost { font-weight: bold; color: #fde047; font-size: 14px;}
-.upgrade-item:hover .upg-cost { color: #0f172a; }
 .upg-level { font-size: 10px; background: #334155; padding: 2px 4px; border-radius: 4px; margin-left: 5px; color: #fff; }
 
 /* Per-slot AUTO ⏶ button on each upgrade row. Sits to the right of the
@@ -436,10 +434,6 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
 .upg-auto.on    { color: #4ade80; border-color: #4ade80; background: rgba(74,222,128,0.12);
                   box-shadow: 0 0 8px rgba(74,222,128,0.4) inset; }
 .upg-auto.mixed { color: #fbbf24; border-color: #fbbf24; box-shadow: 0 0 8px rgba(251,191,36,0.35) inset; }
-/* When row is hovered (not button), keep the button visually separate from the teal wash */
-.upgrade-item:hover:not(:has(.upg-auto:hover)) .upg-auto:not(.on):not(.mixed) {
-    background: rgba(15,23,42,0.65); color: var(--text-muted); border-color: rgba(148,163,184,0.35);
-}
 /* ON stays green regardless of row hover state */
 .upgrade-item:hover .upg-auto.on { color: #4ade80; border-color: #4ade80; background: rgba(74,222,128,0.18); }
 
