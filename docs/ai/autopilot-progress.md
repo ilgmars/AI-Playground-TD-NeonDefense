@@ -1,0 +1,57 @@
+# Autopilot Improvement Log
+
+Iterative manual improvements to `src/ai/autopilot.js` and `AUTOPILOT_CONFIG`
+in `src/config/config.js`. Each iteration is a single committed change with a
+clear hypothesis and (where possible) before/after rationale. Commit policy
+mirrors the auto-tune harness: push on improvement; if no improvement, push
+every 10th iteration anyway so progress (or lack of it) is recorded.
+
+Companion to `tools/auto-tune/` (the headless multi-worker tuner). This log
+covers human-driven changes; the harness's auto-commits land separately under
+`Auto-tune:`-prefixed subjects.
+
+## Baseline
+
+Pre-iteration state of the autopilot's known limitations:
+
+- **Throughput**: at most one build OR upgrade per tick (~0.5 s @ 60 fps),
+  bottlenecking late-game spend even when income is plentiful.
+- **Variant blindness**: scoring uses base-type stats; e.g. `electric` and
+  `electric_plasma` get identical placement weights despite different ranges/
+  effects.
+- **Hover-rocket awareness**: silo placement scoring doesn't penalize multiple
+  silos in the same tile cluster (overlapping orbit ranges are wasted spend).
+- **Static `wantedCount` curves**: hand-tuned, no awareness of which towers
+  are currently overperforming on this seed.
+- **No retargeting** of placed towers — `targetMode` set at build time stays
+  fixed for the life of the run.
+
+## Iterations
+
+### Iteration 1 — Multi-action per tick
+
+**Hypothesis**: The autopilot's hard cap of 1 build + 1 upgrade per tick
+(~0.5 s @ 60 fps default) bottlenecked late-game spend. Auto-tune harness
+ceiling at A6 wave 9 is consistent with this — by ~wave 30 income easily
+exceeds what one tower or upgrade per half-second can absorb.
+
+**Change**:
+- `Autopilot.run()` now loops up to `maxActionsPerTick` (default 4) build/
+  upgrade decisions per tick, re-analyzing state each loop.
+- Stops early when nothing is actionable or the loop made no spend.
+- `_tryUpgrade` now returns `true`/`false` so the loop can detect progress.
+- `_tryBuyPotion` only fires on the first pass per tick (HP-driven, not
+  spend-driven, so re-evaluating mid-loop adds no value).
+
+**Config**: `AUTOPILOT_CONFIG.maxActionsPerTick = 4`.
+
+**Risk**: Cascading bad decisions if `_analyzeState` produces correlated
+picks across loop iterations. Mitigations: state is recomputed each pass
+(fresh tower counts, fresh deficit math), and the early-out on zero spend
+prevents pathological infinite loops.
+
+**Expected impact**: Most visible past wave 25 where income/sec exceeds
+1 tower/sec. No change to early-game pacing — early-game tick spends
+~1 action anyway because money is the binding constraint.
+
+

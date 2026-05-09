@@ -244,7 +244,13 @@ const AUTOPILOT_CONFIG = {
 
     // If money is above this after building, also upgrade in the same tick.
     // Prevents late-game income from piling up unused when build opportunities remain.
-    upgradeAlongsideBuild: 200
+    upgradeAlongsideBuild: 200,
+
+    // Maximum number of build/upgrade actions the autopilot may take in a
+    // single tick. Drains affordable picks until either nothing is actionable
+    // or the cap is hit. Bounds CPU work and prevents single-tick stutter.
+    // Late-game income with this at 1 used to outpace the autopilot's spend.
+    maxActionsPerTick: 4
 };
 
 // -------------------------------------------------------------------------

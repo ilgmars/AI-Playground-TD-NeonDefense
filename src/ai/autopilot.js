@@ -29,28 +29,40 @@ class Autopilot {
     }
 
     // Entry point — called from Game.update() on each autopilot tick.
+    // Drains affordable build+upgrade picks until either nothing was actionable
+    // this loop or MAX_ACTIONS_PER_TICK is hit. Late-game income often outpaces
+    // a single-action-per-tick spend rate; this lets the autopilot keep up
+    // without changing the tick interval (which would also speed up potion
+    // buying / ability use).
     run() {
         this._tryUseAbilities();
 
-        const state = this._analyzeState();
-
-        // Buy potion first — survival beats everything else.
-        this._tryBuyPotion(state);
-
-        // After potential potion purchase, decide if we need to save for one.
-        // savingForPotion blocks builds AND upgrades so money can accumulate.
         const g = this.game;
-        state.savingForPotion = (
-            g.health <= AUTOPILOT_CONFIG.potionHealthThreshold &&
-            g.health < g.maxHealth &&
-            g.money < g.getPotionCost()
-        );
+        const MAX_ACTIONS_PER_TICK = (AUTOPILOT_CONFIG.maxActionsPerTick) || 4;
 
-        const built = this._tryBuild(state);
+        for (let action = 0; action < MAX_ACTIONS_PER_TICK; action++) {
+            const state = this._analyzeState();
 
-        // Allow upgrade in same tick if we have excess money.
-        if (!built || g.money >= AUTOPILOT_CONFIG.upgradeAlongsideBuild) {
-            this._tryUpgrade(state);
+            // Potion only on the first pass — re-analysis happens implicitly
+            // since potion changes health, not the build/upgrade decision space.
+            if (action === 0) this._tryBuyPotion(state);
+
+            state.savingForPotion = (
+                g.health <= AUTOPILOT_CONFIG.potionHealthThreshold &&
+                g.health < g.maxHealth &&
+                g.money < g.getPotionCost()
+            );
+
+            const moneyBefore = g.money;
+            const built = this._tryBuild(state);
+            let upgraded = false;
+            if (!built || g.money >= AUTOPILOT_CONFIG.upgradeAlongsideBuild) {
+                upgraded = this._tryUpgrade(state);
+            }
+
+            // Nothing actionable this loop — stop draining.
+            if (!built && !upgraded) break;
+            if (g.money === moneyBefore) break;
         }
     }
 
@@ -384,8 +396,8 @@ class Autopilot {
     // -----------------------------------------------------------------
 
     _tryUpgrade(state) {
-        if (state.savingForTower) return;
-        if (state.savingForPotion) return;
+        if (state.savingForTower) return false;
+        if (state.savingForPotion) return false;
 
         const g = this.game;
 
@@ -397,7 +409,7 @@ class Autopilot {
                 if (g.money >= cost) options.push({ t, i, cost });
             }
         }
-        if (options.length === 0) return;
+        if (options.length === 0) return false;
 
         options.sort(this._upgradeComparator(state.isAirImminent));
 
@@ -406,6 +418,7 @@ class Autopilot {
         pick.t.upgrade(pick.i);
         g.addUpgradeEffect(pick.t.x, pick.t.y);
         g.uiDirty = true;
+        return true;
     }
 
     // Comparator that encodes the upgrade priority:
