@@ -1271,7 +1271,7 @@ function init() {
     }
 
     function showLongPressTooltip(type, anchorEl) {
-        const info = (typeof TOWER_INFO !== 'undefined') ? TOWER_INFO[type] : null;
+        const info = (typeof window.getTooltipInfo === 'function') ? window.getTooltipInfo(type) : null;
         if (!info) return;
         const tip = document.getElementById('tower-tooltip');
         document.getElementById('tt-name').textContent = info.name;
@@ -1617,26 +1617,63 @@ function init() {
 
     requestAnimationFrame(loop);
 
-    // Tower tooltip on build menu hover
+    // Per-base flavour text + special-line. dmg/rng/spd are read from TOWERS
+    // at lookup time so the tooltip always matches the active variant.
     const TOWER_INFO = {
-        basic:   { name: 'Blaster',   desc: 'Reliable all-rounder. Good DPS at medium range.',         dmg: 10,   rng: 100, spd: 40,  special: null },
-        sniper:  { name: 'Sniper',    desc: 'Extreme range, high single-target damage. Slow fire rate.', dmg: 40,   rng: 250, spd: 100, special: 'Piercing' },
-        rapid:   { name: 'Shotgun',   desc: 'Fires a spread of piercing pellets. Great vs groups.',     dmg: '8×5', rng: 80,  spd: 60,  special: 'Pierce ×2' },
-        laser:   { name: 'Laser',     desc: 'Continuous beam that slows enemies. Weak vs air.',          dmg: '1.5/f', rng: 150, spd: '—', special: 'Slows 20%' },
-        rocket:  { name: 'Rocket',    desc: 'Homing splash damage. Less effective vs air.',              dmg: 30,   rng: 200, spd: 90,  special: 'Splash 70' },
-        flak:    { name: 'Flak (AA)', desc: 'Anti-air specialist. 4× damage vs air, air-only targeting.',dmg: 15,   rng: 250, spd: 35,  special: 'Air only' },
-        electric:{ name: 'Tesla',     desc: 'Chains lightning between nearby enemies.',                   dmg: 25,   rng: 120, spd: 60,  special: 'Chains ×3' },
-        silo:    { name: 'Silo',      desc: 'Builds hovering rockets that auto-launch at enemies.',       dmg: 120,  rng: 100, spd: 80,  special: 'Splash 40' },
-        income:  { name: 'Relay',     desc: 'Generates +20¢ at the end of every wave. Passive.',         dmg: '—',  rng: '—', spd: '—', special: '+20¢/wave' },
-        potion:  { name: 'Repair',    desc: 'Restores 5 HP instantly. Cost increases each use.',         dmg: '—',  rng: '—', spd: '—', special: '+5 HP' },
+        basic:   { desc: 'Reliable all-rounder. Good DPS at medium range.',                     special: null },
+        sniper:  { desc: 'Extreme range, high single-target damage. Slow fire rate.',           special: 'Piercing' },
+        rapid:   { desc: 'Fires a spread of piercing pellets. Great vs groups.',                special: 'Pierce ×2' },
+        laser:   { desc: 'Continuous beam that slows enemies. Weak vs air.',                    special: 'Slows 20%' },
+        rocket:  { desc: 'Homing splash damage. Less effective vs air.',                        special: 'Splash 70' },
+        flak:    { desc: 'Anti-air specialist. 4× damage vs air, air-only targeting.',          special: 'Air only' },
+        electric:{ desc: 'Chains lightning between nearby enemies.',                            special: 'Chains ×3' },
+        silo:    { desc: 'Builds hovering rockets that auto-launch at enemies.',                special: 'Splash 40' },
+        income:  { desc: 'Generates ¢ at the end of every wave. Passive.',                      special: '+20¢/wave' },
+        potion:  { name: 'Repair', desc: 'Restores 5 HP instantly. Cost increases each use.',
+                   dmg: '—', rng: '—', spd: '—', special: '+5 HP' },
     };
+
+    // Per-variant overrides (desc + special). dmg/rng/spd still come from TOWERS.
+    const VARIANT_INFO = {
+        basic_cryo:      { desc: 'Slows enemies on hit. Lower damage but cryo stacks pressure.',         special: 'Slow + Cryo DoT' },
+        sniper_scatter:  { desc: 'Fires multiple shots per cycle, mid range, still pierces.',            special: 'Multi-shot ×2' },
+        rapid_flame:     { desc: 'Cone-of-fire flamethrower with burn DoT — chews up groups.',           special: 'Cone + Burn DoT' },
+        laser_pulse:     { desc: 'Discrete high-damage plasma bolts instead of a continuous beam.',      special: 'Burst projectiles' },
+        rocket_cluster:  { desc: 'Main rocket splits into sub-rockets on impact for layered splash.',    special: 'Cluster ×4' },
+        flak_emp:        { desc: 'EMP rounds stun air units on hit, lower raw damage but strong CC.',    special: 'Air stun 1s' },
+        electric_plasma: { desc: 'Chain lightning that ignites enemies — direct hit + burn DoT.',        special: 'Chain + Burn DoT' },
+        silo_orbital:    { desc: 'One huge orbital strike. Slow orbit, wide splash, long cooldown.',     special: 'Orbital splash 90' },
+        income_research: { desc: 'No income — boosts damage of nearby towers (+2% per stack).',          special: 'Aura +2% DMG' },
+    };
+
+    function getTooltipInfo(baseOrPotion) {
+        if (baseOrPotion === 'potion') return TOWER_INFO.potion;
+        const effective = (game && game.getEffectiveTowerType)
+            ? game.getEffectiveTowerType(baseOrPotion) : baseOrPotion;
+        const cfg = TOWERS[effective] || TOWERS[baseOrPotion];
+        if (!cfg) return null;
+        const baseInfo    = TOWER_INFO[baseOrPotion] || {};
+        const variantInfo = (effective !== baseOrPotion) ? (VARIANT_INFO[effective] || {}) : {};
+        const isIncome = baseOrPotion === 'income';
+        return {
+            name:    cfg.displayName,
+            desc:    variantInfo.desc    || baseInfo.desc    || '',
+            dmg:     isIncome ? '—' : cfg.damage,
+            rng:     isIncome ? '—' : cfg.range,
+            spd:     isIncome ? '—' : (cfg.fireRate || '—'),
+            special: variantInfo.special || baseInfo.special || null,
+        };
+    }
+    // Expose so the touch long-press path uses the same resolver.
+    window.getTooltipInfo = getTooltipInfo;
 
     const tooltip = document.getElementById('tower-tooltip');
     document.querySelectorAll('.tower-option').forEach(el => {
         const type = el.dataset.type || (el.id === 'potion-btn' ? 'potion' : null);
-        if (!type || !TOWER_INFO[type]) return;
+        if (!type) return;
         el.addEventListener('mouseenter', (e) => {
-            const info = TOWER_INFO[type];
+            const info = getTooltipInfo(type);
+            if (!info) return;
             document.getElementById('tt-name').textContent = info.name;
             document.getElementById('tt-desc').textContent = info.desc;
             document.getElementById('tt-stats').innerHTML =
