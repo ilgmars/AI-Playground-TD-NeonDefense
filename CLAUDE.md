@@ -74,6 +74,25 @@ Autopilot strategy knobs live in `AUTOPILOT_CONFIG`; the class only implements t
 - **No module system, no bundler, no tests.** Balance changes are validated by playing.
 - **Mobile viewport disables zoom** (`user-scalable=no`) but touch drag exists — not obviously discoverable.
 
+## Cache busting (GitHub Pages deploys)
+
+GitHub Pages serves `index.html` with `Cache-Control: max-age=600` and
+asset files with `max-age=3600`. After a deploy, visitors whose browser
+still has the old HTML reference the previous JS/CSS — that's the "I see
+broken state until I hard-refresh" failure mode.
+
+Every `<script>` and `<link>` in `index.html` carries `?v=<git-short-sha>`;
+the `pre-push` hook in [tools/install-hooks.sh](tools/install-hooks.sh)
+runs [tools/bump-cache.sh](tools/bump-cache.sh) to refresh that token to
+the just-committed SHA. After a fresh clone, run `tools/install-hooks.sh`
+once. If the bump produces staged changes the push aborts so you can
+amend the last commit (so the deployed HTML always matches its own SHA).
+
+The 10-minute HTML revalidation window is unavoidable on Pages, but with
+the bump in place every visitor whose browser revalidates after a deploy
+gets the new JS/CSS automatically — no save data is touched, since
+localStorage is independent of HTTP cache.
+
 ## Working conventions
 
 - Edit JS files directly; reload the browser to test. No install/build command.
