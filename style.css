@@ -394,17 +394,19 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
     background: #2a3a52;
     border-color: #475569;
 }
+/* Disabled (unaffordable) row: dim the upgrade content, but the ⏶ toggle
+   stays at full saturation/opacity since it's a state control, not an action.
+   Filter is applied to the children individually because `filter` on a parent
+   applies to its rendered output as a whole — child overrides can't undo it. */
 .upgrade-item.disabled {
-    opacity: 0.5;
     pointer-events: none;
+}
+.upgrade-item.disabled > *:not(.upg-auto) {
+    opacity: 0.5;
     filter: grayscale(100%);
 }
-/* Auto-upgrade button stays clickable even when the row is disabled
-   (e.g. can't afford the upgrade yet — but you can still SCHEDULE it). */
 .upgrade-item.disabled .upg-auto {
     pointer-events: auto;
-    opacity: 1;
-    filter: none;
 }
 .upg-info { display: flex; flex-direction: column; text-align: left; }
 .upg-name { font-weight: bold; font-size: 14px; }
