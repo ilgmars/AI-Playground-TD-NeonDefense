@@ -236,7 +236,28 @@ canvas {
     border: 1px solid transparent;
     cursor: pointer;
     transition: all 0.2s ease;
+    position: relative;
 }
+
+/* Hotkey badge — small numeric tag rendered in the corner of each
+   tower-option whose data-hotkey attribute is set. Hidden on touch UI
+   where keyboard shortcuts don't apply. */
+.tower-option[data-hotkey]::after {
+    content: attr(data-hotkey);
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: rgba(0, 0, 0, 0.4);
+    padding: 1px 5px;
+    border-radius: 3px;
+    line-height: 1.2;
+    pointer-events: none;
+    opacity: 0.7;
+}
+body.touch-ui .tower-option[data-hotkey]::after { display: none; }
 
 .tower-option:hover {
     background: rgba(255, 255, 255, 0.1);

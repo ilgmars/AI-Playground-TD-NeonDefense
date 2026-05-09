@@ -1169,13 +1169,17 @@ function init() {
     });
 
     window.addEventListener('keydown', (e) => {
+        // Don't intercept keystrokes the user is typing into seed/name inputs.
+        const tag = (e.target && e.target.tagName) || '';
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
         // Space to pause/unpause
         if (e.code === 'Space' && (game.state === 'playing' || game.state === 'paused')) {
             e.preventDefault();
             togglePause();
             return;
         }
-        
+
         // ESC to close menus or cancel building
         if (e.key === 'Escape') {
             // Close upgrade menu
@@ -1186,17 +1190,19 @@ function init() {
             }
             return;
         }
-        
-        if (game.state !== 'playing') return;
-        
-        // Upgrades 1-3
+
+        // Allow hotkeys during pause too — pre-selecting builds while
+        // paused is exactly when fast-placement matters.
+        if (game.state !== 'playing' && game.state !== 'paused') return;
+
+        // Upgrades 1-3 (only when a tower is selected)
         if (e.key >= '1' && e.key <= '3' && game.selectedTowers && game.selectedTowers.length > 0) {
             let idx = parseInt(e.key) - 1;
             game.buyUpgrade(idx);
-        } 
-        // Build 1-8
-        else if (e.key >= '1' && e.key <= '8') {
-            const towers = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'flak', 'electric', 'silo'];
+        }
+        // Build 1-9 — Relay (income) maps to 9. Order matches the build menu.
+        else if (e.key >= '1' && e.key <= '9') {
+            const towers = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'flak', 'electric', 'silo', 'income'];
             let idx = parseInt(e.key) - 1;
             selectTower(towers[idx]);
         }
@@ -1492,8 +1498,9 @@ function init() {
 
         if (selectedTowerType) {
             if (game.buildTower(c, r, selectedTowerType)) {
-                // Success, deselect tower
-                selectTower(selectedTowerType); 
+                // Hold Shift to keep the same tower selected for chain
+                // placement; otherwise deselect after a single placement.
+                if (!e.shiftKey) selectTower(selectedTowerType);
             }
         } else {
             // Select placed tower
