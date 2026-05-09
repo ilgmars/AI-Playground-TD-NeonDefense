@@ -187,10 +187,31 @@ function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burni
     }
 }
 
+// Variant types share their base's silhouette but get a different accent
+// colour and a small marker ring so they're visually distinct on the field.
+const TOWER_VARIANT_RENDER = {
+    basic_cryo:      { base: 'basic',    accent: '#67e8f9' },  // icy cyan
+    sniper_scatter:  { base: 'sniper',   accent: '#fbbf24' },  // amber
+    rapid_flame:     { base: 'rapid',    accent: '#f97316' },  // ember orange
+    laser_pulse:     { base: 'laser',    accent: '#d8b4fe' },  // light violet
+    rocket_cluster:  { base: 'rocket',   accent: '#facc15' },  // yellow tip
+    flak_emp:        { base: 'flak',     accent: '#22d3ee' },  // emp teal
+    electric_plasma: { base: 'electric', accent: '#a855f7' },  // plasma purple
+    silo_orbital:    { base: 'silo',     accent: '#fde68a' },  // orbital glow
+    income_research: { base: 'income',   accent: '#34d399' },  // research green
+};
+
 function drawTower(ctx, x, y, type, size, angle, level = 1) {
+    // Resolve variant → base type so the existing per-shape renderers
+    // (basic / sniper / …) light up for variants too. Without this,
+    // anything ending in _cryo / _scatter / _flame / etc. fell through
+    // every branch and rendered as just the empty base ring.
+    const variant = TOWER_VARIANT_RENDER[type];
+    const renderType = variant ? variant.base : type;
+
     ctx.save();
     ctx.translate(x + size/2, y + size/2);
-    
+
     // Base
     ctx.fillStyle = '#1e293b';
     ctx.strokeStyle = 'rgba(255,255,255,0.1)';
@@ -203,13 +224,14 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
     // Turret rotation
     ctx.rotate(angle);
 
-    let color = type === 'sniper' ? '#f472b6' : type === 'rapid' ? '#a3e635' : type === 'laser' ? '#8b5cf6' : type === 'rocket' ? '#f97316' : type === 'electric' ? '#0ea5e9' : type === 'flak' ? '#60a5fa' : type === 'silo' ? '#ef4444' : type === 'income' ? '#fbbf24' : '#38bdf8';
-    
+    const baseColor = renderType === 'sniper' ? '#f472b6' : renderType === 'rapid' ? '#a3e635' : renderType === 'laser' ? '#8b5cf6' : renderType === 'rocket' ? '#f97316' : renderType === 'electric' ? '#0ea5e9' : renderType === 'flak' ? '#60a5fa' : renderType === 'silo' ? '#ef4444' : renderType === 'income' ? '#fbbf24' : '#38bdf8';
+    const color = variant ? variant.accent : baseColor;
+
     setGlow(ctx, color, 8);
     ctx.fillStyle = '#0f172a';
     ctx.strokeStyle = color;
-    
-    if (type === 'basic') {
+
+    if (renderType === 'basic') {
         // Round body, one barrel
         ctx.beginPath();
         ctx.arc(0, 0, size/4, 0, Math.PI*2);
@@ -218,14 +240,14 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
         
         ctx.fillStyle = color;
         ctx.fillRect(0, -3, size/2, 6);
-    } else if (type === 'sniper') {
+    } else if (renderType === 'sniper') {
         // Square body, long barrel
         ctx.fillRect(-size/4, -size/4, size/2, size/2);
         ctx.strokeRect(-size/4, -size/4, size/2, size/2);
         
         ctx.fillStyle = color;
         ctx.fillRect(0, -2, size/2 + 8, 4);
-    } else if (type === 'rapid') {
+    } else if (renderType === 'rapid') {
         ctx.beginPath();
         ctx.moveTo(size/2, 0);
         ctx.lineTo(-size/4, size/3);
@@ -234,7 +256,7 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
         ctx.stroke();
         ctx.fillStyle = color;
         ctx.fill();
-    } else if (type === 'laser') {
+    } else if (renderType === 'laser') {
         ctx.beginPath();
         ctx.moveTo(size/2.5, 0);
         ctx.lineTo(0, size/3.5);
@@ -242,14 +264,14 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
         ctx.lineTo(0, -size/3.5);
         ctx.closePath();
         ctx.stroke();
-    } else if (type === 'rocket') {
+    } else if (renderType === 'rocket') {
         ctx.fillRect(-size/3, -size/4, size/1.5, size/2);
         ctx.strokeRect(-size/3, -size/4, size/1.5, size/2);
-        
+
         ctx.fillStyle = color;
         ctx.fillRect(-size/2, -size/6, size/4, size/8);
         ctx.fillRect(-size/2, size/12, size/4, size/8);
-    } else if (type === 'flak') {
+    } else if (renderType === 'flak') {
         ctx.beginPath();
         ctx.arc(0, 0, size/3, 0, Math.PI*2);
         ctx.stroke();
@@ -257,7 +279,7 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
         ctx.fillStyle = color;
         ctx.fillRect(0, -size/6, size/2, size/8); 
         ctx.fillRect(0, size/16, size/2, size/8);
-    } else if (type === 'electric') {
+    } else if (renderType === 'electric') {
         ctx.rotate(-angle); // Make it static, no rotation
         
         ctx.beginPath();
@@ -273,7 +295,7 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
         ctx.beginPath();
         ctx.arc(0, 0, size/10, 0, Math.PI*2);
         ctx.fill();
-    } else if (type === 'silo') {
+    } else if (renderType === 'silo') {
         ctx.beginPath();
         for (let i = 0; i < 6; i++) {
             let a = i * Math.PI / 3;
@@ -295,7 +317,7 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
             ctx.arc(Math.cos(a) * size/6, Math.sin(a) * size/6, 2, 0, Math.PI*2);
             ctx.fill();
         }
-    } else if (type === 'income') {
+    } else if (renderType === 'income') {
         ctx.rotate(-angle); // static, no rotation
         // Diamond shape
         ctx.beginPath();

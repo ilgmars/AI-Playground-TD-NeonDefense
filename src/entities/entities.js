@@ -253,9 +253,11 @@ class Tower {
         if (cfg.auraBonus !== undefined)     this.auraBonus = cfg.auraBonus;
         if (cfg.auraRange !== undefined)     this.auraRange = cfg.auraRange;
 
-        // Per-type runtime state (not config).
-        if (type === 'laser') this.laserTarget = null;
-        if (type === 'silo')  this.hoverRockets = [];
+        // Per-type runtime state (not config). Variants share their base's
+        // runtime fields — laser_pulse needs laserTarget, silo_orbital needs
+        // hoverRockets — so check both forms.
+        if (type === 'laser' || type === 'laser_pulse') this.laserTarget = null;
+        if (type === 'silo'  || type === 'silo_orbital') this.hoverRockets = [];
 
         this.totalSpent = this.baseCost;
         // M3: Mastery XP attribution — incremented by every projectile hit
@@ -292,7 +294,7 @@ class Tower {
         if (this.type === 'income' || this.type === 'income_research') return; // passive tower, no combat logic
         if (this.cooldown > 0) this.cooldown--;
 
-        if (this.type === 'silo') {
+        if (this.type === 'silo' || this.type === 'silo_orbital') {
             if (this.cooldown === 0 && this.hoverRockets.length < (this.maxHover || 3)) {
                 SoundFX.build();
                 this.hoverRockets.push({
@@ -337,8 +339,8 @@ class Tower {
         for (let enemy of enemies) {
             if (!enemy.active) continue;
             
-            // Flak strictly cannot target ground enemies
-            if (this.type === 'flak' && !enemy.isAir) continue;
+            // Flak (and EMP Flak variant) strictly cannot target ground enemies.
+            if ((this.type === 'flak' || this.type === 'flak_emp') && !enemy.isAir) continue;
             
             let ex = enemy.x;
             let ey = enemy.y;
@@ -367,8 +369,9 @@ class Tower {
                     score = -dist;
                 }
 
-                if (this.type === 'flak' && enemy.isAir) score += 1000000; // Flak strictly prioritizes Air
-                if (this.type !== 'flak' && enemy.isAir) score -= 500; // Normal towers prefer ground but can target air
+                const isAA = (this.type === 'flak' || this.type === 'flak_emp');
+                if (isAA && enemy.isAir) score += 1000000; // Flak strictly prioritizes Air
+                if (!isAA && enemy.isAir) score -= 500;    // Other towers prefer ground but can target air
                 
                 // Laser should prefer enemies NOT already slowed by another laser
                 if (this.type === 'laser' && enemy.currentSlow < 1) {
@@ -468,11 +471,14 @@ class Tower {
                     this.cooldown = this.fireRate;
                 }
             } else if (this.cooldown === 0) {
-                if (this.type === 'basic') SoundFX.shootBasic();
-                else if (this.type === 'rapid') SoundFX.shootBasic(); 
-                else if (this.type === 'sniper') SoundFX.shootSniper();
-                else if (this.type === 'rocket') SoundFX.shootRocket();
-                else if (this.type === 'flak') SoundFX.shootFlak();
+                // Variants fall back to their base type's firing sound
+                // (basic_cryo → basic, sniper_scatter → sniper, etc.)
+                const soundBase = this.type.includes('_') ? this.type.split('_')[0] : this.type;
+                if (soundBase === 'basic')      SoundFX.shootBasic();
+                else if (soundBase === 'rapid') SoundFX.shootBasic();
+                else if (soundBase === 'sniper') SoundFX.shootSniper();
+                else if (soundBase === 'rocket') SoundFX.shootRocket();
+                else if (soundBase === 'flak')  SoundFX.shootFlak();
                 
                 if (this.type === 'rapid_flame') {
                     // M3: Flamethrower cone damage
@@ -634,17 +640,19 @@ class Projectile {
             }
             for (let e of enemies) {
                 if (!e.active) continue;
-                if (this.type === 'flak' && !e.isAir) continue; 
-                if (this.type !== 'flak' && e.isAir) continue; 
-                
+                const dumbIsAA = (this.type === 'flak' || this.type === 'flak_emp');
+                if (dumbIsAA && !e.isAir) continue;
+                if (!dumbIsAA && e.isAir) continue;
+
                 let dist = Math.hypot(e.x - this.x, e.y - this.y);
                 if (dist < e.radius + 5 && !this.hitEnemies.has(e)) {
                     this.hitEnemies.add(e);
-                    
-                    // Deal damage
+
+                    // Deal damage. Base Flak's identity is the 4× air burst;
+                    // EMP Flak trades that for stun, so it stays at 1×.
                     let dmg = this.damage;
                     if (this.type === 'flak' && e.isAir) dmg *= 4;
-                    else if (this.type !== 'flak' && e.isAir) dmg *= 0.4;
+                    else if (!dumbIsAA && e.isAir)       dmg *= 0.4;
 
                     // M3: Shielded enemy absorbs first projectile hit — no damage, no XP.
                     if (e.shielded && !e.shieldBroken) {
