@@ -80,4 +80,20 @@ when the autopilot can afford to.
 **Expected impact**: Faster snowball after wave ~10. Slightly tighter
 early-game money pre-wave-5 (no change there).
 
+### Iteration 3 — Weighted upgrade comparator (maxing > spreading)
+
+**Hypothesis**: Pure spread (lower-total-level first) is right early but
+wastes credits late, when a L4 silo upgrade kills wave HP per second
+that 8 L0 basic upgrades can't match.
+
+**Change**: replace the `aTotal === bTotal ? value tiebreak : level spread`
+two-stage comparator with a single weighted score:
+`score = upgradeValue * 2 - totalLevel`. Silo (10) at L4 = 16 still beats
+Basic (3) at L0 = 6 — but Silo at L18 (6 dmg upgrades, 6 splash, etc.) =
+2 falls below Basic L0, restoring the spread when one tower runs away.
+
+**Risk**: Air-imminent flak/laser priority preserved (returns early before
+the score calc). Per-tower-type concentration might leave some types
+under-built — bounded by `wantedCount` driving build phase independently.
+
 

@@ -436,10 +436,14 @@ class Autopilot {
                 if (aBase === 'laser' && bBase !== 'laser') return -1;
                 if (bBase === 'laser' && aBase !== 'laser') return  1;
             }
+            // Weighted score: high-value tower types beat low-value ones even
+            // when slightly more leveled. Formula: upgradeValue*2 - totalLevel.
+            // Silo (10) at L4 = 16 still beats Basic (3) at L0 = 6.
             const aTotal = a.t.upgrades[0] + a.t.upgrades[1] + a.t.upgrades[2];
             const bTotal = b.t.upgrades[0] + b.t.upgrades[1] + b.t.upgrades[2];
-            if (aTotal !== bTotal) return aTotal - bTotal;
-            return (values[baseOf(b.t.type)] || 0) - (values[baseOf(a.t.type)] || 0);
+            const aScore = (values[baseOf(a.t.type)] || 1) * 2 - aTotal;
+            const bScore = (values[baseOf(b.t.type)] || 1) * 2 - bTotal;
+            return bScore - aScore;
         };
     }
 
