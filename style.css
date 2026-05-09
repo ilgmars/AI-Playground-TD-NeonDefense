@@ -433,7 +433,8 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
 /* ON state: solid green, same family as pause/autopilot ON indicators */
 .upg-auto.on    { color: #4ade80; border-color: #4ade80; background: rgba(74,222,128,0.12);
                   box-shadow: 0 0 8px rgba(74,222,128,0.4) inset; }
-.upg-auto.mixed { color: #fbbf24; border-color: #fbbf24; box-shadow: 0 0 8px rgba(251,191,36,0.35) inset; }
+/* MIXED: same green family but dashed border so bulk-select shows the partial state */
+.upg-auto.mixed { color: #4ade80; border-color: #4ade80; border-style: dashed; background: rgba(74,222,128,0.08); }
 /* ON stays green regardless of row hover state */
 .upgrade-item:hover .upg-auto.on { color: #4ade80; border-color: #4ade80; background: rgba(74,222,128,0.18); }
 
