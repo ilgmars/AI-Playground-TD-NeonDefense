@@ -807,7 +807,7 @@ class Game {
                         <span class="upg-desc"></span>
                     </div>
                     <span class="upg-cost"></span>
-                    <button class="upg-auto" type="button" title="Auto-buy this upgrade whenever it's affordable">⏶</button>
+                    <button class="upg-auto" type="button" title="Auto-buy this upgrade whenever it's affordable" aria-label="Auto-buy">▲</button>
                 `;
                 list.appendChild(div);
             }

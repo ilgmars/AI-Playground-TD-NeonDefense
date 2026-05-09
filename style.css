@@ -699,6 +699,13 @@ body.touch-ui #upgrade-menu {
 body.touch-ui .upgrade-header { font-size: 1.1rem; }
 body.touch-ui .upgrade-stats  { font-size: 0.85rem; padding: 8px 10px; }
 body.touch-ui .upgrade-item   { padding: 10px 12px; min-height: 44px; }
+/* Touch: enlarged ⏶ tap target, keeps gray/green palette intact. */
+body.touch-ui .upg-auto {
+    min-width: 36px; min-height: 36px;
+    padding: 4px 10px;
+    font-size: 1.05rem;
+    margin-left: 8px;
+}
 body.touch-ui .upg-name { font-size: 0.9rem; }
 body.touch-ui .upg-desc { font-size: 0.72rem; }
 body.touch-ui .upg-cost { font-size: 0.9rem; }
