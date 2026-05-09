@@ -96,4 +96,17 @@ Basic (3) at L0 = 6 — but Silo at L18 (6 dmg upgrades, 6 splash, etc.) =
 the score calc). Per-tower-type concentration might leave some types
 under-built — bounded by `wantedCount` driving build phase independently.
 
+### Iteration 4 — Splash-tower cluster penalty
+
+**Hypothesis**: Multiple silos at the same chokepoint waste spend — their
+orbits overlap and only one rocket fires per enemy. Same for rockets, to
+a lesser degree (homing splash). Spread > stack for these archetypes.
+
+**Change**: new `_sameTypeProximityPenalty(spot, baseType, radius, perHit)`.
+Silo: penalty 8 per silo within 3 tiles. Rocket: 4 per rocket within 4 tiles.
+
+**Risk**: Could spread silos away from the path (their best spots are
+adjacent). Bounded by the existing `orthoNeighbors * 3` bonus which
+dominates a single-neighbor penalty. Tunable via the perHit constants.
+
 

@@ -364,18 +364,33 @@ class Autopilot {
             return -spot.orthoNeighbors * 2 + pathCoverage * 0.2;
         }
         if (buildType === 'silo') {
-            // Range is only 100px (2.5 tiles) — must hug the path.
-            return spot.orthoNeighbors * 3 + pathCoverage * 0.5;
+            // Range is only 100px (2.5 tiles) — must hug the path. Penalize
+            // stacking near another silo (overlapping orbits = wasted spend).
+            return spot.orthoNeighbors * 3 + pathCoverage * 0.5
+                 - this._sameTypeProximityPenalty(spot, 'silo', 3, 8);
         }
         if (buildType === 'rocket') {
             // Longer range (200px), slightly prefer central position.
+            // Mild penalty on stacking — splash towers want spread coverage.
             return -(Math.abs(spot.c - COLS / 2) + Math.abs(spot.r - ROWS / 2)) * 0.3
-                   - spot.orthoNeighbors * 1;
+                   - spot.orthoNeighbors * 1
+                   - this._sameTypeProximityPenalty(spot, 'rocket', 4, 4);
         }
         if (buildType === 'laser' || buildType === 'electric') {
             return spot.orthoNeighbors * 1;
         }
         return 0;
+    }
+
+    // Penalty per same-base-type tower within `radius` tiles. Used to discourage
+    // stacking splash towers (silos / rockets) so coverage spreads out.
+    _sameTypeProximityPenalty(spot, baseType, radius, perHit) {
+        let n = 0;
+        for (const t of this.game.towers) {
+            if (baseOf(t.type) !== baseType) continue;
+            if (Math.hypot(t.c - spot.c, t.r - spot.r) <= radius) n++;
+        }
+        return n * perHit;
     }
 
     // Flat bonus for placing near an existing laser (encourages chokepoint stacking).
