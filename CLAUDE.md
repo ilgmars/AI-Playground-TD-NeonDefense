@@ -81,12 +81,14 @@ asset files with `max-age=3600`. After a deploy, visitors whose browser
 still has the old HTML reference the previous JS/CSS — that's the "I see
 broken state until I hard-refresh" failure mode.
 
-Every `<script>` and `<link>` in `index.html` carries `?v=<git-short-sha>`;
-the `pre-push` hook in [tools/install-hooks.sh](tools/install-hooks.sh)
-runs [tools/bump-cache.sh](tools/bump-cache.sh) to refresh that token to
-the just-committed SHA. After a fresh clone, run `tools/install-hooks.sh`
-once. If the bump produces staged changes the push aborts so you can
-amend the last commit (so the deployed HTML always matches its own SHA).
+Every `<script>` and `<link>` in `index.html` carries `?v=<utc-timestamp>`.
+A pre-commit hook (installed by [tools/install-hooks.sh](tools/install-hooks.sh))
+runs [tools/bump-cache.sh](tools/bump-cache.sh) whenever a commit touches
+`src/`, `style.css`, or `index.html`, so the bump lands in the same
+commit as the source change. After a fresh clone, run
+`tools/install-hooks.sh` once. The token is a UTC timestamp rather than
+a git SHA so amending a commit doesn't shift the SHA out from under
+itself (which would otherwise force a re-bump-and-amend loop).
 
 The 10-minute HTML revalidation window is unavoidable on Pages, but with
 the bump in place every visitor whose browser revalidates after a deploy
