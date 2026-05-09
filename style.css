@@ -118,9 +118,11 @@ body {
     display: none; /* desktop: hidden; mobile query flips this on */
 }
 
-/* Proxy items only exist for the mobile overflow popover — hide on desktop */
-.overflow-speed-proxy,
-.overflow-auto-proxy {
+/* Proxy items only exist for the mobile overflow popover — hide on desktop.
+   Selector includes .stat-box to outrank the later .stat-box { display: flex }
+   rule, otherwise the proxies render alongside the real SPEED/AUTO buttons. */
+.stat-box.overflow-speed-proxy,
+.stat-box.overflow-auto-proxy {
     display: none;
 }
 
@@ -563,8 +565,8 @@ body.touch-ui #ability-btn,
 body.touch-ui #autopilot-btn {
     display: none !important;
 }
-body.touch-ui .overflow-speed-proxy,
-body.touch-ui .overflow-auto-proxy {
+body.touch-ui .stat-box.overflow-speed-proxy,
+body.touch-ui .stat-box.overflow-auto-proxy {
     display: flex;
 }
 /* Portrait only — landscape overrides to row below */
@@ -831,8 +833,8 @@ body.touch-ui .upg-cost { font-size: 0.9rem; }
     }
 
     /* Show the proxy copies inside the overflow popover */
-    .overflow-speed-proxy,
-    .overflow-auto-proxy {
+    .stat-box.overflow-speed-proxy,
+    .stat-box.overflow-auto-proxy {
         display: flex;
     }
 
