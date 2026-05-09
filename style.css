@@ -388,7 +388,9 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
     cursor: pointer;
     transition: all 0.2s;
 }
-.upgrade-item:hover {
+/* Row highlight only fires when the mouse is NOT over the auto button —
+   :has() lets the parent opt out of its own :hover when a specific child is hot. */
+.upgrade-item:hover:not(:has(.upg-auto:hover)) {
     background: #2dd4bf;
     border-color: #2dd4bf;
     color: #0f172a;
@@ -428,11 +430,18 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
     transition: all 0.15s;
     flex-shrink: 0;
 }
-.upg-auto:hover  { color: #fff; border-color: var(--accent); }
-.upg-auto.on     { color: #4ade80; border-color: #4ade80; box-shadow: 0 0 8px rgba(74,222,128,0.35) inset; }
-.upg-auto.mixed  { color: #fbbf24; border-color: #fbbf24; box-shadow: 0 0 8px rgba(251,191,36,0.35) inset; }
-/* Don't let the parent .upgrade-item:hover recolor the auto button. */
-.upgrade-item:hover .upg-auto:not(.on):not(.mixed) { color: #0f172a; border-color: #0f172a; }
+/* Button hover: green to signal "this will enable auto-buy" */
+.upg-auto:hover { color: #4ade80; border-color: #4ade80; background: rgba(74,222,128,0.08); }
+/* ON state: solid green, same family as pause/autopilot ON indicators */
+.upg-auto.on    { color: #4ade80; border-color: #4ade80; background: rgba(74,222,128,0.12);
+                  box-shadow: 0 0 8px rgba(74,222,128,0.4) inset; }
+.upg-auto.mixed { color: #fbbf24; border-color: #fbbf24; box-shadow: 0 0 8px rgba(251,191,36,0.35) inset; }
+/* When row is hovered (not button), keep the button visually separate from the teal wash */
+.upgrade-item:hover:not(:has(.upg-auto:hover)) .upg-auto:not(.on):not(.mixed) {
+    background: rgba(15,23,42,0.65); color: var(--text-muted); border-color: rgba(148,163,184,0.35);
+}
+/* ON stays green regardless of row hover state */
+.upgrade-item:hover .upg-auto.on { color: #4ade80; border-color: #4ade80; background: rgba(74,222,128,0.18); }
 
 /* Overlays */
 .overlay {
