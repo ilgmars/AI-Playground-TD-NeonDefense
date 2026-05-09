@@ -297,18 +297,20 @@ class Tower {
         if (this.type === 'silo' || this.type === 'silo_orbital') {
             if (this.cooldown === 0 && this.hoverRockets.length < (this.maxHover || 3)) {
                 SoundFX.build();
+                // Orbital rockets hover further out and orbit more slowly
+                const isOrbital = this.type === 'silo_orbital';
                 this.hoverRockets.push({
                     range: this.range,
                     angle: Math.random() * Math.PI * 2,
-                    dist: Math.random() * 10 + 15
+                    dist: isOrbital ? (Math.random() * 20 + 28) : (Math.random() * 10 + 15)
                 });
                 this.cooldown = this.fireRate;
             }
-            
+
             for (let i = this.hoverRockets.length - 1; i >= 0; i--) {
                 let r = this.hoverRockets[i];
-                r.angle += 0.02;
-                r.range += 0.5; 
+                r.angle += (this.type === 'silo_orbital') ? 0.007 : 0.02;
+                r.range += 0.5;
                 
                 let rx = this.x + TILE_SIZE/2 + Math.cos(r.angle) * r.dist;
                 let ry = this.y + TILE_SIZE/2 + Math.sin(r.angle) * r.dist;
@@ -508,6 +510,9 @@ class Tower {
                             e.burnSource = this;
                         }
                     }
+                    // Cone visual: show for next 8 draw-frames
+                    this._flameConeFrames = 8;
+                    this._flameConeAngle = this.angle;
                     this.cooldown = this.fireRate;
                 } else if (this.type === 'rapid') {
                     const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
@@ -587,8 +592,31 @@ class Tower {
             ctx.restore();
         }
         drawTower(ctx, this.x, this.y, this.type, TILE_SIZE, this.angle, this.level);
-        
-        if (this.type === 'silo') {
+
+        // Flamethrower cone visual — fades out over 8 draw-frames after a burst.
+        if (this.type === 'rapid_flame' && this._flameConeFrames > 0) {
+            this._flameConeFrames--;
+            const alpha = this._flameConeFrames / 8;
+            const tx = this.x + TILE_SIZE / 2;
+            const ty = this.y + TILE_SIZE / 2;
+            const cone = this.coneAngle || 0.6;
+            ctx.save();
+            ctx.globalAlpha = alpha * 0.45;
+            const grad = ctx.createRadialGradient(tx, ty, 0, tx, ty, this.range || 70);
+            grad.addColorStop(0, 'rgba(251,191,36,0.9)');
+            grad.addColorStop(0.5, 'rgba(249,115,22,0.7)');
+            grad.addColorStop(1, 'rgba(239,68,68,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.moveTo(tx, ty);
+            ctx.arc(tx, ty, this.range || 70, this._flameConeAngle - cone / 2, this._flameConeAngle + cone / 2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // Hover rockets: drawn for both Silo and Orbital Strike.
+        if (this.type === 'silo' || this.type === 'silo_orbital') {
             for (let r of this.hoverRockets) {
                 let rx = this.x + TILE_SIZE/2 + Math.cos(r.angle) * r.dist;
                 let ry = this.y + TILE_SIZE/2 + Math.sin(r.angle) * r.dist;
@@ -749,10 +777,13 @@ class Projectile {
         if (this.splash > 0) {
             SoundFX.explosion();
             particles.push(new Explosion(this.x, this.y, this.splash));
-            // If this is a rocket (silo), cancel all other rockets targeting the same enemy
-            if (this.type === 'rocket' && projectiles) {
+            // Cancel other rockets FROM THE SAME SILO targeting the same enemy —
+            // but leave rockets from other silos independent so two silos don't
+            // cancel each other's shots when they target the same enemy.
+            if (this.type === 'rocket' && projectiles && !this.isClusterChild) {
                 for (let p of projectiles) {
-                    if (p !== this && p.active && p.type === 'rocket' && p.target === this.target) {
+                    if (p !== this && p.active && p.type === 'rocket' &&
+                        p.target === this.target && p.sourceTower === this.sourceTower) {
                         p.active = false;
                     }
                 }

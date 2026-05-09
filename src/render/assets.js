@@ -350,8 +350,8 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
 }
 
 function drawProjectile(ctx, x, y, type, angle = 0) {
-    let color = type === 'sniper' ? '#f472b6' : type === 'rapid' ? '#a3e635' : type === 'rocket' ? '#f97316' : type === 'flak' ? '#60a5fa' : '#38bdf8';
-    let size = type === 'sniper' ? 4 : type === 'rapid' ? 2 : type === 'rocket' ? 5 : type === 'flak' ? 3 : 3;
+    let color = type === 'sniper' ? '#f472b6' : type === 'rapid' ? '#a3e635' : type === 'rocket' ? '#f97316' : type === 'flak' ? '#60a5fa' : type === 'laser-pulse' ? '#d8b4fe' : '#38bdf8';
+    let size = type === 'sniper' ? 4 : type === 'rapid' ? 2 : type === 'rocket' ? 5 : type === 'flak' ? 3 : type === 'laser-pulse' ? 6 : 3;
     
     ctx.save();
     ctx.translate(x, y);
@@ -362,18 +362,27 @@ function drawProjectile(ctx, x, y, type, angle = 0) {
 
     if (type === 'rocket') {
         ctx.beginPath();
-        ctx.moveTo(size*1.5, 0); 
+        ctx.moveTo(size*1.5, 0);
         ctx.lineTo(-size, size/1.5);
         ctx.lineTo(-size, -size/1.5);
         ctx.closePath();
         ctx.fill();
-        
+
         ctx.fillStyle = '#fde047';
         ctx.beginPath();
         ctx.moveTo(-size, size/3);
         ctx.lineTo(-size - size*1.2, 0);
         ctx.lineTo(-size, -size/3);
         ctx.closePath();
+        ctx.fill();
+    } else if (type === 'laser-pulse') {
+        // Fat glowing plasma bolt with white hot core
+        ctx.beginPath();
+        ctx.arc(0, 0, size, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(0, 0, size * 0.4, 0, Math.PI*2);
         ctx.fill();
     } else {
         ctx.beginPath();

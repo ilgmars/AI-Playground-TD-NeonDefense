@@ -398,6 +398,13 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
     pointer-events: none;
     filter: grayscale(100%);
 }
+/* Auto-upgrade button stays clickable even when the row is disabled
+   (e.g. can't afford the upgrade yet — but you can still SCHEDULE it). */
+.upgrade-item.disabled .upg-auto {
+    pointer-events: auto;
+    opacity: 1;
+    filter: none;
+}
 .upg-info { display: flex; flex-direction: column; text-align: left; }
 .upg-name { font-weight: bold; font-size: 14px; }
 .upg-desc { font-size: 11px; opacity: 0.8; margin-top: 2px;}

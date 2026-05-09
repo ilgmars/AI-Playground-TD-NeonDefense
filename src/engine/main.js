@@ -1003,6 +1003,7 @@ function init() {
         game.start();
         updateSeedDisplay();
         updateModeDisplay();
+        updateBuildMenuForLoadout(game.towerLoadout);
 
         gameSpeed = 1;
         document.getElementById('speed-display').textContent = '1X';
@@ -1659,6 +1660,23 @@ function init() {
         tooltip.style.left = x + 'px';
         tooltip.style.top  = y + 'px';
     }
+}
+
+// When a run starts with variant towers active (tower loadout), update the build
+// menu so names and costs reflect the variant rather than the base tower.
+// data-type stays as the base type (canonical build key); only the display changes.
+function updateBuildMenuForLoadout(towerLoadout) {
+    document.querySelectorAll('.tower-option[data-type]').forEach(el => {
+        const baseType = el.dataset.type;
+        const variantId = towerLoadout && towerLoadout[baseType];
+        const effectiveType = (variantId && TOWERS[variantId]) ? variantId : baseType;
+        const cfg = TOWERS[effectiveType];
+        if (!cfg) return;
+        const nameEl = el.querySelector('.tower-info .name');
+        const costEl = el.querySelector('.tower-info .cost');
+        if (nameEl) nameEl.textContent = cfg.displayName;
+        if (costEl) costEl.textContent = cfg.cost + '¢';
+    });
 }
 
 window.buyPotion = function() {

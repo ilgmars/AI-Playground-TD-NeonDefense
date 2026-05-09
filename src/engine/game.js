@@ -485,6 +485,14 @@ class Game {
                     for (let t of incomeTowers) {
                         let bonus = t.incomePerWave + (t.networkBonus || 0) * 5 * (relayCount - 1);
                         this.money += bonus;
+                        // Income generated counts as mastery XP — relay earns XP
+                        // proportional to its output, reaching the 1k variant
+                        // milestone after ~50 productive waves.
+                        t.damageDealt += bonus;
+                    }
+                    // Research Node earns a fixed 5 XP per wave it's active.
+                    for (const rn of researchNodes) {
+                        rn.damageDealt += 5;
                     }
                     
                     if ((this.wave + 1) % this.ascension.airWaveInterval === 0) {
@@ -597,7 +605,7 @@ class Game {
                 this.ctx.lineWidth = 1;
                 this.ctx.stroke();
                 
-                if (t.type === 'silo') {
+                if (t.type === 'silo' || t.type === 'silo_orbital') {
                     for (let r of t.hoverRockets) {
                         let rx = t.x + TILE_SIZE/2 + Math.cos(r.angle) * r.dist;
                         let ry = t.y + TILE_SIZE/2 + Math.sin(r.angle) * r.dist;
