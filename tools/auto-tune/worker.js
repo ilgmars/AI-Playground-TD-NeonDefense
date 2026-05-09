@@ -11,6 +11,7 @@ const SEED = 42069; // fixed seed for reproducibility
 const PORT_BASE = 8765;
 const MAX_WALL_TIME = 600000; // 10 min per run (safeguard)
 const GAME_SPEED = Math.max(1, parseInt(process.env.GAME_SPEED || '5000'));
+const USE_VARIANTS = process.env.VARIANTS === '1';
 
 async function runGame(params, workerId, ascensionTier = 0) {
     const port = PORT_BASE + workerId;
@@ -53,6 +54,12 @@ async function runGame(params, workerId, ascensionTier = 0) {
                 if (typeof updateModeDisplay === 'function') updateModeDisplay(tier);
             }, ascensionTier);
             await page.waitForTimeout(300);
+        }
+
+        if (USE_VARIANTS) {
+            await page.evaluate(() => {
+                eval('selectedTowerLoadout = { ...TOWER_VARIANTS }');
+            });
         }
 
         await page.waitForSelector('#start-btn', { timeout: 5000 });

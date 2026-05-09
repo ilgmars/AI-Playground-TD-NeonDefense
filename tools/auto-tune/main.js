@@ -126,11 +126,13 @@ async function main() {
             paramSets = generateNextParamSets(best, WORKER_COUNT);
 
             // Track max ascension reached
+            state = loadState();
             updateMaxAscension(winner.ascension, state);
 
             // Escalate difficulty only when a bot actually reaches wave 100
             if (winner.finalWave >= 100 && ascensionTier < 10) {
                 ascensionTier++;
+                state = loadState();
                 updateMaxAscension(ascensionTier, state);
                 console.log(`\n*** Wave 100 reached — escalating to Ascension ${ascensionTier} ***\n`);
             }

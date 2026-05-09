@@ -31,11 +31,23 @@
 - Added `--variants` / `VARIANTS=1` support to `test-autopilot.js`:
   - sets `selectedTowerLoadout = { ...TOWER_VARIANTS }` before run start
   - prints raw `typeCounts` so verification can prove actual variant tower IDs were built
+- Resumed A6 auto-tune after the variant fix:
+  - `WORKERS=12 ITERATIONS=4 ASCENSION=6 GAME_SPEED=5000 AUTOTUNE_COMMIT=0 node tools/auto-tune/main.js`
+  - Result: no performance improvement; workers still died around wave 8-9.
+  - Important finding: this auto-tune run was still testing base tower loadouts, not prestige variants.
+- Patched auto-tune harness in progress:
+  - `tools/auto-tune/worker.js` now supports `VARIANTS=1` to force all tower loadout entries to `TOWER_VARIANTS`.
+  - `tools/auto-tune/main.js` reloads state before `updateMaxAscension()` so stale in-memory state does not reset the iteration counter after `handleWinner()`.
+- Verified the auto-tune harness patch:
+  - `WORKERS=4 ITERATIONS=2 ASCENSION=6 GAME_SPEED=5000 VARIANTS=1 AUTOTUNE_COMMIT=0 node tools/auto-tune/main.js`
+  - Result: run completed with variants enabled; no performance improvement beyond wave 9.
+  - Iteration counter advanced to 2 during the run, confirming the stale-state overwrite fix.
+  - Generated `tools/auto-tune/best-params.json` and `tools/auto-tune/state.json` changes were restored because they were no-commit sweep output, not a production improvement.
 
 ## Current Uncommitted Files
 
-- `src/ai/autopilot.js`
-- `test-autopilot.js`
+- `tools/auto-tune/main.js`
+- `tools/auto-tune/worker.js`
 - `docs/ai/codex.md`
 
 ## Verification Completed
@@ -53,11 +65,11 @@ Result: passed. Autopilot built actual prestige variant IDs:
 
 ## Next Commit
 
-After verification, commit and push:
+After verifying the auto-tune harness patch, commit and push:
 
 ```bash
-git add src/ai/autopilot.js test-autopilot.js docs/ai/codex.md
-git commit -m "Make autopilot respect tower variants"
+git add tools/auto-tune/main.js tools/auto-tune/worker.js docs/ai/codex.md
+git commit -m "Test autopilot tuning with tower variants"
 git push origin main
 ```
 
