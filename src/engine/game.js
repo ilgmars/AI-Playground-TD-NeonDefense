@@ -491,8 +491,8 @@ class Game {
                         t.damageDealt += bonus;
                     }
                     // Research Node earns a fixed 5 XP per wave it's active.
-                    for (const rn of researchNodes) {
-                        rn.damageDealt += 5;
+                    for (const t of this.towers) {
+                        if (t.type === 'income_research') t.damageDealt += 5;
                     }
                     
                     if ((this.wave + 1) % this.ascension.airWaveInterval === 0) {
