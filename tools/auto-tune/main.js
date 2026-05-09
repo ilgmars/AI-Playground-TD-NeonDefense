@@ -23,14 +23,15 @@ const DEFAULT_PARAMS = {
     mustBuildMinTowers: 7,
     mustBuildWantedFraction: 0.68,
     upgradeAlongsideBuild: 200,
-    potionHealthThreshold: 12,
+    potionHealthThreshold: 8,
     airImminentWindow: 2,
-    // Cap multipliers for wantedCount (applied in the game)
+    // Cap multipliers for wantedCount (NOW ACTIVE — applied in autopilot._wantedCounts)
+    // Raise basic to 1.6 so bot builds 8+ basics instead of capping at 5.
     wantedCountCapMult: {
-        basic: 1.0,
+        basic: 1.6,
         flak: 1.0,
         rapid: 1.0,
-        laser: 1.0,
+        laser: 1.2,
         sniper: 1.0,
         rocket: 1.0,
         electric: 1.0,

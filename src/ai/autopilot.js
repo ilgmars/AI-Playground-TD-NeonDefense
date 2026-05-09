@@ -105,8 +105,11 @@ class Autopilot {
 
     _wantedCounts(wave) {
         const wanted = {};
+        const capMult = AUTOPILOT_CONFIG.wantedCountCapMult || {};
         for (let type in AUTOPILOT_CONFIG.wantedCount) {
-            wanted[type] = AUTOPILOT_CONFIG.wantedCount[type](wave);
+            const raw = AUTOPILOT_CONFIG.wantedCount[type](wave);
+            const mult = (capMult[type] !== undefined) ? capMult[type] : 1.0;
+            wanted[type] = Math.max(0, Math.round(raw * mult));
         }
         return wanted;
     }
@@ -134,7 +137,9 @@ class Autopilot {
         if (urgentFlak && g.money < TOWERS.flak.cost + CFG.saveBufferFlakUrgent) {
             return { forTower: 'flak', cost: TOWERS.flak.cost + CFG.saveBufferFlakUrgent };
         }
-        if (needFlak && g.money < TOWERS.flak.cost + CFG.saveBufferFlakNeeded) {
+        // Only block upgrades/builds for the FIRST flak. Once we have ≥1,
+        // subsequent flaks are handled by normal build priority.
+        if (needFlak && counts.flak === 0 && g.money < TOWERS.flak.cost + CFG.saveBufferFlakNeeded) {
             return { forTower: 'flak', cost: TOWERS.flak.cost + CFG.saveBufferFlakNeeded };
         }
         if (needLaser && g.money < TOWERS.laser.cost) {
@@ -157,11 +162,14 @@ class Autopilot {
     _tryBuild(state) {
         if (state.savingForPotion) return false;
         if (!state.preferBuild) return false;
-        // After first air wave: hold money specifically for flak until we can afford it.
-        // Don't enforce before the first air wave — we need early towers to survive.
+        // After first air wave: hold money for the FIRST flak (0 flak on board).
+        // Only block when "close" (within $75 of flak cost): too far away and we need defense now.
+        // Once ≥1 flak exists, build/upgrade freely — subsequent flaks via buildOrder.
         const g = this.game;
         const airInterval = (g.ascension && g.ascension.airWaveInterval) || 5;
-        if (state.needFlak && state.w > airInterval && g.money < TOWERS.flak.cost) return false;
+        const flakCost = TOWERS.flak.cost;
+        if (state.needFlak && state.counts.flak === 0 && state.w > airInterval
+            && g.money >= flakCost - 75 && g.money < flakCost) return false;
 
         const spots = this._findBuildableSpots();
         if (spots.length === 0) {
