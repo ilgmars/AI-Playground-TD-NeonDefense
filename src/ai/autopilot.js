@@ -16,6 +16,13 @@ function baseOf(towerType) {
     return under === -1 ? towerType : towerType.slice(0, under);
 }
 
+function effectiveTowerType(game, towerType) {
+    if (game && typeof game.getEffectiveTowerType === 'function') {
+        return game.getEffectiveTowerType(towerType);
+    }
+    return towerType;
+}
+
 class Autopilot {
     constructor(game) {
         this.game = game;
@@ -134,22 +141,22 @@ class Autopilot {
         const g = this.game;
         const CFG = AUTOPILOT_CONFIG;
 
-        if (urgentFlak && g.money < TOWERS.flak.cost + CFG.saveBufferFlakUrgent) {
-            return { forTower: 'flak', cost: TOWERS.flak.cost + CFG.saveBufferFlakUrgent };
+        if (urgentFlak && g.money < this._towerCost('flak') + CFG.saveBufferFlakUrgent) {
+            return { forTower: 'flak', cost: this._towerCost('flak') + CFG.saveBufferFlakUrgent };
         }
         // Only block upgrades/builds for the FIRST flak. Once we have ≥1,
         // subsequent flaks are handled by normal build priority.
-        if (needFlak && counts.flak === 0 && g.money < TOWERS.flak.cost + CFG.saveBufferFlakNeeded) {
-            return { forTower: 'flak', cost: TOWERS.flak.cost + CFG.saveBufferFlakNeeded };
+        if (needFlak && counts.flak === 0 && g.money < this._towerCost('flak') + CFG.saveBufferFlakNeeded) {
+            return { forTower: 'flak', cost: this._towerCost('flak') + CFG.saveBufferFlakNeeded };
         }
-        if (needLaser && g.money < TOWERS.laser.cost) {
-            return { forTower: 'laser', cost: TOWERS.laser.cost };
+        if (needLaser && g.money < this._towerCost('laser')) {
+            return { forTower: 'laser', cost: this._towerCost('laser') };
         }
-        if (targetType && counts[targetType] < wanted[targetType] && g.money < TOWERS[targetType].cost) {
+        if (targetType && counts[targetType] < wanted[targetType] && g.money < this._towerCost(targetType)) {
             const deficit = wanted[targetType] - counts[targetType];
             if (deficit >= CFG.saveDeficitSevere
                 || (deficit >= CFG.saveDeficitModerate && totalTowers < CFG.saveEarlyTowerTotal)) {
-                return { forTower: targetType, cost: TOWERS[targetType].cost };
+                return { forTower: targetType, cost: this._towerCost(targetType) };
             }
         }
         return { forTower: null, cost: 0 };
@@ -163,7 +170,7 @@ class Autopilot {
         if (state.savingForPotion) return false;
         if (!state.preferBuild) return false;
         const saveCommit = AUTOPILOT_CONFIG.saveCommitFraction || 0.75;
-        const savedTowerCost = state.savingForTower ? TOWERS[state.savingForTower].cost : 0;
+        const savedTowerCost = state.savingForTower ? this._towerCost(state.savingForTower) : 0;
         if (state.savingForTower
             && this.game.money >= state.savingCost * saveCommit
             && this.game.money < savedTowerCost
@@ -173,7 +180,7 @@ class Autopilot {
         // Once ≥1 flak exists, build/upgrade freely — subsequent flaks via buildOrder.
         const g = this.game;
         const airInterval = (g.ascension && g.ascension.airWaveInterval) || 5;
-        const flakCost = TOWERS.flak.cost;
+        const flakCost = this._towerCost('flak');
         if (state.needFlak && state.counts.flak === 0 && state.w > airInterval
             && g.money >= flakCost - 75 && g.money < flakCost) return false;
 
@@ -192,7 +199,7 @@ class Autopilot {
         if (!bestSpot) {
             for (const t of AUTOPILOT_CONFIG.buildOrder) {
                 if (t === chosenType) continue;
-                if (this.game.money < TOWERS[t].cost) continue;
+                if (!this._canAfford(t)) continue;
                 if ((state.counts[t] || 0) >= (state.wanted[t] || 0)) continue;
                 bestSpot = this._pickBestSpot(spots, t);
                 if (bestSpot) { chosenType = t; break; }
@@ -245,11 +252,11 @@ class Autopilot {
     _pickAffordableType(state) {
         const g = this.game;
         const target = state.targetType;
-        if (g.money >= TOWERS[target].cost) return target;
+        if (this._canAfford(target)) return target;
 
         const { counts, wanted, urgentFlak, needFlak } = state;
-        const candidates = Object.keys(TOWERS).filter(t => {
-            if (g.money < TOWERS[t].cost) return false;
+        const candidates = AUTOPILOT_CONFIG.buildOrder.filter(t => {
+            if (!this._canAfford(t)) return false;
             if (t === 'flak')  return urgentFlak || needFlak || counts.flak < wanted.flak;
             if (t === 'laser') return counts.laser < wanted.laser;
             return counts[t] < wanted[t];
@@ -265,6 +272,19 @@ class Autopilot {
         return candidates[0] || null;
     }
 
+    _towerCost(baseType) {
+        const effType = effectiveTowerType(this.game, baseType);
+        const cfg = TOWERS[effType] || TOWERS[baseType];
+        const mult = (this.game && this.game.towerCostMult) || 1;
+        return Math.floor(cfg.cost * mult);
+    }
+
+    _canAfford(baseType) {
+        if (!baseType) return false;
+        if (this.game && typeof this.game.canAfford === 'function') return this.game.canAfford(baseType);
+        return this.game.money >= this._towerCost(baseType);
+    }
+
     _pickBestSpot(spots, buildType) {
         let bestSpot = null;
         let bestScore = -9999;
@@ -278,7 +298,9 @@ class Autopilot {
 
     // Combined score: path coverage + tower-specific shape preferences + laser synergy.
     _scorePlacement(spot, buildType) {
-        const range = TOWERS[buildType].range;
+        const effType = effectiveTowerType(this.game, buildType);
+        const towerCfg = TOWERS[effType] || TOWERS[buildType];
+        const range = towerCfg.range;
 
         // How many path tiles this spot can reach with its range.
         const pathCoverage = this._pathTilesInRange(spot, range);
@@ -289,7 +311,7 @@ class Autopilot {
         let score = Math.random();
         score += pathCoverage * 0.3;
 
-        score += this._typeShapeBonus(spot, buildType, pathCoverage);
+        score += this._typeShapeBonus(spot, baseOf(effType), pathCoverage);
         score += this._laserSynergyBonus(spot, buildType);
 
         return score;
@@ -404,7 +426,7 @@ class Autopilot {
             const aTotal = a.t.upgrades[0] + a.t.upgrades[1] + a.t.upgrades[2];
             const bTotal = b.t.upgrades[0] + b.t.upgrades[1] + b.t.upgrades[2];
             if (aTotal !== bTotal) return aTotal - bTotal;
-            return (values[b.t.type] || 0) - (values[a.t.type] || 0);
+            return (values[baseOf(b.t.type)] || 0) - (values[baseOf(a.t.type)] || 0);
         };
     }
 

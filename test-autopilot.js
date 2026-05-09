@@ -15,6 +15,7 @@ const PORT = parseInt(args.port || process.env.PORT || '8765');
 const GAME_SPEED = parseInt(args.speed || process.env.SPEED || '5000');
 const SEED = args.seed || process.env.SEED || '';
 const ASCENSION = Math.max(0, Math.min(parseInt(args.ascension || process.env.ASCENSION || '6'), 10));
+const USE_VARIANTS = args.variants === 'true' || process.env.VARIANTS === '1';
 
 async function main() {
     const server = spawn('python3', ['-m', 'http.server', String(PORT)], {
@@ -58,6 +59,11 @@ async function main() {
             if (typeof updateModeDisplay === 'function') updateModeDisplay(tier);
         }, ASCENSION);
     }
+    if (USE_VARIANTS) {
+        await page.evaluate(() => {
+            eval('selectedTowerLoadout = { ...TOWER_VARIANTS }');
+        });
+    }
     await page.click('#start-btn');
     await page.waitForTimeout(800);
 
@@ -96,10 +102,12 @@ async function main() {
                 return { done: true, reason: g.state, wave: g.wave, health: g.health };
             }
             const counts = {};
+            const typeCounts = {};
             for (const t of g.towers) {
                 const b = t.type === 'income_research' ? 'income'
                         : t.type.includes('_') ? t.type.split('_')[0] : t.type;
                 counts[b] = (counts[b] || 0) + 1;
+                typeCounts[t.type] = (typeCounts[t.type] || 0) + 1;
             }
             let pathFree = 0, totalFree = 0;
             for (let r = 0; r < ROWS; r++) {
@@ -118,7 +126,7 @@ async function main() {
             }
             return {
                 done: false, wave: g.wave, health: g.health, money: g.money,
-                towers: g.towers.length, towerCounts: counts,
+                towers: g.towers.length, towerCounts: counts, typeCounts,
                 pathFree, totalFree, autopilot: g.autopilot,
                 enemiesAlive: g.enemies.filter(e=>e.active).length,
             };
@@ -141,6 +149,7 @@ async function main() {
             await page.screenshot({ path: `/tmp/ap-w${SNAPSHOT_WAVES[nextSnap]}-p${PORT}.png` });
             console.log(`Wave ${state.wave}: HP=${state.health} $=${state.money} towers=${state.towers} pathFree=${state.pathFree}/${state.totalFree} auto=${state.autopilot}`);
             console.log(`  Composition: ${JSON.stringify(state.towerCounts)}`);
+            if (USE_VARIANTS) console.log(`  Types: ${JSON.stringify(state.typeCounts)}`);
             while (nextSnap < SNAPSHOT_WAVES.length && state.wave >= SNAPSHOT_WAVES[nextSnap]) nextSnap++;
             if (nextSnap >= SNAPSHOT_WAVES.length) break;
         }
