@@ -1445,36 +1445,37 @@ function init() {
             const t = e.changedTouches[0];
             const rect = canvas.getBoundingClientRect();
 
-            if (t.clientX >= rect.left && t.clientX <= rect.right &&
-                t.clientY >= rect.top  && t.clientY <= rect.bottom) {
+            const logicalWidth  = window.COLS * window.TILE_SIZE;
+            const logicalHeight = window.ROWS * window.TILE_SIZE;
+            const scaleX = logicalWidth / rect.width;
+            const scaleY = logicalHeight / rect.height;
 
-                const logicalWidth  = window.COLS * window.TILE_SIZE;
-                const logicalHeight = window.ROWS * window.TILE_SIZE;
-                const scaleX = logicalWidth / rect.width;
-                const scaleY = logicalHeight / rect.height;
-                
-                // Use same thumb offset as touchmove for consistency
-                const isLandscape = window.innerWidth > window.innerHeight;
-                const GHOST_OFFSET_PX = isLandscape ? 70 : 100;
-                
-                // Apply offset in screen space, then scale to logical coordinates
-                const lx = (t.clientX - rect.left) * scaleX;
-                const ly = ((t.clientY - GHOST_OFFSET_PX) - rect.top) * scaleY;
-                const col = Math.floor(lx / window.TILE_SIZE);
-                const row = Math.floor(ly / window.TILE_SIZE);
+            // Same thumb offset as touchmove so the ghost the user sees is
+            // also the position we test for placement on release.
+            const isLandscape = window.innerWidth > window.innerHeight;
+            const GHOST_OFFSET_PX = isLandscape ? 70 : 100;
 
-                if (game.map.isBuildable(col, row) && game.canAfford(state.type)) {
-                    // Convert ghost tile centre back to screen coords for button positioning
-                    const tileCentreLogX = col * window.TILE_SIZE + window.TILE_SIZE / 2;
-                    const tileCentreLogY = row * window.TILE_SIZE + window.TILE_SIZE / 2;
-                    const sx = rect.left + tileCentreLogX / scaleX;
-                    const sy = rect.top  + tileCentreLogY / scaleY;
-                    showPlaceConfirm(col, row, state.type, sx, sy);
-                } else {
-                    // Not buildable or can't afford — cancel silently
-                    hidePlaceConfirm();
-                }
+            const lx = (t.clientX - rect.left) * scaleX;
+            const ly = ((t.clientY - GHOST_OFFSET_PX) - rect.top) * scaleY;
+            const col = Math.floor(lx / window.TILE_SIZE);
+            const row = Math.floor(ly / window.TILE_SIZE);
+
+            // Bounds check on the GHOST tile (col/row), not the finger position.
+            // The finger sits ~100px below the ghost, so for a placement near the
+            // bottom of the canvas the finger lands in the build dock — the old
+            // raw-finger bounds check failed there even though the ghost was on
+            // a valid tile (e.g. a U-bend in the path).
+            const ghostOnMap = (col >= 0 && col < window.COLS && row >= 0 && row < window.ROWS);
+
+            if (ghostOnMap && game.map.isBuildable(col, row) && game.canAfford(state.type)) {
+                // Convert ghost tile centre back to screen coords for button positioning
+                const tileCentreLogX = col * window.TILE_SIZE + window.TILE_SIZE / 2;
+                const tileCentreLogY = row * window.TILE_SIZE + window.TILE_SIZE / 2;
+                const sx = rect.left + tileCentreLogX / scaleX;
+                const sy = rect.top  + tileCentreLogY / scaleY;
+                showPlaceConfirm(col, row, state.type, sx, sy);
             } else {
+                // Not buildable, off the map, or can't afford — cancel silently.
                 hidePlaceConfirm();
             }
             e.preventDefault();
