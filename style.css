@@ -1648,6 +1648,26 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     color: var(--accent);
 }
 
+/* EXIT TO MENU sub-button on the RST/RETIRE confirm overlays. Less
+   prominent than the primary YES/RETIRE/CANCEL row above it. */
+.exit-to-menu-btn {
+    margin-top: 16px;
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    background: transparent;
+    border: 1px solid var(--text-muted);
+    color: var(--text-muted);
+    border-radius: 4px;
+    letter-spacing: 1.5px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.exit-to-menu-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(56, 189, 248, 0.1);
+}
+
 /* M2: Tech Tree overlay */
 #tech-tree {
     padding: 24px;

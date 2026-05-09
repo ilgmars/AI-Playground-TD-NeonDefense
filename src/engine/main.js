@@ -217,7 +217,6 @@ function navigateToMainMenu() {
     hideScreen('start-screen');
     hideScreen('game-over');
     hideScreen('restart-confirm');
-    hideScreen('exit-confirm');
     hideScreen('retire-confirm');
     hideScreen('tech-tree');
     hideScreen('tower-mastery');
@@ -896,19 +895,18 @@ function init() {
         }
     });
 
-    document.getElementById('exit-menu-btn').addEventListener('click', () => {
-        if (game.state !== 'playing' && game.state !== 'paused') return;
-        game.state = 'paused';
-        document.getElementById('exit-confirm').classList.remove('hidden');
-    });
-    document.getElementById('exit-confirm-yes').addEventListener('click', () => {
-        document.getElementById('exit-confirm').classList.add('hidden');
-        document.getElementById('upgrade-menu').classList.add('hidden');
-        navigateToMainMenu();
-    });
-    document.getElementById('exit-confirm-no').addEventListener('click', () => {
-        document.getElementById('exit-confirm').classList.add('hidden');
-        if (game.state === 'paused') game.state = 'playing';
+    // EXIT TO MENU buttons live inside the restart-confirm and retire-confirm
+    // overlays (so the SYS button is the single entry point for "end this run
+    // somehow"). Each button carries data-from so we know which overlay to
+    // close before swapping to the main menu.
+    document.querySelectorAll('.exit-to-menu-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const from = btn.dataset.from;
+            if (from === 'restart') document.getElementById('restart-confirm').classList.add('hidden');
+            if (from === 'retire')  document.getElementById('retire-confirm').classList.add('hidden');
+            document.getElementById('upgrade-menu').classList.add('hidden');
+            navigateToMainMenu();
+        });
     });
     document.getElementById('retire-confirm-yes').addEventListener('click', () => {
         document.getElementById('retire-confirm').classList.add('hidden');

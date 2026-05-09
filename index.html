@@ -67,13 +67,9 @@
                         <span class="label">SEED</span>
                         <span id="seed-display" class="value">—</span>
                     </div>
-                    <div class="stat-box interactive" id="restart-btn" title="Reset run; converts to RETIRE (with bonus) once you've cleared enough waves">
+                    <div class="stat-box interactive" id="restart-btn" title="Reset / Retire / Exit to menu">
                         <span class="label">SYS</span>
                         <span id="restart-display" class="value">RST</span>
-                    </div>
-                    <div class="stat-box interactive" id="exit-menu-btn" title="Quit run and return to main menu">
-                        <span class="label">EXIT</span>
-                        <span class="value">⌂</span>
                     </div>
                 </div>
                 <div class="stat-box interactive" id="overflow-btn" title="More options" aria-label="More options">
@@ -168,6 +164,7 @@
                         <button id="retire-confirm-yes" style="background:rgba(74,222,128,0.15); border-color:#4ade80; color:#4ade80;">RETIRE</button>
                         <button id="retire-confirm-no">CANCEL</button>
                     </div>
+                    <button class="exit-to-menu-btn secondary" data-from="retire">⌂ EXIT TO MENU</button>
                 </div>
 
                 <div id="victory" class="hidden overlay">
@@ -206,15 +203,6 @@
                     </div>
                 </div>
 
-                <div id="exit-confirm" class="hidden overlay">
-                    <h2>EXIT TO MENU?</h2>
-                    <p>Current run progress will be lost.</p>
-                    <div style="display: flex; gap: 20px; margin-top: 10px;">
-                        <button id="exit-confirm-yes" class="danger">YES</button>
-                        <button id="exit-confirm-no">NO</button>
-                    </div>
-                </div>
-
                 <div id="restart-confirm" class="hidden overlay">
                     <h2>REBOOT SYSTEM?</h2>
                     <p>Current progress will be lost.</p>
@@ -230,6 +218,7 @@
                         <button id="confirm-yes" class="danger">YES</button>
                         <button id="confirm-no">NO</button>
                     </div>
+                    <button class="exit-to-menu-btn secondary" data-from="restart">⌂ EXIT TO MENU</button>
                 </div>
 
                 <div id="main-menu" class="overlay">
