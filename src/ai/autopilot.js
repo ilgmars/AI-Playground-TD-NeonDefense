@@ -85,8 +85,10 @@ class Autopilot {
 
         // Role-critical: flak needed from first air wave onward; laser needed from wave 3.
         const needFlak   = w >= Math.max(3, airInterval - 1) && counts.flak < Math.max(1, wanted.flak);
-        // urgentFlak: original behaviour (first-air-wave warning), kept for saving/upgrade priority.
-        const urgentFlak = w === airInterval && !g.currentWaveDef && counts.flak === 0;
+        // urgentFlak: original first-air-wave warning, OR mid-air-wave panic
+        // (active air wave with zero flak — bypass placement scoring later).
+        const urgentFlak = (w === airInterval && !g.currentWaveDef && counts.flak === 0)
+                         || (isAirWave && counts.flak === 0);
         const needLaser  = w >= 3 && counts.laser === 0;
 
         const targetType = this._pickTargetType(counts, wanted, urgentFlak, needFlak, needLaser);

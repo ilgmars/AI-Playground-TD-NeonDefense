@@ -109,4 +109,15 @@ Silo: penalty 8 per silo within 3 tiles. Rocket: 4 per rocket within 4 tiles.
 adjacent). Bounded by the existing `orthoNeighbors * 3` bonus which
 dominates a single-neighbor penalty. Tunable via the perHit constants.
 
+### Iteration 5 — Mid-air-wave panic flak
+
+**Hypothesis**: `urgentFlak` only fired BEFORE the first air wave. If the
+autopilot somehow reaches an active air wave with 0 flak (e.g. the seed
+clamped flak builds, or flak got sold), it had no special-case behaviour.
+
+**Change**: extend `urgentFlak` to fire whenever an air wave is active
+AND `counts.flak === 0`, not just on the wave-start trigger.
+
+**Risk**: Minimal — same urgent code paths reused, just broader triggering.
+
 
