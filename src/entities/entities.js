@@ -541,6 +541,11 @@ class Tower {
                 } else {
                     const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
                     let ms = this.multiShot || 1;
+                    // Variants use their base type's projectile rendering + physics:
+                    // rocket_cluster → 'rocket', sniper_scatter → 'sniper', flak_emp → 'flak', etc.
+                    // Without this the variant projectile fell into the default branch
+                    // in drawProjectile and rendered as a generic cyan ball.
+                    const projType = this.type.includes('_') ? this.type.split('_')[0] : this.type;
                     for (let i = 0; i < ms; i++) {
                         let finalTarget = target;
                         if (i > 0) {
@@ -558,7 +563,7 @@ class Tower {
                             this.y + TILE_SIZE/2,
                             finalTarget,
                             effectiveDamage,
-                            this.type,
+                            projType,
                             this.pierce,
                             this.splash,
                             this
@@ -838,23 +843,53 @@ class Projectile {
             if (this.sourceTower && this.sourceTower.clusterCount && !this.isClusterChild) {
                 const subRadius = (this.sourceTower.splash || 45) * 0.6;
                 const subDamage = (this.sourceTower.damage || 18) * 0.5;
-                for (let i = 0; i < this.sourceTower.clusterCount; i++) {
-                    const angle = (Math.PI * 2 / this.sourceTower.clusterCount) * i;
-                    const sx = this.x + Math.cos(angle) * subRadius * 0.3;
-                    const sy = this.y + Math.sin(angle) * subRadius * 0.3;
+                const SEARCH_R  = 200;                 // limit sub-rocket reach so they don't fly across the map
+                const SEARCH_R2 = SEARCH_R * SEARCH_R;
+                const claimed = new Set();             // distinct target per sub-rocket
+                const N = this.sourceTower.clusterCount;
+                // Random base offset so consecutive cluster volleys don't all spawn the same fan pattern.
+                const baseRot = Math.random() * Math.PI * 2;
+                for (let i = 0; i < N; i++) {
+                    const angle = baseRot + (Math.PI * 2 / N) * i;
+                    // Spawn further out than before (radius*0.7) so the sub-rockets
+                    // are visually distinct immediately instead of starting in a pile.
+                    const sx = this.x + Math.cos(angle) * subRadius * 0.7;
+                    const sy = this.y + Math.sin(angle) * subRadius * 0.7;
+                    // Pick the closest UNCLAIMED enemy within SEARCH_R; bail if none.
                     let nearest = null;
-                    let bestD = Infinity;
+                    let bestD = SEARCH_R2;
                     for (const en of enemies) {
-                        if (!en.active) continue;
+                        if (!en.active || claimed.has(en)) continue;
                         const dx = en.x - sx, dy = en.y - sy;
                         const d2 = dx*dx + dy*dy;
                         if (d2 < bestD) { bestD = d2; nearest = en; }
                     }
-                    if (nearest) {
-                        const sub = new Projectile(sx, sy, nearest, subDamage, 'rocket', 1, subRadius, this.sourceTower);
-                        sub.isClusterChild = true;
-                        projectiles.push(sub);
+                    // Fallback: if every nearby enemy is already claimed, allow re-picking.
+                    if (!nearest) {
+                        bestD = SEARCH_R2;
+                        for (const en of enemies) {
+                            if (!en.active) continue;
+                            const dx = en.x - sx, dy = en.y - sy;
+                            const d2 = dx*dx + dy*dy;
+                            if (d2 < bestD) { bestD = d2; nearest = en; }
+                        }
                     }
+                    if (!nearest) continue;            // no enemy in range → skip the sub entirely
+                    claimed.add(nearest);
+
+                    const sub = new Projectile(sx, sy, nearest, subDamage, 'rocket', 1, subRadius, this.sourceTower);
+                    sub.isClusterChild = true;
+                    // Spread comes from spawn POSITIONS (sx,sy) being radial out
+                    // from the burst. Angle aims directly at the chosen target so
+                    // the sub doesn't have to spin around. Skip the 1→8 ramp for
+                    // a snappy fan instead of a floaty one.
+                    sub.angle = Math.atan2(nearest.y - sy, nearest.x - sx);
+                    // Cluster subs are SUPER agile: high speed cap, snappy homing,
+                    // already at speed when they spawn so the fan reads instantly.
+                    sub.speed = 9;                      // max ~12 (speed+3) vs primary 5/max 8
+                    sub.currentSpeed = 8;
+                    sub.turnSpeed = 0.32;               // 4× primary turnSpeed (0.08)
+                    projectiles.push(sub);
                 }
             }
             this.active = false;
