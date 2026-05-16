@@ -357,7 +357,7 @@ function renderTowerMastery() {
     };
 
     for (const type of NeonSave.TOWER_TYPES) {
-        const mast = save.towerMastery[type] || { xp: 0, milestones: { m1: false, m2: false }, perks: { damage: 0, fireRate: 0, efficiency: 0 } };
+        const mast = save.towerMastery[type] || { xp: 0, totalXP: 0, milestones: { m1: false, m2: false }, perks: { damage: 0, fireRate: 0, efficiency: 0 } };
         if (!mast.perks) mast.perks = { damage: 0, fireRate: 0, efficiency: 0 };
         const towerDef = TOWERS[type];
 
@@ -377,8 +377,9 @@ function renderTowerMastery() {
         label.textContent = towerDef ? towerDef.displayName : type;
         const xpText = document.createElement('span');
         xpText.className = 'mastery-xp-text';
+        const totalXP = mast.totalXP || mast.xp || 0;
         const capXP = mast.milestones.m2 ? 10000 : mast.milestones.m1 ? 10000 : 1000;
-        xpText.textContent = `${mast.xp} / ${capXP} XP`;
+        xpText.textContent = `${totalXP} / ${capXP} lifetime`;
         nameRow.appendChild(label);
         nameRow.appendChild(xpText);
 
@@ -386,10 +387,14 @@ function renderTowerMastery() {
         bar.className = 'mastery-bar';
         const fill = document.createElement('div');
         fill.className = 'mastery-bar-fill';
-        const progress = Math.min(1, mast.xp / capXP);
+        const progress = Math.min(1, totalXP / capXP);
         fill.style.width = (progress * 100) + '%';
         if (mast.milestones.m2) fill.classList.add('maxed');
         bar.appendChild(fill);
+
+        const spendable = document.createElement('div');
+        spendable.className = 'mastery-spendable';
+        spendable.textContent = `Spendable ${Math.floor(mast.xp || 0)} XP`;
 
         const milestones = document.createElement('div');
         milestones.className = 'mastery-milestones';
@@ -425,7 +430,8 @@ function renderTowerMastery() {
             const btn = document.createElement('button');
             btn.className = 'mastery-perk-buy';
             const maxed = rank >= limit;
-            btn.textContent = maxed ? 'MAX' : `BUY ${cost} XP`;
+            const missing = Math.max(0, cost - (mast.xp || 0));
+            btn.textContent = maxed ? 'MAX' : missing > 0 ? `NEED ${missing}` : `BUY ${cost}`;
             btn.disabled = maxed || mast.xp < cost;
             btn.addEventListener('click', () => {
                 if (NeonSave.purchaseMasteryPerk(save, type, perk)) {
@@ -440,6 +446,7 @@ function renderTowerMastery() {
 
         body.appendChild(nameRow);
         body.appendChild(bar);
+        body.appendChild(spendable);
         body.appendChild(milestones);
         body.appendChild(perks);
 

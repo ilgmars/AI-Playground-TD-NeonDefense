@@ -17,7 +17,7 @@ const NeonSave = (function () {
     function createFreshSave() {
         const mastery = {};
         for (const t of TOWER_TYPES) {
-            mastery[t] = { xp: 0, milestones: { m1: false, m2: false }, perks: { ...MASTERY_PERK_DEFAULTS } };
+            mastery[t] = { xp: 0, totalXP: 0, milestones: { m1: false, m2: false }, perks: { ...MASTERY_PERK_DEFAULTS } };
         }
         const highScores = {};
         for (let i = 0; i <= 10; i++) highScores['a' + i] = [];
@@ -116,9 +116,11 @@ const NeonSave = (function () {
         if (!save.towerMastery || typeof save.towerMastery !== 'object') save.towerMastery = {};
         for (const type of TOWER_TYPES) {
             if (!save.towerMastery[type] || typeof save.towerMastery[type] !== 'object') {
-                save.towerMastery[type] = { xp: 0, milestones: { m1: false, m2: false }, perks: { ...MASTERY_PERK_DEFAULTS } };
+                save.towerMastery[type] = { xp: 0, totalXP: 0, milestones: { m1: false, m2: false }, perks: { ...MASTERY_PERK_DEFAULTS } };
             }
             if (typeof save.towerMastery[type].xp !== 'number') save.towerMastery[type].xp = 0;
+            if (typeof save.towerMastery[type].totalXP !== 'number') save.towerMastery[type].totalXP = save.towerMastery[type].xp;
+            save.towerMastery[type].totalXP = Math.max(save.towerMastery[type].totalXP, save.towerMastery[type].xp);
             if (!save.towerMastery[type].milestones || typeof save.towerMastery[type].milestones !== 'object') {
                 save.towerMastery[type].milestones = { m1: false, m2: false };
             }
@@ -171,7 +173,8 @@ const NeonSave = (function () {
 
     // M3: Sum damageDealt across all alive towers, bucketed by base tower type
     // (variants like 'basic_cryo' roll up to 'basic'). Increments
-    // save.towerMastery[type].xp and sets milestones m1 at 1000 / m2 at 10000.
+    // save.towerMastery[type].xp (spendable) and totalXP (lifetime), then sets
+    // milestones m1 at 1000 / m2 at 10000 lifetime XP.
     // Returns an array of { type, xpGained, newMilestones: ['m1'|'m2'] } for UI.
     function tallyMastery(save, towers) {
         const perType = {};
@@ -187,15 +190,16 @@ const NeonSave = (function () {
         for (const type of Object.keys(perType)) {
             const xpGained = Math.floor(perType[type]);
             if (xpGained <= 0) continue;
-            if (!save.towerMastery[type]) save.towerMastery[type] = { xp: 0, milestones: { m1: false, m2: false }, perks: { ...MASTERY_PERK_DEFAULTS } };
+            if (!save.towerMastery[type]) save.towerMastery[type] = { xp: 0, totalXP: 0, milestones: { m1: false, m2: false }, perks: { ...MASTERY_PERK_DEFAULTS } };
             save.towerMastery[type].xp += xpGained;
+            save.towerMastery[type].totalXP = (save.towerMastery[type].totalXP || 0) + xpGained;
 
             const newMilestones = [];
             const milestones = save.towerMastery[type].milestones;
-            if (!milestones.m1 && save.towerMastery[type].xp >= 1000) { milestones.m1 = true; newMilestones.push('m1'); }
-            if (!milestones.m2 && save.towerMastery[type].xp >= 10000) { milestones.m2 = true; newMilestones.push('m2'); }
+            if (!milestones.m1 && save.towerMastery[type].totalXP >= 1000) { milestones.m1 = true; newMilestones.push('m1'); }
+            if (!milestones.m2 && save.towerMastery[type].totalXP >= 10000) { milestones.m2 = true; newMilestones.push('m2'); }
 
-            results.push({ type, xpGained, newMilestones, newXP: save.towerMastery[type].xp });
+            results.push({ type, xpGained, newMilestones, newXP: save.towerMastery[type].totalXP });
         }
         write(save);
         return results;

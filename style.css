@@ -1964,6 +1964,13 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 .mastery-bar-fill.maxed {
     background: #a3e635;
 }
+.mastery-spendable {
+    margin-top: 4px;
+    color: #fbbf24;
+    font-family: monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.5px;
+}
 .mastery-milestones {
     display: flex;
     gap: 8px;
