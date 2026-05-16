@@ -109,7 +109,7 @@ const NeonSave = (function () {
 
     // Non-schema-bump backfill for M1-era saves missing M2 fields.
     // Idempotent — safe to call on every load.
-    function backfillV1Fields(save) {
+    function backfillV1Fields(save, persist = true) {
         if (!Array.isArray(save.unlockedNodes)) save.unlockedNodes = [];
         if (!save.unlockedNodes.includes('hero.pioneer')) save.unlockedNodes.push('hero.pioneer');
         if (!save.unlockedNodes.includes('kit.standard')) save.unlockedNodes.push('kit.standard');
@@ -143,7 +143,7 @@ const NeonSave = (function () {
         if (typeof save.lastLoadout.towerLoadout === 'undefined') save.lastLoadout.towerLoadout = null;
         if (!save.settings || typeof save.settings !== 'object') save.settings = { skipRunSetup: false };
         if (typeof save.settings.skipRunSetup !== 'boolean') save.settings.skipRunSetup = false;
-        write(save);
+        if (persist) write(save);
     }
 
     // True if the given nodeId exists in save.unlockedNodes. Safe for any input.
@@ -294,6 +294,7 @@ const NeonSave = (function () {
         if (!obj || typeof obj !== 'object' || typeof obj.metaXP !== 'number') {
             throw new Error('Save code does not contain a valid save.');
         }
+        backfillV1Fields(obj, false);
         return obj;
     }
 

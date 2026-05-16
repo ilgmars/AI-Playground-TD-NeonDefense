@@ -355,6 +355,11 @@ function renderTowerMastery() {
         fireRate: { label: 'Fire Rate', value: r => `+${Math.round(r * 1.5 * 10) / 10}%` },
         efficiency: { label: 'Upgrade Cost', value: r => `-${r * 2}%` }
     };
+    const incomePerkMeta = {
+        damage: { label: 'Yield / Aura', value: r => `+${r * 2}%` },
+        fireRate: { label: 'Build Cost', value: r => `-${Math.round(r * 1.5 * 10) / 10}%` },
+        efficiency: { label: 'Upgrade Cost', value: r => `-${r * 2}%` }
+    };
 
     for (const type of NeonSave.TOWER_TYPES) {
         const mast = save.towerMastery[type] || { xp: 0, totalXP: 0, milestones: { m1: false, m2: false }, perks: { damage: 0, fireRate: 0, efficiency: 0 } };
@@ -409,6 +414,7 @@ function renderTowerMastery() {
 
         const perks = document.createElement('div');
         perks.className = 'mastery-perks';
+        const activePerkMeta = type === 'income' ? incomePerkMeta : perkMeta;
         for (const perk of ['damage', 'fireRate', 'efficiency']) {
             const rank = mast.perks[perk] || 0;
             const limit = NeonSave.MASTERY_PERK_LIMITS[perk];
@@ -420,10 +426,10 @@ function renderTowerMastery() {
             info.className = 'mastery-perk-info';
             const title = document.createElement('span');
             title.className = 'mastery-perk-title';
-            title.textContent = perkMeta[perk].label;
+            title.textContent = activePerkMeta[perk].label;
             const value = document.createElement('span');
             value.className = 'mastery-perk-value';
-            value.textContent = `${perkMeta[perk].value(rank)} · ${rank}/${limit}`;
+            value.textContent = `${activePerkMeta[perk].value(rank)} · ${rank}/${limit}`;
             info.appendChild(title);
             info.appendChild(value);
 
@@ -1841,7 +1847,10 @@ function updateBuildMenuForLoadout(towerLoadout) {
         const nameEl = el.querySelector('.tower-info .name');
         const costEl = el.querySelector('.tower-info .cost');
         if (nameEl) nameEl.textContent = cfg.displayName;
-        if (costEl) costEl.textContent = cfg.cost + '¢';
+        const displayCost = game && typeof game.getTowerBuildCost === 'function'
+            ? game.getTowerBuildCost(baseType)
+            : cfg.cost;
+        if (costEl) costEl.textContent = displayCost + '¢';
     });
 }
 

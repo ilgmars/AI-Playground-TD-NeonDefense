@@ -380,32 +380,35 @@ const QOL_NODES = {
 const TECH_TREE = {
     tier1: {
         cost: 50,
+        name: 'STARTERS',
         nodes: [
-            { id: 'hero.pioneer',   kind: 'hero',    desc: '+25% starting money' },
-            { id: 'kit.standard',   kind: 'kit',     desc: 'Default loadout' },
-            { id: 'hero.engineer',  kind: 'hero',    desc: '-10% tower cost, -5% upgrade cost' },
-            { id: 'ability.scan',   kind: 'ability', desc: 'Reveal next 3 waves (1 charge)' },
-            { id: 'kit.economist',  kind: 'kit',     desc: '$75 start + pre-placed Relay' }
+            { id: 'hero.pioneer',   kind: 'hero',    desc: 'Hero: start each run with +25% money.' },
+            { id: 'kit.standard',   kind: 'kit',     desc: 'Starter kit: baseline loadout, no penalties.' },
+            { id: 'hero.engineer',  kind: 'hero',    desc: 'Hero: towers cost 10% less and upgrades cost 5% less.' },
+            { id: 'ability.scan',   kind: 'ability', desc: 'Active ability: reveal the next 3 waves once per run.' },
+            { id: 'kit.economist',  kind: 'kit',     desc: 'Starter kit: $75 start, but a free Relay is pre-placed.' }
         ]
     },
     tier2: {
         cost: 200,
+        name: 'CORE TOOLS',
         nodes: [
-            { id: 'hero.warden',       kind: 'hero',    desc: '+5 max HP; potions heal +1' },
-            { id: 'ability.airstrike', kind: 'ability', desc: 'Click-target 200 dmg AoE (3 charges)' },
-            { id: 'kit.medic',         kind: 'kit',     desc: '+2 potions; potions cost 1.5x' },
-            { id: 'qol.hpbars',        kind: 'qol',    desc: 'Show enemy HP bars' },
-            { id: 'qol.fastai',        kind: 'qol',    desc: 'Autopilot tick 15f (faster)' }
+            { id: 'hero.warden',       kind: 'hero',    desc: 'Hero: +5 max HP; repair potions heal +1 more.' },
+            { id: 'ability.airstrike', kind: 'ability', desc: 'Active ability: 3 targeted 200-damage area strikes.' },
+            { id: 'kit.medic',         kind: 'kit',     desc: 'Starter kit: +2 starting repairs; repairs cost 1.5x.' },
+            { id: 'qol.hpbars',        kind: 'qol',    desc: 'Intel: show enemy HP bars above active enemies.' },
+            { id: 'qol.fastai',        kind: 'qol',    desc: 'Automation: built-in Autopilot checks twice as often.' }
         ]
     },
     tier3: {
         cost: 500,
+        name: 'ADVANCED SYSTEMS',
         nodes: [
-            { id: 'ability.freeze',    kind: 'ability', desc: 'Freeze all enemies 3s (1 charge)' },
-            { id: 'kit.strategist',    kind: 'kit',     desc: 'See all waves; -20% start $' },
-            { id: 'qol.dailyseed',     kind: 'qol',    desc: 'Daily Challenge seed button' },
-            { id: 'qol.skipsetup',     kind: 'qol',    desc: 'One-click last-loadout reuse' },
-            { id: 'qol.ascpreview',    kind: 'qol',    desc: 'Preview next Ascension modifier' }
+            { id: 'ability.freeze',    kind: 'ability', desc: 'Active ability: freeze every enemy for 3 seconds.' },
+            { id: 'kit.strategist',    kind: 'kit',     desc: 'Starter kit: reveal future waves; start with 20% less money.' },
+            { id: 'qol.dailyseed',     kind: 'qol',    desc: 'Challenge mode: unlock a deterministic daily-seed run button.' },
+            { id: 'qol.skipsetup',     kind: 'qol',    desc: 'Launch flow: reuse the last loadout from the main menu.' },
+            { id: 'qol.ascpreview',    kind: 'qol',    desc: 'Intel: preview the next hidden Ascension modifier.' }
         ]
     }
 };

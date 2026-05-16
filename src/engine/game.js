@@ -684,7 +684,20 @@ class Game {
 
     canAfford(type) {
         const effType = this.getEffectiveTowerType(type);
-        return this.money >= Math.floor(TOWERS[effType].cost * this.towerCostMult);
+        return this.money >= this.getTowerBuildCost(effType);
+    }
+
+    getTowerBuildCost(type) {
+        const effType = this.getEffectiveTowerType(type);
+        const cfg = TOWERS[effType];
+        const baseType = cfg.baseType || effType;
+        let masteryCostMult = 1;
+        if (baseType === 'income') {
+            const mastery = window.save && window.save.towerMastery && window.save.towerMastery.income;
+            const rank = mastery && mastery.perks ? (mastery.perks.fireRate || 0) : 0;
+            masteryCostMult = Math.max(0.75, 1 - rank * 0.015);
+        }
+        return Math.floor(TOWERS[effType].cost * this.towerCostMult * masteryCostMult);
     }
 
     buildTower(c, r, type) {
@@ -695,7 +708,7 @@ class Game {
         }
 
         const effType = this.getEffectiveTowerType(type);
-        let cost = Math.floor(TOWERS[effType].cost * this.towerCostMult);
+        let cost = this.getTowerBuildCost(effType);
 
         if (this.money >= cost) {
             this.money -= cost;

@@ -291,6 +291,7 @@ class Autopilot {
     }
 
     _towerCost(baseType) {
+        if (this.game && typeof this.game.getTowerBuildCost === 'function') return this.game.getTowerBuildCost(baseType);
         const effType = effectiveTowerType(this.game, baseType);
         const cfg = TOWERS[effType] || TOWERS[baseType];
         const mult = (this.game && this.game.towerCostMult) || 1;

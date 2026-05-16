@@ -261,6 +261,8 @@ class Tower {
         const outputMult = 1 + damageRank * 0.02;
         this.damage *= outputMult;
         if (this.burnDamage !== undefined) this.burnDamage *= outputMult;
+        if (this.incomePerWave !== undefined) this.incomePerWave *= outputMult;
+        if (this.auraBonus !== undefined) this.auraBonus *= outputMult;
         if (this.fireRate > 0) {
             this.fireRate = Math.max(1, Math.round(this.fireRate * (1 - (fireRateRank * 0.015))));
         }
