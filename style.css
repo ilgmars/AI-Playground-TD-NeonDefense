@@ -1908,12 +1908,12 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-width: 560px;
+    max-width: 680px;
     margin: 14px auto;
 }
 .mastery-row {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 12px;
     padding: 10px 14px;
     border: 1px solid rgba(56, 189, 248, 0.25);
@@ -1978,6 +1978,49 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 .mastery-milestone-dot.hit {
     opacity: 1;
     color: #a3e635;
+}
+.mastery-perks {
+    margin-top: 8px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+}
+.mastery-perk-row {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 6px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(15, 23, 42, 0.65);
+}
+.mastery-perk-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.mastery-perk-title {
+    color: var(--text-main);
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+.mastery-perk-value {
+    color: var(--text-muted);
+    font-family: monospace;
+    font-size: 0.66rem;
+}
+.mastery-perk-buy {
+    flex: 0 0 auto;
+    padding: 5px 7px;
+    font-size: 0.64rem;
+    border-radius: 4px;
+}
+.mastery-perk-buy:disabled {
+    opacity: 0.45;
+    cursor: default;
 }
 
 /* M3: Run Setup tower-variant grid */

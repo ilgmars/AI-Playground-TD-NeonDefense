@@ -79,7 +79,12 @@ class Game {
         // If caller already passed a variant id, use it.
         if (requestedType && requestedType.includes('_')) return requestedType;
         const chosen = this.towerLoadout[requestedType];
-        if (chosen && TOWERS[chosen]) return chosen;
+        const variantUnlocked = window.save
+            && window.save.towerMastery
+            && window.save.towerMastery[requestedType]
+            && window.save.towerMastery[requestedType].milestones
+            && window.save.towerMastery[requestedType].milestones.m1;
+        if (chosen && TOWERS[chosen] && chosen === TOWER_VARIANTS[requestedType] && variantUnlocked) return chosen;
         return requestedType;
     }
 

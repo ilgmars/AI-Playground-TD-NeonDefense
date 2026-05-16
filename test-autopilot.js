@@ -61,6 +61,12 @@ async function main() {
     }
     if (USE_VARIANTS) {
         await page.evaluate(() => {
+            for (const baseType of NeonSave.TOWER_TYPES) {
+                if (!save.towerMastery[baseType]) save.towerMastery[baseType] = { xp: 10000, milestones: { m1: true, m2: true } };
+                save.towerMastery[baseType].xp = Math.max(save.towerMastery[baseType].xp || 0, 10000);
+                save.towerMastery[baseType].milestones = { m1: true, m2: true };
+            }
+            NeonSave.write(save);
             eval('selectedTowerLoadout = { ...TOWER_VARIANTS }');
         });
     }

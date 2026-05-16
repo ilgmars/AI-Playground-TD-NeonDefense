@@ -109,7 +109,7 @@ const TOWERS = {
     // M3: Variants — unlocked by per-tower mastery m1 (1000 XP damage dealt).
     // Selected per-type in Run Setup; Game.getEffectiveTowerType resolves
     // base → variant at build time.
-    basic_cryo:     { cost: 50,  range: 100, damage: 5,   fireRate: 40,
+    basic_cryo:     { cost: 50,  range: 100, damage: 8,   fireRate: 40,
                       displayName: 'Cryo Blaster',   defaultTargetMode: 'first',
                       baseType: 'basic', slowEffect: 0.3, slowDuration: 60 },
     sniper_scatter: { cost: 100, range: 210, damage: 35,  fireRate: 100,

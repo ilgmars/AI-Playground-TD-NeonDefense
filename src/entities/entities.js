@@ -253,6 +253,19 @@ class Tower {
         if (cfg.auraBonus !== undefined)     this.auraBonus = cfg.auraBonus;
         if (cfg.auraRange !== undefined)     this.auraRange = cfg.auraRange;
 
+        const masteryBase = (cfg.baseType || type || '').split('_')[0];
+        const mastery = window.save && window.save.towerMastery && window.save.towerMastery[masteryBase];
+        this.masteryPerks = (mastery && mastery.perks) ? mastery.perks : { damage: 0, fireRate: 0, efficiency: 0 };
+        const damageRank = this.masteryPerks.damage || 0;
+        const fireRateRank = this.masteryPerks.fireRate || 0;
+        const outputMult = 1 + damageRank * 0.02;
+        this.damage *= outputMult;
+        if (this.burnDamage !== undefined) this.burnDamage *= outputMult;
+        if (this.fireRate > 0) {
+            this.fireRate = Math.max(1, Math.round(this.fireRate * (1 - (fireRateRank * 0.015))));
+        }
+        this.masteryUpgradeCostMult = Math.max(0.5, 1 - ((this.masteryPerks.efficiency || 0) * 0.02));
+
         // Per-type runtime state (not config). Variants share their base's
         // runtime fields — laser_pulse needs laserTarget, silo_orbital needs
         // hoverRockets — so check both forms.
@@ -276,7 +289,7 @@ class Tower {
 
     getUpgradeCost(index) {
         let def = TOWER_UPGRADES[this.type][index];
-        return Math.floor(def.baseCost * Math.pow(def.costMult, this.upgrades[index]));
+        return Math.floor(def.baseCost * Math.pow(def.costMult, this.upgrades[index]) * (this.masteryUpgradeCostMult || 1));
     }
 
     getSellValue() {

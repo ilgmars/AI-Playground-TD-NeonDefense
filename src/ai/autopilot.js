@@ -84,7 +84,7 @@ class Autopilot {
         const isAirImminent = isAirWave || wavesUntilAir <= AUTOPILOT_CONFIG.airImminentWindow;
 
         // Role-critical: flak needed from first air wave onward; laser needed from wave 3.
-        const needFlak   = w >= Math.max(3, airInterval - 1) && counts.flak < Math.max(1, wanted.flak);
+        const needFlak   = w >= Math.max(2, airInterval - 2) && counts.flak < Math.max(1, wanted.flak);
         // urgentFlak: original first-air-wave warning, OR mid-air-wave panic
         // (active air wave with zero flak — bypass placement scoring later).
         const urgentFlak = (w === airInterval && !g.currentWaveDef && counts.flak === 0)
@@ -206,6 +206,10 @@ class Autopilot {
 
         let chosenType = this._pickAffordableType(state);
         if (!chosenType) return false;
+
+        if ((state.urgentFlak || state.needFlak) && state.counts.flak === 0 && chosenType !== 'flak') {
+            return false;
+        }
 
         let bestSpot = this._pickBestSpot(spots, chosenType);
 

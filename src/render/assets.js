@@ -338,6 +338,20 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
     
     ctx.restore();
 
+    const baseType = variant ? variant.base : type;
+    const mastery = window.save && window.save.towerMastery && window.save.towerMastery[baseType];
+    if (mastery && mastery.milestones && mastery.milestones.m2) {
+        ctx.save();
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 2;
+        setGlow(ctx, '#fbbf24', 8);
+        ctx.beginPath();
+        ctx.arc(x + size / 2, y + size / 2, size / 2 - 2, 0, Math.PI * 2);
+        ctx.stroke();
+        clearGlow(ctx);
+        ctx.restore();
+    }
+
     // Draw level indicator
     if (level > 1) {
         ctx.fillStyle = '#ffffff';

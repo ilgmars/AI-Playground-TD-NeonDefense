@@ -30,6 +30,28 @@ let selectedTowerLoadout = (save.lastLoadout && save.lastLoadout.towerLoadout)
     ? { ...save.lastLoadout.towerLoadout }
     : {};
 
+function isTowerVariantUnlocked(baseType) {
+    const mastery = save.towerMastery && save.towerMastery[baseType];
+    return !!(mastery && mastery.milestones && mastery.milestones.m1);
+}
+
+function sanitizeTowerLoadout(loadout) {
+    const clean = {};
+    const source = (loadout && typeof loadout === 'object') ? loadout : {};
+    for (const baseType of NeonSave.TOWER_TYPES) {
+        const variantId = TOWER_VARIANTS[baseType];
+        const selected = source[baseType];
+        if (selected === variantId && isTowerVariantUnlocked(baseType)) {
+            clean[baseType] = variantId;
+        } else if (selected === baseType) {
+            clean[baseType] = baseType;
+        }
+    }
+    return clean;
+}
+
+selectedTowerLoadout = sanitizeTowerLoadout(selectedTowerLoadout);
+
 function setTier(tier) {
     const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER);
     if (tier < 0 || tier > unlockedMax) return;
@@ -62,23 +84,14 @@ function renderAscensionSelector(context) {
 
     const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER);
 
-    for (let t = 0; t <= ASCENSION_MAX_TIER; t++) {
+    for (let t = 0; t <= unlockedMax; t++) {
         const spec = ASCENSION_TIERS[t];
         const btn = document.createElement('button');
         btn.className = 'ascension-btn';
         btn.textContent = spec.label; // "A0", "A1", ...
         btn.title = spec.name;
         if (t === selectedTier) btn.classList.add('selected');
-        if (t > unlockedMax) {
-            btn.classList.add('locked');
-            btn.disabled = true;
-            const showPreview = NeonSave.hasUnlocked(save, 'qol.ascpreview') && t === unlockedMax + 1;
-            btn.title = spec.name
-                + (showPreview ? ' (preview: ' + spec.name + ')' : '')
-                + ' (locked — clear A' + (t - 1) + ' to unlock)';
-        } else {
-            btn.addEventListener('click', () => setTier(t));
-        }
+        btn.addEventListener('click', () => setTier(t));
         container.appendChild(btn);
     }
 
@@ -99,6 +112,7 @@ function renderAscensionSelector(context) {
 // Called at init and after any tree purchase. Preserves current selection
 // if still valid; falls back to default otherwise.
 function renderLoadoutDropdowns() {
+    selectedTowerLoadout = sanitizeTowerLoadout(selectedTowerLoadout);
     renderOneLoadoutSelect('run-hero-select', 'selectedHero', 'hero.pioneer', HEROES);
     renderOneLoadoutSelect('run-kit-select',  'selectedKit',  'kit.standard', STARTER_KITS);
     renderOneAbilitySelect();
@@ -119,7 +133,7 @@ function renderTowerVariantGrid() {
     let anyUnlocked = false;
     for (const baseType of NeonSave.TOWER_TYPES) {
         const variantId = TOWER_VARIANTS[baseType];
-        const variantUnlocked = save.towerMastery[baseType] && save.towerMastery[baseType].milestones && save.towerMastery[baseType].milestones.m1;
+        const variantUnlocked = isTowerVariantUnlocked(baseType);
         if (!variantUnlocked) continue;
         anyUnlocked = true;
 
@@ -336,8 +350,15 @@ function renderTowerMastery() {
     if (!grid) return;
     grid.innerHTML = '';
 
+    const perkMeta = {
+        damage: { label: 'Damage', value: r => `+${r * 2}%` },
+        fireRate: { label: 'Fire Rate', value: r => `+${Math.round(r * 1.5 * 10) / 10}%` },
+        efficiency: { label: 'Upgrade Cost', value: r => `-${r * 2}%` }
+    };
+
     for (const type of NeonSave.TOWER_TYPES) {
-        const mast = save.towerMastery[type] || { xp: 0, milestones: { m1: false, m2: false } };
+        const mast = save.towerMastery[type] || { xp: 0, milestones: { m1: false, m2: false }, perks: { damage: 0, fireRate: 0, efficiency: 0 } };
+        if (!mast.perks) mast.perks = { damage: 0, fireRate: 0, efficiency: 0 };
         const towerDef = TOWERS[type];
 
         const row = document.createElement('div');
@@ -381,9 +402,46 @@ function renderTowerMastery() {
         milestones.appendChild(dot1);
         milestones.appendChild(dot2);
 
+        const perks = document.createElement('div');
+        perks.className = 'mastery-perks';
+        for (const perk of ['damage', 'fireRate', 'efficiency']) {
+            const rank = mast.perks[perk] || 0;
+            const limit = NeonSave.MASTERY_PERK_LIMITS[perk];
+            const cost = NeonSave.getMasteryPerkCost(save, type, perk);
+            const perkRow = document.createElement('div');
+            perkRow.className = 'mastery-perk-row';
+
+            const info = document.createElement('div');
+            info.className = 'mastery-perk-info';
+            const title = document.createElement('span');
+            title.className = 'mastery-perk-title';
+            title.textContent = perkMeta[perk].label;
+            const value = document.createElement('span');
+            value.className = 'mastery-perk-value';
+            value.textContent = `${perkMeta[perk].value(rank)} · ${rank}/${limit}`;
+            info.appendChild(title);
+            info.appendChild(value);
+
+            const btn = document.createElement('button');
+            btn.className = 'mastery-perk-buy';
+            const maxed = rank >= limit;
+            btn.textContent = maxed ? 'MAX' : `BUY ${cost} XP`;
+            btn.disabled = maxed || mast.xp < cost;
+            btn.addEventListener('click', () => {
+                if (NeonSave.purchaseMasteryPerk(save, type, perk)) {
+                    renderTowerMastery();
+                }
+            });
+
+            perkRow.appendChild(info);
+            perkRow.appendChild(btn);
+            perks.appendChild(perkRow);
+        }
+
         body.appendChild(nameRow);
         body.appendChild(bar);
         body.appendChild(milestones);
+        body.appendChild(perks);
 
         row.appendChild(icon);
         row.appendChild(body);
@@ -597,7 +655,7 @@ function init() {
         heroId: selectedHero,
         kitId: selectedKit,
         abilityId: selectedAbility,
-        towerLoadout: { ...selectedTowerLoadout }
+        towerLoadout: sanitizeTowerLoadout(selectedTowerLoadout)
     });
 
     game.draw();
@@ -664,7 +722,7 @@ function init() {
         const canvas = document.getElementById('game-canvas');
         game = new Game(canvas, dailySeed, selectedTier, {
             heroId: selectedHero, kitId: selectedKit, abilityId: selectedAbility,
-            towerLoadout: { ...selectedTowerLoadout }
+            towerLoadout: sanitizeTowerLoadout(selectedTowerLoadout)
         });
         game.draw();
         updateSeedDisplay();
@@ -741,7 +799,7 @@ function init() {
             heroId: selectedHero,
             kitId: selectedKit,
             abilityId: selectedAbility,
-            towerLoadout: { ...selectedTowerLoadout }
+            towerLoadout: sanitizeTowerLoadout(selectedTowerLoadout)
         };
         NeonSave.write(save);
 
@@ -1036,7 +1094,7 @@ function init() {
             heroId: selectedHero,
             kitId: selectedKit,
             abilityId: selectedAbility,
-            towerLoadout: { ...selectedTowerLoadout }
+            towerLoadout: sanitizeTowerLoadout(selectedTowerLoadout)
         });
         game.start();
         updateSeedDisplay();
@@ -1094,7 +1152,8 @@ function init() {
         const tabs = document.getElementById('score-tabs');
         if (!tabs) return;
         tabs.innerHTML = '';
-        for (let t = 0; t <= ASCENSION_MAX_TIER; t++) {
+        const maxVisible = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER);
+        for (let t = 0; t <= maxVisible; t++) {
             const btn = document.createElement('button');
             btn.className = 'score-tab';
             btn.textContent = 'A' + t;
@@ -1868,5 +1927,3 @@ document.addEventListener('DOMContentLoaded', init);
         });
     });
 })();
-
-

@@ -9,11 +9,15 @@ const NeonSave = (function () {
 
     // Tower types used by the current game. Kept in sync with TOWERS keys in config.js.
     const TOWER_TYPES = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'flak', 'electric', 'silo', 'income'];
+    const MASTERY_PERK_DEFAULTS = { damage: 0, fireRate: 0, efficiency: 0 };
+    const MASTERY_PERK_LIMITS = { damage: 10, fireRate: 10, efficiency: 5 };
+    const MASTERY_PERK_BASE_COST = { damage: 250, fireRate: 250, efficiency: 400 };
+    const MASTERY_PERK_COST_STEP = { damage: 125, fireRate: 125, efficiency: 200 };
 
     function createFreshSave() {
         const mastery = {};
         for (const t of TOWER_TYPES) {
-            mastery[t] = { xp: 0, milestones: { m1: false, m2: false } };
+            mastery[t] = { xp: 0, milestones: { m1: false, m2: false }, perks: { ...MASTERY_PERK_DEFAULTS } };
         }
         const highScores = {};
         for (let i = 0; i <= 10; i++) highScores['a' + i] = [];
@@ -109,6 +113,25 @@ const NeonSave = (function () {
         if (!Array.isArray(save.unlockedNodes)) save.unlockedNodes = [];
         if (!save.unlockedNodes.includes('hero.pioneer')) save.unlockedNodes.push('hero.pioneer');
         if (!save.unlockedNodes.includes('kit.standard')) save.unlockedNodes.push('kit.standard');
+        if (!save.towerMastery || typeof save.towerMastery !== 'object') save.towerMastery = {};
+        for (const type of TOWER_TYPES) {
+            if (!save.towerMastery[type] || typeof save.towerMastery[type] !== 'object') {
+                save.towerMastery[type] = { xp: 0, milestones: { m1: false, m2: false }, perks: { ...MASTERY_PERK_DEFAULTS } };
+            }
+            if (typeof save.towerMastery[type].xp !== 'number') save.towerMastery[type].xp = 0;
+            if (!save.towerMastery[type].milestones || typeof save.towerMastery[type].milestones !== 'object') {
+                save.towerMastery[type].milestones = { m1: false, m2: false };
+            }
+            save.towerMastery[type].milestones.m1 = !!save.towerMastery[type].milestones.m1;
+            save.towerMastery[type].milestones.m2 = !!save.towerMastery[type].milestones.m2;
+            if (!save.towerMastery[type].perks || typeof save.towerMastery[type].perks !== 'object') {
+                save.towerMastery[type].perks = { ...MASTERY_PERK_DEFAULTS };
+            }
+            for (const perk of Object.keys(MASTERY_PERK_DEFAULTS)) {
+                const rank = save.towerMastery[type].perks[perk];
+                save.towerMastery[type].perks[perk] = Math.max(0, Math.min(MASTERY_PERK_LIMITS[perk], Number.isFinite(rank) ? Math.floor(rank) : 0));
+            }
+        }
         if (save.lastLoadout === undefined || save.lastLoadout === null) {
             save.lastLoadout = { heroId: 'hero.pioneer', kitId: 'kit.standard', abilityId: 'ability.none', towerLoadout: null };
         }
@@ -164,7 +187,7 @@ const NeonSave = (function () {
         for (const type of Object.keys(perType)) {
             const xpGained = Math.floor(perType[type]);
             if (xpGained <= 0) continue;
-            if (!save.towerMastery[type]) save.towerMastery[type] = { xp: 0, milestones: { m1: false, m2: false } };
+            if (!save.towerMastery[type]) save.towerMastery[type] = { xp: 0, milestones: { m1: false, m2: false }, perks: { ...MASTERY_PERK_DEFAULTS } };
             save.towerMastery[type].xp += xpGained;
 
             const newMilestones = [];
@@ -176,6 +199,27 @@ const NeonSave = (function () {
         }
         write(save);
         return results;
+    }
+
+    function getMasteryPerkCost(save, type, perk) {
+        if (!TOWER_TYPES.includes(type) || !(perk in MASTERY_PERK_LIMITS)) return Infinity;
+        const rank = (save.towerMastery[type] && save.towerMastery[type].perks && save.towerMastery[type].perks[perk]) || 0;
+        if (rank >= MASTERY_PERK_LIMITS[perk]) return Infinity;
+        return MASTERY_PERK_BASE_COST[perk] + rank * MASTERY_PERK_COST_STEP[perk];
+    }
+
+    function purchaseMasteryPerk(save, type, perk) {
+        backfillV1Fields(save);
+        if (!TOWER_TYPES.includes(type) || !(perk in MASTERY_PERK_LIMITS)) return false;
+        const mastery = save.towerMastery[type];
+        const rank = mastery.perks[perk] || 0;
+        if (rank >= MASTERY_PERK_LIMITS[perk]) return false;
+        const cost = getMasteryPerkCost(save, type, perk);
+        if (mastery.xp < cost) return false;
+        mastery.xp -= cost;
+        mastery.perks[perk] = rank + 1;
+        write(save);
+        return true;
     }
 
     // Updates save in place for a completed run and persists it.
@@ -261,6 +305,9 @@ const NeonSave = (function () {
         calculateRunXP,
         recordRun,
         tallyMastery,
+        MASTERY_PERK_LIMITS,
+        getMasteryPerkCost,
+        purchaseMasteryPerk,
         encodeSaveCode,
         decodeSaveCode
     };
