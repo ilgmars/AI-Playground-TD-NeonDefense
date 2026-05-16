@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Neon Defense</title>
-    <link rel="stylesheet" href="style.css?v=20260509210853">
+    <link rel="stylesheet" href="style.css?v=20260516203559">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
 </head>
 
@@ -231,7 +231,21 @@
                         <button id="menu-tree-btn">TECH TREE <span class="menu-balance" id="menu-xp-balance">0 XP</span></button>
                         <button id="menu-mastery-btn">TOWER MASTERY</button>
                         <button id="menu-dailyseed-btn" class="hidden">DAILY CHALLENGE</button>
+                        <button id="menu-savecode-btn">SAVE / LOAD CODE</button>
                         <button id="menu-reset-btn" class="danger small">RESET SAVE</button>
+                    </div>
+                </div>
+
+                <div id="save-code-modal" class="overlay hidden">
+                    <h2 style="color: var(--accent); text-shadow: 0 0 20px rgba(56,189,248,0.5);">SAVE / LOAD CODE</h2>
+                    <p>Copy this code to back up your progress, or paste a code and press LOAD to restore it.</p>
+                    <textarea id="save-code-text" rows="5" spellcheck="false"
+                        style="width: min(420px, 80vw); font-family: monospace; font-size: 0.8rem; padding: 10px; background: rgba(0,0,0,0.5); color: var(--text-main); border: 1px solid var(--accent); border-radius: 6px; resize: vertical; word-break: break-all;"></textarea>
+                    <div id="save-code-status" style="min-height: 1.3em; margin-top: 8px; font-size: 0.85rem; letter-spacing: 1px;"></div>
+                    <div style="display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; justify-content: center;">
+                        <button id="save-code-copy">COPY</button>
+                        <button id="save-code-load" class="danger">LOAD</button>
+                        <button id="save-code-close" class="secondary">CLOSE</button>
                     </div>
                 </div>
 
@@ -412,18 +426,18 @@
         <button id="place-confirm-no" aria-label="Cancel placement">✗</button>
     </div>
 
-    <script src="src/config/config.js?v=20260509210853"></script>
-    <script src="src/audio/audio.js?v=20260509210853"></script>
-    <script src="src/render/assets.js?v=20260509210853"></script>
-    <script src="src/engine/map.js?v=20260509210853"></script>
-    <script src="src/entities/entities.js?v=20260509210853"></script>
-    <script src="src/ai/autopilot.js?v=20260509210853"></script>
-    <script src="src/progression/save.js?v=20260509210853"></script>
-    <script src="src/progression/tree.js?v=20260509210853"></script>
-    <script src="src/progression/abilities.js?v=20260509210853"></script>
-    <script src="src/engine/game.js?v=20260509210853"></script>
-    <script src="src/minigames/tictactoe.js?v=20260509210853"></script>
-    <script src="src/engine/main.js?v=20260509210853"></script>
+    <script src="src/config/config.js?v=20260516203559"></script>
+    <script src="src/audio/audio.js?v=20260516203559"></script>
+    <script src="src/render/assets.js?v=20260516203559"></script>
+    <script src="src/engine/map.js?v=20260516203559"></script>
+    <script src="src/entities/entities.js?v=20260516203559"></script>
+    <script src="src/ai/autopilot.js?v=20260516203559"></script>
+    <script src="src/progression/save.js?v=20260516203559"></script>
+    <script src="src/progression/tree.js?v=20260516203559"></script>
+    <script src="src/progression/abilities.js?v=20260516203559"></script>
+    <script src="src/engine/game.js?v=20260516203559"></script>
+    <script src="src/minigames/tictactoe.js?v=20260516203559"></script>
+    <script src="src/engine/main.js?v=20260516203559"></script>
 </body>
 
 </html>

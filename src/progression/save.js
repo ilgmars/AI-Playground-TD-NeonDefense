@@ -205,6 +205,50 @@ const NeonSave = (function () {
         return { ...xp, firstClear };
     }
 
+    // ── Portable save code ────────────────────────────────────────────────
+    // Format:  ND1.<base64(JSON)>.<base36 checksum>
+    // base64 keeps it copy/paste-safe; the checksum rejects truncated or
+    // hand-edited codes before they overwrite a real save.
+    function _hash(s) {
+        let h = 0;
+        for (let i = 0; i < s.length; i++) {
+            h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+        }
+        return Math.abs(h);
+    }
+
+    function _b64encode(str) {
+        if (typeof btoa === 'function') return btoa(unescape(encodeURIComponent(str)));
+        return Buffer.from(str, 'utf8').toString('base64');   // Node (tests)
+    }
+    function _b64decode(b64) {
+        if (typeof atob === 'function') return decodeURIComponent(escape(atob(b64)));
+        return Buffer.from(b64, 'base64').toString('utf8');    // Node (tests)
+    }
+
+    function encodeSaveCode(save) {
+        const json = JSON.stringify(save);
+        return 'ND1.' + _b64encode(json) + '.' + _hash(json).toString(36);
+    }
+
+    // Returns the decoded save object. Throws Error on malformed/corrupt input —
+    // caller should catch and surface the message, never overwrite on failure.
+    function decodeSaveCode(code) {
+        const m = /^ND1\.([A-Za-z0-9+/=]+)\.([a-z0-9]+)$/.exec(String(code || '').trim());
+        if (!m) throw new Error('Not a valid save code (expected "ND1.…").');
+        const json = _b64decode(m[1]);
+        if (_hash(json).toString(36) !== m[2]) {
+            throw new Error('Save code is corrupted (checksum mismatch).');
+        }
+        let obj;
+        try { obj = JSON.parse(json); }
+        catch (e) { throw new Error('Save code payload is not valid JSON.'); }
+        if (!obj || typeof obj !== 'object' || typeof obj.metaXP !== 'number') {
+            throw new Error('Save code does not contain a valid save.');
+        }
+        return obj;
+    }
+
     return {
         KEY,
         SCHEMA_VERSION,
@@ -216,6 +260,11 @@ const NeonSave = (function () {
         hasUnlocked,
         calculateRunXP,
         recordRun,
-        tallyMastery
+        tallyMastery,
+        encodeSaveCode,
+        decodeSaveCode
     };
 })();
+
+// Node test harness can require() this file.
+if (typeof module !== 'undefined' && module.exports) module.exports = { NeonSave };

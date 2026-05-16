@@ -220,6 +220,7 @@ function navigateToMainMenu() {
     hideScreen('retire-confirm');
     hideScreen('tech-tree');
     hideScreen('tower-mastery');
+    hideScreen('save-code-modal');
     showScreen('main-menu');
     // Halt the in-progress run so update() bails — the menu owns the canvas now.
     if (typeof game !== 'undefined' && (game.state === 'playing' || game.state === 'paused')) {
@@ -675,6 +676,43 @@ function init() {
             localStorage.removeItem('neonDefense.save');
             location.reload();
         }
+    });
+
+    // Save / Load code modal — portable string backup of the whole save.
+    const scStatus = () => document.getElementById('save-code-status');
+    document.getElementById('menu-savecode-btn').addEventListener('click', () => {
+        const ta = document.getElementById('save-code-text');
+        ta.value = NeonSave.encodeSaveCode(save);
+        scStatus().textContent = '';
+        scStatus().style.color = 'var(--text-muted)';
+        hideScreen('main-menu');
+        showScreen('save-code-modal');
+    });
+    document.getElementById('save-code-copy').addEventListener('click', () => {
+        const ta = document.getElementById('save-code-text');
+        ta.select();
+        navigator.clipboard.writeText(ta.value).then(
+            () => { scStatus().textContent = 'Copied to clipboard.'; scStatus().style.color = '#4ade80'; },
+            () => { scStatus().textContent = 'Press Ctrl/Cmd+C to copy.'; scStatus().style.color = '#fbbf24'; }
+        );
+    });
+    document.getElementById('save-code-load').addEventListener('click', () => {
+        const code = document.getElementById('save-code-text').value;
+        let decoded;
+        try {
+            decoded = NeonSave.decodeSaveCode(code);
+        } catch (err) {
+            scStatus().textContent = 'Error: ' + err.message;
+            scStatus().style.color = '#fb7185';
+            return;
+        }
+        if (!confirm('Load this code? It overwrites your current save and reloads the game.')) return;
+        NeonSave.write(decoded);
+        location.reload();
+    });
+    document.getElementById('save-code-close').addEventListener('click', () => {
+        hideScreen('save-code-modal');
+        showScreen('main-menu');
     });
 
     // M2: Run Setup BACK button goes to Main Menu.
