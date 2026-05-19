@@ -1446,18 +1446,28 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 #tower-tooltip.hidden { display: none; }
 
 /* Bonus tic-tac-toe minigame ──────────────────────────────────────────── */
+#mg-pot {
+    margin: 6px 0 2px;
+    font-family: monospace;
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #fbbf24;
+    text-shadow: 0 0 14px rgba(251, 191, 36, 0.45);
+}
+#mg-pot-val { font-variant-numeric: tabular-nums; }
 #mg-board {
     display: grid;
-    grid-template-columns: repeat(3, 70px);
-    grid-template-rows: repeat(3, 70px);
-    gap: 6px;
-    margin: 14px 0 6px;
+    grid-template-columns: repeat(6, clamp(44px, 12vw, 64px));
+    grid-auto-rows: clamp(44px, 12vw, 64px);
+    gap: 8px;
+    margin: 12px 0 6px;
 }
 .mg-cell {
     background: rgba(56, 189, 248, 0.06);
     border: 2px solid var(--border-color);
-    border-radius: 6px;
-    font-size: 2.4rem;
+    border-radius: 8px;
+    font-size: clamp(1.2rem, 5vw, 1.8rem);
     font-weight: 700;
     color: var(--accent);
     cursor: pointer;
@@ -1466,13 +1476,45 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     justify-content: center;
     transition: all 0.15s;
 }
-.mg-cell:not(.filled):hover {
-    background: rgba(56, 189, 248, 0.16);
+.mg-cell:not(.safe):not(.surge):hover {
+    background: rgba(56, 189, 248, 0.18);
     border-color: var(--accent);
+    transform: translateY(-2px);
 }
-.mg-cell.filled { cursor: default; }
-.mg-cell.x { color: var(--accent); text-shadow: 0 0 12px rgba(56, 189, 248, 0.6); }
-.mg-cell.o { color: #fb7185;       text-shadow: 0 0 12px rgba(251, 113, 133, 0.6); }
+.mg-cell.safe {
+    cursor: default;
+    color: #a3e635;
+    border-color: #a3e635;
+    background: rgba(163, 230, 53, 0.14);
+    text-shadow: 0 0 12px rgba(163, 230, 53, 0.6);
+}
+.mg-cell.surge {
+    cursor: default;
+    color: #fb7185;
+    border-color: #fb7185;
+    background: rgba(251, 113, 133, 0.18);
+    text-shadow: 0 0 14px rgba(251, 113, 133, 0.7);
+    animation: surgeFlash 0.4s ease-out 2;
+}
+@keyframes surgeFlash {
+    0%, 100% { box-shadow: 0 0 0 rgba(251, 113, 133, 0); }
+    50%      { box-shadow: 0 0 22px rgba(251, 113, 133, 0.8); }
+}
+.mg-actions { display: flex; gap: 12px; margin-top: 14px; }
+/* No global .hidden rule exists, so scope one for the minigame buttons —
+   keeps CLOSE out of sight until the round actually resolves. */
+#minigame .mg-actions button.hidden { display: none; }
+#mg-bank {
+    color: #fbbf24;
+    border-color: #fbbf24;
+    box-shadow: 0 0 15px rgba(251, 191, 36, 0.2) inset;
+}
+#mg-bank:hover:not(:disabled) {
+    background: #fbbf24;
+    color: #0f172a;
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.6);
+}
+#mg-bank:disabled { opacity: 0.4; cursor: default; }
 #mg-status { margin-top: 10px; font-size: 0.95rem; color: var(--text-muted); letter-spacing: 1.5px; min-height: 1.4em; }
 #mg-timer  { font-weight: 700; color: #fbbf24; font-variant-numeric: tabular-nums; }
 
@@ -1547,7 +1589,9 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 @media (max-width: 768px), (max-height: 500px) {
     /* Clear the floating top bar so the title isn't tucked behind it. */
-    #boon-overlay { padding-top: max(64px, calc(env(safe-area-inset-top) + 56px)); }
+    #boon-overlay,
+    #minigame { padding-top: max(64px, calc(env(safe-area-inset-top) + 56px)); }
+    #minigame h2 { font-size: 1.6rem; margin-bottom: 8px; }
     #boon-overlay h2 { font-size: 1.6rem; margin-bottom: 10px; }
     #boon-overlay p { margin-bottom: 16px; font-size: 0.9rem; }
     #boon-choices { flex-direction: column; align-items: center; gap: 12px; }

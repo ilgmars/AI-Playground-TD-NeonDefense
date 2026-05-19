@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Neon Defense</title>
-    <link rel="stylesheet" href="style.css?v=20260519194518">
+    <link rel="stylesheet" href="style.css?v=20260519200358">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
 </head>
 
@@ -404,17 +404,20 @@
     </div>
 
     <div id="minigame" class="hidden overlay">
-        <h2 style="color: var(--accent); text-shadow: 0 0 20px rgba(56,189,248,0.5);">BONUS ROUND</h2>
-        <p>Beat the AI in <span id="mg-timer">10</span>s — win <span style="color:#fbbf24;">+300¢</span></p>
+        <h2 style="color: var(--accent); text-shadow: 0 0 20px rgba(56,189,248,0.5);">OVERCLOCK</h2>
+        <p>Tap cells to overload the reactor — but <span style="color:#fb7185;">2 cells SURGE</span>.
+           BANK before one blows. <span id="mg-timer">12</span>s</p>
+        <div id="mg-pot">POT <span id="mg-pot-val">0</span>¢</div>
         <div id="mg-board"></div>
-        <div id="mg-status">Your turn — you are X</div>
-        <div style="display: flex; gap: 12px; margin-top: 14px;">
+        <div id="mg-status">Tap a cell to start charging…</div>
+        <div class="mg-actions">
+            <button id="mg-bank">BANK</button>
             <button id="mg-skip" class="secondary">SKIP</button>
             <button id="mg-close" class="hidden">CLOSE</button>
         </div>
     </div>
 
-    <div id="minigame-toast" class="hidden">⚡ BONUS MINIGAME NEXT WAVE — WIN +300¢</div>
+    <div id="minigame-toast" class="hidden">⚡ OVERCLOCK BONUS NEXT WAVE — RISK FOR CREDITS</div>
 
     <div id="boon-overlay" class="hidden overlay">
         <h2 style="color:#a3e635; text-shadow:0 0 20px rgba(163,230,53,0.5);">BOON</h2>
@@ -433,19 +436,19 @@
         <button id="place-confirm-no" aria-label="Cancel placement">✗</button>
     </div>
 
-    <script src="src/config/config.js?v=20260519194518"></script>
-    <script src="src/audio/audio.js?v=20260519194518"></script>
-    <script src="src/render/assets.js?v=20260519194518"></script>
-    <script src="src/engine/map.js?v=20260519194518"></script>
-    <script src="src/entities/entities.js?v=20260519194518"></script>
-    <script src="src/ai/autopilot.js?v=20260519194518"></script>
-    <script src="src/progression/save.js?v=20260519194518"></script>
-    <script src="src/progression/tree.js?v=20260519194518"></script>
-    <script src="src/progression/abilities.js?v=20260519194518"></script>
-    <script src="src/engine/game.js?v=20260519194518"></script>
-    <script src="src/minigames/tictactoe.js?v=20260519194518"></script>
-    <script src="src/progression/boons.js?v=20260519194518"></script>
-    <script src="src/engine/main.js?v=20260519194518"></script>
+    <script src="src/config/config.js?v=20260519200358"></script>
+    <script src="src/audio/audio.js?v=20260519200358"></script>
+    <script src="src/render/assets.js?v=20260519200358"></script>
+    <script src="src/engine/map.js?v=20260519200358"></script>
+    <script src="src/entities/entities.js?v=20260519200358"></script>
+    <script src="src/ai/autopilot.js?v=20260519200358"></script>
+    <script src="src/progression/save.js?v=20260519200358"></script>
+    <script src="src/progression/tree.js?v=20260519200358"></script>
+    <script src="src/progression/abilities.js?v=20260519200358"></script>
+    <script src="src/engine/game.js?v=20260519200358"></script>
+    <script src="src/minigames/overclock.js?v=20260519200358"></script>
+    <script src="src/progression/boons.js?v=20260519200358"></script>
+    <script src="src/engine/main.js?v=20260519200358"></script>
 </body>
 
 </html>
