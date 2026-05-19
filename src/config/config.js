@@ -422,6 +422,47 @@ const ASCENSION_AUTO_UNLOCKS = {
     // A10 reward deferred to M3 (cosmetic banner).
 };
 
+// -------------------------------------------------------------------------
+// Roguelike Boons (endless). Every 10 waves the run pauses and offers a
+// choice of 3 random boons from this pool. Effects are permanent for the
+// rest of the run and STACK (taking +damage twice compounds). Each `apply`
+// only touches a single Game hook so the system stays low-coupling — see
+// Game._applyDamageBoon / _applyFireRateBoon and the boon* multiplier
+// fields set in the constructor.
+// -------------------------------------------------------------------------
+const BOONS = [
+    { id: 'overdrive', name: 'Overdrive Matrix',   icon: '⚡', desc: '+18% tower damage (all current & future towers)',
+      apply: (g) => g._applyDamageBoon(1.18) },
+    { id: 'coils',     name: 'Resonant Coils',     icon: '🔁', desc: '+14% fire rate for every tower',
+      apply: (g) => g._applyFireRateBoon(0.877) },
+    { id: 'economy',   name: 'War Economy',        icon: '💰', desc: '+25% wave-completion payout',
+      apply: (g) => { g.boonPayoutMult *= 1.25; } },
+    { id: 'bounty',    name: 'Bounty Protocol',    icon: '🎯', desc: '+35% credits per kill',
+      apply: (g) => { g.boonKillMult *= 1.35; } },
+    { id: 'core',      name: 'Reinforced Core',    icon: '🛡️', desc: '+6 max integrity and repair 6 now',
+      apply: (g) => { g.maxHealth += 6; g.health = Math.min(g.maxHealth, g.health + 6); } },
+    { id: 'interest',  name: 'Compound Interest',  icon: '📈', desc: '+5% of banked credits added each wave',
+      apply: (g) => { g.boonInterest += 0.05; } },
+    { id: 'regen',     name: 'Nanorepair Swarm',   icon: '✚', desc: 'Repair to full now + regen 2 integrity / wave',
+      apply: (g) => { g.health = g.maxHealth; g.boonRegen += 2; } },
+    { id: 'arsenal',   name: 'Surplus Arsenal',    icon: '🏭', desc: '-20% tower build cost',
+      apply: (g) => { g.towerCostMult *= 0.8; } },
+    { id: 'engineer',  name: 'Field Engineering',  icon: '🔧', desc: '-20% upgrade cost',
+      apply: (g) => { g.upgradeCostMult *= 0.8; } }
+];
+
+// Pick `n` distinct boons at random. randFn defaults to Math.random (which
+// the auto-tune harness re-seeds globally, preserving determinism there).
+function rollBoonChoices(n, randFn) {
+    const r = randFn || Math.random;
+    const pool = BOONS.slice();
+    const out = [];
+    while (out.length < n && pool.length) {
+        out.push(pool.splice(Math.floor(r() * pool.length), 1)[0]);
+    }
+    return out;
+}
+
 // Lookup a node definition by id across all 3 tiers. Returns null if not found.
 function getTreeNode(nodeId) {
     for (const tierKey of ['tier1', 'tier2', 'tier3']) {

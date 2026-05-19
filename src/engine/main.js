@@ -732,6 +732,7 @@ function init() {
         abilityId: selectedAbility,
         towerLoadout: sanitizeTowerLoadout(selectedTowerLoadout)
     });
+    window.game = game;   // cross-script access (minigame / boon picker)
 
     game.draw();
     game.updateUI();
@@ -799,6 +800,7 @@ function init() {
             heroId: selectedHero, kitId: selectedKit, abilityId: selectedAbility,
             towerLoadout: sanitizeTowerLoadout(selectedTowerLoadout)
         });
+        window.game = game;
         game.draw();
         updateSeedDisplay();
         updateModeDisplay();
@@ -1171,6 +1173,7 @@ function init() {
             abilityId: selectedAbility,
             towerLoadout: sanitizeTowerLoadout(selectedTowerLoadout)
         });
+        window.game = game;
         game.start();
         updateSeedDisplay();
         updateModeDisplay();
@@ -1752,7 +1755,15 @@ function init() {
                 }
             }
         }
-        if (game.pendingMinigame) {
+        // Roguelike boon pick (every 10 waves). Drains before the minigame
+        // so when both land on the same wave (e.g. 30, 60) the boon chooser
+        // resolves first; the minigame flag is held until it's clear.
+        if (game.pendingBoon && window.NeonBoons && !window.NeonBoons.isActive()
+            && !(window.NeonMinigame && window.NeonMinigame.isActive())) {
+            game.pendingBoon = false;
+            window.NeonBoons.open();   // auto-resolves silently under autopilot
+        }
+        if (game.pendingMinigame && !(window.NeonBoons && window.NeonBoons.isActive())) {
             game.pendingMinigame = false;
             if (!game.autopilot && window.NeonMinigame) {
                 window.NeonMinigame.open();

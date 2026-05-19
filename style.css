@@ -1495,6 +1495,74 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     pointer-events: none;
 }
 #minigame-toast.hidden { display: none; }
+
+/* ── Roguelike boon picker ─────────────────────────────────────────────── */
+#boon-overlay p {
+    margin-bottom: 22px;
+    color: var(--text-muted);
+}
+#boon-choices {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 760px;
+    width: 100%;
+}
+.boon-card {
+    flex: 1 1 200px;
+    max-width: 230px;
+    min-height: 170px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 16px;
+    text-transform: none;
+    letter-spacing: normal;
+    text-align: center;
+    border: 1px solid rgba(163, 230, 53, 0.45);
+    color: var(--text-main);
+    background: rgba(163, 230, 53, 0.06);
+    box-shadow: 0 0 15px rgba(163, 230, 53, 0.12) inset;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.boon-card:hover {
+    background: rgba(163, 230, 53, 0.16);
+    color: var(--text-main);
+    transform: translateY(-4px);
+    box-shadow: 0 0 24px rgba(163, 230, 53, 0.5);
+}
+.boon-icon { font-size: 2.2rem; line-height: 1; }
+.boon-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #a3e635;
+    letter-spacing: 1px;
+}
+.boon-desc {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+@media (max-width: 768px), (max-height: 500px) {
+    /* Clear the floating top bar so the title isn't tucked behind it. */
+    #boon-overlay { padding-top: max(64px, calc(env(safe-area-inset-top) + 56px)); }
+    #boon-overlay h2 { font-size: 1.6rem; margin-bottom: 10px; }
+    #boon-overlay p { margin-bottom: 16px; font-size: 0.9rem; }
+    #boon-choices { flex-direction: column; align-items: center; gap: 12px; }
+    .boon-card {
+        flex: 0 0 auto;
+        width: 100%;
+        max-width: 320px;
+        min-height: 0;
+        flex-direction: row;
+        text-align: left;
+        gap: 14px;
+    }
+    .boon-icon { font-size: 1.8rem; }
+    .boon-card .boon-name { font-size: 0.95rem; }
+}
 @keyframes mg-toast-fade {
     0%   { opacity: 0; transform: translateX(-50%) translateY(-10px); }
     10%  { opacity: 1; transform: translateX(-50%) translateY(0); }

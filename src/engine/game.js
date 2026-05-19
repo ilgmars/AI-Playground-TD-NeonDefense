@@ -25,6 +25,18 @@ class Game {
         this.startingPotions = 0;
         this.prePlaceRelay = false;
         this.showAllWavesPreview = false;
+
+        // Roguelike boons (offered every 10 waves). Multipliers/accumulators
+        // read by the economy & combat hooks; default to no-op.
+        this.boons = [];                 // ids taken, in order
+        this.pendingBoon = false;        // set at wave-complete, drained by main.js
+        this.boonDamageMult = 1;
+        this.boonFireRateMult = 1;
+        this.boonPayoutMult = 1;
+        this.boonKillMult = 1;
+        this.boonInterest = 0;
+        this.boonRegen = 0;
+
         this.autopilotTickInterval = AUTOPILOT_CONFIG.tickInterval;
         this.ability = null;  // set by applyLoadout
 
@@ -482,8 +494,8 @@ class Game {
                         waveBonus += extremeBonus + milestoneBonus;
                     }
 
-                    // Ascension payout multiplier (A5 = 0.60)
-                    waveBonus = Math.floor(waveBonus * this.ascension.payoutMult);
+                    // Ascension payout multiplier (A5 = 0.60), then boons.
+                    waveBonus = Math.floor(waveBonus * this.ascension.payoutMult * this.boonPayoutMult);
 
                     this.money += waveBonus;
                     
@@ -503,8 +515,19 @@ class Game {
                         if (t.type === 'income_research') t.damageDealt += 25;
                     }
 
+                    // Boons (Compound Interest) + Nanorepair regen, applied
+                    // after all wave income is banked.
+                    if (this.boonInterest > 0) {
+                        this.money += Math.floor(this.money * this.boonInterest);
+                    }
+                    if (this.boonRegen > 0 && this.health < this.maxHealth) {
+                        this.health = Math.min(this.maxHealth, this.health + this.boonRegen);
+                    }
+
                     // Trigger bonus minigame on milestone waves; main.js drives the UI.
                     if (this.wave > 0 && this.wave % 15 === 0) this.pendingMinigame = true;
+                    // Roguelike boon pick every 10 waves (endless progression).
+                    if (this.wave > 0 && this.wave % 10 === 0) this.pendingBoon = true;
                     
                     if ((this.wave + 1) % this.ascension.airWaveInterval === 0) {
                         SoundFX.siren();
@@ -546,7 +569,7 @@ class Game {
                     // Boost rewards in late game to help economy
                     reward = Math.floor(reward * (1 + (this.wave - 35) * 0.025));
                 }
-                reward = Math.max(1, Math.floor(reward * this.ascension.payoutMult));
+                reward = Math.max(1, Math.floor(reward * this.ascension.payoutMult * this.boonKillMult));
                 this.money += reward;
                 // M3: Splitter — spawn 2 half-HP, 0.75x-speed children at death site (generation 1 only).
                 if (e.splitterGeneration === 1) {
@@ -700,6 +723,45 @@ class Game {
         return Math.floor(TOWERS[effType].cost * this.towerCostMult * masteryCostMult);
     }
 
+    // ── Roguelike boons ──────────────────────────────────────────────────
+    // Scale a single tower's offensive output (damage + derived fields).
+    _scaleTowerDamage(t, f) {
+        t.damage *= f;
+        if (t.burnDamage   !== undefined) t.burnDamage   *= f;
+        if (t.incomePerWave !== undefined) t.incomePerWave *= f;
+        if (t.auraBonus    !== undefined) t.auraBonus    *= f;
+    }
+    _applyDamageBoon(f) {
+        this.boonDamageMult *= f;
+        for (const t of this.towers) this._scaleTowerDamage(t, f);
+    }
+    _applyFireRateBoon(f) {
+        this.boonFireRateMult *= f;
+        for (const t of this.towers) {
+            if (t.fireRate > 0) t.fireRate = Math.max(1, Math.round(t.fireRate * f));
+        }
+    }
+    // Bring a freshly-built tower up to the run's accumulated boon state.
+    _applyBoonsToNewTower(t) {
+        if (this.boonDamageMult !== 1) this._scaleTowerDamage(t, this.boonDamageMult);
+        if (this.boonFireRateMult !== 1 && t.fireRate > 0) {
+            t.fireRate = Math.max(1, Math.round(t.fireRate * this.boonFireRateMult));
+        }
+    }
+    // Pick 3 choices; randFn lets the autopilot path stay deterministic.
+    getBoonChoices(randFn) {
+        return rollBoonChoices(3, randFn);
+    }
+    chooseBoon(boonId) {
+        const boon = BOONS.find(b => b.id === boonId);
+        if (!boon) return false;
+        boon.apply(this);
+        this.boons.push(boon.id);
+        this.uiDirty = true;
+        if (window.SoundFX && SoundFX.build) SoundFX.build();
+        return true;
+    }
+
     buildTower(c, r, type) {
         if (!this.map.isBuildable(c, r)) return false;
 
@@ -712,7 +774,9 @@ class Game {
 
         if (this.money >= cost) {
             this.money -= cost;
-            this.towers.push(new Tower(c, r, effType));
+            const built = new Tower(c, r, effType);
+            this._applyBoonsToNewTower(built);
+            this.towers.push(built);
             this.uiDirty = true;
             SoundFX.build();
             return true;
