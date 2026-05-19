@@ -398,14 +398,19 @@ function renderTowerMastery() {
     if (!grid) return;
     grid.innerHTML = '';
 
+    // Mirror the rebalanced diminishing curves in entities.js so the label
+    // shows the true effect (damage asymptotes +80%, fire rate → 2x).
+    const dmgPct  = r => Math.round(0.8 * (1 - Math.pow(0.97, r)) * 100);
+    const rateF   = r => 0.5 + 0.5 * Math.pow(0.97, r);
+    const ratePct = r => Math.round((1 / rateF(r) - 1) * 100);
     const perkMeta = {
-        damage: { label: 'Damage', value: r => `+${r * 2}%` },
-        fireRate: { label: 'Fire Rate', value: r => `+${Math.round(r * 1.5 * 10) / 10}%` },
+        damage: { label: 'Damage', value: r => `+${dmgPct(r)}%` },
+        fireRate: { label: 'Fire Rate', value: r => `+${ratePct(r)}%` },
         efficiency: { label: 'Upgrade Cost', value: r => `-${r * 2}%` }
     };
     const incomePerkMeta = {
-        damage: { label: 'Yield / Aura', value: r => `+${r * 2}%` },
-        fireRate: { label: 'Build Cost', value: r => `-${Math.round(r * 1.5 * 10) / 10}%` },
+        damage: { label: 'Yield / Aura', value: r => `+${dmgPct(r)}%` },
+        fireRate: { label: 'Fire Rate', value: r => `+${ratePct(r)}%` },
         efficiency: { label: 'Upgrade Cost', value: r => `-${r * 2}%` }
     };
 
@@ -463,6 +468,8 @@ function renderTowerMastery() {
         const perks = document.createElement('div');
         perks.className = 'mastery-perks';
         const activePerkMeta = type === 'income' ? incomePerkMeta : perkMeta;
+        // Endless perks have an infinite limit — show "Lv N" instead of "N/∞".
+        const fmtLv = (lim, rk) => Number.isFinite(lim) ? `${rk}/${lim}` : `Lv ${rk}`;
         for (const perk of ['damage', 'fireRate', 'efficiency']) {
             const rank = mast.perks[perk] || 0;
             const limit = NeonSave.MASTERY_PERK_LIMITS[perk];
@@ -477,7 +484,7 @@ function renderTowerMastery() {
             title.textContent = activePerkMeta[perk].label;
             const value = document.createElement('span');
             value.className = 'mastery-perk-value';
-            value.textContent = `${activePerkMeta[perk].value(rank)} · ${rank}/${limit}`;
+            value.textContent = `${activePerkMeta[perk].value(rank)} · ${fmtLv(limit, rank)}`;
             info.appendChild(title);
             info.appendChild(value);
 
@@ -501,7 +508,7 @@ function renderTowerMastery() {
                 const missingNow = Math.max(0, newCost - (m.xp || 0));
                 btn.textContent = newMaxed ? 'MAX' : missingNow > 0 ? `NEED ${missingNow}` : `BUY ${newCost}`;
                 btn.disabled = newMaxed || !stillAfford;
-                value.textContent = `${activePerkMeta[perk].value(newRank)} · ${newRank}/${limit}`;
+                value.textContent = `${activePerkMeta[perk].value(newRank)} · ${fmtLv(limit, newRank)}`;
                 spendable.textContent = `Spendable ${Math.floor(m.xp || 0)} XP`;
                 return stillAfford;
             };

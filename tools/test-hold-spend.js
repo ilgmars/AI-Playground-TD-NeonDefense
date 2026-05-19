@@ -41,7 +41,7 @@ const path = require('path');
   await page.mouse.up();
   await page.waitForTimeout(200);
   const r2 = await page.evaluate(() => NeonSave.load().towerMastery.basic.perks.damage);
-  console.log('after 2s hold, damage rank =', r2, '/ 10');
+  console.log('after 2s hold, damage rank =', r2, '(endless perk — no cap)');
   console.log(r2 >= 8 ? 'HOLD ACCELERATION OK' : 'HOLD TOO SLOW (FAIL)');
 
   await browser.close();

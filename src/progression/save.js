@@ -10,9 +10,16 @@ const NeonSave = (function () {
     // Tower types used by the current game. Kept in sync with TOWERS keys in config.js.
     const TOWER_TYPES = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'flak', 'electric', 'silo', 'income'];
     const MASTERY_PERK_DEFAULTS = { damage: 0, fireRate: 0, efficiency: 0 };
-    const MASTERY_PERK_LIMITS = { damage: 10, fireRate: 10, efficiency: 5 };
+    // Damage & Fire Rate are ENDLESS (no cap) so per-tower mastery XP always
+    // has a sink. Efficiency stays capped — it's a cost *reducer*, letting it
+    // run to infinity would zero out upgrade costs and break economy balance.
+    const MASTERY_PERK_LIMITS = { damage: Infinity, fireRate: Infinity, efficiency: 5 };
     const MASTERY_PERK_BASE_COST = { damage: 250, fireRate: 250, efficiency: 400 };
-    const MASTERY_PERK_COST_STEP = { damage: 125, fireRate: 125, efficiency: 200 };
+    // Endless perks grow geometrically (cost = base * growth^rank); the
+    // capped one keeps the old linear step. Geometric growth makes the sink
+    // bottomless while early ranks stay close to the old linear feel.
+    const MASTERY_PERK_COST_GROWTH = { damage: 1.16, fireRate: 1.16 };
+    const MASTERY_PERK_COST_STEP = { efficiency: 200 };
 
     function createFreshSave() {
         const mastery = {};
@@ -209,6 +216,12 @@ const NeonSave = (function () {
         if (!TOWER_TYPES.includes(type) || !(perk in MASTERY_PERK_LIMITS)) return Infinity;
         const rank = (save.towerMastery[type] && save.towerMastery[type].perks && save.towerMastery[type].perks[perk]) || 0;
         if (rank >= MASTERY_PERK_LIMITS[perk]) return Infinity;
+        const growth = MASTERY_PERK_COST_GROWTH[perk];
+        if (growth) {
+            // Endless perk: geometric. Round to a tidy 5¢ so the label reads
+            // cleanly even at huge ranks.
+            return Math.round(MASTERY_PERK_BASE_COST[perk] * Math.pow(growth, rank) / 5) * 5;
+        }
         return MASTERY_PERK_BASE_COST[perk] + rank * MASTERY_PERK_COST_STEP[perk];
     }
 

@@ -258,13 +258,18 @@ class Tower {
         this.masteryPerks = (mastery && mastery.perks) ? mastery.perks : { damage: 0, fireRate: 0, efficiency: 0 };
         const damageRank = this.masteryPerks.damage || 0;
         const fireRateRank = this.masteryPerks.fireRate || 0;
-        const outputMult = 1 + damageRank * 0.02;
+        // Endless perks use DIMINISHING returns that asymptote, so the cost
+        // (geometric) outruns the benefit forever — a genuine XP sink that
+        // can't trivialise the difficulty curve. Damage caps at +80%, fire
+        // rate at 2x. Early ranks ≈ the old +2%/+1.5% per-rank feel.
+        const outputMult = 1 + 0.8 * (1 - Math.pow(0.97, damageRank));
         this.damage *= outputMult;
         if (this.burnDamage !== undefined) this.burnDamage *= outputMult;
         if (this.incomePerWave !== undefined) this.incomePerWave *= outputMult;
         if (this.auraBonus !== undefined) this.auraBonus *= outputMult;
         if (this.fireRate > 0) {
-            this.fireRate = Math.max(1, Math.round(this.fireRate * (1 - (fireRateRank * 0.015))));
+            const rateFactor = 0.5 + 0.5 * Math.pow(0.97, fireRateRank);
+            this.fireRate = Math.max(1, Math.round(this.fireRate * rateFactor));
         }
         this.masteryUpgradeCostMult = Math.max(0.5, 1 - ((this.masteryPerks.efficiency || 0) * 0.02));
 
