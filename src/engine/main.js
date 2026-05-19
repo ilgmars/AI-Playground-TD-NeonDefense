@@ -234,6 +234,7 @@ function navigateToMainMenu() {
     hideScreen('retire-confirm');
     hideScreen('tech-tree');
     hideScreen('tower-mastery');
+    hideScreen('backpack');
     hideScreen('save-code-modal');
     showScreen('main-menu');
     // Halt the in-progress run so update() bails — the menu owns the canvas now.
@@ -531,6 +532,208 @@ function renderTowerMastery() {
     }
 }
 
+// ── Backpack (spatial inventory) ──────────────────────────────────────────
+const BP_RARITY_COLOR = { common: '#94a3b8', uncommon: '#38bdf8', rare: '#c084fc' };
+// Held item while arranging: { source:'stash'|'placed', id, rot }.
+let bpHeld = null;
+let bpCellEls = {};   // "x,y" -> grid cell element, for non-destructive ghost
+
+function bpClearGhost() {
+    for (const k in bpCellEls) bpCellEls[k].classList.remove('ghost-ok', 'ghost-bad');
+}
+// Paint the placement preview by toggling classes on existing cells — never
+// re-renders the grid (a re-render would race the click after a hover).
+function bpPaintGhost(x, y) {
+    if (!bpHeld || !BACKPACK_ITEMS[bpHeld.id]) return;
+    bpClearGhost();
+    const def = BACKPACK_ITEMS[bpHeld.id];
+    const okp = NeonBackpack.canPlace(save.backpack, BACKPACK_ITEMS, def, x, y, bpHeld.rot);
+    for (const [dx, dy] of NeonBackpack.shapeOffsets(def.shape, bpHeld.rot)) {
+        const el = bpCellEls[(x + dx) + ',' + (y + dy)];
+        if (el) el.classList.add(okp ? 'ghost-ok' : 'ghost-bad');
+    }
+}
+
+function navigateToBackpack() {
+    bpHeld = null;
+    hideScreen('main-menu');
+    hideScreen('tower-mastery');
+    showScreen('backpack');
+    renderBackpack();
+}
+
+function bpStatus(msg) {
+    const el = document.getElementById('bp-status');
+    if (el) el.textContent = msg || '';
+}
+
+function bpMiniShape(def, rot, container) {
+    container.innerHTML = '';
+    if (!def) return;
+    const offs = NeonBackpack.shapeOffsets(def.shape, rot);
+    const size = NeonBackpack.shapeSize(def.shape, rot);
+    container.style.gridTemplateColumns = `repeat(${size.w}, 10px)`;
+    const set = new Set(offs.map(o => o[0] + ',' + o[1]));
+    for (let y = 0; y < size.h; y++) {
+        for (let x = 0; x < size.w; x++) {
+            const d = document.createElement('div');
+            d.className = 'bp-mini-cell' + (set.has(x + ',' + y) ? ' on' : '');
+            container.appendChild(d);
+        }
+    }
+}
+
+function bpPersist() { NeonSave.write(save); }
+
+function bpReturnHeldToStash() {
+    if (bpHeld) { save.backpack.stash.push(bpHeld.id); bpHeld = null; }
+}
+
+function bpPickStash(i) {
+    const bp = save.backpack;
+    if (i < 0 || i >= bp.stash.length) return;
+    if (bpHeld) bpReturnHeldToStash();
+    const id = bp.stash.splice(i, 1)[0];
+    bpHeld = { source: 'stash', id, rot: 0 };
+    bpStatus('Pick a grid cell (top-left) to place ' + (BACKPACK_ITEMS[id] ? BACKPACK_ITEMS[id].name : id) + '.');
+    renderBackpack();
+}
+
+function bpPickPlaced(idx) {
+    const bp = save.backpack;
+    if (idx < 0 || idx >= bp.placed.length) return;
+    if (bpHeld) bpReturnHeldToStash();
+    const p = bp.placed.splice(idx, 1)[0];
+    bpHeld = { source: 'placed', id: p.id, rot: p.rot || 0 };
+    bpPersist();
+    bpStatus('Re-place ' + (BACKPACK_ITEMS[p.id] ? BACKPACK_ITEMS[p.id].name : p.id) + ', or send it TO STASH.');
+    renderBackpack();
+}
+
+function bpPlaceAt(x, y) {
+    if (!bpHeld) return;
+    const def = BACKPACK_ITEMS[bpHeld.id];
+    if (!def) { bpHeld = null; renderBackpack(); return; }
+    if (NeonBackpack.canPlace(save.backpack, BACKPACK_ITEMS, def, x, y, bpHeld.rot)) {
+        save.backpack.placed.push({ id: bpHeld.id, x, y, rot: bpHeld.rot });
+        bpHeld = null;
+        bpPersist();
+        bpStatus('Placed.');
+        renderBackpack();
+    } else {
+        bpStatus("Doesn't fit there — rotate or pick another cell.");
+        const g = document.getElementById('bp-grid');
+        if (g) { g.classList.remove('bp-shake'); void g.offsetWidth; g.classList.add('bp-shake'); }
+    }
+}
+
+function bpRotateHeld() {
+    if (!bpHeld) return;
+    bpHeld.rot = (bpHeld.rot + 1) % 4;
+    renderBackpack();
+}
+
+function bpHeldToStash() {
+    if (!bpHeld) return;
+    save.backpack.stash.push(bpHeld.id);
+    bpHeld = null;
+    bpPersist();
+    renderBackpack();
+}
+
+function bpDiscardHeld() {
+    if (!bpHeld) return;
+    bpHeld = null;
+    bpStatus('Discarded.');
+    renderBackpack();
+}
+
+function bpSalvage() {
+    const cost = NeonSave.getSalvageCost(save);
+    if (save.metaXP < cost) { bpStatus(`Need ${cost - save.metaXP} more meta-XP.`); return; }
+    const id = NeonBackpack.salvageRoll(BACKPACK_ITEMS, BACKPACK_RARITY_WEIGHT);
+    NeonSave.salvage(save, id);   // deducts XP, pushes to stash, persists
+    if (typeof updateMainMenuState === 'function') updateMainMenuState();
+    const def = BACKPACK_ITEMS[id];
+    bpStatus(`Salvaged ${def ? def.name : id} (${def ? def.rarity : '?'})! → stash`);
+    renderBackpack();
+}
+
+function renderBackpack() {
+    const bp = save.backpack;
+    if (!bp) return;
+    const xpEl = document.getElementById('bp-xp');
+    if (xpEl) xpEl.textContent = 'Meta-XP: ' + save.metaXP;
+    const cost = NeonSave.getSalvageCost(save);
+    const costEl = document.getElementById('bp-salvage-cost');
+    if (costEl) costEl.textContent = cost;
+    const salvageBtn = document.getElementById('bp-salvage');
+    if (salvageBtn) salvageBtn.disabled = save.metaXP < cost;
+
+    // Held panel
+    const heldWrap = document.getElementById('bp-held');
+    if (bpHeld && BACKPACK_ITEMS[bpHeld.id]) {
+        heldWrap.classList.remove('hidden');
+        document.getElementById('bp-held-name').textContent = BACKPACK_ITEMS[bpHeld.id].name;
+        bpMiniShape(BACKPACK_ITEMS[bpHeld.id], bpHeld.rot, document.getElementById('bp-held-shape'));
+    } else {
+        heldWrap.classList.add('hidden');
+    }
+
+    // Grid
+    const gridEl = document.getElementById('bp-grid');
+    gridEl.innerHTML = '';
+    gridEl.style.gridTemplateColumns = `repeat(${bp.w}, var(--bp-cell))`;
+    const occ = NeonBackpack.occupancy(bp, BACKPACK_ITEMS);
+    bpCellEls = {};
+    for (let y = 0; y < bp.h; y++) {
+        for (let x = 0; x < bp.w; x++) {
+            const cell = document.createElement('div');
+            cell.className = 'bp-cell';
+            const key = x + ',' + y;
+            bpCellEls[key] = cell;
+            const ownerIdx = occ[key];
+            if (ownerIdx !== undefined) {
+                const pItem = bp.placed[ownerIdx];
+                const def = BACKPACK_ITEMS[pItem.id];
+                cell.classList.add('filled');
+                cell.style.background = (BP_RARITY_COLOR[def && def.rarity] || '#64748b') + '33';
+                cell.style.borderColor = BP_RARITY_COLOR[def && def.rarity] || '#64748b';
+                if (pItem.x === x && pItem.y === y) cell.textContent = (def ? def.name[0] : '?');
+                cell.addEventListener('click', () => bpPickPlaced(ownerIdx));
+                cell.addEventListener('mouseenter', () => { if (bpHeld) bpClearGhost(); });
+            } else {
+                cell.addEventListener('click', () => bpPlaceAt(x, y));
+                // Non-destructive hover preview (no re-render → click survives).
+                cell.addEventListener('mouseenter', () => { if (bpHeld) bpPaintGhost(x, y); });
+            }
+            gridEl.appendChild(cell);
+        }
+    }
+    gridEl.addEventListener('mouseleave', bpClearGhost);
+
+    // Stash
+    const stashEl = document.getElementById('bp-stash');
+    stashEl.innerHTML = '';
+    document.getElementById('bp-stash-count').textContent = `(${bp.stash.length})`;
+    bp.stash.forEach((id, i) => {
+        const def = BACKPACK_ITEMS[id];
+        const chip = document.createElement('button');
+        chip.className = 'bp-chip';
+        chip.style.borderColor = BP_RARITY_COLOR[def && def.rarity] || '#64748b';
+        const shape = document.createElement('div');
+        shape.className = 'bp-mini';
+        bpMiniShape(def, 0, shape);
+        const label = document.createElement('span');
+        label.textContent = def ? def.name : id;
+        chip.appendChild(shape);
+        chip.appendChild(label);
+        chip.addEventListener('click', () => bpPickStash(i));
+        stashEl.appendChild(chip);
+    });
+    if (bp.stash.length === 0 && !bpHeld) bpStatus(bpHeld ? '' : (document.getElementById('bp-status').textContent || ''));
+}
+
 // Renders the XP breakdown in the game-over overlay. Called by
 // window.onRunEnded after XP has been applied to the save.
 function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults, retired }) {
@@ -795,6 +998,14 @@ function init() {
     document.getElementById('mastery-back-btn').addEventListener('click', () => {
         navigateToMainMenu();
     });
+    document.getElementById('menu-backpack-btn').addEventListener('click', navigateToBackpack);
+    document.getElementById('backpack-back-btn').addEventListener('click', () => {
+        bpReturnHeldToStash(); bpPersist(); navigateToMainMenu();
+    });
+    document.getElementById('bp-salvage').addEventListener('click', bpSalvage);
+    document.getElementById('bp-rotate').addEventListener('click', bpRotateHeld);
+    document.getElementById('bp-tostash').addEventListener('click', bpHeldToStash);
+    document.getElementById('bp-discard').addEventListener('click', bpDiscardHeld);
     document.getElementById('menu-dailyseed-btn').addEventListener('click', () => {
         if (!NeonSave.hasUnlocked(save, 'qol.dailyseed')) return;
         const today = new Date();

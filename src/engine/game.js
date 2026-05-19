@@ -82,6 +82,25 @@ class Game {
         this.freezeTimer = 0;             // frames left on Freeze effect
         // M3: Tower loadout (base → variant) drives buildTower resolution.
         this.towerLoadout = this.loadout.towerLoadout || {};
+        this.applyBackpack();
+    }
+
+    // Backpack items → existing balance-safe run hooks. An empty backpack
+    // (fresh save / auto-tune harness) sums to all-zeros, so this is a
+    // strict no-op there and the difficulty curve is untouched. Effects are
+    // modest and the grid is small, so total power stays bounded.
+    applyBackpack() {
+        const save = window.save;
+        if (!save || !save.backpack || !window.NeonBackpack || typeof BACKPACK_ITEMS === 'undefined') return;
+        const s = window.NeonBackpack.computeStats(save.backpack, BACKPACK_ITEMS);
+        if (s.damage)      this.boonDamageMult   *= (1 + s.damage);
+        if (s.fireRate)    this.boonFireRateMult *= Math.max(0.4, 1 - s.fireRate);
+        if (s.payout)      this.boonPayoutMult   *= (1 + s.payout);
+        if (s.kill)        this.boonKillMult     *= (1 + s.kill);
+        if (s.maxHP)     { this.maxHealth += s.maxHP; this.health += s.maxHP; }
+        if (s.interest)    this.boonInterest     += s.interest;
+        if (s.towerCost)   this.towerCostMult    *= Math.max(0.4, 1 - s.towerCost);
+        if (s.upgradeCost) this.upgradeCostMult  *= Math.max(0.4, 1 - s.upgradeCost);
     }
 
     // M3: Given a base tower type (e.g. 'basic'), return the effective type

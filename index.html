@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Neon Defense</title>
-    <link rel="stylesheet" href="style.css?v=20260519201735">
+    <link rel="stylesheet" href="style.css?v=20260519204502">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
 </head>
 
@@ -230,6 +230,7 @@
                         <button id="menu-start-btn" class="menu-primary">START RUN</button>
                         <button id="menu-tree-btn">TECH TREE <span class="menu-balance" id="menu-xp-balance">0 XP</span></button>
                         <button id="menu-mastery-btn">MASTERY LAB</button>
+                        <button id="menu-backpack-btn">BACKPACK</button>
                         <button id="menu-dailyseed-btn" class="hidden">DAILY CHALLENGE</button>
                         <button id="menu-savecode-btn">SAVE / LOAD CODE</button>
                         <button id="menu-reset-btn" class="danger small">RESET SAVE</button>
@@ -324,6 +325,32 @@
                         <!-- Populated by renderTowerMastery -->
                     </div>
                     <button id="mastery-back-btn" class="secondary">BACK</button>
+                </div>
+
+                <div id="backpack" class="overlay hidden">
+                    <h2 style="color:#c084fc; text-shadow:0 0 20px rgba(192,132,252,0.5);">BACKPACK</h2>
+                    <p style="font-size:0.8rem; color:var(--text-muted); letter-spacing:1px;">
+                        Salvage items and arrange them in the grid. Items stack run-wide buffs;
+                        some gain extra power from <strong style="color:#c084fc;">adjacent</strong> items.
+                        Tap a stash item to pick it up, ROTATE it, then tap a grid cell (its top-left) to place.
+                    </p>
+                    <div id="bp-bar">
+                        <button id="bp-salvage">SALVAGE <span id="bp-salvage-cost">0</span> XP</button>
+                        <span id="bp-xp">Meta-XP: 0</span>
+                    </div>
+                    <div id="bp-held" class="hidden">
+                        <span id="bp-held-label">Holding:</span>
+                        <span id="bp-held-name"></span>
+                        <div id="bp-held-shape"></div>
+                        <button id="bp-rotate" class="secondary small">⟳ ROTATE</button>
+                        <button id="bp-tostash" class="secondary small">▢ STASH</button>
+                        <button id="bp-discard" class="danger small">✕ DROP</button>
+                    </div>
+                    <div id="bp-grid-wrap"><div id="bp-grid"></div></div>
+                    <div id="bp-stash-title">STASH <span id="bp-stash-count">(0)</span></div>
+                    <div id="bp-stash"></div>
+                    <div id="bp-status"></div>
+                    <button id="backpack-back-btn" class="secondary">BACK</button>
                 </div>
             </div>
 
@@ -437,19 +464,20 @@
         <button id="place-confirm-no" aria-label="Cancel placement">✗</button>
     </div>
 
-    <script src="src/config/config.js?v=20260519201735"></script>
-    <script src="src/audio/audio.js?v=20260519201735"></script>
-    <script src="src/render/assets.js?v=20260519201735"></script>
-    <script src="src/engine/map.js?v=20260519201735"></script>
-    <script src="src/entities/entities.js?v=20260519201735"></script>
-    <script src="src/ai/autopilot.js?v=20260519201735"></script>
-    <script src="src/progression/save.js?v=20260519201735"></script>
-    <script src="src/progression/tree.js?v=20260519201735"></script>
-    <script src="src/progression/abilities.js?v=20260519201735"></script>
-    <script src="src/engine/game.js?v=20260519201735"></script>
-    <script src="src/minigames/overclock.js?v=20260519201735"></script>
-    <script src="src/progression/boons.js?v=20260519201735"></script>
-    <script src="src/engine/main.js?v=20260519201735"></script>
+    <script src="src/config/config.js?v=20260519204502"></script>
+    <script src="src/audio/audio.js?v=20260519204502"></script>
+    <script src="src/render/assets.js?v=20260519204502"></script>
+    <script src="src/engine/map.js?v=20260519204502"></script>
+    <script src="src/entities/entities.js?v=20260519204502"></script>
+    <script src="src/ai/autopilot.js?v=20260519204502"></script>
+    <script src="src/progression/save.js?v=20260519204502"></script>
+    <script src="src/progression/tree.js?v=20260519204502"></script>
+    <script src="src/progression/abilities.js?v=20260519204502"></script>
+    <script src="src/progression/backpack.js?v=20260519204502"></script>
+    <script src="src/engine/game.js?v=20260519204502"></script>
+    <script src="src/minigames/overclock.js?v=20260519204502"></script>
+    <script src="src/progression/boons.js?v=20260519204502"></script>
+    <script src="src/engine/main.js?v=20260519204502"></script>
 </body>
 
 </html>

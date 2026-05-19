@@ -463,6 +463,45 @@ function rollBoonChoices(n, randFn) {
     return out;
 }
 
+// -------------------------------------------------------------------------
+// Backpack items (Backpack-Hero-style). Each item occupies a multi-cell
+// SHAPE in the persistent backpack grid; the shape can be rotated. Effects
+// are flat stat deltas summed across all PLACED items, then folded into the
+// existing balance-safe run hooks (see Game.applyBackpack). `synergy` grants
+// an extra delta for each orthogonally-adjacent cell belonging to an item
+// carrying one of `tags`. Effects are deliberately modest and the grid is
+// small, so total backpack power stays bounded.
+//
+// Stat keys (all optional): damage/fireRate/payout/kill (fractional, e.g.
+// 0.06 = +6%), maxHP (flat), interest (fraction of bank/wave),
+// towerCost/upgradeCost (fractional discount).
+// shape: matrix of 0/1 rows; rarity drives salvage-roll weight + color.
+// -------------------------------------------------------------------------
+const BACKPACK_ITEMS = {
+    plasma_cell:  { id: 'plasma_cell',  name: 'Plasma Cell',     rarity: 'common',   tags: ['power'],
+                    shape: [[1]],                 effect: { damage: 0.06 } },
+    coolant_coil: { id: 'coolant_coil', name: 'Coolant Coil',    rarity: 'common',   tags: ['tech'],
+                    shape: [[1],[1]],             effect: { fireRate: 0.05 } },
+    credit_chip:  { id: 'credit_chip',  name: 'Credit Chip',     rarity: 'common',   tags: ['econ'],
+                    shape: [[1]],                 effect: { payout: 0.08 } },
+    interest_ledger: { id: 'interest_ledger', name: 'Interest Ledger', rarity: 'uncommon', tags: ['econ'],
+                    shape: [[1,1]],               effect: { interest: 0.03 } },
+    targeting_core: { id: 'targeting_core', name: 'Targeting Core', rarity: 'uncommon', tags: ['power'],
+                    shape: [[1,0],[1,1]],         effect: { damage: 0.10 },
+                    synergy: { tags: ['tech'], perAdj: { damage: 0.03 }, max: 4 } },
+    bounty_module: { id: 'bounty_module', name: 'Bounty Module', rarity: 'uncommon', tags: ['econ'],
+                    shape: [[1],[1],[1]],         effect: { kill: 0.18 } },
+    overclock_matrix: { id: 'overclock_matrix', name: 'Overclock Matrix', rarity: 'rare', tags: ['power','tech'],
+                    shape: [[1,1,1],[0,1,0]],     effect: { damage: 0.14, fireRate: 0.08 } },
+    reactor_bulwark: { id: 'reactor_bulwark', name: 'Reactor Bulwark', rarity: 'rare', tags: ['core'],
+                    shape: [[1,1],[1,1]],         effect: { maxHP: 8 },
+                    synergy: { tags: ['core','tech'], perAdj: { maxHP: 2 }, max: 6 } },
+    fabricator: { id: 'fabricator', name: 'Fabricator', rarity: 'uncommon', tags: ['tech'],
+                    shape: [[1,1],[1,0]],         effect: { towerCost: 0.08, upgradeCost: 0.08 } }
+};
+
+const BACKPACK_RARITY_WEIGHT = { common: 60, uncommon: 30, rare: 10 };
+
 // Lookup a node definition by id across all 3 tiers. Returns null if not found.
 function getTreeNode(nodeId) {
     for (const tierKey of ['tier1', 'tier2', 'tier3']) {

@@ -21,6 +21,15 @@ const NeonSave = (function () {
     const MASTERY_PERK_COST_GROWTH = { damage: 1.16, fireRate: 1.16 };
     const MASTERY_PERK_COST_STEP = { efficiency: 200 };
 
+    // Backpack (Backpack-Hero-style spatial inventory). Persistence + the
+    // meta-XP salvage economy live here; placement validity / effects live
+    // in backpack.js + config.js. Salvage cost escalates with how many
+    // items you already own, so it doubles as an endless meta-XP sink.
+    const BACKPACK_W = 5, BACKPACK_H = 4;
+    const BACKPACK_MAX_W = 9, BACKPACK_MAX_H = 8;
+    const SALVAGE_BASE_COST = 300;
+    const SALVAGE_COST_GROWTH = 1.12;
+
     function createFreshSave() {
         const mastery = {};
         for (const t of TOWER_TYPES) {
@@ -43,6 +52,7 @@ const NeonSave = (function () {
                 abilityId: 'ability.none',
                 towerLoadout: null  // M3: null → all base types. Filled per-type when user selects a variant.
             },
+            backpack: { w: BACKPACK_W, h: BACKPACK_H, placed: [], stash: [] },
             settings: { skipRunSetup: false }
         };
     }
@@ -150,7 +160,39 @@ const NeonSave = (function () {
         if (typeof save.lastLoadout.towerLoadout === 'undefined') save.lastLoadout.towerLoadout = null;
         if (!save.settings || typeof save.settings !== 'object') save.settings = { skipRunSetup: false };
         if (typeof save.settings.skipRunSetup !== 'boolean') save.settings.skipRunSetup = false;
+
+        // Backpack backfill — tolerant of older saves / hand-edited codes.
+        const bp = (save.backpack && typeof save.backpack === 'object') ? save.backpack : {};
+        bp.w = Math.max(1, Math.min(BACKPACK_MAX_W, Math.floor(bp.w) || BACKPACK_W));
+        bp.h = Math.max(1, Math.min(BACKPACK_MAX_H, Math.floor(bp.h) || BACKPACK_H));
+        bp.placed = Array.isArray(bp.placed) ? bp.placed.filter(p =>
+            p && typeof p.id === 'string' &&
+            Number.isFinite(p.x) && Number.isFinite(p.y)
+        ).map(p => ({ id: p.id, x: p.x | 0, y: p.y | 0, rot: ((p.rot | 0) % 4 + 4) % 4 })) : [];
+        bp.stash = Array.isArray(bp.stash) ? bp.stash.filter(s => typeof s === 'string') : [];
+        save.backpack = bp;
+
         if (persist) write(save);
+    }
+
+    // Meta-XP cost of one salvage roll — grows with total items owned so it
+    // stays an endless XP sink even after the tech tree is maxed.
+    function getSalvageCost(save) {
+        const bp = save.backpack || { placed: [], stash: [] };
+        const owned = (bp.placed ? bp.placed.length : 0) + (bp.stash ? bp.stash.length : 0);
+        return Math.round(SALVAGE_BASE_COST * Math.pow(SALVAGE_COST_GROWTH, owned) / 5) * 5;
+    }
+
+    // Spend meta-XP and drop `itemId` into the stash. Caller rolls the id
+    // (NeonBackpack.salvageRoll). Returns the cost paid, or -1 if too poor.
+    function salvage(save, itemId) {
+        backfillV1Fields(save, false);
+        const cost = getSalvageCost(save);
+        if (save.metaXP < cost) return -1;
+        save.metaXP -= cost;
+        save.backpack.stash.push(itemId);
+        write(save);
+        return cost;
     }
 
     // True if the given nodeId exists in save.unlockedNodes. Safe for any input.
@@ -326,6 +368,8 @@ const NeonSave = (function () {
         MASTERY_PERK_LIMITS,
         getMasteryPerkCost,
         purchaseMasteryPerk,
+        getSalvageCost,
+        salvage,
         encodeSaveCode,
         decodeSaveCode
     };

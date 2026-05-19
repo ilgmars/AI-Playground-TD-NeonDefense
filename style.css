@@ -2202,3 +2202,85 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* ── Backpack (spatial inventory) ───────────────────────────────────────── */
+/* No forced overflow:hidden — the overlay's own scroll (desktop centred;
+   touch / short screens flex-start + scroll) must be able to reach the grid
+   and stash on short landscape phones. */
+#backpack { padding: 20px; --bp-cell: clamp(30px, 8vmin, 52px); }
+#backpack h2 { margin-bottom: 4px; }
+#backpack p { margin-bottom: 12px; max-width: 640px; }
+#bp-bar {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    justify-content: center; margin-bottom: 10px;
+}
+#bp-bar #bp-xp { font-family: monospace; color: #fbbf24; letter-spacing: 1px; }
+#bp-salvage { color: #c084fc; border-color: #c084fc; padding: 8px 18px; font-size: 0.85rem; }
+#bp-salvage:hover:not(:disabled) { background: #c084fc; color: #0f172a; }
+#bp-salvage:disabled { opacity: 0.4; cursor: default; }
+#bp-held {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    justify-content: center; margin-bottom: 10px; padding: 8px 14px;
+    border: 1px dashed #c084fc; border-radius: 8px; background: rgba(192,132,252,0.08);
+}
+#bp-held.hidden { display: none; }
+#bp-held-name { color: #c084fc; font-weight: 700; }
+#bp-held .small, #bp-held button { padding: 6px 12px; font-size: 0.72rem; white-space: nowrap; flex: 0 0 auto; }
+#bp-held-shape, .bp-mini {
+    display: grid; gap: 2px; padding: 2px;
+}
+.bp-mini-cell { width: 10px; height: 10px; border-radius: 2px; background: rgba(255,255,255,0.06); }
+.bp-mini-cell.on { background: #c084fc; }
+#bp-grid-wrap { overflow: auto; max-height: 46vh; margin: 0 auto 10px; }
+#bp-grid {
+    display: grid; gap: 4px; justify-content: center; margin: 0 auto;
+    width: max-content;
+}
+#bp-grid.bp-shake { animation: bpShake 0.3s; }
+@keyframes bpShake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+.bp-cell {
+    width: var(--bp-cell); height: var(--bp-cell);
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 5px;
+    background: rgba(255,255,255,0.03);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; color: #0f172a; cursor: pointer;
+    font-size: clamp(0.8rem, 3vw, 1.1rem); transition: background 0.1s;
+}
+.bp-cell:not(.filled):hover { background: rgba(192,132,252,0.12); }
+.bp-cell.filled { color: #e2e8f0; }
+.bp-cell.ghost-ok  { outline: 2px solid #a3e635; outline-offset: -2px; background: rgba(163,230,53,0.22); }
+.bp-cell.ghost-bad { outline: 2px solid #fb7185; outline-offset: -2px; background: rgba(251,113,133,0.22); }
+#bp-stash-title { font-size: 0.8rem; letter-spacing: 2px; color: var(--text-muted); margin-bottom: 6px; }
+#bp-stash {
+    display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+    max-width: 720px; margin: 0 auto 8px; max-height: 22vh; overflow: auto;
+}
+.bp-chip {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; border: 1px solid #64748b; border-radius: 6px;
+    background: rgba(0,0,0,0.3); color: var(--text-main);
+    text-transform: none; letter-spacing: normal; font-size: 0.78rem; cursor: pointer;
+}
+.bp-chip:hover { background: rgba(192,132,252,0.18); color: var(--text-main); }
+#bp-status { min-height: 1.2em; font-size: 0.82rem; color: #fbbf24; letter-spacing: 1px; margin-bottom: 10px; }
+
+@media (max-width: 768px), (max-height: 500px) {
+    #backpack { padding-top: max(60px, calc(env(safe-area-inset-top) + 52px)); }
+    #backpack h2 { font-size: 1.5rem; }
+    #backpack p { font-size: 0.78rem; }
+    #bp-grid-wrap { max-height: 38vh; }
+    #bp-stash { max-height: 22vh; }
+    #bp-held .small, #bp-held button { padding: 8px 10px; }
+}
+/* Short landscape phones: vertical px are scarce — drop the help text and
+   shrink the chrome so the grid + stash fit (overlay still scrolls). */
+@media (orientation: landscape) and (max-height: 500px) {
+    #backpack { padding-top: max(8px, env(safe-area-inset-top)); }
+    #backpack h2 { font-size: 1.2rem; margin-bottom: 2px; }
+    #backpack > p { display: none; }
+    #bp-bar { margin-bottom: 6px; }
+    #bp-held { margin-bottom: 6px; padding: 6px 10px; }
+    #bp-grid-wrap { max-height: 52vh; }
+    #bp-stash { max-height: 32vh; }
+    #backpack-back-btn { margin-top: 6px; }
+}
