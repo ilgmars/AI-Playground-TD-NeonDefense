@@ -1062,6 +1062,12 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 
 
+/* ── Size-based fallback for small / short screens ───────────────────────────
+   Mirrors the body.touch-ui rules above for devices that are physically
+   small (phones) but haven't fired a touch event yet. MUST stay wrapped in
+   this @media query — without it these compacted overlay rules leak onto
+   large desktop screens and the menus render cramped ("smushed").          */
+@media (max-width: 768px), (max-height: 500px) {
     .overlay {
         overflow-y: auto;
         justify-content: flex-start;
@@ -1897,9 +1903,12 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 
 /* M3: Tower Mastery overlay */
+/* Overlay stays centred & full-height; the grid scrolls *inside* it so the
+   title and BACK button are always reachable — even on large desktop screens
+   where the 9 tower rows are far taller than the viewport. */
 #tower-mastery {
     padding: 24px;
-    overflow-y: auto;
+    overflow: hidden;
 }
 #tower-mastery h2 {
     margin-bottom: 6px;
@@ -1908,8 +1917,12 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-width: 680px;
-    margin: 14px auto;
+    width: 100%;
+    max-width: 720px;
+    margin: 12px auto;
+    max-height: calc(100vh - 230px);
+    overflow-y: auto;
+    padding: 2px 6px 2px 2px;
 }
 .mastery-row {
     display: flex;
@@ -1989,7 +2002,9 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 .mastery-perks {
     margin-top: 8px;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    /* auto-fit: 3-up on desktop rows, collapses to 1-up on phones so the
+       BUY button never overlaps the perk label. */
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
     gap: 6px;
 }
 .mastery-perk-row {
@@ -2028,6 +2043,16 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 .mastery-perk-buy:disabled {
     opacity: 0.45;
     cursor: default;
+}
+.mastery-perk-buy.holding {
+    background: var(--accent);
+    color: #0f172a;
+    box-shadow: 0 0 14px rgba(56, 189, 248, 0.7);
+    animation: holdPulse 0.45s ease-in-out infinite;
+}
+@keyframes holdPulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.06); }
 }
 
 /* M3: Run Setup tower-variant grid */

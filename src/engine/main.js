@@ -345,6 +345,54 @@ function navigateToTowerMastery() {
     renderTowerMastery();
 }
 
+// Press-and-hold "spend" binding for repeatable purchase buttons (Mastery
+// perks). A tap buys once; holding keeps buying and ramps up — the interval
+// shrinks from 360ms toward 40ms the longer the button is held, so a long
+// press dumps a whole pile of XP fast. `attempt()` must return true while it
+// still did something and false once it can't (maxed / not enough XP), which
+// stops the repeat. `onStop` runs once on release for a full re-render.
+function bindHoldToSpend(btn, attempt, onStop) {
+    let timer = null;
+    let delay = 360;
+    let held = false;
+
+    function stop() {
+        if (!held) return;
+        held = false;
+        btn.classList.remove('holding');
+        if (timer) { clearTimeout(timer); timer = null; }
+        if (onStop) onStop();
+    }
+
+    function tick() {
+        if (!held) return;
+        if (!attempt()) { stop(); return; }
+        delay = Math.max(40, delay * 0.78);
+        timer = setTimeout(tick, delay);
+    }
+
+    function start(e) {
+        if (btn.disabled || held) return;
+        e.preventDefault();
+        held = true;
+        delay = 360;
+        btn.classList.add('holding');
+        if (!attempt()) { stop(); return; }   // single tap = one buy
+        timer = setTimeout(tick, delay);
+    }
+
+    btn.addEventListener('pointerdown', start);
+    btn.addEventListener('pointerup', stop);
+    btn.addEventListener('pointerleave', stop);
+    btn.addEventListener('pointercancel', stop);
+    // Holding the spacebar/Enter on a focused button autorepeats keydown —
+    // route it through the same accelerating path.
+    btn.addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && !held) start(e);
+    });
+    btn.addEventListener('keyup', stop);
+}
+
 function renderTowerMastery() {
     const grid = document.getElementById('mastery-grid');
     if (!grid) return;
@@ -439,11 +487,25 @@ function renderTowerMastery() {
             const missing = Math.max(0, cost - (mast.xp || 0));
             btn.textContent = maxed ? 'MAX' : missing > 0 ? `NEED ${missing}` : `BUY ${cost}`;
             btn.disabled = maxed || mast.xp < cost;
-            btn.addEventListener('click', () => {
-                if (NeonSave.purchaseMasteryPerk(save, type, perk)) {
-                    renderTowerMastery();
-                }
-            });
+            // Hold to keep spending — accelerates the longer it's held.
+            // We update this row in place during the hold (a full re-render
+            // would destroy the button mid-press) and do one full refresh on
+            // release so sibling perks' affordability is recomputed.
+            const attempt = () => {
+                if (!NeonSave.purchaseMasteryPerk(save, type, perk)) return false;
+                const m = save.towerMastery[type];
+                const newRank = m.perks[perk] || 0;
+                const newCost = NeonSave.getMasteryPerkCost(save, type, perk);
+                const newMaxed = newRank >= limit;
+                const stillAfford = !newMaxed && (m.xp || 0) >= newCost;
+                const missingNow = Math.max(0, newCost - (m.xp || 0));
+                btn.textContent = newMaxed ? 'MAX' : missingNow > 0 ? `NEED ${missingNow}` : `BUY ${newCost}`;
+                btn.disabled = newMaxed || !stillAfford;
+                value.textContent = `${activePerkMeta[perk].value(newRank)} · ${newRank}/${limit}`;
+                spendable.textContent = `Spendable ${Math.floor(m.xp || 0)} XP`;
+                return stillAfford;
+            };
+            bindHoldToSpend(btn, attempt, () => renderTowerMastery());
 
             perkRow.appendChild(info);
             perkRow.appendChild(btn);
