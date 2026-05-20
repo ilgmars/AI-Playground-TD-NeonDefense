@@ -337,12 +337,26 @@ function buildTreeNodeEl(node, tierKey, tierOpen) {
 
 // M3: Tower Mastery screen. Shows 9 tower rows with XP progress bars
 // and milestone dots. Reads save.towerMastery; no purchase flow.
+// Transient per-base mastery view selection ('base'|'variant'), seeded from
+// the last run's loadout each time the lab opens so the player lands on the
+// setup they were last using.
+let mastSelection = {};
+
 function navigateToTowerMastery() {
     hideScreen('main-menu');
     hideScreen('start-screen');
     hideScreen('game-over');
     hideScreen('tech-tree');
     showScreen('tower-mastery');
+    mastSelection = {};
+    const loadout = (save.lastLoadout && save.lastLoadout.towerLoadout) || {};
+    for (const base of NeonSave.TOWER_TYPES) {
+        const variantId = (typeof TOWER_VARIANTS !== 'undefined') ? TOWER_VARIANTS[base] : null;
+        const variantUnlocked = !!(save.towerMastery && save.towerMastery[base]
+            && save.towerMastery[base].milestones && save.towerMastery[base].milestones.m1);
+        const chosen = loadout[base];
+        mastSelection[base] = (chosen && chosen === variantId && variantUnlocked) ? 'variant' : 'base';
+    }
     renderTowerMastery();
 }
 
@@ -416,9 +430,19 @@ function renderTowerMastery() {
     };
 
     for (const type of NeonSave.TOWER_TYPES) {
-        const mast = save.towerMastery[type] || { xp: 0, totalXP: 0, milestones: { m1: false, m2: false }, perks: { damage: 0, fireRate: 0, efficiency: 0 } };
+        // Resolve which entry (base vs unlocked variant) this row is currently
+        // viewing — driven by mastSelection (seeded from save.lastLoadout on
+        // open). The toggle below lets the player switch live.
+        const base = type;
+        const variantId = (typeof TOWER_VARIANTS !== 'undefined') ? TOWER_VARIANTS[base] : null;
+        const baseEntry = save.towerMastery[base];
+        const variantUnlocked = !!(baseEntry && baseEntry.milestones && baseEntry.milestones.m1);
+        if (mastSelection[base] === 'variant' && !variantUnlocked) mastSelection[base] = 'base';
+        const isVariant = mastSelection[base] === 'variant' && variantId;
+        const activeKey = isVariant ? variantId : base;
+        const mast = save.towerMastery[activeKey] || { xp: 0, totalXP: 0, milestones: { m1: false, m2: false }, perks: { damage: 0, fireRate: 0, efficiency: 0 } };
         if (!mast.perks) mast.perks = { damage: 0, fireRate: 0, efficiency: 0 };
-        const towerDef = TOWERS[type];
+        const towerDef = TOWERS[activeKey] || TOWERS[base];
 
         const row = document.createElement('div');
         row.className = 'mastery-row';
@@ -442,6 +466,29 @@ function renderTowerMastery() {
         nameRow.appendChild(label);
         nameRow.appendChild(xpText);
 
+        // Variant toggle (BASE | VARIANT). The variant button is disabled
+        // until the base hits its m1 unlock at 1K lifetime XP.
+        let variantToggle = null;
+        if (variantId && TOWERS[variantId]) {
+            variantToggle = document.createElement('div');
+            variantToggle.className = 'mastery-variant-toggle';
+            const baseBtn = document.createElement('button');
+            baseBtn.className = 'mvb' + (isVariant ? '' : ' active');
+            baseBtn.textContent = (TOWERS[base] && TOWERS[base].displayName) || base;
+            baseBtn.addEventListener('click', () => { mastSelection[base] = 'base'; renderTowerMastery(); });
+            const varBtn = document.createElement('button');
+            varBtn.className = 'mvb' + (isVariant ? ' active' : '') + (variantUnlocked ? '' : ' locked');
+            varBtn.textContent = TOWERS[variantId].displayName;
+            if (variantUnlocked) {
+                varBtn.addEventListener('click', () => { mastSelection[base] = 'variant'; renderTowerMastery(); });
+            } else {
+                varBtn.disabled = true;
+                varBtn.title = `Unlock by reaching 1K lifetime XP on ${TOWERS[base].displayName}.`;
+            }
+            variantToggle.appendChild(baseBtn);
+            variantToggle.appendChild(varBtn);
+        }
+
         const bar = document.createElement('div');
         bar.className = 'mastery-bar';
         const fill = document.createElement('div');
@@ -459,10 +506,12 @@ function renderTowerMastery() {
         milestones.className = 'mastery-milestones';
         const dot1 = document.createElement('span');
         dot1.className = 'mastery-milestone-dot' + (mast.milestones.m1 ? ' hit' : '');
-        dot1.textContent = (mast.milestones.m1 ? '● ' : '○ ') + 'VARIANT @ 1K';
+        // Base track milestones gate VARIANT/SKIN unlocks; variant tracks
+        // earn their own MASTERED/APEX marks at 1K / 10K lifetime XP.
+        dot1.textContent = (mast.milestones.m1 ? '● ' : '○ ') + (isVariant ? 'MASTERED @ 1K' : 'VARIANT @ 1K');
         const dot2 = document.createElement('span');
         dot2.className = 'mastery-milestone-dot' + (mast.milestones.m2 ? ' hit' : '');
-        dot2.textContent = (mast.milestones.m2 ? '● ' : '○ ') + 'SKIN @ 10K';
+        dot2.textContent = (mast.milestones.m2 ? '● ' : '○ ') + (isVariant ? 'APEX @ 10K' : 'SKIN @ 10K');
         milestones.appendChild(dot1);
         milestones.appendChild(dot2);
 
@@ -474,7 +523,7 @@ function renderTowerMastery() {
         for (const perk of ['damage', 'fireRate', 'efficiency']) {
             const rank = mast.perks[perk] || 0;
             const limit = NeonSave.MASTERY_PERK_LIMITS[perk];
-            const cost = NeonSave.getMasteryPerkCost(save, type, perk);
+            const cost = NeonSave.getMasteryPerkCost(save, activeKey, perk);
             const perkRow = document.createElement('div');
             perkRow.className = 'mastery-perk-row';
 
@@ -500,10 +549,10 @@ function renderTowerMastery() {
             // would destroy the button mid-press) and do one full refresh on
             // release so sibling perks' affordability is recomputed.
             const attempt = () => {
-                if (!NeonSave.purchaseMasteryPerk(save, type, perk)) return false;
-                const m = save.towerMastery[type];
+                if (!NeonSave.purchaseMasteryPerk(save, activeKey, perk)) return false;
+                const m = save.towerMastery[activeKey];
                 const newRank = m.perks[perk] || 0;
-                const newCost = NeonSave.getMasteryPerkCost(save, type, perk);
+                const newCost = NeonSave.getMasteryPerkCost(save, activeKey, perk);
                 const newMaxed = newRank >= limit;
                 const stillAfford = !newMaxed && (m.xp || 0) >= newCost;
                 const missingNow = Math.max(0, newCost - (m.xp || 0));
@@ -521,6 +570,7 @@ function renderTowerMastery() {
         }
 
         body.appendChild(nameRow);
+        if (variantToggle) body.appendChild(variantToggle);
         body.appendChild(bar);
         body.appendChild(spendable);
         body.appendChild(milestones);

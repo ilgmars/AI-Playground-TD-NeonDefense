@@ -522,7 +522,9 @@ class Game {
                     let incomeTowers = this.towers.filter(t => t.type === 'income');
                     let relayCount = incomeTowers.length;
                     for (let t of incomeTowers) {
-                        let bonus = t.incomePerWave + (t.networkBonus || 0) * 5 * (relayCount - 1);
+                        // t.incomePerWave can be fractional after mastery / backpack
+                        // damage-mult scaling — floor here so credits stay integer.
+                        let bonus = Math.floor(t.incomePerWave + (t.networkBonus || 0) * 5 * (relayCount - 1));
                         this.money += bonus;
                         // Income generated × 5 counts as mastery XP — at 20¢/wave
                         // base that's 100 XP/wave, so a Relay reaches the 1k
@@ -1004,7 +1006,7 @@ class Game {
     updateUI() {
         document.getElementById('wave-display').textContent = this.wave;
         document.getElementById('health-display').textContent = this.health;
-        document.getElementById('money-display').textContent = this.money;
+        document.getElementById('money-display').textContent = Math.floor(this.money);
         
         const airInterval = this.ascension.airWaveInterval;
         let nextAir = airInterval - (this.wave % airInterval);

@@ -2116,6 +2116,42 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     opacity: 1;
     color: #a3e635;
 }
+.mastery-variant-toggle {
+    display: inline-flex;
+    gap: 0;
+    margin: 4px 0;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    width: fit-content;
+    max-width: 100%;
+}
+.mastery-variant-toggle .mvb {
+    background: transparent;
+    color: var(--text-muted);
+    border: none;
+    padding: 4px 10px;
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: none;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.mastery-variant-toggle .mvb.active {
+    background: rgba(56, 189, 248, 0.25);
+    color: #e2e8f0;
+}
+.mastery-variant-toggle .mvb.locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.mastery-variant-toggle .mvb:not(.active):not(.locked):hover {
+    background: rgba(56, 189, 248, 0.12);
+    color: var(--text-main);
+}
 .mastery-perks {
     margin-top: 8px;
     display: grid;

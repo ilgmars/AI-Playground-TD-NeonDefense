@@ -268,38 +268,56 @@ const NeonSave = (function () {
     // save.towerMastery[type].xp (spendable) and totalXP (lifetime), then sets
     // milestones m1 at 1000 / m2 at 10000 lifetime XP.
     // Returns an array of { type, xpGained, newMilestones: ['m1'|'m2'] } for UI.
+    function ensureMasteryEntry(save, type) {
+        if (!save.towerMastery) save.towerMastery = {};
+        if (!save.towerMastery[type]) {
+            save.towerMastery[type] = { xp: 0, totalXP: 0, milestones: { m1: false, m2: false }, perks: { ...MASTERY_PERK_DEFAULTS } };
+        }
+        return save.towerMastery[type];
+    }
+
     function tallyMastery(save, towers) {
+        // Variants now own their OWN mastery track. XP is attributed to the
+        // exact tower type used (e.g. 'basic_cryo'), not rolled up to base —
+        // variants unlock via the base's m1 milestone, then grow separately.
         const perType = {};
         for (const t of towers) {
-            const base = (t.type || '').split('_')[0];
+            const type = t.type;
+            if (!type) continue;
+            // Accept any known base or variant id (variants like 'basic_cryo'
+            // aren't in TOWER_TYPES; gate by base presence instead).
+            const base = type.split('_')[0];
             if (!TOWER_TYPES.includes(base)) continue;
             const dmg = t.damageDealt || 0;
             if (dmg <= 0) continue;
-            perType[base] = (perType[base] || 0) + dmg;
+            perType[type] = (perType[type] || 0) + dmg;
         }
 
         const results = [];
         for (const type of Object.keys(perType)) {
             const xpGained = Math.floor(perType[type]);
             if (xpGained <= 0) continue;
-            if (!save.towerMastery[type]) save.towerMastery[type] = { xp: 0, totalXP: 0, milestones: { m1: false, m2: false }, perks: { ...MASTERY_PERK_DEFAULTS } };
-            save.towerMastery[type].xp += xpGained;
-            save.towerMastery[type].totalXP = (save.towerMastery[type].totalXP || 0) + xpGained;
+            const entry = ensureMasteryEntry(save, type);
+            entry.xp += xpGained;
+            entry.totalXP = (entry.totalXP || 0) + xpGained;
 
             const newMilestones = [];
-            const milestones = save.towerMastery[type].milestones;
-            if (!milestones.m1 && save.towerMastery[type].totalXP >= 1000) { milestones.m1 = true; newMilestones.push('m1'); }
-            if (!milestones.m2 && save.towerMastery[type].totalXP >= 10000) { milestones.m2 = true; newMilestones.push('m2'); }
+            const milestones = entry.milestones;
+            if (!milestones.m1 && entry.totalXP >= 1000)  { milestones.m1 = true; newMilestones.push('m1'); }
+            if (!milestones.m2 && entry.totalXP >= 10000) { milestones.m2 = true; newMilestones.push('m2'); }
 
-            results.push({ type, xpGained, newMilestones, newXP: save.towerMastery[type].totalXP });
+            results.push({ type, xpGained, newMilestones, newXP: entry.totalXP });
         }
         write(save);
         return results;
     }
 
+    // Accept any non-empty string type id (covers base + variants). Returns
+    // Infinity for unknown perks or maxed ranks. Lazy entry is fine — a
+    // missing entry counts as rank 0.
     function getMasteryPerkCost(save, type, perk) {
-        if (!TOWER_TYPES.includes(type) || !(perk in MASTERY_PERK_LIMITS)) return Infinity;
-        const rank = (save.towerMastery[type] && save.towerMastery[type].perks && save.towerMastery[type].perks[perk]) || 0;
+        if (typeof type !== 'string' || !type || !(perk in MASTERY_PERK_LIMITS)) return Infinity;
+        const rank = (save.towerMastery && save.towerMastery[type] && save.towerMastery[type].perks && save.towerMastery[type].perks[perk]) || 0;
         if (rank >= MASTERY_PERK_LIMITS[perk]) return Infinity;
         const growth = MASTERY_PERK_COST_GROWTH[perk];
         if (growth) {
@@ -312,8 +330,8 @@ const NeonSave = (function () {
 
     function purchaseMasteryPerk(save, type, perk) {
         backfillV1Fields(save);
-        if (!TOWER_TYPES.includes(type) || !(perk in MASTERY_PERK_LIMITS)) return false;
-        const mastery = save.towerMastery[type];
+        if (typeof type !== 'string' || !type || !(perk in MASTERY_PERK_LIMITS)) return false;
+        const mastery = ensureMasteryEntry(save, type);
         const rank = mastery.perks[perk] || 0;
         if (rank >= MASTERY_PERK_LIMITS[perk]) return false;
         const cost = getMasteryPerkCost(save, type, perk);
@@ -408,6 +426,7 @@ const NeonSave = (function () {
         calculateRunXP,
         recordRun,
         tallyMastery,
+        ensureMasteryEntry,
         MASTERY_PERK_LIMITS,
         getMasteryPerkCost,
         purchaseMasteryPerk,

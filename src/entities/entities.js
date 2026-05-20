@@ -253,8 +253,10 @@ class Tower {
         if (cfg.auraBonus !== undefined)     this.auraBonus = cfg.auraBonus;
         if (cfg.auraRange !== undefined)     this.auraRange = cfg.auraRange;
 
-        const masteryBase = (cfg.baseType || type || '').split('_')[0];
-        const mastery = window.save && window.save.towerMastery && window.save.towerMastery[masteryBase];
+        // Variants own their own mastery track (e.g. 'basic_cryo' is separate
+        // from 'basic'). Read perks for the EXACT type built — a fresh variant
+        // entry that doesn't exist yet falls back to all-zeros below.
+        const mastery = window.save && window.save.towerMastery && window.save.towerMastery[type];
         this.masteryPerks = (mastery && mastery.perks) ? mastery.perks : { damage: 0, fireRate: 0, efficiency: 0 };
         const damageRank = this.masteryPerks.damage || 0;
         const fireRateRank = this.masteryPerks.fireRate || 0;
