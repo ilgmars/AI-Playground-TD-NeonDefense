@@ -46,6 +46,11 @@ const NeonSave = (function () {
     const LUCK_COST_GROWTH = 1.35;
     const LUCK_PER_RANK = 0.01;
     const LUCK_CHANCE_CAP = 0.95;
+    // Sell refund — flat per rarity. Always below the current salvage roll
+    // cost for commons (so re-rolling isn't free), but a single end-of-run
+    // rare hands back a meaningful chunk of meta-XP. Caller supplies the
+    // rarity via the item def; unknown rarity refunds 0.
+    const SELL_REFUND = { common: 100, uncommon: 250, rare: 500 };
 
     function createFreshSave() {
         const mastery = {};
@@ -233,6 +238,21 @@ const NeonSave = (function () {
         const grown = Math.max(0, (bp.w || BACKPACK_W) - BACKPACK_W)
                     + Math.max(0, (bp.h || BACKPACK_H) - BACKPACK_H);
         return Math.round(EXPAND_BASE_COST * Math.pow(EXPAND_COST_GROWTH, grown) / 10) * 10;
+    }
+
+    // Pure refund — no inventory mutation here, because callers may be
+    // selling from the held buffer, stash, or grid. Returns the XP amount
+    // credited to metaXP, given an item's rarity string.
+    function getSellRefund(rarity) {
+        return (rarity && SELL_REFUND[rarity]) || 0;
+    }
+    function sellItem(save, rarity) {
+        const refund = getSellRefund(rarity);
+        if (refund <= 0) return 0;
+        backfillV1Fields(save, false);
+        save.metaXP += refund;
+        write(save);
+        return refund;
     }
 
     // Meta-XP sink that nudges the next end-of-run loot roll by a flat
@@ -473,6 +493,8 @@ const NeonSave = (function () {
         getLuckBoostCost,
         luckBoostUnlocked,
         buyLuckBoost,
+        getSellRefund,
+        sellItem,
         LUCK_PER_RANK,
         LUCK_CHANCE_CAP,
         encodeSaveCode,

@@ -111,4 +111,12 @@ ok('luck cost grows geometrically (≈ ×1.35)', luckCost1 / luckCost0 > 1.25 &&
 LS.metaXP = 0;
 ok('luck buy fails when poor', NeonSave.buyLuckBoost(LS) === -1);
 
+// ── Sell refund ──────────────────────────────────────────────────────────
+ok('refund table common = 100',   NeonSave.getSellRefund('common')   === 100);
+ok('refund table uncommon = 250', NeonSave.getSellRefund('uncommon') === 250);
+ok('refund table rare = 500',     NeonSave.getSellRefund('rare')     === 500);
+ok('refund 0 for unknown',        NeonSave.getSellRefund('mythic')   === 0);
+const SS = NeonSave.createFreshSave(); SS.metaXP = 1000;
+ok('sellItem credits metaXP', NeonSave.sellItem(SS, 'rare') === 500 && SS.metaXP === 1500);
+
 console.log(`\nBACKPACK LOGIC: ${pass} checks passed`);

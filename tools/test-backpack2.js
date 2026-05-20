@@ -145,8 +145,44 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
   await page.evaluate(() => navigateToBackpack());
   await page.waitForTimeout(150);
 
-  // ---- Bag expansion (UI) ----
-  await page.evaluate(() => { save.metaXP = 100000; NeonSave.write(save); navigateToMainMenu(); });
+  // ---- Sell flow + "NEED N XP MORE" relabel ----
+  // Set up: one rare item in stash, very low meta-XP so SALVAGE flips
+  // to the "need more" label.
+  await page.evaluate(() => {
+    save.metaXP = 50;                       // way under any cost
+    save.backpack = { w:3, h:3, placed:[], stash:['reactor_bulwark'], luckBoost: 0 };
+    save.maxWaveReached = 25;
+    NeonSave.write(save);
+    renderBackpack();
+  });
+  const labels = await page.evaluate(() => ({
+    salvage: document.getElementById('bp-salvage-cost').textContent,
+    expand:  document.querySelector('.bp-exp-cost').textContent,
+    luck:    document.getElementById('bp-luck-cost').textContent,
+  }));
+  console.log('labels when poor:', JSON.stringify(labels));
+
+  const sellBefore = await page.evaluate(() => ({
+    xp: save.metaXP, stash: save.backpack.stash.length,
+  }));
+  // Pick up the stash item, then click SELL.
+  await page.locator('#bp-stash .bp-chip').first().click();
+  await page.waitForSelector('#bp-held:not(.hidden)');
+  const sellLabel = await page.locator('#bp-sell-val').textContent();
+  await page.locator('#bp-discard').click();
+  await page.waitForTimeout(150);
+  const sellAfter = await page.evaluate(() => ({
+    xp: save.metaXP, stash: save.backpack.stash.length,
+    persistedXp: JSON.parse(localStorage.getItem(NeonSave.KEY)).metaXP,
+  }));
+  console.log('sell:', JSON.stringify({ sellBefore, sellLabel, sellAfter }));
+  // Reset to fresh 2×2 so the expand cost assertion is deterministic.
+  await page.evaluate(() => {
+    save.metaXP = 100000;
+    save.backpack = { w:2, h:2, placed:[], stash:[], luckBoost: 0 };
+    NeonSave.write(save);
+    navigateToMainMenu();
+  });
   await page.click('#menu-backpack-btn');
   await page.waitForSelector('#backpack:not(.hidden)');
   const expand = await page.evaluate(() => ({ w: save.backpack.w, cells: document.querySelectorAll('#bp-grid .bp-cell').length, xp: save.metaXP }));
@@ -199,10 +235,19 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
   const okLuckBuy  = afterBuy.rank === 1 && afterBuy.persistedRank === 1 &&
                      (beforeXP - afterBuy.xp) === 500 && /\+1%/.test(afterBuy.statLabel);
   const okLuckBanner = /· \+5% luck/.test(luckRun.text || '');
+  const okNeedLabels  = /NEED .* XP MORE/.test(labels.salvage) &&
+                        /NEED .* XP MORE/.test(labels.expand)  &&
+                        /NEED .* XP MORE/.test(labels.luck);
+  const okSellAmount  = /\+500/.test(sellLabel || '');           // rare = +500
+  const okSellApplied = sellAfter.xp - sellBefore.xp === 500 &&
+                        sellAfter.stash === sellBefore.stash - 1 &&
+                        sellAfter.persistedXp === sellAfter.xp;
   console.log('errors:', errs.length ? errs : 'none');
   const allOk = okEmpty && okNoOcDrop && okGate && okHit && okMiss && okExpand &&
-                okLuckGate && okLuckBuy && okLuckBanner && errs.length === 0;
+                okLuckGate && okLuckBuy && okLuckBanner &&
+                okNeedLabels && okSellAmount && okSellApplied &&
+                errs.length === 0;
   console.log(allOk ? 'BACKPACK ITER2 OK'
-    : `FAIL (empty=${okEmpty} noOcDrop=${okNoOcDrop} gate=${okGate} hit=${okHit} miss=${okMiss} expand=${okExpand} luckGate=${okLuckGate} luckBuy=${okLuckBuy} luckBanner=${okLuckBanner})`);
+    : `FAIL (empty=${okEmpty} noOcDrop=${okNoOcDrop} gate=${okGate} hit=${okHit} miss=${okMiss} expand=${okExpand} luckGate=${okLuckGate} luckBuy=${okLuckBuy} luckBanner=${okLuckBanner} need=${okNeedLabels} sellAmt=${okSellAmount} sellApply=${okSellApplied})`);
   process.exit(allOk ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });

@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Neon Defense</title>
-    <link rel="stylesheet" href="style.css?v=20260520174820">
+    <link rel="stylesheet" href="style.css?v=20260520180521">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
 </head>
 
@@ -330,14 +330,16 @@
                 <div id="backpack" class="overlay hidden">
                     <h2 style="color:#c084fc; text-shadow:0 0 20px rgba(192,132,252,0.5);">BACKPACK</h2>
                     <p style="font-size:0.8rem; color:var(--text-muted); letter-spacing:1px;">
-                        Salvage items and arrange them in the grid. Items stack run-wide buffs;
-                        some gain extra power from <strong style="color:#c084fc;">adjacent</strong> items.
-                        Tap a stash item to pick it up, ROTATE it, then tap a grid cell (its top-left) to place.
+                        <strong style="color:var(--accent);">SALVAGE</strong> spends meta-XP to roll a random item into your stash (cost climbs as you collect more).
+                        <strong style="color:var(--accent);">+ COL / + ROW</strong> grow the grid. <strong style="color:var(--accent);">LUCK</strong> bumps next run's drop chance.
+                        Tap a stash item to pick it up, ROTATE it, then tap a grid cell (top-left) to place it.
+                        Items stack run-wide buffs; some gain extra power from <strong style="color:#c084fc;">adjacent</strong> items.
+                        Picked items can be <strong style="color:#fb7185;">SOLD</strong> for partial meta-XP back.
                     </p>
                     <div id="bp-bar">
-                        <button id="bp-salvage">SALVAGE <span id="bp-salvage-cost">0</span> XP</button>
-                        <button id="bp-expand-w" class="secondary">+ COL <span class="bp-exp-cost">0</span></button>
-                        <button id="bp-expand-h" class="secondary">+ ROW <span class="bp-exp-cost">0</span></button>
+                        <button id="bp-salvage" title="Spend meta-XP to roll a random item into your stash. The cost rises every time you own more items.">SALVAGE <span id="bp-salvage-cost">0</span></button>
+                        <button id="bp-expand-w" class="secondary" title="Spend meta-XP to add a column to the grid. Cost grows ×1.5 per expansion.">+ COL <span class="bp-exp-cost">0</span></button>
+                        <button id="bp-expand-h" class="secondary" title="Spend meta-XP to add a row to the grid. Cost grows ×1.5 per expansion.">+ ROW <span class="bp-exp-cost">0</span></button>
                         <button id="bp-luck" class="secondary" title="Spend meta-XP to bump next run's drop chance by +1% (after reaching wave 20).">LUCK <span id="bp-luck-stat">+0%</span> · <span id="bp-luck-cost">0</span></button>
                         <span id="bp-xp">Meta-XP: 0</span>
                     </div>
@@ -348,7 +350,7 @@
                         <span id="bp-held-desc"></span>
                         <button id="bp-rotate" class="secondary small">⟳ ROTATE</button>
                         <button id="bp-tostash" class="secondary small">▢ STASH</button>
-                        <button id="bp-discard" class="danger small">✕ DROP</button>
+                        <button id="bp-discard" class="danger small" title="Sell the held item for a partial meta-XP refund (rarity-scaled).">✕ SELL <span id="bp-sell-val"></span></button>
                     </div>
                     <div id="bp-grid-wrap"><div id="bp-grid"></div></div>
                     <div id="bp-stash-title">STASH <span id="bp-stash-count">(0)</span></div>
@@ -468,20 +470,20 @@
         <button id="place-confirm-no" aria-label="Cancel placement">✗</button>
     </div>
 
-    <script src="src/config/config.js?v=20260520174820"></script>
-    <script src="src/audio/audio.js?v=20260520174820"></script>
-    <script src="src/render/assets.js?v=20260520174820"></script>
-    <script src="src/engine/map.js?v=20260520174820"></script>
-    <script src="src/entities/entities.js?v=20260520174820"></script>
-    <script src="src/ai/autopilot.js?v=20260520174820"></script>
-    <script src="src/progression/save.js?v=20260520174820"></script>
-    <script src="src/progression/tree.js?v=20260520174820"></script>
-    <script src="src/progression/abilities.js?v=20260520174820"></script>
-    <script src="src/progression/backpack.js?v=20260520174820"></script>
-    <script src="src/engine/game.js?v=20260520174820"></script>
-    <script src="src/minigames/overclock.js?v=20260520174820"></script>
-    <script src="src/progression/boons.js?v=20260520174820"></script>
-    <script src="src/engine/main.js?v=20260520174820"></script>
+    <script src="src/config/config.js?v=20260520180521"></script>
+    <script src="src/audio/audio.js?v=20260520180521"></script>
+    <script src="src/render/assets.js?v=20260520180521"></script>
+    <script src="src/engine/map.js?v=20260520180521"></script>
+    <script src="src/entities/entities.js?v=20260520180521"></script>
+    <script src="src/ai/autopilot.js?v=20260520180521"></script>
+    <script src="src/progression/save.js?v=20260520180521"></script>
+    <script src="src/progression/tree.js?v=20260520180521"></script>
+    <script src="src/progression/abilities.js?v=20260520180521"></script>
+    <script src="src/progression/backpack.js?v=20260520180521"></script>
+    <script src="src/engine/game.js?v=20260520180521"></script>
+    <script src="src/minigames/overclock.js?v=20260520180521"></script>
+    <script src="src/progression/boons.js?v=20260520180521"></script>
+    <script src="src/engine/main.js?v=20260520180521"></script>
 </body>
 
 </html>

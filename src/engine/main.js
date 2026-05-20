@@ -691,10 +691,16 @@ function bpHeldToStash() {
     renderBackpack();
 }
 
-function bpDiscardHeld() {
+function bpSellHeld() {
     if (!bpHeld) return;
+    const def = BACKPACK_ITEMS[bpHeld.id];
+    const rarity = def && def.rarity;
+    const refund = NeonSave.sellItem(save, rarity);
     bpHeld = null;
-    bpStatus('Discarded.');
+    if (typeof updateMainMenuState === 'function') updateMainMenuState();
+    bpStatus(refund > 0
+        ? `Sold ${def ? def.name : 'item'} for ${refund} meta-XP.`
+        : 'Sold item.');
     renderBackpack();
 }
 
@@ -705,7 +711,8 @@ function bpSalvage() {
     NeonSave.salvage(save, id);   // deducts XP, pushes to stash, persists
     if (typeof updateMainMenuState === 'function') updateMainMenuState();
     const def = BACKPACK_ITEMS[id];
-    bpStatus(`Salvaged ${def ? def.name : id} (${def ? def.rarity : '?'})! → stash`);
+    const nextCost = NeonSave.getSalvageCost(save);
+    bpStatus(`Salvaged ${def ? def.name : id} (${def ? def.rarity : '?'}) → stash. Next salvage: ${nextCost} XP.`);
     renderBackpack();
 }
 
@@ -742,19 +749,33 @@ function renderBackpack() {
     if (!bp) return;
     const xpEl = document.getElementById('bp-xp');
     if (xpEl) xpEl.textContent = 'Meta-XP: ' + save.metaXP;
+    // Helper: when a sink button can't be bought, swap its cost label to
+    // "NEED N XP MORE" so it's obviously a price issue, not a broken button.
+    const setCostLabel = (el, cost, affordable, max = false) => {
+        if (!el) return;
+        if (max)              el.textContent = 'MAX';
+        else if (affordable)  el.textContent = `${cost} XP`;
+        else                  el.textContent = `NEED ${cost - save.metaXP} XP MORE`;
+    };
+
     const cost = NeonSave.getSalvageCost(save);
-    const costEl = document.getElementById('bp-salvage-cost');
-    if (costEl) costEl.textContent = cost;
+    const canSalvage = save.metaXP >= cost;
+    setCostLabel(document.getElementById('bp-salvage-cost'), cost, canSalvage);
     const salvageBtn = document.getElementById('bp-salvage');
-    if (salvageBtn) salvageBtn.disabled = save.metaXP < cost;
+    if (salvageBtn) salvageBtn.disabled = !canSalvage;
 
     // Bag expansion controls
     const expCost = NeonSave.getExpandCost(save);
-    document.querySelectorAll('.bp-exp-cost').forEach(el => el.textContent = expCost);
+    const canExpand = save.metaXP >= expCost;
     const ewBtn = document.getElementById('bp-expand-w');
     const ehBtn = document.getElementById('bp-expand-h');
-    if (ewBtn) ewBtn.disabled = bp.w >= 9 || save.metaXP < expCost;
-    if (ehBtn) ehBtn.disabled = bp.h >= 8 || save.metaXP < expCost;
+    document.querySelectorAll('.bp-exp-cost').forEach((el) => {
+        const owner = el.closest('button');
+        const axisMaxed = owner === ewBtn ? bp.w >= 9 : bp.h >= 8;
+        setCostLabel(el, expCost, canExpand, axisMaxed);
+    });
+    if (ewBtn) ewBtn.disabled = bp.w >= 9 || !canExpand;
+    if (ehBtn) ehBtn.disabled = bp.h >= 8 || !canExpand;
 
     // Salvage Luck — small permanent boost to next-run drop chance.
     const luckRank = bp.luckBoost || 0;
@@ -764,7 +785,11 @@ function renderBackpack() {
     const luckStat = document.getElementById('bp-luck-stat');
     const luckCostEl = document.getElementById('bp-luck-cost');
     if (luckStat) luckStat.textContent = `+${luckRank}%`;
-    if (luckCostEl) luckCostEl.textContent = luckUnlocked ? (luckCost + ' XP') : 'LOCKED';
+    if (luckCostEl) {
+        if (!luckUnlocked)              luckCostEl.textContent = 'LOCKED';
+        else if (save.metaXP >= luckCost) luckCostEl.textContent = `${luckCost} XP`;
+        else                            luckCostEl.textContent = `NEED ${luckCost - save.metaXP} XP MORE`;
+    }
     if (luckBtn) {
         luckBtn.disabled = !luckUnlocked || save.metaXP < luckCost;
         luckBtn.title = luckUnlocked
@@ -781,6 +806,11 @@ function renderBackpack() {
         bpMiniShape(def, bpHeld.rot, document.getElementById('bp-held-shape'));
         const descEl = document.getElementById('bp-held-desc');
         if (descEl) descEl.textContent = def.desc || '';
+        const sellEl = document.getElementById('bp-sell-val');
+        if (sellEl) {
+            const refund = NeonSave.getSellRefund(def.rarity);
+            sellEl.textContent = refund > 0 ? `+${refund}` : '';
+        }
     } else {
         heldWrap.classList.add('hidden');
     }
@@ -1146,7 +1176,7 @@ function init() {
     document.getElementById('bp-luck').addEventListener('click', bpBuyLuck);
     document.getElementById('bp-rotate').addEventListener('click', bpRotateHeld);
     document.getElementById('bp-tostash').addEventListener('click', bpHeldToStash);
-    document.getElementById('bp-discard').addEventListener('click', bpDiscardHeld);
+    document.getElementById('bp-discard').addEventListener('click', bpSellHeld);
     document.getElementById('menu-dailyseed-btn').addEventListener('click', () => {
         if (!NeonSave.hasUnlocked(save, 'qol.dailyseed')) return;
         const today = new Date();
