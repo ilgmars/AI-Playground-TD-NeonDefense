@@ -137,9 +137,25 @@ const NeonBackpack = (function () {
         return ids[ids.length - 1];
     }
 
+    // Rarity weights for *earned* loot (OVERCLOCK / end-of-run). `luck`
+    // rises with how far the player pushed / how deep the run went and
+    // biases the roll toward rarer items.
+    function lootWeights(luck) {
+        const L = Math.max(0, luck || 0);
+        return {
+            common:   Math.max(5, 60 - L * 8),
+            uncommon: 30 + L * 3,
+            rare:     10 + L * 6,
+        };
+    }
+    function lootRoll(ITEMS, luck, randFn) {
+        return salvageRoll(ITEMS, lootWeights(luck), randFn);
+    }
+
     return {
         rotateShape, shapeOffsets, shapeSize, itemCells,
-        occupancy, canPlace, computeStats, salvageRoll, STAT_KEYS, zeroStats
+        occupancy, canPlace, computeStats, salvageRoll,
+        lootWeights, lootRoll, STAT_KEYS, zeroStats
     };
 })();
 

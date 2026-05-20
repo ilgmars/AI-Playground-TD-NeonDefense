@@ -479,25 +479,34 @@ function rollBoonChoices(n, randFn) {
 // -------------------------------------------------------------------------
 const BACKPACK_ITEMS = {
     plasma_cell:  { id: 'plasma_cell',  name: 'Plasma Cell',     rarity: 'common',   tags: ['power'],
-                    shape: [[1]],                 effect: { damage: 0.06 } },
+                    shape: [[1]],                 effect: { damage: 0.06 },
+                    desc: '+6% tower damage' },
     coolant_coil: { id: 'coolant_coil', name: 'Coolant Coil',    rarity: 'common',   tags: ['tech'],
-                    shape: [[1],[1]],             effect: { fireRate: 0.05 } },
+                    shape: [[1],[1]],             effect: { fireRate: 0.05 },
+                    desc: '+5% fire rate (1×2 column)' },
     credit_chip:  { id: 'credit_chip',  name: 'Credit Chip',     rarity: 'common',   tags: ['econ'],
-                    shape: [[1]],                 effect: { payout: 0.08 } },
+                    shape: [[1]],                 effect: { payout: 0.08 },
+                    desc: '+8% wave-completion payout' },
     interest_ledger: { id: 'interest_ledger', name: 'Interest Ledger', rarity: 'uncommon', tags: ['econ'],
-                    shape: [[1,1]],               effect: { interest: 0.03 } },
+                    shape: [[1,1]],               effect: { interest: 0.03 },
+                    desc: '+3% of banked credits each wave' },
     targeting_core: { id: 'targeting_core', name: 'Targeting Core', rarity: 'uncommon', tags: ['power'],
                     shape: [[1,0],[1,1]],         effect: { damage: 0.10 },
-                    synergy: { tags: ['tech'], perAdj: { damage: 0.03 }, max: 4 } },
+                    synergy: { tags: ['tech'], perAdj: { damage: 0.03 }, max: 4 },
+                    desc: '+10% damage; +3% more per adjacent tech item (max 4)' },
     bounty_module: { id: 'bounty_module', name: 'Bounty Module', rarity: 'uncommon', tags: ['econ'],
-                    shape: [[1],[1],[1]],         effect: { kill: 0.18 } },
+                    shape: [[1],[1],[1]],         effect: { kill: 0.18 },
+                    desc: '+18% credits per kill (needs a 1×3 column)' },
     overclock_matrix: { id: 'overclock_matrix', name: 'Overclock Matrix', rarity: 'rare', tags: ['power','tech'],
-                    shape: [[1,1,1],[0,1,0]],     effect: { damage: 0.14, fireRate: 0.08 } },
+                    shape: [[1,1,1],[0,1,0]],     effect: { damage: 0.14, fireRate: 0.08 },
+                    desc: '+14% damage and +8% fire rate (T-shape)' },
     reactor_bulwark: { id: 'reactor_bulwark', name: 'Reactor Bulwark', rarity: 'rare', tags: ['core'],
                     shape: [[1,1],[1,1]],         effect: { maxHP: 8 },
-                    synergy: { tags: ['core','tech'], perAdj: { maxHP: 2 }, max: 6 } },
+                    synergy: { tags: ['core','tech'], perAdj: { maxHP: 2 }, max: 6 },
+                    desc: '+8 max HP; +2 more per adjacent core/tech (max 6)' },
     fabricator: { id: 'fabricator', name: 'Fabricator', rarity: 'uncommon', tags: ['tech'],
-                    shape: [[1,1],[1,0]],         effect: { towerCost: 0.08, upgradeCost: 0.08 } }
+                    shape: [[1,1],[1,0]],         effect: { towerCost: 0.08, upgradeCost: 0.08 },
+                    desc: '−8% tower build & upgrade cost' }
 };
 
 const BACKPACK_RARITY_WEIGHT = { common: 60, uncommon: 30, rare: 10 };

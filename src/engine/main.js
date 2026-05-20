@@ -659,6 +659,18 @@ function bpSalvage() {
     renderBackpack();
 }
 
+function bpExpand(axis) {
+    const paid = NeonSave.expandBackpack(save, axis);
+    if (paid < 0) {
+        const expCost = NeonSave.getExpandCost(save);
+        bpStatus(save.metaXP < expCost ? `Need ${expCost - save.metaXP} more meta-XP.` : 'Grid already at max size.');
+        return;
+    }
+    if (typeof updateMainMenuState === 'function') updateMainMenuState();
+    bpStatus(`Expanded to ${save.backpack.w}×${save.backpack.h} for ${paid} XP.`);
+    renderBackpack();
+}
+
 function renderBackpack() {
     const bp = save.backpack;
     if (!bp) return;
@@ -670,12 +682,23 @@ function renderBackpack() {
     const salvageBtn = document.getElementById('bp-salvage');
     if (salvageBtn) salvageBtn.disabled = save.metaXP < cost;
 
+    // Bag expansion controls
+    const expCost = NeonSave.getExpandCost(save);
+    document.querySelectorAll('.bp-exp-cost').forEach(el => el.textContent = expCost);
+    const ewBtn = document.getElementById('bp-expand-w');
+    const ehBtn = document.getElementById('bp-expand-h');
+    if (ewBtn) ewBtn.disabled = bp.w >= 9 || save.metaXP < expCost;
+    if (ehBtn) ehBtn.disabled = bp.h >= 8 || save.metaXP < expCost;
+
     // Held panel
     const heldWrap = document.getElementById('bp-held');
     if (bpHeld && BACKPACK_ITEMS[bpHeld.id]) {
+        const def = BACKPACK_ITEMS[bpHeld.id];
         heldWrap.classList.remove('hidden');
-        document.getElementById('bp-held-name').textContent = BACKPACK_ITEMS[bpHeld.id].name;
-        bpMiniShape(BACKPACK_ITEMS[bpHeld.id], bpHeld.rot, document.getElementById('bp-held-shape'));
+        document.getElementById('bp-held-name').textContent = def.name;
+        bpMiniShape(def, bpHeld.rot, document.getElementById('bp-held-shape'));
+        const descEl = document.getElementById('bp-held-desc');
+        if (descEl) descEl.textContent = def.desc || '';
     } else {
         heldWrap.classList.add('hidden');
     }
@@ -700,6 +723,7 @@ function renderBackpack() {
                 cell.style.background = (BP_RARITY_COLOR[def && def.rarity] || '#64748b') + '33';
                 cell.style.borderColor = BP_RARITY_COLOR[def && def.rarity] || '#64748b';
                 if (pItem.x === x && pItem.y === y) cell.textContent = (def ? def.name[0] : '?');
+                if (def) cell.title = `${def.name}\n${def.desc || ''}`;
                 cell.addEventListener('click', () => bpPickPlaced(ownerIdx));
                 cell.addEventListener('mouseenter', () => { if (bpHeld) bpClearGhost(); });
             } else {
@@ -724,10 +748,19 @@ function renderBackpack() {
         const shape = document.createElement('div');
         shape.className = 'bp-mini';
         bpMiniShape(def, 0, shape);
+        const text = document.createElement('div');
+        text.className = 'bp-chip-text';
         const label = document.createElement('span');
+        label.className = 'bp-chip-name';
         label.textContent = def ? def.name : id;
+        const desc = document.createElement('span');
+        desc.className = 'bp-chip-desc';
+        desc.textContent = def && def.desc ? def.desc : '';
+        text.appendChild(label);
+        text.appendChild(desc);
         chip.appendChild(shape);
-        chip.appendChild(label);
+        chip.appendChild(text);
+        if (def) chip.title = `${def.name}\n${def.desc || ''}`;
         chip.addEventListener('click', () => bpPickStash(i));
         stashEl.appendChild(chip);
     });
@@ -736,8 +769,8 @@ function renderBackpack() {
 
 // Renders the XP breakdown in the game-over overlay. Called by
 // window.onRunEnded after XP has been applied to the save.
-function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults, retired }) {
-    document.querySelectorAll('.xp-breakdown-unlock.mastery-banner').forEach(el => el.remove());
+function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults, retired, lootGranted }) {
+    document.querySelectorAll('.xp-breakdown-unlock.mastery-banner, .xp-breakdown-unlock.loot-banner').forEach(el => el.remove());
 
     if (retired) {
         document.getElementById('victory-xp-wave').textContent    = xp.waveXP;
@@ -787,6 +820,21 @@ function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, mas
             const unlockEl = document.getElementById('xp-unlock');
             unlockEl.parentNode.insertBefore(wrap, unlockEl.nextSibling);
         }
+    }
+
+    if (lootGranted && lootGranted.length > 0) {
+        const counts = {};
+        for (const id of lootGranted) counts[id] = (counts[id] || 0) + 1;
+        const names = Object.keys(counts).map(id => {
+            const def = (typeof BACKPACK_ITEMS !== 'undefined') && BACKPACK_ITEMS[id];
+            return (def ? def.name : id) + (counts[id] > 1 ? ` x${counts[id]}` : '');
+        });
+        const wrap = document.createElement('div');
+        wrap.className = 'xp-breakdown-unlock loot-banner';
+        wrap.textContent = '📦 SALVAGE: ' + names.join(' · ') + ' → backpack';
+        const anchorId = retired ? 'victory-xp-unlock' : 'xp-unlock';
+        const anchor = document.getElementById(anchorId);
+        if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor.nextSibling);
     }
 }
 
@@ -1003,6 +1051,8 @@ function init() {
         bpReturnHeldToStash(); bpPersist(); navigateToMainMenu();
     });
     document.getElementById('bp-salvage').addEventListener('click', bpSalvage);
+    document.getElementById('bp-expand-w').addEventListener('click', () => bpExpand('w'));
+    document.getElementById('bp-expand-h').addEventListener('click', () => bpExpand('h'));
     document.getElementById('bp-rotate').addEventListener('click', bpRotateHeld);
     document.getElementById('bp-tostash').addEventListener('click', bpHeldToStash);
     document.getElementById('bp-discard').addEventListener('click', bpDiscardHeld);
@@ -1543,8 +1593,20 @@ function init() {
 
         const masteryResults = NeonSave.tallyMastery(save, game.towers);
 
+        // End-of-run loot: items by depth/ascension. Goes to the backpack
+        // stash (zero in-run effect until placed → harness/balance safe).
+        const lootGranted = [];
+        if (window.NeonBackpack && typeof BACKPACK_ITEMS !== 'undefined' && wave >= 8) {
+            const count = 1 + Math.floor(Math.max(0, wave - 8) / 25);
+            const luck = Math.floor(wave / 15) + tier;
+            for (let i = 0; i < count; i++) {
+                const id = NeonBackpack.lootRoll(BACKPACK_ITEMS, luck, Math.random);
+                if (NeonSave.grantItem(save, id)) lootGranted.push(id);
+            }
+        }
+
         if (typeof renderRunResultXP === 'function') {
-            renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults, retired });
+            renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults, retired, lootGranted });
         }
     };
 

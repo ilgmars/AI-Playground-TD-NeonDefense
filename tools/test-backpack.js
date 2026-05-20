@@ -71,4 +71,28 @@ ok('junk backpack sanitised on load', (() => {
          L2.backpack.stash.every(x => typeof x === 'string');
 })());
 
+// ── Iteration 2: loot rarity bias, grantItem, bag expansion ──────────────
+const RIT = { a:{rarity:'common'}, b:{rarity:'uncommon'}, r:{rarity:'rare'} };
+let lc = { common:0, uncommon:0, rare:0 };
+let seed = 7; const rng = () => { seed=(seed*1664525+1013904223)%4294967296; return seed/4294967296; };
+for (let i=0;i<4000;i++) lc[RIT[B.lootRoll(RIT, 6, rng)].rarity]++;
+ok('high luck biases away from common', lc.common < lc.uncommon && lc.common < lc.rare);
+let lc0 = { common:0, uncommon:0, rare:0 };
+for (let i=0;i<4000;i++) lc0[RIT[B.lootRoll(RIT, 0, rng)].rarity]++;
+ok('luck 0 is common-dominant', lc0.common > lc0.rare);
+
+const g = NeonSave.createFreshSave(); g.metaXP = 1e7;
+ok('grantItem stashes (no XP cost)', NeonSave.grantItem(g,'plasma_cell') === true &&
+   g.backpack.stash.includes('plasma_cell') && g.metaXP === 1e7);
+ok('grantItem rejects non-string', NeonSave.grantItem(g, 42) === false);
+
+const e1 = NeonSave.getExpandCost(g);
+const epaid = NeonSave.expandBackpack(g, 'w');
+ok('expand grows width + charges', epaid === e1 && g.backpack.w === 3 && g.metaXP === 1e7 - e1);
+ok('expand cost escalates', NeonSave.getExpandCost(g) > e1);
+g.backpack.w = 9;
+ok('expand capped at max width', NeonSave.expandBackpack(g,'w') === -1);
+g.metaXP = 0;
+ok('expand fails when poor', NeonSave.expandBackpack(g,'h') === -1);
+
 console.log(`\nBACKPACK LOGIC: ${pass} checks passed`);

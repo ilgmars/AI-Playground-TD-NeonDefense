@@ -25,10 +25,17 @@ const NeonSave = (function () {
     // meta-XP salvage economy live here; placement validity / effects live
     // in backpack.js + config.js. Salvage cost escalates with how many
     // items you already own, so it doubles as an endless meta-XP sink.
-    const BACKPACK_W = 5, BACKPACK_H = 4;
+    // Fresh saves start with a deliberately tiny 2×2 grid (4 cells). Players
+    // earn meta-XP and spend it on EXPAND to grow it — that's the Backpack-
+    // Hero progression beat: the bag itself is the long-term upgrade.
+    const BACKPACK_W = 2, BACKPACK_H = 2;
     const BACKPACK_MAX_W = 9, BACKPACK_MAX_H = 8;
     const SALVAGE_BASE_COST = 300;
     const SALVAGE_COST_GROWTH = 1.12;
+    // Bag expansion: cost grows with how much you've already grown the grid
+    // (another endless meta-XP sink, capped at BACKPACK_MAX_*).
+    const EXPAND_BASE_COST = 600;
+    const EXPAND_COST_GROWTH = 1.25;
 
     function createFreshSave() {
         const mastery = {};
@@ -191,6 +198,42 @@ const NeonSave = (function () {
         if (save.metaXP < cost) return -1;
         save.metaXP -= cost;
         save.backpack.stash.push(itemId);
+        write(save);
+        return cost;
+    }
+
+    // Free item grant (OVERCLOCK drop / end-of-run reward). Goes to the
+    // stash, which has NO gameplay effect until the player manually places
+    // it — so this never perturbs an in-progress run or the auto-tune bot.
+    function grantItem(save, itemId) {
+        if (typeof itemId !== 'string') return false;
+        backfillV1Fields(save, false);
+        save.backpack.stash.push(itemId);
+        write(save);
+        return true;
+    }
+
+    // Meta-XP cost to grow the grid by one row/column. Grows with how much
+    // it's already been expanded.
+    function getExpandCost(save) {
+        const bp = save.backpack || { w: BACKPACK_W, h: BACKPACK_H };
+        const grown = Math.max(0, (bp.w || BACKPACK_W) - BACKPACK_W)
+                    + Math.max(0, (bp.h || BACKPACK_H) - BACKPACK_H);
+        return Math.round(EXPAND_BASE_COST * Math.pow(EXPAND_COST_GROWTH, grown) / 10) * 10;
+    }
+
+    // axis: 'w' (add a column) or 'h' (add a row). Returns cost paid, or -1
+    // if maxed / too poor.
+    function expandBackpack(save, axis) {
+        backfillV1Fields(save, false);
+        const bp = save.backpack;
+        if (axis === 'w' && bp.w >= BACKPACK_MAX_W) return -1;
+        if (axis === 'h' && bp.h >= BACKPACK_MAX_H) return -1;
+        if (axis !== 'w' && axis !== 'h') return -1;
+        const cost = getExpandCost(save);
+        if (save.metaXP < cost) return -1;
+        save.metaXP -= cost;
+        if (axis === 'w') bp.w++; else bp.h++;
         write(save);
         return cost;
     }
@@ -370,10 +413,14 @@ const NeonSave = (function () {
         purchaseMasteryPerk,
         getSalvageCost,
         salvage,
+        grantItem,
+        getExpandCost,
+        expandBackpack,
         encodeSaveCode,
         decodeSaveCode
     };
 })();
 
 // Node test harness can require() this file.
+if (typeof window !== 'undefined') window.NeonSave = NeonSave;
 if (typeof module !== 'undefined' && module.exports) module.exports = { NeonSave };
