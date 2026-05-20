@@ -22,10 +22,10 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
   await page.click('#menu-start-btn'); await page.waitForTimeout(250);
   await page.click('#start-btn');      await page.waitForTimeout(500);
 
-  // ---- OVERCLOCK drop ----
-  let ocDrop = null;
-  for (let attempt = 0; attempt < 12 && ocDrop === null; attempt++) {
-    // Ensure no prior round is still open / mid auto-close.
+  // ---- OVERCLOCK must NOT drop items any more ----
+  // (Drops are end-of-run only after the rebalance.)
+  let ocNoDrop = null;
+  for (let attempt = 0; attempt < 8 && ocNoDrop === null; attempt++) {
     await page.evaluate(() => { if (window.NeonMinigame.isActive()) window.NeonMinigame.close(); });
     await page.waitForTimeout(120);
     const before = await page.evaluate(() => {
@@ -42,37 +42,61 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
       if (cls.includes('surge')) busted = true;
       else if (cls.includes('safe')) safe++;
     }
-    if (busted || safe < 1) {        // wait out the round's auto-close, retry
-      await page.waitForTimeout(2000);
-      continue;
-    }
-    // Force the drop roll deterministic: Math.random → 0 (chance check passes).
-    await page.evaluate(() => { window.__r = Math.random; Math.random = () => 0; });
+    if (busted || safe < 1) { await page.waitForTimeout(2000); continue; }
     await page.click('#mg-bank');
-    await page.waitForTimeout(200);
-    const after = await page.evaluate(() => {
-      Math.random = window.__r;
-      return { stash: save.backpack.stash.length,
-               persisted: JSON.parse(localStorage.getItem(NeonSave.KEY)).backpack.stash.length,
-               status: document.getElementById('mg-status').textContent };
-    });
-    await page.waitForTimeout(2000);   // let finish()'s auto-close fire
-    if (after.stash === before + 1) ocDrop = after;
+    await page.waitForTimeout(2200);  // let auto-close fire
+    const after = await page.evaluate(() => ({
+      stash: save.backpack.stash.length,
+      status: document.getElementById('mg-status').textContent,
+    }));
+    ocNoDrop = { before, after };
   }
-  console.log('OVERCLOCK drop:', ocDrop ? JSON.stringify(ocDrop) : 'NOT OBSERVED');
+  console.log('OVERCLOCK no-drop check:', ocNoDrop ? JSON.stringify(ocNoDrop) : 'NOT OBSERVED');
 
-  // ---- End-of-run loot + banner ----
-  const runEnd = await page.evaluate(() => {
-    const beforeStash = save.backpack.stash.length;
-    window.onRunEnded({ wave: 40, tier: 1, retired: false });
-    const banner = document.querySelector('#game-over .loot-banner, .xp-breakdown-unlock.loot-banner');
+  // ---- End-of-run loot: gated (wave≥20), max 1, probabilistic ----
+  // Wave 18 — under the gate ⇒ no roll, no banner.
+  const tooEarly = await page.evaluate(() => {
+    const before = save.backpack.stash.length;
+    window.onRunEnded({ wave: 18, tier: 0, retired: false });
     return {
-      grew: save.backpack.stash.length - beforeStash,
-      persisted: JSON.parse(localStorage.getItem(NeonSave.KEY)).backpack.stash.length,
-      banner: banner ? banner.textContent : null,
+      grew: save.backpack.stash.length - before,
+      banner: !!document.querySelector('.xp-breakdown-unlock.loot-banner'),
     };
   });
-  console.log('end-of-run loot:', JSON.stringify(runEnd));
+  console.log('wave 18 (gated):', JSON.stringify(tooEarly));
+
+  // Wave 40 with Math.random=0 → roll hits ⇒ exactly 1 item granted.
+  const runHit = await page.evaluate(() => {
+    document.querySelectorAll('.xp-breakdown-unlock.loot-banner').forEach(el => el.remove());
+    const before = save.backpack.stash.length;
+    window.__r = Math.random; Math.random = () => 0;
+    window.onRunEnded({ wave: 40, tier: 1, retired: false });
+    Math.random = window.__r;
+    const banner = document.querySelector('.xp-breakdown-unlock.loot-banner');
+    return {
+      grew: save.backpack.stash.length - before,
+      persisted: JSON.parse(localStorage.getItem(NeonSave.KEY)).backpack.stash.length,
+      banner: banner ? banner.textContent : null,
+      isMiss: banner ? banner.classList.contains('loot-banner-miss') : null,
+    };
+  });
+  console.log('wave 40 hit (rng=0):', JSON.stringify(runHit));
+
+  // Wave 40 with Math.random=0.999 → roll misses ⇒ banner shows the % miss.
+  const runMiss = await page.evaluate(() => {
+    document.querySelectorAll('.xp-breakdown-unlock.loot-banner').forEach(el => el.remove());
+    const before = save.backpack.stash.length;
+    window.__r = Math.random; Math.random = () => 0.999;
+    window.onRunEnded({ wave: 40, tier: 1, retired: false });
+    Math.random = window.__r;
+    const banner = document.querySelector('.xp-breakdown-unlock.loot-banner');
+    return {
+      grew: save.backpack.stash.length - before,
+      banner: banner ? banner.textContent : null,
+      isMiss: banner ? banner.classList.contains('loot-banner-miss') : null,
+    };
+  });
+  console.log('wave 40 miss (rng=0.999):', JSON.stringify(runMiss));
 
   // ---- Bag expansion (UI) ----
   await page.evaluate(() => { save.metaXP = 100000; NeonSave.write(save); navigateToMainMenu(); });
@@ -115,13 +139,17 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
   server.kill();
 
   const okEmpty  = emptyNoop === 1;
-  const okOC     = ocDrop && ocDrop.stash === ocDrop.persisted && /backpack/.test(ocDrop.status);
-  const okRun    = runEnd.grew >= 1 && runEnd.persisted >= runEnd.grew && /SALVAGE/.test(runEnd.banner || '');
+  const okNoOcDrop = ocNoDrop && ocNoDrop.after.stash === ocNoDrop.before && !/backpack/.test(ocNoDrop.after.status);
+  const okGate   = tooEarly.grew === 0 && tooEarly.banner === false;
+  const okHit    = runHit.grew === 1 && runHit.isMiss === false && /SALVAGE \(/.test(runHit.banner || '');
+  const okMiss   = runMiss.grew === 0 && runMiss.isMiss === true && /no drop/.test(runMiss.banner || '');
   const okExpand = expanded.w === expand.w + 1 && expanded.cells > expand.cells &&
-                   expanded.xp < expand.xp && expanded.persistedW === expanded.w;
+                   expanded.xp < expand.xp && expanded.persistedW === expanded.w &&
+                   // First expand now costs 1500 (was 600) — confirm the new curve.
+                   (expand.xp - expanded.xp) === 1500;
   console.log('errors:', errs.length ? errs : 'none');
-  const allOk = okEmpty && okOC && okRun && okExpand && errs.length === 0;
+  const allOk = okEmpty && okNoOcDrop && okGate && okHit && okMiss && okExpand && errs.length === 0;
   console.log(allOk ? 'BACKPACK ITER2 OK'
-    : `FAIL (empty=${okEmpty} oc=${okOC} run=${okRun} expand=${okExpand})`);
+    : `FAIL (empty=${okEmpty} noOcDrop=${okNoOcDrop} gate=${okGate} hit=${okHit} miss=${okMiss} expand=${okExpand})`);
   process.exit(allOk ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });

@@ -25,7 +25,13 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
   console.log('empty backpack boonDamageMult (want 1):', emptyMult);
 
   // Grant XP and open the Backpack screen.
-  await page.evaluate(() => { save.metaXP = 50000; NeonSave.write(save); });
+  // Ensure the grid is large enough for any salvage roll to fit somewhere
+  // (the default 2×2 can reject a 3-cell column / T-shape).
+  await page.evaluate(() => {
+    save.metaXP = 50000;
+    save.backpack.w = 5; save.backpack.h = 4;
+    NeonSave.write(save);
+  });
   await page.click('#menu-backpack-btn');
   await page.waitForSelector('#backpack:not(.hidden)');
 

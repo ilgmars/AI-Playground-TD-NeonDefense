@@ -99,22 +99,8 @@
             msg = result === 'max'
                 ? `★ MAX OVERCLOCK — banked ${won}¢`
                 : `✔ Banked ${won}¢`;
-
-            // Loot drop — the deeper you pushed (safeFound), the higher the
-            // chance and the better the rarity bias. MAX always drops.
-            // Goes to the backpack stash (no in-run effect until placed).
-            if (window.NeonBackpack && window.NeonSave && typeof BACKPACK_ITEMS !== 'undefined') {
-                const chance = result === 'max'
-                    ? 1
-                    : Math.min(0.9, 0.3 + 0.18 * safeFound);
-                if (Math.random() < chance) {
-                    const id = NeonBackpack.lootRoll(BACKPACK_ITEMS, safeFound, Math.random);
-                    if (NeonSave.grantItem(window.save, id)) {
-                        const def = BACKPACK_ITEMS[id];
-                        msg += ` · 📦 ${def ? def.name : id} → backpack`;
-                    }
-                }
-            }
+            // Item drops are end-of-run only (wave 20+ gated). OVERCLOCK
+            // stays a pure credits gamble — that's its niche.
         }
         setStatus(msg);
 

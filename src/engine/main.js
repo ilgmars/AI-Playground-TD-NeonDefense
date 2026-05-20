@@ -819,7 +819,7 @@ function renderBackpack() {
 
 // Renders the XP breakdown in the game-over overlay. Called by
 // window.onRunEnded after XP has been applied to the save.
-function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults, retired, lootGranted }) {
+function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults, retired, lootGranted, lootRoll }) {
     document.querySelectorAll('.xp-breakdown-unlock.mastery-banner, .xp-breakdown-unlock.loot-banner').forEach(el => el.remove());
 
     if (retired) {
@@ -872,16 +872,22 @@ function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, mas
         }
     }
 
-    if (lootGranted && lootGranted.length > 0) {
-        const counts = {};
-        for (const id of lootGranted) counts[id] = (counts[id] || 0) + 1;
-        const names = Object.keys(counts).map(id => {
-            const def = (typeof BACKPACK_ITEMS !== 'undefined') && BACKPACK_ITEMS[id];
-            return (def ? def.name : id) + (counts[id] > 1 ? ` x${counts[id]}` : '');
-        });
+    // Loot banner — show both hits and misses so the probability gate
+    // (wave ≥ 20, climbing chance, never 100%) reads clearly.
+    if (lootRoll) {
+        const pct = Math.round(lootRoll.chance * 100);
         const wrap = document.createElement('div');
         wrap.className = 'xp-breakdown-unlock loot-banner';
-        wrap.textContent = '📦 SALVAGE: ' + names.join(' · ') + ' → backpack';
+        if (lootGranted && lootGranted.length > 0) {
+            const names = lootGranted.map(id => {
+                const def = (typeof BACKPACK_ITEMS !== 'undefined') && BACKPACK_ITEMS[id];
+                return def ? def.name : id;
+            });
+            wrap.textContent = `📦 SALVAGE (${pct}%): ${names.join(' · ')} → backpack`;
+        } else {
+            wrap.textContent = `📦 SALVAGE roll ${pct}% — no drop this run`;
+            wrap.classList.add('loot-banner-miss');
+        }
         const anchorId = retired ? 'victory-xp-unlock' : 'xp-unlock';
         const anchor = document.getElementById(anchorId);
         if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor.nextSibling);
@@ -1643,20 +1649,26 @@ function init() {
 
         const masteryResults = NeonSave.tallyMastery(save, game.towers);
 
-        // End-of-run loot: items by depth/ascension. Goes to the backpack
-        // stash (zero in-run effect until placed → harness/balance safe).
+        // End-of-run loot is the ONE channel for backpack items. Gated to
+        // wave ≥ 20 ("endgame thing"), capped at one drop per run, and
+        // probabilistic: 20% at wave 20, climbing geometrically toward a
+        // 90% cap (never 100%). Rarity bias scales with ascension tier per
+        // request. Misses still get a banner so the system is legible.
+        // Stash-only ⇒ no in-run effect until placed (harness-safe).
         const lootGranted = [];
-        if (window.NeonBackpack && typeof BACKPACK_ITEMS !== 'undefined' && wave >= 8) {
-            const count = 1 + Math.floor(Math.max(0, wave - 8) / 25);
-            const luck = Math.floor(wave / 15) + tier;
-            for (let i = 0; i < count; i++) {
-                const id = NeonBackpack.lootRoll(BACKPACK_ITEMS, luck, Math.random);
+        let lootRoll = null;
+        if (window.NeonBackpack && typeof BACKPACK_ITEMS !== 'undefined' && wave >= 20) {
+            const chance = Math.min(0.9, 0.2 + 0.7 * (1 - Math.pow(0.97, wave - 20)));
+            const roll = Math.random();
+            lootRoll = { chance, hit: roll < chance };
+            if (lootRoll.hit) {
+                const id = NeonBackpack.lootRoll(BACKPACK_ITEMS, tier, Math.random);
                 if (NeonSave.grantItem(save, id)) lootGranted.push(id);
             }
         }
 
         if (typeof renderRunResultXP === 'function') {
-            renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults, retired, lootGranted });
+            renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults, retired, lootGranted, lootRoll });
         }
     };
 

@@ -32,10 +32,12 @@ const NeonSave = (function () {
     const BACKPACK_MAX_W = 9, BACKPACK_MAX_H = 8;
     const SALVAGE_BASE_COST = 300;
     const SALVAGE_COST_GROWTH = 1.12;
-    // Bag expansion: cost grows with how much you've already grown the grid
-    // (another endless meta-XP sink, capped at BACKPACK_MAX_*).
-    const EXPAND_BASE_COST = 600;
-    const EXPAND_COST_GROWTH = 1.25;
+    // Bag expansion is deliberately endgame-priced: starts at 1500 and
+    // each subsequent +COL/+ROW costs 50% more than the last (×1.5 per
+    // growth step). Fully expanding to 9×8 from the 2×2 start costs
+    // ~580K meta-XP — a multi-ascension grind.
+    const EXPAND_BASE_COST = 1500;
+    const EXPAND_COST_GROWTH = 1.5;
 
     function createFreshSave() {
         const mastery = {};

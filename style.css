@@ -1743,6 +1743,11 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     border-color: rgba(192, 132, 252, 0.5);
     color: #c084fc;
 }
+.xp-breakdown-unlock.loot-banner.loot-banner-miss {
+    background: rgba(148, 163, 184, 0.10);
+    border-color: rgba(148, 163, 184, 0.35);
+    color: var(--text-muted);
+}
 .xp-breakdown-unlock {
     margin-top: 8px;
     padding: 6px 8px;
