@@ -2264,8 +2264,11 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 #bp-salvage { color: #c084fc; border-color: #c084fc; padding: 8px 18px; font-size: 0.85rem; }
 #bp-salvage:hover:not(:disabled) { background: #c084fc; color: #0f172a; }
 #bp-salvage:disabled { opacity: 0.4; cursor: default; }
-#bp-expand-w, #bp-expand-h { padding: 8px 14px; font-size: 0.78rem; }
-#bp-expand-w:disabled, #bp-expand-h:disabled { opacity: 0.4; cursor: default; }
+#bp-expand-w, #bp-expand-h, #bp-luck { padding: 8px 14px; font-size: 0.78rem; }
+#bp-expand-w:disabled, #bp-expand-h:disabled, #bp-luck:disabled { opacity: 0.4; cursor: default; }
+#bp-luck { color: #fbbf24; border-color: #fbbf24; box-shadow: 0 0 12px rgba(251,191,36,0.15) inset; }
+#bp-luck:hover:not(:disabled) { background: #fbbf24; color: #0f172a; }
+#bp-luck-stat { font-family: monospace; }
 #bp-held {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     justify-content: center; margin-bottom: 10px; padding: 8px 14px;

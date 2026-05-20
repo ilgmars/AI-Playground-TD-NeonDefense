@@ -38,6 +38,14 @@ const NeonSave = (function () {
     // ~580K meta-XP — a multi-ascension grind.
     const EXPAND_BASE_COST = 1500;
     const EXPAND_COST_GROWTH = 1.5;
+    // Salvage Luck — meta-XP sink that bumps the wave-20+ end-of-run drop
+    // chance by 1 percentage point per rank. Insignificant per buy,
+    // exponentially priced (×1.35), and capped above by the chance ceiling
+    // (so it can never push the roll to 100%).
+    const LUCK_BASE_COST = 500;
+    const LUCK_COST_GROWTH = 1.35;
+    const LUCK_PER_RANK = 0.01;
+    const LUCK_CHANCE_CAP = 0.95;
 
     function createFreshSave() {
         const mastery = {};
@@ -61,7 +69,8 @@ const NeonSave = (function () {
                 abilityId: 'ability.none',
                 towerLoadout: null  // M3: null → all base types. Filled per-type when user selects a variant.
             },
-            backpack: { w: BACKPACK_W, h: BACKPACK_H, placed: [], stash: [] },
+            backpack: { w: BACKPACK_W, h: BACKPACK_H, placed: [], stash: [], luckBoost: 0 },
+            maxWaveReached: 0,
             settings: { skipRunSetup: false }
         };
     }
@@ -179,7 +188,9 @@ const NeonSave = (function () {
             Number.isFinite(p.x) && Number.isFinite(p.y)
         ).map(p => ({ id: p.id, x: p.x | 0, y: p.y | 0, rot: ((p.rot | 0) % 4 + 4) % 4 })) : [];
         bp.stash = Array.isArray(bp.stash) ? bp.stash.filter(s => typeof s === 'string') : [];
+        bp.luckBoost = Math.max(0, Math.floor(Number(bp.luckBoost) || 0));
         save.backpack = bp;
+        save.maxWaveReached = Math.max(0, Math.floor(Number(save.maxWaveReached) || 0));
 
         if (persist) write(save);
     }
@@ -222,6 +233,28 @@ const NeonSave = (function () {
         const grown = Math.max(0, (bp.w || BACKPACK_W) - BACKPACK_W)
                     + Math.max(0, (bp.h || BACKPACK_H) - BACKPACK_H);
         return Math.round(EXPAND_BASE_COST * Math.pow(EXPAND_COST_GROWTH, grown) / 10) * 10;
+    }
+
+    // Meta-XP sink that nudges the next end-of-run loot roll by a flat
+    // +1% per rank. Gated by maxWaveReached ≥ 20 so it only opens after
+    // the player has actually reached the loot gate.
+    function getLuckBoostCost(save) {
+        const rank = (save.backpack && Number(save.backpack.luckBoost)) || 0;
+        return Math.round(LUCK_BASE_COST * Math.pow(LUCK_COST_GROWTH, rank) / 5) * 5;
+    }
+    function luckBoostUnlocked(save) {
+        return (Number(save.maxWaveReached) || 0) >= 20;
+    }
+    // Returns cost paid, or -1 if locked / too poor.
+    function buyLuckBoost(save) {
+        backfillV1Fields(save, false);
+        if (!luckBoostUnlocked(save)) return -1;
+        const cost = getLuckBoostCost(save);
+        if (save.metaXP < cost) return -1;
+        save.metaXP -= cost;
+        save.backpack.luckBoost = (save.backpack.luckBoost || 0) + 1;
+        write(save);
+        return cost;
     }
 
     // axis: 'w' (add a column) or 'h' (add a row). Returns cost paid, or -1
@@ -437,6 +470,11 @@ const NeonSave = (function () {
         grantItem,
         getExpandCost,
         expandBackpack,
+        getLuckBoostCost,
+        luckBoostUnlocked,
+        buyLuckBoost,
+        LUCK_PER_RANK,
+        LUCK_CHANCE_CAP,
         encodeSaveCode,
         decodeSaveCode
     };

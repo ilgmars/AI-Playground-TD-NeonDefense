@@ -721,6 +721,22 @@ function bpExpand(axis) {
     renderBackpack();
 }
 
+function bpBuyLuck() {
+    if (!NeonSave.luckBoostUnlocked(save)) {
+        bpStatus('Reach wave 20 in any run to unlock the Luck booster.');
+        return;
+    }
+    const paid = NeonSave.buyLuckBoost(save);
+    if (paid < 0) {
+        const cost = NeonSave.getLuckBoostCost(save);
+        bpStatus(`Need ${cost - save.metaXP} more meta-XP.`);
+        return;
+    }
+    if (typeof updateMainMenuState === 'function') updateMainMenuState();
+    bpStatus(`Salvage Luck +1% (now +${save.backpack.luckBoost}%) for ${paid} XP.`);
+    renderBackpack();
+}
+
 function renderBackpack() {
     const bp = save.backpack;
     if (!bp) return;
@@ -739,6 +755,22 @@ function renderBackpack() {
     const ehBtn = document.getElementById('bp-expand-h');
     if (ewBtn) ewBtn.disabled = bp.w >= 9 || save.metaXP < expCost;
     if (ehBtn) ehBtn.disabled = bp.h >= 8 || save.metaXP < expCost;
+
+    // Salvage Luck — small permanent boost to next-run drop chance.
+    const luckRank = bp.luckBoost || 0;
+    const luckCost = NeonSave.getLuckBoostCost(save);
+    const luckUnlocked = NeonSave.luckBoostUnlocked(save);
+    const luckBtn  = document.getElementById('bp-luck');
+    const luckStat = document.getElementById('bp-luck-stat');
+    const luckCostEl = document.getElementById('bp-luck-cost');
+    if (luckStat) luckStat.textContent = `+${luckRank}%`;
+    if (luckCostEl) luckCostEl.textContent = luckUnlocked ? (luckCost + ' XP') : 'LOCKED';
+    if (luckBtn) {
+        luckBtn.disabled = !luckUnlocked || save.metaXP < luckCost;
+        luckBtn.title = luckUnlocked
+            ? `+1% to next end-of-run drop chance (current bonus +${luckRank}%, capped overall at ${Math.round(NeonSave.LUCK_CHANCE_CAP * 100)}%).`
+            : 'Reach wave 20 in any run to unlock.';
+    }
 
     // Held panel
     const heldWrap = document.getElementById('bp-held');
@@ -876,6 +908,8 @@ function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, mas
     // (wave ≥ 20, climbing chance, never 100%) reads clearly.
     if (lootRoll) {
         const pct = Math.round(lootRoll.chance * 100);
+        const boostPct = Math.round((lootRoll.boost || 0) * 100);
+        const boostSuffix = boostPct > 0 ? ` · +${boostPct}% luck` : '';
         const wrap = document.createElement('div');
         wrap.className = 'xp-breakdown-unlock loot-banner';
         if (lootGranted && lootGranted.length > 0) {
@@ -883,9 +917,9 @@ function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, mas
                 const def = (typeof BACKPACK_ITEMS !== 'undefined') && BACKPACK_ITEMS[id];
                 return def ? def.name : id;
             });
-            wrap.textContent = `📦 SALVAGE (${pct}%): ${names.join(' · ')} → backpack`;
+            wrap.textContent = `📦 SALVAGE (${pct}%${boostSuffix}): ${names.join(' · ')} → backpack`;
         } else {
-            wrap.textContent = `📦 SALVAGE roll ${pct}% — no drop this run`;
+            wrap.textContent = `📦 SALVAGE roll ${pct}%${boostSuffix} — no drop this run`;
             wrap.classList.add('loot-banner-miss');
         }
         const anchorId = retired ? 'victory-xp-unlock' : 'xp-unlock';
@@ -1109,6 +1143,7 @@ function init() {
     document.getElementById('bp-salvage').addEventListener('click', bpSalvage);
     document.getElementById('bp-expand-w').addEventListener('click', () => bpExpand('w'));
     document.getElementById('bp-expand-h').addEventListener('click', () => bpExpand('h'));
+    document.getElementById('bp-luck').addEventListener('click', bpBuyLuck);
     document.getElementById('bp-rotate').addEventListener('click', bpRotateHeld);
     document.getElementById('bp-tostash').addEventListener('click', bpHeldToStash);
     document.getElementById('bp-discard').addEventListener('click', bpDiscardHeld);
@@ -1655,12 +1690,19 @@ function init() {
         // 90% cap (never 100%). Rarity bias scales with ascension tier per
         // request. Misses still get a banner so the system is legible.
         // Stash-only ⇒ no in-run effect until placed (harness-safe).
+        // Track the deepest wave ever — unlocks the Salvage Luck XP sink
+        // once the player has actually reached the loot gate.
+        save.maxWaveReached = Math.max(save.maxWaveReached || 0, wave);
+
         const lootGranted = [];
         let lootRoll = null;
         if (window.NeonBackpack && typeof BACKPACK_ITEMS !== 'undefined' && wave >= 20) {
-            const chance = Math.min(0.9, 0.2 + 0.7 * (1 - Math.pow(0.97, wave - 20)));
+            const luckRanks = (save.backpack && save.backpack.luckBoost) || 0;
+            const boost = luckRanks * NeonSave.LUCK_PER_RANK;
+            const baseChance = 0.2 + 0.7 * (1 - Math.pow(0.97, wave - 20));
+            const chance = Math.min(NeonSave.LUCK_CHANCE_CAP, baseChance + boost);
             const roll = Math.random();
-            lootRoll = { chance, hit: roll < chance };
+            lootRoll = { chance, boost, hit: roll < chance };
             if (lootRoll.hit) {
                 const id = NeonBackpack.lootRoll(BACKPACK_ITEMS, tier, Math.random);
                 if (NeonSave.grantItem(save, id)) lootGranted.push(id);

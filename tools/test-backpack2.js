@@ -98,6 +98,53 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
   });
   console.log('wave 40 miss (rng=0.999):', JSON.stringify(runMiss));
 
+  // ---- Salvage Luck XP sink (UI + run integration) ----
+  const luckFlow = await page.evaluate(async () => {
+    // Fresh save (no deep run yet) → LUCK button locked.
+    save.metaXP = 100000;
+    save.maxWaveReached = 0;
+    save.backpack.luckBoost = 0;
+    NeonSave.write(save);
+    navigateToBackpack();
+    const lockedDisabled = document.getElementById('bp-luck').disabled;
+    const lockedLabel = document.getElementById('bp-luck-cost').textContent;
+    // Mark wave 20 reached → unlocks.
+    save.maxWaveReached = 20;
+    NeonSave.write(save);
+    renderBackpack();
+    const unlockedDisabled = document.getElementById('bp-luck').disabled;
+    return { lockedDisabled, lockedLabel, unlockedDisabled };
+  });
+  console.log('luck gate:', JSON.stringify(luckFlow));
+
+  const beforeXP = await page.evaluate(() => save.metaXP);
+  await page.locator('#bp-luck').click();
+  await page.waitForTimeout(120);
+  const afterBuy = await page.evaluate(() => ({
+    rank: save.backpack.luckBoost,
+    xp: save.metaXP,
+    persistedRank: JSON.parse(localStorage.getItem(NeonSave.KEY)).backpack.luckBoost,
+    statLabel: document.getElementById('bp-luck-stat').textContent,
+  }));
+  console.log('luck after 1 buy:', JSON.stringify(afterBuy), 'cost paid =', beforeXP - afterBuy.xp);
+
+  // End-of-run with 5 ranks of luck applied → banner mentions the +5% bonus.
+  const luckRun = await page.evaluate(() => {
+    save.backpack.luckBoost = 5;
+    NeonSave.write(save);
+    document.querySelectorAll('.xp-breakdown-unlock.loot-banner').forEach(el => el.remove());
+    window.__r = Math.random; Math.random = () => 0;
+    window.onRunEnded({ wave: 40, tier: 1, retired: false });
+    Math.random = window.__r;
+    const banner = document.querySelector('.xp-breakdown-unlock.loot-banner');
+    return { text: banner ? banner.textContent : null };
+  });
+  console.log('luck-run banner:', JSON.stringify(luckRun));
+
+  // Return to the Backpack screen so the device screenshots below have it open.
+  await page.evaluate(() => navigateToBackpack());
+  await page.waitForTimeout(150);
+
   // ---- Bag expansion (UI) ----
   await page.evaluate(() => { save.metaXP = 100000; NeonSave.write(save); navigateToMainMenu(); });
   await page.click('#menu-backpack-btn');
@@ -147,9 +194,15 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
                    expanded.xp < expand.xp && expanded.persistedW === expanded.w &&
                    // First expand now costs 1500 (was 600) — confirm the new curve.
                    (expand.xp - expanded.xp) === 1500;
+  const okLuckGate = luckFlow.lockedDisabled === true && /LOCKED/.test(luckFlow.lockedLabel) &&
+                     luckFlow.unlockedDisabled === false;
+  const okLuckBuy  = afterBuy.rank === 1 && afterBuy.persistedRank === 1 &&
+                     (beforeXP - afterBuy.xp) === 500 && /\+1%/.test(afterBuy.statLabel);
+  const okLuckBanner = /· \+5% luck/.test(luckRun.text || '');
   console.log('errors:', errs.length ? errs : 'none');
-  const allOk = okEmpty && okNoOcDrop && okGate && okHit && okMiss && okExpand && errs.length === 0;
+  const allOk = okEmpty && okNoOcDrop && okGate && okHit && okMiss && okExpand &&
+                okLuckGate && okLuckBuy && okLuckBanner && errs.length === 0;
   console.log(allOk ? 'BACKPACK ITER2 OK'
-    : `FAIL (empty=${okEmpty} noOcDrop=${okNoOcDrop} gate=${okGate} hit=${okHit} miss=${okMiss} expand=${okExpand})`);
+    : `FAIL (empty=${okEmpty} noOcDrop=${okNoOcDrop} gate=${okGate} hit=${okHit} miss=${okMiss} expand=${okExpand} luckGate=${okLuckGate} luckBuy=${okLuckBuy} luckBanner=${okLuckBanner})`);
   process.exit(allOk ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });

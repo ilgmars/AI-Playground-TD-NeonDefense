@@ -95,4 +95,20 @@ ok('expand capped at max width', NeonSave.expandBackpack(g,'w') === -1);
 g.metaXP = 0;
 ok('expand fails when poor', NeonSave.expandBackpack(g,'h') === -1);
 
+// ── Salvage Luck sink ────────────────────────────────────────────────────
+const LS = NeonSave.createFreshSave();
+ok('luck booster locked at fresh save', NeonSave.luckBoostUnlocked(LS) === false);
+ok('locked buy returns -1', NeonSave.buyLuckBoost(LS) === -1);
+LS.maxWaveReached = 25; LS.metaXP = 1e7;
+ok('reaching wave 20 unlocks the booster', NeonSave.luckBoostUnlocked(LS) === true);
+const luckCost0 = NeonSave.getLuckBoostCost(LS);
+const paidL = NeonSave.buyLuckBoost(LS);
+ok('first luck buy deducts cost + rank++',
+   paidL === luckCost0 && LS.backpack.luckBoost === 1 && LS.metaXP === 1e7 - luckCost0);
+ok('luck cost escalates after a buy', NeonSave.getLuckBoostCost(LS) > luckCost0);
+const luckCost1 = NeonSave.getLuckBoostCost(LS);
+ok('luck cost grows geometrically (≈ ×1.35)', luckCost1 / luckCost0 > 1.25 && luckCost1 / luckCost0 < 1.50);
+LS.metaXP = 0;
+ok('luck buy fails when poor', NeonSave.buyLuckBoost(LS) === -1);
+
 console.log(`\nBACKPACK LOGIC: ${pass} checks passed`);
