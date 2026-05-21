@@ -1,5 +1,6 @@
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
+const path = require('path');
 
 const args = Object.fromEntries(process.argv.slice(2).map(arg => {
     const [key, value = 'true'] = arg.replace(/^--/, '').split('=');
@@ -18,8 +19,8 @@ const ASCENSION = Math.max(0, Math.min(parseInt(args.ascension || process.env.AS
 const USE_VARIANTS = args.variants === 'true' || process.env.VARIANTS === '1';
 
 async function main() {
-    const server = spawn(process.execPath, ['tools/test-http-server.js', String(PORT)], {
-        cwd: __dirname, stdio: 'ignore'
+    const server = spawn(process.execPath, ['tests/helpers/http-server.js', String(PORT)], {
+        cwd: path.join(__dirname, '..'), stdio: 'ignore'
     });
     await new Promise(r => setTimeout(r, 600));
 
@@ -31,7 +32,7 @@ async function main() {
     page.on('pageerror', e => jsErrors.push(e.message));
 
     const seedHash = SEED ? `#${SEED}` : '';
-    await page.goto(`http://localhost:${PORT}/${seedHash}`);
+    await page.goto(`http://127.0.0.1:${PORT}/${seedHash}`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(500);
 
     // Navigate to game directly — expose game to window

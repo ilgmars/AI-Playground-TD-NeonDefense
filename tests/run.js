@@ -1,41 +1,38 @@
 #!/usr/bin/env node
 // Sequential test runner for CI and local use.
 //
-// Each suite is its own node script (logic + browser). We run them in
+// Every suite is its own node script (logic + browser). They run in
 // dependency order — pure-logic / signature tests first because they
-// fail fastest; browser flows after. A failure stops the runner with a
-// non-zero exit so CI fails the job.
-//
-// Skipped by default: the legacy root-level `test-*.js` files
-// (autopilot, defense, retire, diag, screenshot) which are multi-minute
-// game sims used for tuning / smoke runs, not regression assertions.
-// Pass `--with-smoke` to include the autopilot smoke.
+// fail fastest, browser flows after. The first failure stops the run
+// (its stdout + stderr are echoed) and returns a non-zero exit so CI
+// fails the job. Pass --with-smoke to include the multi-minute
+// autopilot smoke (tests/autopilot.smoke.js).
 
 const { spawnSync } = require('child_process');
 const path = require('path');
 
 const SUITES = [
     // ── Fast logic + crypto-ish unit tests (no browser) ───────────────────
-    { name: 'test-aegis',           file: 'tools/test-aegis.js' },
-    { name: 'test-backpack',        file: 'tools/test-backpack.js' },
-    { name: 'test-backpack-items',  file: 'tools/test-backpack-items.js' },
-    { name: 'test-ascension',       file: 'tools/test-ascension.js' },
-    { name: 'test-perf',            file: 'tools/test-perf.js' },
+    { name: 'aegis',           file: 'tests/aegis.test.js' },
+    { name: 'backpack',        file: 'tests/backpack.test.js' },
+    { name: 'backpack-items',  file: 'tests/backpack-items.test.js' },
+    { name: 'ascension',       file: 'tests/ascension.test.js' },
+    { name: 'perf',            file: 'tests/perf.test.js' },
 
     // ── Browser flows (Playwright + chromium) ─────────────────────────────
-    { name: 'test-mobile-nav',      file: 'tools/test-mobile-nav.js' },
-    { name: 'test-variant-mastery', file: 'tools/test-variant-mastery.js' },
-    { name: 'test-backpack-ui',     file: 'tools/test-backpack-ui.js' },
-    { name: 'test-backpack2',       file: 'tools/test-backpack2.js' },
-    { name: 'test-hold-spend',      file: 'tools/test-hold-spend.js' },
-    { name: 'test-boons',           file: 'tools/test-boons.js' },
-    { name: 'test-minigame',        file: 'tools/test-minigame.js' },
-    { name: 'test-extra',           file: 'tools/test-extra.js' },
+    { name: 'mobile-nav',      file: 'tests/mobile-nav.test.js' },
+    { name: 'variant-mastery', file: 'tests/variant-mastery.test.js' },
+    { name: 'backpack-ui',     file: 'tests/backpack-ui.test.js' },
+    { name: 'backpack-iter2',  file: 'tests/backpack-iter2.test.js' },
+    { name: 'hold-spend',      file: 'tests/hold-spend.test.js' },
+    { name: 'boons',           file: 'tests/boons.test.js' },
+    { name: 'minigame',        file: 'tests/minigame.test.js' },
+    { name: 'extra',           file: 'tests/extra.test.js' },
 ];
 
 const SMOKE_SUITES = [
     // Optional smoke: autopilot run at 2048× to wave 30 (~ 2 minutes).
-    { name: 'autopilot-smoke', file: 'test-autopilot.js', args: ['--snapshots=10,30', '--speed=2048', '--ascension=3'] },
+    { name: 'autopilot-smoke', file: 'tests/autopilot.smoke.js', args: ['--snapshots=10,30', '--speed=2048', '--ascension=3'] },
 ];
 
 const withSmoke = process.argv.includes('--with-smoke');
@@ -47,10 +44,10 @@ const results = [];
 let firstFailure = null;
 
 for (const suite of suites) {
-    const label = suite.name.padEnd(22, ' ');
+    const label = suite.name.padEnd(20, ' ');
     process.stdout.write(`▶ ${label} ... `);
     const t0 = Date.now();
-    const res = spawnSync('node', [suite.file].concat(suite.args || []), {
+    const res = spawnSync(process.execPath, [suite.file].concat(suite.args || []), {
         cwd: root,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -63,7 +60,6 @@ for (const suite of suites) {
         process.stdout.write(`✓  ${ms}ms\n`);
     } else {
         process.stdout.write(`✗  ${ms}ms\n`);
-        // Dump the failed suite's output so CI logs show what broke.
         if (!firstFailure) firstFailure = suite.name;
         if (res.stdout) {
             process.stdout.write('  ── stdout ─────────────────────────────────────────\n');

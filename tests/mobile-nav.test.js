@@ -14,7 +14,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 (async () => {
-    const server = spawn(process.execPath, ['tools/test-http-server.js', '8830'], { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
+    const server = spawn(process.execPath, ['tests/helpers/http-server.js', '8830'], { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
     await new Promise(r => setTimeout(r, 600));
     const browser = await chromium.launch({ headless: true });
     let pass = 0, fail = 0;
@@ -29,7 +29,7 @@ const path = require('path');
         const page = await ctx.newPage();
         const errs = [];
         page.on('pageerror', e => errs.push(e.message));
-        await page.goto('http://localhost:8830/index.html');
+        await page.goto('http://127.0.0.1:8830/index.html', { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(700);
         // Stuff the stash so the panel definitely exceeds the viewport.
         await page.evaluate(() => {
@@ -75,7 +75,7 @@ const path = require('path');
     ]) {
         const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
         const page = await ctx.newPage();
-        await page.goto('http://localhost:8830/index.html');
+        await page.goto('http://127.0.0.1:8830/index.html', { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(700);
         await page.evaluate(`(() => { ${sub.open}; })()`);
         await page.waitForTimeout(200);

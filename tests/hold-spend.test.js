@@ -4,11 +4,11 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 (async () => {
-  const server = spawn(process.execPath, ['tools/test-http-server.js', '8767'], { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
+  const server = spawn(process.execPath, ['tests/helpers/http-server.js', '8767'], { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
   await new Promise(r => setTimeout(r, 600));
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
-  await page.goto('http://localhost:8767/index.html');
+  await page.goto('http://127.0.0.1:8767/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(700);
   // Heaps of XP so a long hold can buy many ranks (damage limit = 10).
   await page.evaluate(() => {

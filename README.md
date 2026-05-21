@@ -74,7 +74,7 @@ npm run test:perf                  # microbenchmarks + appends to perf-history.j
 
 ### Performance gate
 
-`tools/test-perf.js` measures throughput of the hot paths
+`tests/perf.test.js` measures throughput of the hot paths
 (`NeonAegis.sign`, `NeonBackpack.salvageRoll`, `computeStats`, …) and
 fails if any drops below the minimum in `MIN_OPS`. Thresholds are
 roughly **a third** of measured dev-laptop numbers, so CI keeps a
@@ -84,7 +84,7 @@ entry to [`perf-history.json`](perf-history.json) — the file is a
 plain-array log of `{ts, sha, node, platform, metrics}` so trends are
 diff-able in git.
 
-The runner ([`tools/run-tests.js`](tools/run-tests.js)) is sequential
+The runner ([`tests/run.js`](tests/run.js)) is sequential
 and fail-fast — the first broken suite stops the run and dumps its
 stdout / stderr so the CI logs explain what regressed.
 

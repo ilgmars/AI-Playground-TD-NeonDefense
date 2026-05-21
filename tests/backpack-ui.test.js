@@ -7,7 +7,7 @@ const fs = require('fs');
 fs.mkdirSync('/tmp/shots', { recursive: true });
 
 (async () => {
-  const server = spawn(process.execPath, ['tools/test-http-server.js', '8790'], { cwd: path.join(__dirname, '..'), stdio:'ignore' });
+  const server = spawn(process.execPath, ['tests/helpers/http-server.js', '8790'], { cwd: path.join(__dirname, '..'), stdio:'ignore' });
   await new Promise(r => setTimeout(r, 600));
   const browser = await chromium.launch({ headless: true });
   const errs = [];
@@ -16,7 +16,7 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
   const page = await browser.newPage();
   page.on('pageerror', e => errs.push(e.message));
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto('http://localhost:8790/index.html');
+  await page.goto('http://127.0.0.1:8790/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(700);
 
   // Empty backpack must be a strict no-op at run start.
@@ -83,7 +83,7 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
   for (const d of devices) {
     const ctx = await b2.newContext({ viewport:{width:d.w,height:d.h}, hasTouch:d.m, isMobile:d.m });
     const p = await ctx.newPage();
-    await p.goto('http://localhost:8790/index.html'); await p.waitForTimeout(700);
+    await p.goto('http://127.0.0.1:8790/index.html'); await p.waitForTimeout(700);
     await p.evaluate(() => {
       const s = NeonSave.load();
       s.metaXP = 50000;

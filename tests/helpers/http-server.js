@@ -3,7 +3,7 @@
 // `python3 -m http.server` dependency so the suite runs anywhere node
 // runs (including GitHub Actions images without a pre-installed python).
 //
-//   node tools/test-http-server.js <port>
+//   node tests/helpers/http-server.js <port>
 //
 // Serves files from the project root. Stays alive until killed by the
 // parent process (matches the python http.server contract).
@@ -12,7 +12,10 @@ const fs   = require('fs');
 const path = require('path');
 
 const port = parseInt(process.argv[2] || '8000', 10);
-const root = path.resolve(__dirname, '..');
+// Serve the caller's working directory. Tests spawn us with
+// cwd = <project-root>; this stays correct regardless of where this
+// helper lives in the source tree.
+const root = process.cwd();
 
 const MIME = {
     '.html': 'text/html; charset=utf-8',

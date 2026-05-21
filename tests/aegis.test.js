@@ -116,7 +116,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 (async () => {
-    const server = spawn(process.execPath, ['tools/test-http-server.js', '8810'], { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
+    const server = spawn(process.execPath, ['tests/helpers/http-server.js', '8810'], { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
     await new Promise(r => setTimeout(r, 600));
     const browser = await chromium.launch({ headless: true });
     let bPass = 0, bFail = 0;
@@ -134,7 +134,7 @@ const path = require('path');
         const page = await ctx.newPage();
         const errs = [];
         page.on('pageerror', e => errs.push(e.message));
-        await page.goto('http://localhost:8810/index.html');
+        await page.goto('http://127.0.0.1:8810/index.html', { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(700);
         page._errs = errs;
         page._ctx = ctx;

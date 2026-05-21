@@ -7,14 +7,14 @@ const fs = require('fs');
 fs.mkdirSync('/tmp/shots', { recursive: true });
 
 (async () => {
-  const server = spawn(process.execPath, ['tools/test-http-server.js', '8797'], { cwd: path.join(__dirname, '..'), stdio:'ignore' });
+  const server = spawn(process.execPath, ['tests/helpers/http-server.js', '8797'], { cwd: path.join(__dirname, '..'), stdio:'ignore' });
   await new Promise(r => setTimeout(r, 600));
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   const errs = [];
   page.on('pageerror', e => errs.push(e.message));
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto('http://localhost:8797/index.html');
+  await page.goto('http://127.0.0.1:8797/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(700);
 
   const emptyNoop = await page.evaluate(() => window.game ? window.game.boonDamageMult : null);
@@ -205,7 +205,7 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
   for (const d of [{t:'mobile',w:390,h:844},{t:'narrow',w:360,h:640}]) {
     const ctx = await b2.newContext({ viewport:{width:d.w,height:d.h}, hasTouch:true, isMobile:true });
     const p = await ctx.newPage();
-    await p.goto('http://localhost:8797/index.html'); await p.waitForTimeout(700);
+    await p.goto('http://127.0.0.1:8797/index.html'); await p.waitForTimeout(700);
     await p.evaluate(() => {
       const s = NeonSave.load();
       s.metaXP = 100000;
