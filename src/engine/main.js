@@ -618,7 +618,13 @@ function renderTowerMastery() {
 }
 
 // ── Backpack (spatial inventory) ──────────────────────────────────────────
-const BP_RARITY_COLOR = { common: '#94a3b8', uncommon: '#38bdf8', rare: '#c084fc' };
+const BP_RARITY_COLOR = {
+    common:    '#94a3b8',   // slate
+    uncommon:  '#38bdf8',   // cyan
+    rare:      '#c084fc',   // violet
+    epic:      '#f472b6',   // hot pink
+    legendary: '#fbbf24',   // gold
+};
 // Held item while arranging: { source:'stash'|'placed', id, rot }.
 let bpHeld = null;
 let bpCellEls = {};   // "x,y" -> grid cell element, for non-destructive ghost

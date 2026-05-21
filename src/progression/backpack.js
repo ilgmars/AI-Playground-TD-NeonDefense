@@ -137,15 +137,18 @@ const NeonBackpack = (function () {
         return ids[ids.length - 1];
     }
 
-    // Rarity weights for *earned* loot (OVERCLOCK / end-of-run). `luck`
-    // rises with how far the player pushed / how deep the run went and
-    // biases the roll toward rarer items.
+    // Rarity weights for *earned* loot (end-of-run). `luck` rises with
+    // ascension tier and biases the roll toward the higher tiers. At
+    // luck=0 the weights match BACKPACK_RARITY_WEIGHT (50/28/14/6/2);
+    // by luck=10 epic/legendary dominate the table.
     function lootWeights(luck) {
         const L = Math.max(0, luck || 0);
         return {
-            common:   Math.max(5, 60 - L * 8),
-            uncommon: 30 + L * 3,
-            rare:     10 + L * 6,
+            common:    Math.max(5, 50 - L * 8),
+            uncommon:  Math.max(5, 28 - L * 2),
+            rare:      14 + L * 3,
+            epic:      6  + L * 4,
+            legendary: 2  + L * 3,
         };
     }
     function lootRoll(ITEMS, luck, randFn) {

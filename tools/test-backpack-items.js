@@ -30,7 +30,7 @@ function ok(name, cond) {
 const ids = Object.keys(BACKPACK_ITEMS);
 ok('pool has 25+ items', ids.length >= 25);
 
-const VALID_RARITIES = ['common', 'uncommon', 'rare'];
+const VALID_RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 const STAT_KEYS = new Set(B.STAT_KEYS);
 const seenIds = new Set();
 
@@ -69,12 +69,15 @@ for (const id of ids) {
     seenIds.add(id);
 }
 
-// Rarity distribution sanity: every rarity should appear at least 5 times.
-const counts = { common: 0, uncommon: 0, rare: 0 };
+// Rarity distribution sanity — every tier should be populated, with the
+// higher tiers necessarily rarer than the lower ones in the pool.
+const counts = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 };
 for (const id of ids) counts[BACKPACK_ITEMS[id].rarity]++;
-ok('common pool has ≥ 8 items',   counts.common   >= 8);
-ok('uncommon pool has ≥ 8 items', counts.uncommon >= 8);
-ok('rare pool has ≥ 5 items',     counts.rare     >= 5);
+ok('common pool has ≥ 12 items',    counts.common    >= 12);
+ok('uncommon pool has ≥ 12 items',  counts.uncommon  >= 12);
+ok('rare pool has ≥ 10 items',      counts.rare      >= 10);
+ok('epic pool has ≥ 5 items',       counts.epic      >= 5);
+ok('legendary pool has ≥ 3 items',  counts.legendary >= 3);
 
 // salvageRoll should be able to reach every item id given enough samples.
 // (Weighted by rarity; commons dominate, but uncommons + rares must still

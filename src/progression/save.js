@@ -51,7 +51,7 @@ const NeonSave = (function () {
     // cost for commons (so re-rolling isn't free), but a single end-of-run
     // rare hands back a meaningful chunk of meta-XP. Caller supplies the
     // rarity via the item def; unknown rarity refunds 0.
-    const SELL_REFUND = { common: 100, uncommon: 250, rare: 500 };
+    const SELL_REFUND = { common: 100, uncommon: 250, rare: 500, epic: 1000, legendary: 2500 };
 
     function createFreshSave() {
         const mastery = {};
