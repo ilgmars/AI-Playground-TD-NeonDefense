@@ -1,6 +1,11 @@
 // Seeded PRNG injection script.
 // Runs via page.addInitScript before any game code loads.
 // Overrides Math.random to use a deterministic mulberry32 PRNG with a fixed seed.
+//
+// Sets the Aegis dev-mode flag because the harness intentionally replaces
+// Math.random — without this, the anti-tamper sensor would flag every
+// auto-tune run as cheating.
+if (typeof window !== 'undefined') window.__neonAegisDev = true;
 
 function createSeededRng(seed) {
     return function() {

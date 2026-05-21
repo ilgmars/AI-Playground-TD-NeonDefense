@@ -7,6 +7,10 @@ let gameSpeed = 1;
 
 // Load or create persistent save. NeonSave.load handles legacy migration
 // (neonDefenseScores_easy|normal|hard → a0/a2/a4, 200 XP welcome grant).
+// Aegis boots BEFORE the save load so Math.random / Date.now etc are
+// snapshotted from a pristine page. (NeonSave.load() may set the cheater
+// flag if it detects a localStorage tamper — that's why we boot first.)
+if (typeof NeonAegis !== 'undefined') NeonAegis.boot();
 const save = NeonSave.load();
 window.save = save;   // M2: expose for Enemy.draw HP-bar check.
 
@@ -881,8 +885,22 @@ function renderBackpack() {
 
 // Renders the XP breakdown in the game-over overlay. Called by
 // window.onRunEnded after XP has been applied to the save.
-function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults, retired, lootGranted, lootRoll }) {
-    document.querySelectorAll('.xp-breakdown-unlock.mastery-banner, .xp-breakdown-unlock.loot-banner').forEach(el => el.remove());
+function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults, retired, lootGranted, lootRoll, cheaterReason }) {
+    document.querySelectorAll('.xp-breakdown-unlock.mastery-banner, .xp-breakdown-unlock.loot-banner, .xp-breakdown-unlock.aegis-banner').forEach(el => el.remove());
+
+    // Aegis lock — withheld rewards. Show a prominent banner explaining why
+    // and skip the rest of the dynamic banners (no mastery/loot when
+    // cheating). XP rows still render (all zeros) so the breakdown layout
+    // stays consistent.
+    if (cheaterReason) {
+        const wrap = document.createElement('div');
+        wrap.className = 'xp-breakdown-unlock aegis-banner';
+        wrap.innerHTML = '⛔ <strong>AEGIS LOCK</strong> — anomaly detected (' + cheaterReason +
+                         '). Rewards withheld this session. <em>RESET SAVE</em> to clear.';
+        const anchorId = retired ? 'victory-xp-unlock' : 'xp-unlock';
+        const anchor = document.getElementById(anchorId);
+        if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(wrap, anchor);
+    }
 
     if (retired) {
         document.getElementById('victory-xp-wave').textContent    = xp.waveXP;
@@ -1111,6 +1129,7 @@ function init() {
         towerLoadout: sanitizeTowerLoadout(selectedTowerLoadout)
     });
     window.game = game;   // cross-script access (minigame / boon picker)
+    if (typeof NeonAegis !== 'undefined') NeonAegis.protectGame(game);
 
     game.draw();
     game.updateUI();
@@ -1190,6 +1209,7 @@ function init() {
             towerLoadout: sanitizeTowerLoadout(selectedTowerLoadout)
         });
         window.game = game;
+        if (typeof NeonAegis !== 'undefined') NeonAegis.protectGame(game);
         game.draw();
         updateSeedDisplay();
         updateModeDisplay();
@@ -1197,7 +1217,9 @@ function init() {
     });
     document.getElementById('menu-reset-btn').addEventListener('click', () => {
         if (confirm('Reset save? This deletes XP, unlocks, and high scores. Cannot be undone.')) {
+            // Also wipe the Aegis signature so the fresh save starts clean.
             localStorage.removeItem('neonDefense.save');
+            localStorage.removeItem('neonDefense.save.sig');
             location.reload();
         }
     });
@@ -1563,6 +1585,7 @@ function init() {
             towerLoadout: sanitizeTowerLoadout(selectedTowerLoadout)
         });
         window.game = game;
+        if (typeof NeonAegis !== 'undefined') NeonAegis.protectGame(game);
         game.start();
         updateSeedDisplay();
         updateModeDisplay();
@@ -1686,6 +1709,26 @@ function init() {
     // Exposes the XP breakdown to renderRunResultXP for the overlay.
     window.onRunEnded = function (result) {
         const { wave, tier, retired } = result;
+
+        // ── AEGIS LOCK ────────────────────────────────────────────────────
+        // If Aegis flagged the save (signed-save tamper, RNG override,
+        // console money/HP spike, etc.) we withhold ALL meta progression:
+        // metaXP gain, mastery, maxWaveReached, loot. The render function
+        // shows a red banner explaining the situation. RESET SAVE clears
+        // the flag.
+        if (save.cheaterDetected) {
+            const zeroXP = { waveXP: 0, clearBonus: 0, firstBonus: 0, total: 0, retireBonus: 0 };
+            if (typeof renderRunResultXP === 'function') {
+                renderRunResultXP({
+                    wave, tier, xp: zeroXP, firstClear: false,
+                    autoUnlockedNodeId: null, masteryResults: [],
+                    retired, lootGranted: [], lootRoll: null,
+                    cheaterReason: save.cheaterReason || 'anomaly'
+                });
+            }
+            return;
+        }
+
         const firstClear = wave >= 30 && tier > save.ascensionCleared;
 
         const xp = NeonSave.calculateRunXP(wave, tier, firstClear);
@@ -1698,7 +1741,6 @@ function init() {
         let autoUnlockedNodeId = null;
         if (firstClear) {
             save.ascensionCleared = tier;
-            // M2: Grant a free tree node for the cleared tier.
             autoUnlockedNodeId = NeonTree.autoUnlockOnAscension(save, tier);
         }
         NeonSave.write(save);
@@ -1713,17 +1755,9 @@ function init() {
         }
 
         const masteryResults = NeonSave.tallyMastery(save, game.towers);
-
-        // End-of-run loot is the ONE channel for backpack items. Gated to
-        // wave ≥ 20 ("endgame thing"), capped at one drop per run, and
-        // probabilistic: 20% at wave 20, climbing geometrically toward a
-        // 90% cap (never 100%). Rarity bias scales with ascension tier per
-        // request. Misses still get a banner so the system is legible.
-        // Stash-only ⇒ no in-run effect until placed (harness-safe).
-        // Track the deepest wave ever — unlocks the Salvage Luck XP sink
-        // once the player has actually reached the loot gate.
         save.maxWaveReached = Math.max(save.maxWaveReached || 0, wave);
 
+        // End-of-run loot — see the rebalance commit for the chance curve.
         const lootGranted = [];
         let lootRoll = null;
         if (window.NeonBackpack && typeof BACKPACK_ITEMS !== 'undefined' && wave >= 20) {

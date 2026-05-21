@@ -34,6 +34,12 @@ const { spawn } = require('child_process');
     const greedy = attempt % 2 === 1;
     let outcome = null;
     for (let i = 0; i < 6; i++) {
+      // Skip already-revealed cells: a previous MAX OVERCLOCK reveals the
+      // entire board via paint(true), and we don't want to misread one of
+      // those tiles as the cell THIS click revealed.
+      const preCls = await page.locator(`#mg-board .mg-cell[data-idx="${i}"]`).getAttribute('class');
+      if (preCls.includes('safe') || preCls.includes('surge')) { outcome = 'max'; break; }
+
       await page.locator(`#mg-board .mg-cell[data-idx="${i}"]`).click();
       await page.waitForTimeout(120);
       const cls = await page.locator(`#mg-board .mg-cell[data-idx="${i}"]`).getAttribute('class');

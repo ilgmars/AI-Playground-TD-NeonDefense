@@ -5,6 +5,7 @@
 
 const NeonSave = (function () {
     const KEY = 'neonDefense.save';
+    const SIG_KEY = 'neonDefense.save.sig';
     const SCHEMA_VERSION = 1;
 
     // Tower types used by the current game. Kept in sync with TOWERS keys in config.js.
@@ -76,6 +77,10 @@ const NeonSave = (function () {
             },
             backpack: { w: BACKPACK_W, h: BACKPACK_H, placed: [], stash: [], luckBoost: 0 },
             maxWaveReached: 0,
+            // Aegis flags; written by NeonAegis.flag() and consulted by
+            // onRunEnded to withhold rewards until RESET SAVE clears them.
+            cheaterDetected: false,
+            cheaterReason: null,
             settings: { skipRunSetup: false }
         };
     }
@@ -126,13 +131,37 @@ const NeonSave = (function () {
         return legacyFound;
     }
 
+    // Verify the signature stored next to the save. Returns one of:
+    //   'ok'       — sig matches, save is untampered
+    //   'pre-aegis' — no sig yet (legacy save, first load after Aegis)
+    //   'mismatch' — sig present but does not match the data (tamper)
+    function _verifyStoredSig(jsonStr) {
+        if (typeof NeonAegis === 'undefined') return 'ok';        // tests/node
+        const sig = localStorage.getItem(SIG_KEY);
+        if (sig === null) return 'pre-aegis';
+        return NeonAegis.verify(jsonStr, sig) ? 'ok' : 'mismatch';
+    }
+
     function load() {
         const raw = localStorage.getItem(KEY);
         if (raw !== null) {
             try {
                 const parsed = JSON.parse(raw);
                 if (parsed && typeof parsed === 'object' && parsed.version === SCHEMA_VERSION) {
+                    const sigState = _verifyStoredSig(raw);
                     backfillV1Fields(parsed);
+                    if (sigState === 'mismatch' && !parsed.cheaterDetected) {
+                        // Hand-edited localStorage caught at next load.
+                        parsed.cheaterDetected = true;
+                        parsed.cheaterReason = 'save-tampered';
+                        // Persist the flag immediately (with a fresh sig) so
+                        // it survives subsequent loads.
+                        write(parsed);
+                    } else if (sigState === 'pre-aegis') {
+                        // Legacy save without a sig — sign it now so future
+                        // tampering is detected. Not a cheat.
+                        write(parsed);
+                    }
                     return parsed;
                 }
             } catch (_) { /* fall through to fresh */ }
@@ -144,7 +173,11 @@ const NeonSave = (function () {
     }
 
     function write(save) {
-        localStorage.setItem(KEY, JSON.stringify(save));
+        const json = JSON.stringify(save);
+        localStorage.setItem(KEY, json);
+        if (typeof NeonAegis !== 'undefined') {
+            try { localStorage.setItem(SIG_KEY, NeonAegis.sign(json)); } catch (_) {}
+        }
     }
 
     // Non-schema-bump backfill for M1-era saves missing M2 fields.
@@ -196,6 +229,8 @@ const NeonSave = (function () {
         bp.luckBoost = Math.max(0, Math.floor(Number(bp.luckBoost) || 0));
         save.backpack = bp;
         save.maxWaveReached = Math.max(0, Math.floor(Number(save.maxWaveReached) || 0));
+        save.cheaterDetected = !!save.cheaterDetected;
+        if (typeof save.cheaterReason !== 'string') save.cheaterReason = null;
 
         if (persist) write(save);
     }
@@ -447,26 +482,55 @@ const NeonSave = (function () {
 
     function encodeSaveCode(save) {
         const json = JSON.stringify(save);
+        // Prefer ND2 (Aegis-signed) when available; fall back to ND1 in
+        // bare-node tests that didn't preload aegis.js.
+        if (typeof NeonAegis !== 'undefined') {
+            return 'ND2.' + _b64encode(json) + '.' + NeonAegis.sign(json);
+        }
         return 'ND1.' + _b64encode(json) + '.' + _hash(json).toString(36);
     }
 
     // Returns the decoded save object. Throws Error on malformed/corrupt input —
     // caller should catch and surface the message, never overwrite on failure.
     function decodeSaveCode(code) {
-        const m = /^ND1\.([A-Za-z0-9+/=]+)\.([a-z0-9]+)$/.exec(String(code || '').trim());
-        if (!m) throw new Error('Not a valid save code (expected "ND1.…").');
-        const json = _b64decode(m[1]);
-        if (_hash(json).toString(36) !== m[2]) {
-            throw new Error('Save code is corrupted (checksum mismatch).');
+        const trimmed = String(code || '').trim();
+
+        // ND2 — Aegis multi-pass signature. Three dot-separated base-36 fields.
+        const m2 = /^ND2\.([A-Za-z0-9+/=]+)\.([a-z0-9]+\.[a-z0-9]+\.[a-z0-9]+)$/.exec(trimmed);
+        if (m2) {
+            const json = _b64decode(m2[1]);
+            if (typeof NeonAegis === 'undefined' || !NeonAegis.verify(json, m2[2])) {
+                throw new Error('Save code signature invalid — refusing to load.');
+            }
+            let obj;
+            try { obj = JSON.parse(json); }
+            catch (e) { throw new Error('Save code payload is not valid JSON.'); }
+            if (!obj || typeof obj !== 'object' || typeof obj.metaXP !== 'number') {
+                throw new Error('Save code does not contain a valid save.');
+            }
+            backfillV1Fields(obj, false);
+            return obj;
         }
-        let obj;
-        try { obj = JSON.parse(json); }
-        catch (e) { throw new Error('Save code payload is not valid JSON.'); }
-        if (!obj || typeof obj !== 'object' || typeof obj.metaXP !== 'number') {
-            throw new Error('Save code does not contain a valid save.');
+
+        // ND1 — legacy weak hash. Still readable so old exports keep working;
+        // re-saving migrates to ND2.
+        const m1 = /^ND1\.([A-Za-z0-9+/=]+)\.([a-z0-9]+)$/.exec(trimmed);
+        if (m1) {
+            const json = _b64decode(m1[1]);
+            if (_hash(json).toString(36) !== m1[2]) {
+                throw new Error('Save code is corrupted (checksum mismatch).');
+            }
+            let obj;
+            try { obj = JSON.parse(json); }
+            catch (e) { throw new Error('Save code payload is not valid JSON.'); }
+            if (!obj || typeof obj !== 'object' || typeof obj.metaXP !== 'number') {
+                throw new Error('Save code does not contain a valid save.');
+            }
+            backfillV1Fields(obj, false);
+            return obj;
         }
-        backfillV1Fields(obj, false);
-        return obj;
+
+        throw new Error('Not a valid save code (expected "ND2.…" or "ND1.…").');
     }
 
     return {
