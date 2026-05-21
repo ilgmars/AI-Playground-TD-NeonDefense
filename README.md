@@ -3,7 +3,7 @@
 [![Tests](https://github.com/ilgmars/AI-Playground-TD-NeonDefense/actions/workflows/test.yml/badge.svg)](https://github.com/ilgmars/AI-Playground-TD-NeonDefense/actions/workflows/test.yml)
 [![Build APK](https://github.com/ilgmars/AI-Playground-TD-NeonDefense/actions/workflows/build-apk.yml/badge.svg)](https://github.com/ilgmars/AI-Playground-TD-NeonDefense/actions/workflows/build-apk.yml)
 [![Built by AI only](https://img.shields.io/badge/built%20by-AI%20only-c084fc?style=flat&labelColor=0f172a)](#about-this-project)
-[![License: ISC](https://img.shields.io/badge/license-ISC-38bdf8?style=flat&labelColor=0f172a)](#license)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-38bdf8?style=flat&labelColor=0f172a)](LICENSE)
 
 > A neon-themed browser tower-defence game with an endless roguelike loop,
 > a Backpack-Hero-style spatial inventory, and an honor-system anti-tamper
@@ -83,4 +83,4 @@ friendly; beating the behavioural sensors is the puzzle.
 
 ## License
 
-ISC — see [`package.json`](package.json).
+Apache License 2.0 — see [`LICENSE`](LICENSE).
