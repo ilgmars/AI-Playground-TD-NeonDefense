@@ -2,11 +2,12 @@
 // start; empty backpack is a no-op. Plus device screenshots.
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
+const path = require('path');
 const fs = require('fs');
 fs.mkdirSync('/tmp/shots', { recursive: true });
 
 (async () => {
-  const server = spawn(process.execPath, ['tools/test-http-server.js', '8790'], { cwd:'/home/claude/AI-Playground-TD-NeonDefense', stdio:'ignore' });
+  const server = spawn(process.execPath, ['tools/test-http-server.js', '8790'], { cwd: path.join(__dirname, '..'), stdio:'ignore' });
   await new Promise(r => setTimeout(r, 600));
   const browser = await chromium.launch({ headless: true });
   const errs = [];

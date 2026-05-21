@@ -19,7 +19,7 @@ const USE_VARIANTS = args.variants === 'true' || process.env.VARIANTS === '1';
 
 async function main() {
     const server = spawn(process.execPath, ['tools/test-http-server.js', String(PORT)], {
-        cwd: '/home/claude/AI-Playground-TD-NeonDefense', stdio: 'ignore'
+        cwd: __dirname, stdio: 'ignore'
     });
     await new Promise(r => setTimeout(r, 600));
 

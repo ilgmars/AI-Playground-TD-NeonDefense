@@ -2,9 +2,10 @@
 // the pot on bank, busts on surge, resumes the run, no JS errors.
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
+const path = require('path');
 
 (async () => {
-  const server = spawn(process.execPath, ['tools/test-http-server.js', '8780'], { cwd: '/home/claude/AI-Playground-TD-NeonDefense', stdio: 'ignore' });
+  const server = spawn(process.execPath, ['tools/test-http-server.js', '8780'], { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
   await new Promise(r => setTimeout(r, 600));
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();

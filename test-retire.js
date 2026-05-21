@@ -4,7 +4,7 @@ const path = require('path');
 
 async function main() {
     const server = spawn(process.execPath, ['tools/test-http-server.js', '8765'], {
-        cwd: path.join('/home/claude/AI-Playground-TD-NeonDefense'),
+        cwd: __dirname,
         stdio: 'ignore',
     });
     await new Promise(r => setTimeout(r, 500));

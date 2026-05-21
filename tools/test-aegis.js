@@ -113,9 +113,10 @@ const nodeFail = fail;
 // ─────────────────────────────────────────────────────────────────────────
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
+const path = require('path');
 
 (async () => {
-    const server = spawn(process.execPath, ['tools/test-http-server.js', '8810'], { cwd: '/home/claude/AI-Playground-TD-NeonDefense', stdio: 'ignore' });
+    const server = spawn(process.execPath, ['tools/test-http-server.js', '8810'], { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
     await new Promise(r => setTimeout(r, 600));
     const browser = await chromium.launch({ headless: true });
     let bPass = 0, bFail = 0;
