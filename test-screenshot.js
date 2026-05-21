@@ -15,7 +15,7 @@ async function screenshot(url, outputPath, waitMs = 2000) {
 
 async function main() {
   // Start local server
-  const server = spawn('python3', ['-m', 'http.server', '8765'], {
+  const server = spawn('node', ['tools/test-http-server.js', '8765'], {
     cwd: path.join(__dirname),
     stdio: 'ignore',
   });

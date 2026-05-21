@@ -6,7 +6,7 @@ const fs = require('fs');
 fs.mkdirSync('/tmp/shots', { recursive: true });
 
 (async () => {
-  const server = spawn('python3', ['-m','http.server','8797'], { cwd:'/home/claude/AI-Playground-TD-NeonDefense', stdio:'ignore' });
+  const server = spawn('node', ['tools/test-http-server.js', '8797'], { cwd:'/home/claude/AI-Playground-TD-NeonDefense', stdio:'ignore' });
   await new Promise(r => setTimeout(r, 600));
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();

@@ -18,7 +18,7 @@ const ASCENSION = Math.max(0, Math.min(parseInt(args.ascension || process.env.AS
 const USE_VARIANTS = args.variants === 'true' || process.env.VARIANTS === '1';
 
 async function main() {
-    const server = spawn('python3', ['-m', 'http.server', String(PORT)], {
+    const server = spawn('node', ['tools/test-http-server.js', String(PORT)], {
         cwd: '/home/claude/AI-Playground-TD-NeonDefense', stdio: 'ignore'
     });
     await new Promise(r => setTimeout(r, 600));
