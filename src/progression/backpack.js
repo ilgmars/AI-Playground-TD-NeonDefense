@@ -68,7 +68,7 @@ const NeonBackpack = (function () {
         return true;
     }
 
-    const STAT_KEYS = ['damage', 'fireRate', 'payout', 'kill', 'maxHP', 'interest', 'towerCost', 'upgradeCost'];
+    const STAT_KEYS = ['damage', 'fireRate', 'payout', 'kill', 'maxHP', 'interest', 'towerCost', 'upgradeCost', 'startMoney', 'regen'];
 
     function zeroStats() {
         const s = {};

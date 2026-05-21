@@ -18,6 +18,7 @@ const SUITES = [
     // ── Fast logic + crypto-ish unit tests (no browser) ───────────────────
     { name: 'test-aegis',           file: 'tools/test-aegis.js' },
     { name: 'test-backpack',        file: 'tools/test-backpack.js' },
+    { name: 'test-backpack-items',  file: 'tools/test-backpack-items.js' },
 
     // ── Browser flows (Playwright + chromium) ─────────────────────────────
     { name: 'test-mobile-nav',      file: 'tools/test-mobile-nav.js' },

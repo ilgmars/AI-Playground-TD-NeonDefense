@@ -101,6 +101,8 @@ class Game {
         if (s.interest)    this.boonInterest     += s.interest;
         if (s.towerCost)   this.towerCostMult    *= Math.max(0.4, 1 - s.towerCost);
         if (s.upgradeCost) this.upgradeCostMult  *= Math.max(0.4, 1 - s.upgradeCost);
+        if (s.startMoney)  this.money            += Math.floor(s.startMoney);
+        if (s.regen)       this.boonRegen        += s.regen;
     }
 
     // M3: Given a base tower type (e.g. 'basic'), return the effective type
