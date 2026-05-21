@@ -7,7 +7,9 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node tools/run-tests.js",
+    "test:smoke": "node tools/run-tests.js --with-smoke",
+    "test:logic": "node tools/test-aegis.js && node tools/test-backpack.js"
   },
   "repository": {
     "type": "git",

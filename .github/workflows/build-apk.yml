@@ -18,7 +18,29 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  test:
+    name: Tests (gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright browser (chromium) + OS deps
+        run: npx playwright install --with-deps chromium
+      - name: Run tests
+        run: npm test
+        env:
+          CI: 'true'
+
   build:
+    needs: test           # APK only builds if the test suite passes
     runs-on: ubuntu-latest
 
     steps:
