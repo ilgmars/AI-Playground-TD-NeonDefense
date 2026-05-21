@@ -302,6 +302,15 @@ if (typeof window !== 'undefined' && !window.__neonHistoryWired) {
     });
 }
 
+// Used by the in-UI "BACK" buttons. Going through history.back() keeps
+// the stack in sync — every _enterSubScreen push has a matching pop so
+// the device Back button stays predictable. If we somehow aren't in a
+// sub-screen (defensive), just show the main menu directly.
+function uiGoBack() {
+    if (_subScreenOpen) { try { history.back(); return; } catch (_) {} }
+    navigateToMainMenu();
+}
+
 // Main Menu → Run Setup → Game is the canonical forward path.
 function navigateToMainMenu() {
     hideScreen('start-screen');
@@ -1265,12 +1274,10 @@ function init() {
     document.getElementById('menu-mastery-btn').addEventListener('click', () => {
         navigateToTowerMastery();
     });
-    document.getElementById('mastery-back-btn').addEventListener('click', () => {
-        navigateToMainMenu();
-    });
+    document.getElementById('mastery-back-btn').addEventListener('click', uiGoBack);
     document.getElementById('menu-backpack-btn').addEventListener('click', navigateToBackpack);
     document.getElementById('backpack-back-btn').addEventListener('click', () => {
-        bpReturnHeldToStash(); bpPersist(); navigateToMainMenu();
+        bpReturnHeldToStash(); bpPersist(); uiGoBack();
     });
     document.getElementById('bp-salvage').addEventListener('click', bpSalvage);
     document.getElementById('bp-expand-w').addEventListener('click', () => bpExpand('w'));
@@ -1314,6 +1321,7 @@ function init() {
         ta.value = NeonSave.encodeSaveCode(save);
         scStatus().textContent = '';
         scStatus().style.color = 'var(--text-muted)';
+        _enterSubScreen();          // make the system Back button dismiss this too
         hideScreen('main-menu');
         showScreen('save-code-modal');
     });
@@ -1341,17 +1349,12 @@ function init() {
     });
     document.getElementById('save-code-close').addEventListener('click', () => {
         hideScreen('save-code-modal');
-        showScreen('main-menu');
+        uiGoBack();             // pops the pushed state so history stays balanced
     });
 
     // M2: Run Setup BACK button goes to Main Menu.
-    document.getElementById('setup-back-btn').addEventListener('click', () => {
-        navigateToMainMenu();
-    });
-
-    document.getElementById('tree-back-btn').addEventListener('click', () => {
-        navigateToMainMenu();
-    });
+    document.getElementById('setup-back-btn').addEventListener('click', uiGoBack);
+    document.getElementById('tree-back-btn').addEventListener('click',  uiGoBack);
 
     // M2: Loadout dropdown change handlers.
     document.getElementById('run-hero-select').addEventListener('change', e => {

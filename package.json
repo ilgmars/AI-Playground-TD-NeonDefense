@@ -9,7 +9,8 @@
   "scripts": {
     "test": "node tools/run-tests.js",
     "test:smoke": "node tools/run-tests.js --with-smoke",
-    "test:logic": "node tools/test-aegis.js && node tools/test-backpack.js"
+    "test:logic": "node tools/test-aegis.js && node tools/test-backpack.js",
+    "test:perf":  "WRITE_PERF_HISTORY=1 node tools/test-perf.js"
   },
   "repository": {
     "type": "git",

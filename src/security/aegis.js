@@ -164,8 +164,13 @@ const NeonAegis = (function () {
             configurable: true, enumerable: true,
             get() { return _money; },
             set(v) {
-                if (!isDev() && typeof v === 'number' && (v - _money) > MAX_MONEY_DELTA) {
-                    flag('money-spike');
+                if (!isDev() && typeof v === 'number') {
+                    // Upward spike (game.money = 1e9), downward spike
+                    // (game.money = -1e9 to wrap-around), or simply
+                    // setting money to a deeply-negative sentinel — all
+                    // are external tampering.
+                    if (Math.abs(v - _money) > MAX_MONEY_DELTA) flag('money-spike');
+                    else if (v < -1) flag('money-negative');
                 }
                 _money = v;
             }

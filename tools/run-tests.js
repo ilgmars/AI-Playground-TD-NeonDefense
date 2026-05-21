@@ -20,6 +20,7 @@ const SUITES = [
     { name: 'test-backpack',        file: 'tools/test-backpack.js' },
     { name: 'test-backpack-items',  file: 'tools/test-backpack-items.js' },
     { name: 'test-ascension',       file: 'tools/test-ascension.js' },
+    { name: 'test-perf',            file: 'tools/test-perf.js' },
 
     // ── Browser flows (Playwright + chromium) ─────────────────────────────
     { name: 'test-mobile-nav',      file: 'tools/test-mobile-nav.js' },
@@ -29,6 +30,7 @@ const SUITES = [
     { name: 'test-hold-spend',      file: 'tools/test-hold-spend.js' },
     { name: 'test-boons',           file: 'tools/test-boons.js' },
     { name: 'test-minigame',        file: 'tools/test-minigame.js' },
+    { name: 'test-extra',           file: 'tools/test-extra.js' },
 ];
 
 const SMOKE_SUITES = [

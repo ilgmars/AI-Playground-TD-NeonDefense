@@ -183,6 +183,17 @@ const NeonSave = (function () {
     // Non-schema-bump backfill for M1-era saves missing M2 fields.
     // Idempotent — safe to call on every load.
     function backfillV1Fields(save, persist = true) {
+        // High-score buckets must exist before anything else reads them —
+        // recordRun + UI code both index into `save.highScores['a' + tier]`
+        // without null-guarding the parent object.
+        if (!save.highScores || typeof save.highScores !== 'object') save.highScores = {};
+        for (let i = 0; i <= 10; i++) {
+            const key = 'a' + i;
+            if (!Array.isArray(save.highScores[key])) save.highScores[key] = [];
+        }
+        if (typeof save.metaXP        !== 'number') save.metaXP = 0;
+        if (typeof save.totalXPEarned !== 'number') save.totalXPEarned = save.metaXP;
+        if (typeof save.ascensionCleared !== 'number') save.ascensionCleared = 0;
         if (!Array.isArray(save.unlockedNodes)) save.unlockedNodes = [];
         if (!save.unlockedNodes.includes('hero.pioneer')) save.unlockedNodes.push('hero.pioneer');
         if (!save.unlockedNodes.includes('kit.standard')) save.unlockedNodes.push('kit.standard');

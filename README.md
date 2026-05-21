@@ -66,10 +66,23 @@ requests and pushes to `main` also run a standalone test job
 ```sh
 npm install
 npx playwright install chromium    # one-time, for browser flows
-npm test                           # runs all 8 suites (~90s)
+npm test                           # runs all 13 suites (~115s)
 npm run test:logic                 # node-only fast subset (<1s)
 npm run test:smoke                 # adds the autopilot smoke (~3 min)
+npm run test:perf                  # microbenchmarks + appends to perf-history.json
 ```
+
+### Performance gate
+
+`tools/test-perf.js` measures throughput of the hot paths
+(`NeonAegis.sign`, `NeonBackpack.salvageRoll`, `computeStats`, …) and
+fails if any drops below the minimum in `MIN_OPS`. Thresholds are
+roughly **a third** of measured dev-laptop numbers, so CI keeps a
+comfortable margin while still catching a 3×+ regression. Run with
+`npm run test:perf` (or set `WRITE_PERF_HISTORY=1`) to append a new
+entry to [`perf-history.json`](perf-history.json) — the file is a
+plain-array log of `{ts, sha, node, platform, metrics}` so trends are
+diff-able in git.
 
 The runner ([`tools/run-tests.js`](tools/run-tests.js)) is sequential
 and fail-fast — the first broken suite stops the run and dumps its
