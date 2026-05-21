@@ -10,9 +10,8 @@
 > blocked it from shipping to the web build and/or the APK. The
 > previously-deployed version stays live until the next green commit.
 
-> A neon-themed browser tower-defence game with an endless roguelike loop,
-> a Backpack-Hero-style spatial inventory, and an honor-system anti-tamper
-> layer.
+> A neon-themed browser tower-defence game with endless ascension tiers,
+> a spatial-grid inventory, and an honor-system anti-tamper layer.
 
 **Web:** <https://ilgmars.github.io/AI-Playground-TD-NeonDefense/>
 

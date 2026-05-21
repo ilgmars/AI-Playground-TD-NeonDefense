@@ -15,8 +15,8 @@ const save = NeonSave.load();
 window.save = save;   // M2: expose for Enemy.draw HP-bar check.
 
 // Default tier = highest cleared. First-time players start on A0.
-// Clamp to M1 ceiling in case a hand-edited save has ascensionCleared > 7.
-let selectedTier = Math.min(save.ascensionCleared, ASCENSION_MAX_TIER);
+// Ascension is endless so no upper clamp.
+let selectedTier = Math.max(0, save.ascensionCleared | 0);
 
 // Visible Ascension tier in the scoreboard view (independent from run tier).
 let visibleScoreTier = selectedTier;
@@ -57,7 +57,7 @@ function sanitizeTowerLoadout(loadout) {
 selectedTowerLoadout = sanitizeTowerLoadout(selectedTowerLoadout);
 
 function setTier(tier) {
-    const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER);
+    const unlockedMax = (save.ascensionCleared | 0) + 1;   // endless
     if (tier < 0 || tier > unlockedMax) return;
     selectedTier = tier;
 
@@ -86,17 +86,57 @@ function renderAscensionSelector(context) {
     if (!container) return;
     container.innerHTML = '';
 
-    const unlockedMax = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER);
+    const unlockedMax = (save.ascensionCleared | 0) + 1;     // endless: no upper cap
+    const namedTop    = Math.min(unlockedMax, ASCENSION_NAMED_MAX_TIER);
 
-    for (let t = 0; t <= unlockedMax; t++) {
-        const spec = ASCENSION_TIERS[t];
+    // Named tiers: always one button each, up to the highest unlocked
+    // named tier (capped at A10).
+    for (let t = 0; t <= namedTop; t++) {
+        const spec = getAscensionTierSpec(t);
         const btn = document.createElement('button');
         btn.className = 'ascension-btn';
-        btn.textContent = spec.label; // "A0", "A1", ...
+        btn.textContent = spec.label;
         btn.title = spec.name;
         if (t === selectedTier) btn.classList.add('selected');
         btn.addEventListener('click', () => setTier(t));
         container.appendChild(btn);
+    }
+
+    // Endless stepper: only shown once the player has cleared past A10.
+    // Renders [-] [A<n>] [+] where n is the currently-selected endless
+    // tier (clamps to A11 if we're still inside the named range).
+    if (unlockedMax > ASCENSION_NAMED_MAX_TIER) {
+        const stepper = document.createElement('div');
+        stepper.className = 'ascension-stepper';
+        const currentEndless = selectedTier > ASCENSION_NAMED_MAX_TIER
+            ? selectedTier
+            : ASCENSION_NAMED_MAX_TIER + 1;
+
+        const minus = document.createElement('button');
+        minus.className = 'ascension-step-btn';
+        minus.textContent = '−';
+        minus.title = 'Step down one tier';
+        minus.disabled = currentEndless <= ASCENSION_NAMED_MAX_TIER + 1;
+        minus.addEventListener('click', () => setTier(currentEndless - 1));
+
+        const label = document.createElement('button');
+        label.className = 'ascension-btn ascension-endless';
+        label.textContent = 'A' + currentEndless;
+        label.title = 'Endless +' + (currentEndless - ASCENSION_NAMED_MAX_TIER);
+        if (selectedTier === currentEndless) label.classList.add('selected');
+        label.addEventListener('click', () => setTier(currentEndless));
+
+        const plus = document.createElement('button');
+        plus.className = 'ascension-step-btn';
+        plus.textContent = '+';
+        plus.title = 'Step up one tier';
+        plus.disabled = currentEndless >= unlockedMax;
+        plus.addEventListener('click', () => setTier(currentEndless + 1));
+
+        stepper.appendChild(minus);
+        stepper.appendChild(label);
+        stepper.appendChild(plus);
+        container.appendChild(stepper);
     }
 
     const preview = document.querySelector(`.ascension-modifiers-preview[data-context="${context}"]`);
@@ -105,7 +145,12 @@ function renderAscensionSelector(context) {
             preview.textContent = 'Baseline — no modifiers';
         } else {
             const names = [];
-            for (let i = 1; i <= selectedTier; i++) names.push(ASCENSION_TIERS[i].name);
+            const namedUpper = Math.min(selectedTier, ASCENSION_NAMED_MAX_TIER);
+            for (let i = 1; i <= namedUpper; i++) names.push(getAscensionTierSpec(i).name);
+            if (selectedTier > ASCENSION_NAMED_MAX_TIER) {
+                const overshoot = selectedTier - ASCENSION_NAMED_MAX_TIER;
+                names.push(`Endless ×${overshoot} (+${Math.round((Math.pow(1.05, overshoot) - 1) * 100)}% HP)`);
+            }
             preview.textContent = names.join(' · ');
         }
     }
@@ -962,9 +1007,9 @@ function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, mas
     const unlockId = retired ? 'victory-xp-unlock' : 'xp-unlock';
     const unlock = document.getElementById(unlockId);
     if (firstClear) {
-        const nextTier = Math.min(tier + 1, ASCENSION_MAX_TIER);
-        const nextSpec = ASCENSION_TIERS[nextTier];
-        let text = nextTier > tier ? `UNLOCKED: ${nextSpec.label} — ${nextSpec.name}` : `MAXED`;
+        const nextTier = tier + 1;            // endless — every clear unlocks the next tier
+        const nextSpec = getAscensionTierSpec(nextTier);
+        let text = `UNLOCKED: ${nextSpec.label} — ${nextSpec.name}`;
         if (autoUnlockedNodeId) {
             const node = getTreeNode(autoUnlockedNodeId);
             if (node) text += ` · FREE NODE: ${autoUnlockedNodeId}`;
@@ -1680,7 +1725,10 @@ function init() {
         const tabs = document.getElementById('score-tabs');
         if (!tabs) return;
         tabs.innerHTML = '';
-        const maxVisible = Math.min(save.ascensionCleared + 1, ASCENSION_MAX_TIER);
+        // Endless ascension — cap the tabs at the highest tier the player
+        // has actually unlocked + 1. Rendering an unbounded tab strip
+        // would explode after a few endless clears.
+        const maxVisible = (save.ascensionCleared | 0) + 1;
         for (let t = 0; t <= maxVisible; t++) {
             const btn = document.createElement('button');
             btn.className = 'score-tab';

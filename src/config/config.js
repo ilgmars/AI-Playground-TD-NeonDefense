@@ -18,8 +18,17 @@
 //   potionCostMult    -> multiplicative on POTION_CONFIG.baseCost + costPerUse
 //   potionHeal        -> overrides POTION_CONFIG.healAmount
 // -------------------------------------------------------------------------
-const ASCENSION_MAX_TIER = 10;
+// ASCENSION_TIERS lists the *named* tiers (A0 … A10). Anything above 10 is
+// generated procedurally — each step beyond A10 stacks a small
+// multiplier bump so difficulty climbs forever. ASCENSION_NAMED_MAX_TIER
+// keeps the named upper bound; ASCENSION_MAX_TIER is retained as an alias
+// equal to Infinity so legacy clamp expressions become no-ops.
+const ASCENSION_NAMED_MAX_TIER = 10;
+const ASCENSION_MAX_TIER = Infinity;
 const ASCENSION_MAX_TIER_M1 = 7; // tiers above this are reserved for Milestone 3
+// Per-step multipliers applied to every tier past A10. Tuned so each
+// extra tier feels like ≈+5% HP / +3% count / -3% payout.
+const ASCENSION_ENDLESS_STEP = { hpMult: 1.05, countMult: 1.03, payoutMult: 0.97 };
 
 const ASCENSION_TIERS = [
     // tier 0 is always the baseline (no modifiers).
@@ -38,9 +47,10 @@ const ASCENSION_TIERS = [
     { tier: 10, label: 'A10', name: 'Boss enemy',    modifier: { spawnBoss: true },                          kind: 'enemy-m3' }
 ];
 
-// Returns the cumulative effect map for a tier (0 <= tier <= 7 in M1).
-// Out-of-range tiers clamp to baseline. All multipliers start at 1.0 and
-// are composed by multiplication across all modifiers up to and including `tier`.
+// Returns the cumulative effect map for a tier. All multipliers start at
+// 1.0 and are composed by multiplying every modifier up to and including
+// `tier`. Tiers above the named table (A10) stack ASCENSION_ENDLESS_STEP
+// per extra tier — difficulty is endless.
 function getAscensionEffects(tier) {
     const effects = {
         hpMult: 1,
@@ -56,9 +66,10 @@ function getAscensionEffects(tier) {
         spawnBoss: false
     };
 
-    const safeTier = Math.max(0, Math.min(tier || 0, ASCENSION_MAX_TIER));
+    const safeTier = Math.max(0, tier | 0);
+    const namedTop = Math.min(safeTier, ASCENSION_NAMED_MAX_TIER);
 
-    for (let i = 1; i <= safeTier; i++) {
+    for (let i = 1; i <= namedTop; i++) {
         const mod = ASCENSION_TIERS[i] && ASCENSION_TIERS[i].modifier;
         if (!mod) continue;
         for (const key of Object.keys(mod)) {
@@ -71,7 +82,31 @@ function getAscensionEffects(tier) {
             }
         }
     }
+
+    // Endless climb: each step past A10 stacks the small bump.
+    const overshoot = Math.max(0, safeTier - ASCENSION_NAMED_MAX_TIER);
+    if (overshoot > 0) {
+        effects.hpMult     *= Math.pow(ASCENSION_ENDLESS_STEP.hpMult,     overshoot);
+        effects.countMult  *= Math.pow(ASCENSION_ENDLESS_STEP.countMult,  overshoot);
+        effects.payoutMult *= Math.pow(ASCENSION_ENDLESS_STEP.payoutMult, overshoot);
+    }
     return effects;
+}
+
+// Spec lookup for any tier (named OR endless). Used by UI to render labels.
+function getAscensionTierSpec(tier) {
+    const t = Math.max(0, tier | 0);
+    if (t <= ASCENSION_NAMED_MAX_TIER) {
+        return ASCENSION_TIERS[t] || { tier: t, label: 'A' + t, name: 'Unknown', modifier: null, kind: 'stat' };
+    }
+    const overshoot = t - ASCENSION_NAMED_MAX_TIER;
+    return {
+        tier: t,
+        label: 'A' + t,
+        name: 'Endless +' + overshoot,
+        modifier: ASCENSION_ENDLESS_STEP,
+        kind: 'endless'
+    };
 }
 
 // -------------------------------------------------------------------------
@@ -464,7 +499,7 @@ function rollBoonChoices(n, randFn) {
 }
 
 // -------------------------------------------------------------------------
-// Backpack items (Backpack-Hero-style). Each item occupies a multi-cell
+// Backpack items — a spatial-grid inventory. Each item occupies a multi-cell
 // SHAPE in the persistent backpack grid; the shape can be rotated. Effects
 // are flat stat deltas summed across all PLACED items, then folded into the
 // existing balance-safe run hooks (see Game.applyBackpack). `synergy` grants

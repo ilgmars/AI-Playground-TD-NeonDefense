@@ -19,6 +19,7 @@ const SUITES = [
     { name: 'test-aegis',           file: 'tools/test-aegis.js' },
     { name: 'test-backpack',        file: 'tools/test-backpack.js' },
     { name: 'test-backpack-items',  file: 'tools/test-backpack-items.js' },
+    { name: 'test-ascension',       file: 'tools/test-ascension.js' },
 
     // ── Browser flows (Playwright + chromium) ─────────────────────────────
     { name: 'test-mobile-nav',      file: 'tools/test-mobile-nav.js' },

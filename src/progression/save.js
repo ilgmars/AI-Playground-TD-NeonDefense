@@ -22,7 +22,7 @@ const NeonSave = (function () {
     const MASTERY_PERK_COST_GROWTH = { damage: 1.16, fireRate: 1.16 };
     const MASTERY_PERK_COST_STEP = { efficiency: 200 };
 
-    // Backpack (Backpack-Hero-style spatial inventory). Persistence + the
+    // Backpack — spatial-grid inventory. Persistence + the
     // meta-XP salvage economy live here; placement validity / effects live
     // in backpack.js + config.js. Salvage cost escalates with how many
     // items you already own, so it doubles as an endless meta-XP sink.

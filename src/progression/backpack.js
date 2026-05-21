@@ -1,4 +1,4 @@
-// Backpack-Hero-style spatial inventory — pure logic, no DOM. Shared by the
+// Spatial-grid inventory — pure logic, no DOM. Shared by the
 // UI (src/engine/main.js) and the run-effect application (game.js), and
 // require()-able in node tests. All functions are deterministic.
 //

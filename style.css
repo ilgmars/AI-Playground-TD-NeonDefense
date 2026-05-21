@@ -1384,6 +1384,44 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     border-style: dashed;
 }
 
+/* Endless ascension stepper — shown once the player has cleared past A10.
+   Sits inline at the end of the ascension button row. */
+.ascension-stepper {
+    display: inline-flex;
+    align-items: stretch;
+    gap: 2px;
+    margin-left: 4px;
+}
+.ascension-step-btn {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 0 8px;
+    font-size: 1rem;
+    font-weight: 700;
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 1;
+}
+.ascension-step-btn:hover:not(:disabled) {
+    background: rgba(56, 189, 248, 0.18);
+}
+.ascension-step-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+.ascension-btn.ascension-endless {
+    border-color: #fbbf24;
+    color: #fbbf24;
+    text-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
+}
+.ascension-btn.ascension-endless.selected {
+    background: #fbbf24;
+    color: #0f172a;
+    text-shadow: none;
+    box-shadow: 0 0 14px rgba(251, 191, 36, 0.55);
+}
+
 .ascension-modifiers-preview {
     font-size: 0.7rem;
     color: var(--text-muted);
@@ -1445,7 +1483,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 #tower-tooltip.hidden { display: none; }
 
-/* Bonus tic-tac-toe minigame ──────────────────────────────────────────── */
+/* Bonus minigame (OVERCLOCK) ─────────────────────────────────────────── */
 #mg-pot {
     margin: 6px 0 2px;
     font-family: monospace;
