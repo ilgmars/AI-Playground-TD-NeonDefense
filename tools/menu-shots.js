@@ -50,7 +50,7 @@ async function shoot(browser, vp) {
 }
 
 (async () => {
-  const server = spawn('node', ['tools/test-http-server.js', '8765'], { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
+  const server = spawn(process.execPath, ['tools/test-http-server.js', '8765'], { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
   await new Promise(r => setTimeout(r, 600));
   const browser = await chromium.launch({ headless: true });
   try {

@@ -37,7 +37,7 @@ ok('purchase on variant key works',
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 (async () => {
-  const server = spawn('node', ['tools/test-http-server.js', '8801'], { cwd:'/home/claude/AI-Playground-TD-NeonDefense', stdio:'ignore' });
+  const server = spawn(process.execPath, ['tools/test-http-server.js', '8801'], { cwd:'/home/claude/AI-Playground-TD-NeonDefense', stdio:'ignore' });
   await new Promise(r => setTimeout(r, 600));
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();

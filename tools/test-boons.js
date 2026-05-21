@@ -4,7 +4,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 (async () => {
-  const server = spawn('node', ['tools/test-http-server.js', '8768'], { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
+  const server = spawn(process.execPath, ['tools/test-http-server.js', '8768'], { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
   await new Promise(r => setTimeout(r, 600));
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();

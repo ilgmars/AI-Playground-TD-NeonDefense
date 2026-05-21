@@ -3,7 +3,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 async function main() {
-    const server = spawn('node', ['tools/test-http-server.js', '8765'], {
+    const server = spawn(process.execPath, ['tools/test-http-server.js', '8765'], {
         cwd: path.join('/home/claude/AI-Playground-TD-NeonDefense'),
         stdio: 'ignore',
     });
