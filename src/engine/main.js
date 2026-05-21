@@ -230,6 +230,33 @@ function hideScreen(id) {
     if (el) el.classList.add('hidden');
 }
 
+// ── History / back-button integration ────────────────────────────────
+// Mobile WebViews fire popstate when the user hits the system Back button.
+// We push a sentinel state when leaving the main menu so that Back returns
+// the player to the menu instead of unloading the page.
+let _subScreenOpen = false;
+let _suppressPush = false;
+function _enterSubScreen() {
+    if (_suppressPush || _subScreenOpen) return;
+    _subScreenOpen = true;
+    try { history.pushState({ ndSubScreen: true }, ''); } catch (_) {}
+}
+function _exitSubScreenState() {
+    // Called from popstate AND from explicit navigateToMainMenu() so the
+    // history stack stays in sync regardless of how the user gets back.
+    _subScreenOpen = false;
+}
+if (typeof window !== 'undefined' && !window.__neonHistoryWired) {
+    window.__neonHistoryWired = true;
+    window.addEventListener('popstate', () => {
+        if (_subScreenOpen) {
+            _suppressPush = true;
+            navigateToMainMenu();
+            _suppressPush = false;
+        }
+    });
+}
+
 // Main Menu → Run Setup → Game is the canonical forward path.
 function navigateToMainMenu() {
     hideScreen('start-screen');
@@ -241,6 +268,7 @@ function navigateToMainMenu() {
     hideScreen('backpack');
     hideScreen('save-code-modal');
     showScreen('main-menu');
+    _exitSubScreenState();
     // Halt the in-progress run so update() bails — the menu owns the canvas now.
     if (typeof game !== 'undefined' && (game.state === 'playing' || game.state === 'paused')) {
         game.state = 'paused';
@@ -249,6 +277,7 @@ function navigateToMainMenu() {
 }
 
 function navigateToRunSetup() {
+    _enterSubScreen();
     hideScreen('main-menu');
     hideScreen('game-over');
     hideScreen('tech-tree');
@@ -272,6 +301,7 @@ function updateMainMenuState() {
 // by ownership / eligibility / affordability. Click affordable node to
 // purchase; XP is deducted and loadout dropdowns refresh.
 function navigateToTechTree() {
+    _enterSubScreen();
     hideScreen('main-menu');
     hideScreen('start-screen');
     hideScreen('game-over');
@@ -347,6 +377,7 @@ function buildTreeNodeEl(node, tierKey, tierOpen) {
 let mastSelection = {};
 
 function navigateToTowerMastery() {
+    _enterSubScreen();
     hideScreen('main-menu');
     hideScreen('start-screen');
     hideScreen('game-over');
@@ -609,6 +640,7 @@ function bpPaintGhost(x, y) {
 }
 
 function navigateToBackpack() {
+    _enterSubScreen();
     bpHeld = null;
     hideScreen('main-menu');
     hideScreen('tower-mastery');

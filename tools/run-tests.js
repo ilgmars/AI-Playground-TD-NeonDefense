@@ -20,6 +20,7 @@ const SUITES = [
     { name: 'test-backpack',        file: 'tools/test-backpack.js' },
 
     // ── Browser flows (Playwright + chromium) ─────────────────────────────
+    { name: 'test-mobile-nav',      file: 'tools/test-mobile-nav.js' },
     { name: 'test-variant-mastery', file: 'tools/test-variant-mastery.js' },
     { name: 'test-backpack-ui',     file: 'tools/test-backpack-ui.js' },
     { name: 'test-backpack2',       file: 'tools/test-backpack2.js' },

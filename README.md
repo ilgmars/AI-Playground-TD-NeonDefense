@@ -3,7 +3,12 @@
 [![Tests](https://github.com/ilgmars/AI-Playground-TD-NeonDefense/actions/workflows/test.yml/badge.svg)](https://github.com/ilgmars/AI-Playground-TD-NeonDefense/actions/workflows/test.yml)
 [![Build APK](https://github.com/ilgmars/AI-Playground-TD-NeonDefense/actions/workflows/build-apk.yml/badge.svg)](https://github.com/ilgmars/AI-Playground-TD-NeonDefense/actions/workflows/build-apk.yml)
 [![Built by AI only](https://img.shields.io/badge/built%20by-AI%20only-c084fc?style=flat&labelColor=0f172a)](#about-this-project)
+[![Deploy Pages](https://github.com/ilgmars/AI-Playground-TD-NeonDefense/actions/workflows/pages.yml/badge.svg)](https://github.com/ilgmars/AI-Playground-TD-NeonDefense/actions/workflows/pages.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-38bdf8?style=flat&labelColor=0f172a)](LICENSE)
+
+> ⚠ **A red badge means the latest commit was rejected** — the test gate
+> blocked it from shipping to the web build and/or the APK. The
+> previously-deployed version stays live until the next green commit.
 
 > A neon-themed browser tower-defence game with an endless roguelike loop,
 > a Backpack-Hero-style spatial inventory, and an honor-system anti-tamper

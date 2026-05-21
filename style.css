@@ -2331,8 +2331,13 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     #backpack { padding-top: max(60px, calc(env(safe-area-inset-top) + 52px)); }
     #backpack h2 { font-size: 1.5rem; }
     #backpack p { font-size: 0.78rem; }
-    #bp-grid-wrap { max-height: 38vh; }
-    #bp-stash { max-height: 22vh; }
+    /* On mobile we want a SINGLE scroll context — the overlay itself —
+       so the user can swipe anywhere on the panel to scroll. Nested
+       scroll regions (the grid wrap + the stash) hijacked the gesture
+       and made the screen feel frozen with anything more than a few
+       items. Strip their max-heights and let the page flow naturally. */
+    #bp-grid-wrap { max-height: none; overflow: visible; }
+    #bp-stash     { max-height: none; overflow: visible; }
     #bp-held .small, #bp-held button { padding: 8px 10px; }
 }
 /* Short landscape phones: vertical px are scarce — drop the help text and
