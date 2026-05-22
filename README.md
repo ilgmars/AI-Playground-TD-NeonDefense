@@ -88,6 +88,17 @@ The runner ([`tests/run.js`](tests/run.js)) is sequential
 and fail-fast — the first broken suite stops the run and dumps its
 stdout / stderr so the CI logs explain what regressed.
 
+## Multiplayer (designed, not yet built)
+
+A serverless "play together" mode is on the roadmap. The full design
+lives under [`multiplayer/`](multiplayer/) — including how peers
+discover each other without us running infrastructure
+([signalling.md](multiplayer/signalling.md)), the deterministic
+lockstep sync model
+([sync.md](multiplayer/sync.md)), how it interacts with Aegis
+([anti-cheat.md](multiplayer/anti-cheat.md)), and the Race / Co-op /
+Versus mode specs ([game-modes.md](multiplayer/game-modes.md)).
+
 ## Anti-tamper (Aegis)
 
 The source is public, so the anti-cheat is honor-system armour rather
