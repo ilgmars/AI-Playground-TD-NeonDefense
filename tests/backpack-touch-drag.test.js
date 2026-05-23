@@ -60,10 +60,13 @@ const path = require('path');
                 }));
             };
 
+            // Per W3C: in-progress touches keep firing on the ORIGINAL
+            // target — even after it's been detached from the DOM. Keep
+            // the chip ref and dispatch all subsequent events on it.
             fire('touchstart', fromX, fromY, src);
             await new Promise(r => setTimeout(r, 20));
-            // Cross the drag threshold (triggers pick-up + render).
-            fire('touchmove', fromX + 30, fromY + 30, document.body);
+            // Cross the drag threshold (triggers pick-up + render → src detaches).
+            fire('touchmove', fromX + 30, fromY + 30, src);
             await new Promise(r => setTimeout(r, 40));
 
             // Re-query target geometry AFTER the held panel appears and
@@ -77,13 +80,13 @@ const path = require('path');
             const fingerX = t.left + t.width / 2;
             const fingerY = t.top  + t.height / 2 + ghostOffset;
 
-            fire('touchmove', fingerX, fingerY, document.body);
+            fire('touchmove', fingerX, fingerY, src);
             await new Promise(r => setTimeout(r, 30));
             const ghosted = {
                 ok:  targetCell.classList.contains('ghost-ok'),
                 bad: targetCell.classList.contains('ghost-bad'),
             };
-            fire('touchend',  fingerX, fingerY, document.body);
+            fire('touchend',  fingerX, fingerY, src);
             await new Promise(r => setTimeout(r, 80));
             return { ok: true, ghosted };
         }, { sourceSel, targetX, targetY });

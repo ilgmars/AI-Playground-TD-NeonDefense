@@ -1318,6 +1318,58 @@ function init() {
         return bp && !bp.classList.contains('hidden');
     }
 
+    // Per W3C Touch Events, an in-progress touch keeps dispatching events
+    // to its ORIGINAL target element. The moment bpPickStash /
+    // bpPickPlaced calls renderBackpack, the chip/cell is detached from
+    // the DOM tree — and once detached, its events stop bubbling to
+    // document. Binding move/end listeners directly on the source
+    // element survives that: the listener stays on the orphaned element
+    // and keeps receiving events for the full gesture.
+    let bpTouchSource = null;
+
+    function bpOnTouchMove(e) {
+        if (!bpTouch) return;
+        // Suppress scroll/pan on every touchmove (incl. pre-threshold) —
+        // otherwise the surrounding scrollable container can claim the
+        // gesture during the small pre-pickup window. touch-action:none
+        // on the chip/cell handles the source element itself.
+        e.preventDefault();
+        const t = e.touches[0];
+        if (!bpTouch.dragging) {
+            if (Math.hypot(t.clientX - bpTouch.startX, t.clientY - bpTouch.startY) < BP_DRAG_THRESHOLD_PX) return;
+            bpTouch.dragging = true;
+            if (bpTouch.source === 'stash')  bpPickStash(bpTouch.idx);
+            else                              bpPickPlaced(bpTouch.idx);
+            // Source element is now detached. Our listeners on it keep firing.
+        }
+        const target = bpCellAtPoint(t.clientX, t.clientY - bpGhostOffsetPx());
+        if (target) bpPaintGhost(target.x, target.y);
+        else        bpClearGhost();
+    }
+    function bpOnTouchEnd(e) {
+        if (!bpTouch) return;
+        const state = bpTouch;
+        bpTouch = null;
+        if (bpTouchSource) {
+            bpTouchSource.removeEventListener('touchmove',   bpOnTouchMove);
+            bpTouchSource.removeEventListener('touchend',    bpOnTouchEnd);
+            bpTouchSource.removeEventListener('touchcancel', bpOnTouchEnd);
+            bpTouchSource = null;
+        }
+        if (!state.dragging) return;        // pure tap — let click handlers fire
+        e.preventDefault();
+        const t = e.changedTouches[0];
+        const target = bpCellAtPoint(t.clientX, t.clientY - bpGhostOffsetPx());
+        if (target) bpPlaceAt(target.x, target.y);
+        // No target → keep held so the user can still tap-to-place.
+    }
+    function bpBindDragListeners(elem) {
+        bpTouchSource = elem;
+        elem.addEventListener('touchmove',   bpOnTouchMove, { passive: false });
+        elem.addEventListener('touchend',    bpOnTouchEnd,  { passive: false });
+        elem.addEventListener('touchcancel', bpOnTouchEnd,  { passive: false });
+    }
+
     document.getElementById('bp-stash').addEventListener('touchstart', (e) => {
         if (!bpBackpackVisible() || e.touches.length !== 1) return;
         const chip = e.target.closest && e.target.closest('.bp-chip');
@@ -1326,6 +1378,7 @@ function init() {
         if (!Number.isFinite(i)) return;
         const t = e.touches[0];
         bpTouch = { source: 'stash', idx: i, startX: t.clientX, startY: t.clientY, dragging: false };
+        bpBindDragListeners(chip);
     }, { passive: true });
 
     document.getElementById('bp-grid').addEventListener('touchstart', (e) => {
@@ -1336,44 +1389,8 @@ function init() {
         if (!Number.isFinite(idx)) return;
         const t = e.touches[0];
         bpTouch = { source: 'placed', idx, startX: t.clientX, startY: t.clientY, dragging: false };
+        bpBindDragListeners(cell);
     }, { passive: true });
-
-    document.addEventListener('touchmove', (e) => {
-        if (!bpTouch) return;
-        // Suppress scroll/pan IMMEDIATELY — even before the drag
-        // threshold is crossed. Otherwise the surrounding scrollable
-        // container (#bp-grid-wrap, #bp-stash) can claim the touch
-        // gesture the moment the finger leaves the chip, and the
-        // browser stops dispatching further touchmove events to JS.
-        // touch-action:none on the chip/cell elements is the primary
-        // guard; this preventDefault is the backstop for the rest of
-        // the gesture path. (CSS file: .bp-chip, .bp-cell.filled.)
-        e.preventDefault();
-        const t = e.touches[0];
-        if (!bpTouch.dragging) {
-            if (Math.hypot(t.clientX - bpTouch.startX, t.clientY - bpTouch.startY) < BP_DRAG_THRESHOLD_PX) return;
-            bpTouch.dragging = true;
-            if (bpTouch.source === 'stash')  bpPickStash(bpTouch.idx);
-            else                              bpPickPlaced(bpTouch.idx);
-            // After a render the source element is gone — the document-
-            // level touchmove listener keeps dispatching regardless.
-        }
-        const target = bpCellAtPoint(t.clientX, t.clientY - bpGhostOffsetPx());
-        if (target) bpPaintGhost(target.x, target.y);
-        else        bpClearGhost();
-    }, { passive: false });
-
-    document.addEventListener('touchend', (e) => {
-        if (!bpTouch) return;
-        const state = bpTouch;
-        bpTouch = null;
-        if (!state.dragging) return;        // pure tap — let click handlers fire
-        e.preventDefault();
-        const t = e.changedTouches[0];
-        const target = bpCellAtPoint(t.clientX, t.clientY - bpGhostOffsetPx());
-        if (target) bpPlaceAt(target.x, target.y);
-        // No target → keep held so the user can still tap-to-place.
-    }, { passive: false });
     document.getElementById('menu-dailyseed-btn').addEventListener('click', () => {
         if (!NeonSave.hasUnlocked(save, 'qol.dailyseed')) return;
         const today = new Date();

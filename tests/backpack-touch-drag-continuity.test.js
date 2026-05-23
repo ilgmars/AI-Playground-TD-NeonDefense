@@ -93,20 +93,29 @@ const path = require('path');
             await new Promise(r => setTimeout(r, 20));
 
             // Step 1 — small pre-threshold move (5 px). This MUST also
-            // have its default prevented now; before the fix it didn't.
-            fire('touchmove', fromX + 3, fromY + 4, document.body);
+            // have its default prevented; without the per-move
+            // preventDefault, the surrounding scroll container can
+            // claim the gesture during the pre-pickup window.
+            fire('touchmove', fromX + 3, fromY + 4, chip);
             await new Promise(r => setTimeout(r, 10));
 
+            const detachedDuringDrag = { before: chip.isConnected, after: null };
             // Step 2 — cross the threshold (triggers pick-up).
-            fire('touchmove', fromX + 30, fromY + 30, document.body);
+            // bpPickStash → renderBackpack detaches `chip` from the
+            // DOM tree. Real browsers keep routing the touch's
+            // subsequent events to that (now-orphaned) original
+            // target. Our fix attaches touchmove/touchend listeners
+            // directly to the source element on touchstart so the
+            // gesture stream survives detachment.
+            fire('touchmove', fromX + 30, fromY + 30, chip);
             await new Promise(r => setTimeout(r, 40));
+            detachedDuringDrag.after = chip.isConnected;
 
-            // After pickup the source chip is removed from the DOM.
-            // The remaining touchmoves are dispatched on document.body
-            // (same as a real browser would route them once the
-            // original target is detached). Verify the document-level
-            // handler keeps painting the ghost as we trace a path into
-            // the grid.
+            // All subsequent dispatches go to the (now-detached)
+            // original chip — that's what real browsers do, and it's
+            // exactly what the bug-fix is supposed to handle. Verify
+            // the directly-attached handler keeps painting the ghost
+            // as we trace a path into the grid.
             const bp = save.backpack;
             const cells = document.querySelectorAll('#bp-grid .bp-cell');
             const targetCell = cells[2 * bp.w + 2];   // (2, 2)
@@ -122,19 +131,20 @@ const path = require('path');
             for (let i = 1; i <= 6; i++) {
                 const x = fromX + (endX - fromX) * (i / 6);
                 const y = fromY + (endY - fromY) * (i / 6);
-                fire('touchmove', x, y, document.body);
+                fire('touchmove', x, y, chip);
                 await new Promise(r => setTimeout(r, 15));
                 const painted = !!document.querySelector('#bp-grid .bp-cell.ghost-ok, #bp-grid .bp-cell.ghost-bad');
                 paintsByStep.push(painted);
             }
 
-            fire('touchend', endX, endY, document.body);
+            fire('touchend', endX, endY, chip);
             await new Promise(r => setTimeout(r, 80));
 
             return {
                 placed: save.backpack.placed.slice(),
                 stashLen: save.backpack.stash.length,
                 paintsByStep, dispatchedCount, preventedCount,
+                detachedDuringDrag,
             };
         });
 
@@ -148,6 +158,12 @@ const path = require('path');
         ok('placement landed at the dragged-to cell',
            result.placed.length === 1 && result.placed[0].x === 2 && result.placed[0].y === 2);
         ok('chip removed from stash',  result.stashLen === 0);
+        // Demonstrates the gesture stream survives DOM detachment —
+        // the chip was in the tree before pickup and out of it after,
+        // yet the remaining 6 touchmoves + touchend still drove
+        // ghost painting and placement to completion.
+        ok('chip detached mid-drag (precondition for the fix)',
+           result.detachedDuringDrag.before === true && result.detachedDuringDrag.after === false);
         await ctx.close();
     }
 
