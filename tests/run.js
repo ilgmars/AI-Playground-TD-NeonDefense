@@ -14,12 +14,14 @@ const path = require('path');
 const SUITES = [
     // ── Fast logic + crypto-ish unit tests (no browser) ───────────────────
     { name: 'aegis',           file: 'tests/aegis.test.js' },
+    { name: 'multiplayer',     file: 'tests/multiplayer.test.js' },
     { name: 'backpack',        file: 'tests/backpack.test.js' },
     { name: 'backpack-items',  file: 'tests/backpack-items.test.js' },
     { name: 'ascension',       file: 'tests/ascension.test.js' },
     { name: 'perf',            file: 'tests/perf.test.js' },
 
     // ── Browser flows (Playwright + chromium) ─────────────────────────────
+    { name: 'mp-browser',      file: 'tests/mp-browser.test.js' },
     { name: 'mobile-nav',      file: 'tests/mobile-nav.test.js' },
     { name: 'backpack-touch',         file: 'tests/backpack-touch-drag.test.js' },
     { name: 'backpack-touch-contin',  file: 'tests/backpack-touch-drag-continuity.test.js' },
