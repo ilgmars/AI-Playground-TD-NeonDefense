@@ -90,14 +90,48 @@ jobs:
       - name: Rename APK
         run: cp android/app/build/outputs/apk/release/app-release.apk NeonDefense.apk
 
+      # ─── Transparency / false-positive defence ─────────────────────────────
+      # Windows Defender has been known to flag hybrid WebView APKs as malware
+      # on the basis of generic heuristics. Everything below makes the build
+      # easy to verify: a SHA-256 of every shipped APK, the signing cert
+      # fingerprint, the requested permissions, and a full file listing — all
+      # printed to the Actions log (immutable per run) and the checksum file
+      # is attached to the release.
+      - name: Audit APK (sha256 + signature + permissions + contents)
+        id: audit
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS=$(ls -d $ANDROID_SDK_ROOT/build-tools/* | sort -V | tail -n1)
+          echo "Build tools: $BUILD_TOOLS"
+
+          echo "── SHA-256 ─────────────────────────────────────────────"
+          sha256sum NeonDefense.apk | tee NeonDefense.apk.sha256
+
+          echo
+          echo "── apksigner verify --print-certs ───────────────────────"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs NeonDefense.apk
+
+          echo
+          echo "── Permissions declared in AndroidManifest ──────────────"
+          "$BUILD_TOOLS/aapt2" dump permissions NeonDefense.apk || \
+            "$BUILD_TOOLS/aapt" dump permissions NeonDefense.apk
+
+          echo
+          echo "── APK contents (top-level) ─────────────────────────────"
+          unzip -l NeonDefense.apk | head -50
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: NeonDefense-apk
-          path: NeonDefense.apk
+          path: |
+            NeonDefense.apk
+            NeonDefense.apk.sha256
           retention-days: 30
 
-      - name: Publish APK to GitHub Release
-        run: gh release upload Games NeonDefense.apk --clobber
+      - name: Publish APK + SHA256 to GitHub Release
+        run: |
+          gh release upload Games NeonDefense.apk          --clobber
+          gh release upload Games NeonDefense.apk.sha256   --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

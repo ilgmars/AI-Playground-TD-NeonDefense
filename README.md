@@ -16,6 +16,8 @@
 **Web:** <https://ilgmars.github.io/AI-Playground-TD-NeonDefense/>
 
 **Android APK:** <https://github.com/ilgmars/AI-Playground-TD-NeonDefense/releases>
+(every release ships with a `NeonDefense.apk.sha256` next to the APK — see
+[`SECURITY.md`](SECURITY.md) for the audit trail + the AV false-positive note)
 
 ---
 
