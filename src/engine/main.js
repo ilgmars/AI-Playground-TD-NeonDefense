@@ -78,78 +78,62 @@ function updateModeDisplay(tier) {
     el.style.textShadow = '0 0 10px rgba(56, 189, 248, 0.45)';
 }
 
-// Renders one of the three .ascension-buttons containers. Shows A0-A7,
-// greys/locks tiers above save.ascensionCleared + 1. Also populates the
-// corresponding .ascension-modifiers-preview line with cumulative modifiers.
+// Renders one of the three .ascension-buttons containers. Single
+// [−] [A<n>] [+] stepper covering EVERY tier from A0 up to the highest
+// unlocked. Tier names + cumulative modifiers go in the preview line
+// below so the row stays compact on phones.
 function renderAscensionSelector(context) {
     const container = document.querySelector(`.ascension-buttons[data-context="${context}"]`);
     if (!container) return;
     container.innerHTML = '';
 
     const unlockedMax = (save.ascensionCleared | 0) + 1;     // endless: no upper cap
-    const namedTop    = Math.min(unlockedMax, ASCENSION_NAMED_MAX_TIER);
+    const clamped = Math.max(0, Math.min(unlockedMax, selectedTier | 0));
+    const spec = getAscensionTierSpec(clamped);
 
-    // Named tiers: always one button each, up to the highest unlocked
-    // named tier (capped at A10).
-    for (let t = 0; t <= namedTop; t++) {
-        const spec = getAscensionTierSpec(t);
-        const btn = document.createElement('button');
-        btn.className = 'ascension-btn';
-        btn.textContent = spec.label;
-        btn.title = spec.name;
-        if (t === selectedTier) btn.classList.add('selected');
-        btn.addEventListener('click', () => setTier(t));
-        container.appendChild(btn);
-    }
+    const stepper = document.createElement('div');
+    stepper.className = 'ascension-stepper';
 
-    // Endless stepper: only shown once the player has cleared past A10.
-    // Renders [-] [A<n>] [+] where n is the currently-selected endless
-    // tier (clamps to A11 if we're still inside the named range).
-    if (unlockedMax > ASCENSION_NAMED_MAX_TIER) {
-        const stepper = document.createElement('div');
-        stepper.className = 'ascension-stepper';
-        const currentEndless = selectedTier > ASCENSION_NAMED_MAX_TIER
-            ? selectedTier
-            : ASCENSION_NAMED_MAX_TIER + 1;
+    const minus = document.createElement('button');
+    minus.className = 'ascension-step-btn';
+    minus.textContent = '−';
+    minus.title = 'Step down one tier';
+    minus.disabled = clamped <= 0;
+    minus.addEventListener('click', () => setTier(clamped - 1));
 
-        const minus = document.createElement('button');
-        minus.className = 'ascension-step-btn';
-        minus.textContent = '−';
-        minus.title = 'Step down one tier';
-        minus.disabled = currentEndless <= ASCENSION_NAMED_MAX_TIER + 1;
-        minus.addEventListener('click', () => setTier(currentEndless - 1));
+    const label = document.createElement('button');
+    label.className = 'ascension-btn ascension-endless selected';
+    label.textContent = spec.label;
+    label.title = spec.name;
+    // Tapping the label is a no-op (it just shows the current tier);
+    // we keep it as a button for layout consistency with named-only
+    // styling but disable interaction.
+    label.disabled = true;
 
-        const label = document.createElement('button');
-        label.className = 'ascension-btn ascension-endless';
-        label.textContent = 'A' + currentEndless;
-        label.title = 'Endless +' + (currentEndless - ASCENSION_NAMED_MAX_TIER);
-        if (selectedTier === currentEndless) label.classList.add('selected');
-        label.addEventListener('click', () => setTier(currentEndless));
+    const plus = document.createElement('button');
+    plus.className = 'ascension-step-btn';
+    plus.textContent = '+';
+    plus.title = 'Step up one tier';
+    plus.disabled = clamped >= unlockedMax;
+    plus.addEventListener('click', () => setTier(clamped + 1));
 
-        const plus = document.createElement('button');
-        plus.className = 'ascension-step-btn';
-        plus.textContent = '+';
-        plus.title = 'Step up one tier';
-        plus.disabled = currentEndless >= unlockedMax;
-        plus.addEventListener('click', () => setTier(currentEndless + 1));
-
-        stepper.appendChild(minus);
-        stepper.appendChild(label);
-        stepper.appendChild(plus);
-        container.appendChild(stepper);
-    }
+    stepper.appendChild(minus);
+    stepper.appendChild(label);
+    stepper.appendChild(plus);
+    container.appendChild(stepper);
 
     const preview = document.querySelector(`.ascension-modifiers-preview[data-context="${context}"]`);
     if (preview) {
-        if (selectedTier === 0) {
+        if (clamped === 0) {
             preview.textContent = 'Baseline — no modifiers';
         } else {
             const names = [];
-            const namedUpper = Math.min(selectedTier, ASCENSION_NAMED_MAX_TIER);
+            const namedUpper = Math.min(clamped, ASCENSION_NAMED_MAX_TIER);
             for (let i = 1; i <= namedUpper; i++) names.push(getAscensionTierSpec(i).name);
-            if (selectedTier > ASCENSION_NAMED_MAX_TIER) {
-                const overshoot = selectedTier - ASCENSION_NAMED_MAX_TIER;
-                names.push(`Endless ×${overshoot} (+${Math.round((Math.pow(1.05, overshoot) - 1) * 100)}% HP)`);
+            if (clamped > ASCENSION_NAMED_MAX_TIER) {
+                const overshoot = clamped - ASCENSION_NAMED_MAX_TIER;
+                const hpPct = Math.round((Math.pow(ASCENSION_ENDLESS_STEP.hpMult, overshoot) - 1) * 100);
+                names.push(`Endless ×${overshoot} (+${hpPct}% HP)`);
             }
             preview.textContent = names.join(' · ');
         }
@@ -1444,20 +1428,19 @@ function init() {
         bpTouch = null;
         if (!state.dragging) return;        // pure tap — let click handlers fire
         if (e.cancelable) e.preventDefault();
+        // bpDropTargetCell already returns null when the finger is more
+        // than ~2 cells away from the grid (see the NEAR window inside).
+        // If it returned a target AND placement is valid, commit — that
+        // matches what the player sees on the ghost. Previously a
+        // strict in-bbox check refused placement when the finger sat
+        // just below the bottom edge of the grid while the ghost was
+        // happily showing a valid bottom-row spot — exactly the
+        // "didn't accept where I dropped it" complaint.
         const target = bpDropTargetCell(e.clientX, e.clientY);
-        // Only commit the drop when the finger is actually inside the
-        // grid box. Outside, the ghost may still be clamped to a valid
-        // cell, but releasing there shouldn't auto-place — keep the
-        // item held and leave the ghost where it is.
-        const grid = document.getElementById('bp-grid');
-        const gr = grid && grid.getBoundingClientRect();
-        const fingerInGrid = gr &&
-            e.clientX >= gr.left && e.clientX <= gr.right &&
-            e.clientY >= gr.top  && e.clientY <= gr.bottom;
-        if (fingerInGrid && target && bpHeldPlacementValid(target)) {
+        if (target && bpHeldPlacementValid(target)) {
             bpPlaceAt(target.x, target.y);
         }
-        // Invalid / off-grid → keep held; ghost stays at last painted cell.
+        // No valid target → keep held; ghost stays at last painted cell.
     }
     // Bound ONCE to document.body — pointermove/up route to the element
     // under the finger and bubble up. No setPointerCapture: that would
@@ -1814,7 +1797,7 @@ function init() {
     const overflowPanel = document.getElementById('top-bar-overflow');
     if (overflowBtn && overflowPanel) {
         let overflowTimer = null;
-        const OVERFLOW_TTL = 2000; // ms
+        const OVERFLOW_TTL = 5000; // ms — long enough that a brief glance + tap survives
 
         function openOverflow() {
             overflowPanel.classList.add('open');

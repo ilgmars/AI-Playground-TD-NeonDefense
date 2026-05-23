@@ -596,7 +596,7 @@ body.touch-ui #top-bar-overflow.open::after {
     border-radius: 0 0 8px 8px;
 }
 body.touch-ui #top-bar-overflow.overflow-counting::after {
-    animation: overflow-countdown 2s linear forwards;
+    animation: overflow-countdown 5s linear forwards;
 }
 body.touch-ui #top-bar-overflow .stat-box.interactive {
     flex-direction: row;
@@ -852,7 +852,7 @@ body.touch-ui .upg-cost { font-size: 0.9rem; }
         border-radius: 0 0 8px 8px;
     }
     #top-bar-overflow.overflow-counting::after {
-        animation: overflow-countdown 2s linear forwards;
+        animation: overflow-countdown 5s linear forwards;
     }
     @keyframes overflow-countdown {
         from { transform: scaleX(1); opacity: 1; }

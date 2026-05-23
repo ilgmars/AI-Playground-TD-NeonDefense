@@ -26,9 +26,12 @@
 const ASCENSION_NAMED_MAX_TIER = 10;
 const ASCENSION_MAX_TIER = Infinity;
 const ASCENSION_MAX_TIER_M1 = 7; // tiers above this are reserved for Milestone 3
-// Per-step multipliers applied to every tier past A10. Tuned so each
-// extra tier feels like ≈+5% HP / +3% count / -3% payout.
-const ASCENSION_ENDLESS_STEP = { hpMult: 1.05, countMult: 1.03, payoutMult: 0.97 };
+// Per-step multipliers applied to every tier past A10. Steep on purpose —
+// each extra tier compounds: +20% HP / +10% count / −8% payout. By A20
+// that's roughly 6× HP and 2.5× count versus baseline, with payouts
+// nearly halved. Endless is meant to wall players relatively fast so
+// the high-score table has real spread.
+const ASCENSION_ENDLESS_STEP = { hpMult: 1.20, countMult: 1.10, payoutMult: 0.92 };
 
 const ASCENSION_TIERS = [
     // tier 0 is always the baseline (no modifiers).

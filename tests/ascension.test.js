@@ -12,7 +12,7 @@ vm.runInContext(
       .replace(/^const /gm, 'var ').replace(/^let /gm, 'var '),
     sandbox);
 
-const { getAscensionEffects, getAscensionTierSpec, ASCENSION_NAMED_MAX_TIER } = sandbox;
+const { getAscensionEffects, getAscensionTierSpec, ASCENSION_NAMED_MAX_TIER, ASCENSION_ENDLESS_STEP } = sandbox;
 let pass = 0, fail = 0;
 function ok(name, cond) { if (cond) { console.log('ok', name); pass++; } else { console.log('FAIL', name); fail++; } }
 
@@ -31,14 +31,19 @@ ok('A10 has countMult > 1 (named modifiers applied)', eA10.countMult > 1);
 ok('A10 has payoutMult < 1 (A5 -40% applied)',       eA10.payoutMult < 1);
 
 // ── Endless climb ──────────────────────────────────────────────────────
+// Step multipliers live in ASCENSION_ENDLESS_STEP so the test stays in
+// sync with config.js — bumping the curve only requires editing one
+// place. (Older revisions pinned literal 1.05 / 1.03 / 0.97 here; the
+// curve is now steeper to give the leaderboard real spread.)
+const STEP = ASCENSION_ENDLESS_STEP;
 const eA11 = getAscensionEffects(11);
-ok('A11 = A10 × one endless step (HP)',     Math.abs(eA11.hpMult     - eA10.hpMult     * 1.05) < 1e-9);
-ok('A11 = A10 × one endless step (count)',  Math.abs(eA11.countMult  - eA10.countMult  * 1.03) < 1e-9);
-ok('A11 = A10 × one endless step (payout)', Math.abs(eA11.payoutMult - eA10.payoutMult * 0.97) < 1e-9);
+ok('A11 = A10 × one endless step (HP)',     Math.abs(eA11.hpMult     - eA10.hpMult     * STEP.hpMult)     < 1e-9);
+ok('A11 = A10 × one endless step (count)',  Math.abs(eA11.countMult  - eA10.countMult  * STEP.countMult)  < 1e-9);
+ok('A11 = A10 × one endless step (payout)', Math.abs(eA11.payoutMult - eA10.payoutMult * STEP.payoutMult) < 1e-9);
 
 const eA20 = getAscensionEffects(20);
 ok('A20 = A10 × 10 endless steps (HP)',
-    Math.abs(eA20.hpMult - eA10.hpMult * Math.pow(1.05, 10)) < 1e-6);
+    Math.abs(eA20.hpMult - eA10.hpMult * Math.pow(STEP.hpMult, 10)) < 1e-6);
 
 const eA100 = getAscensionEffects(100);
 ok('A100 produces finite multipliers',

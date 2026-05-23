@@ -637,6 +637,59 @@ const path = require('path');
         await ctx.close();
     }
 
+    // ── 20a. Drop with finger just BELOW the bottom edge ──────────────
+    // Regression: bpDropTargetCell clamps the ghost to a valid in-grid
+    // cell when the finger drifts ~2 cells past the edge, but the
+    // pointerend handler used to refuse placement unless the finger
+    // was strictly inside the grid bbox. Players expected "release on
+    // the visible ghost → place there". Now it does.
+    {
+        const { page, ctx, errs } = await freshMobilePage();
+        await seedBackpack(page, ['plasma_cell']);
+        const placed = await page.evaluate(async () => {
+            const chip = document.querySelector('#bp-stash .bp-chip[data-stash-idx="0"]');
+            const r = chip.getBoundingClientRect();
+            const POINTER_ID = 80;
+            const fire = (t, type, x, y) => t.dispatchEvent(new PointerEvent(type, {
+                bubbles: true, cancelable: true,
+                pointerId: POINTER_ID, pointerType: 'touch',
+                isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1,
+                clientX: x, clientY: y, screenX: x, screenY: y,
+            }));
+            fire(chip, 'pointerdown', r.left + r.width/2, r.top + r.height/2);
+            await new Promise(r => setTimeout(r, 20));
+            fire(document.body, 'pointermove', r.left + r.width/2 + 30, r.top + r.height/2 + 30);
+            await new Promise(r => setTimeout(r, 40));
+
+            // Aim ONE cell-height below the grid bottom — within the
+            // NEAR (~2 cells) window of bpDropTargetCell, so the ghost
+            // is showing a valid bottom-row cell.
+            const grid = document.getElementById('bp-grid');
+            const gr = grid.getBoundingClientRect();
+            const cs = grid.firstElementChild.offsetWidth || 40;
+            const fx = gr.left + 2.5 * cs;
+            const fy = gr.bottom + cs * 0.5;     // just below the grid
+
+            fire(document.body, 'pointermove', fx, fy);
+            await new Promise(r => setTimeout(r, 30));
+            const hadGhost = !!document.querySelector('#bp-grid .bp-cell.ghost-ok');
+            fire(document.body, 'pointerup', fx, fy);
+            await new Promise(r => setTimeout(r, 80));
+            return {
+                hadGhost,
+                placedLen: save.backpack.placed.length,
+                stashLen:  save.backpack.stash.length,
+                held:      !!bpHeld,
+            };
+        });
+        ok('just-below-edge: ghost was visible',  placed.hadGhost === true);
+        ok('just-below-edge: drop committed',     placed.placedLen === 1);
+        ok('just-below-edge: stash empty',        placed.stashLen === 0);
+        ok('just-below-edge: not held anymore',   placed.held === false);
+        ok('just-below-edge: no JS errors',       errs.length === 0);
+        await ctx.close();
+    }
+
     // ── 20. Stash chip clicked while same chip's drag is in progress ──
     // A click event firing immediately after a tiny-distance pointer
     // sequence should still produce a valid pickup (and not duplicate).
