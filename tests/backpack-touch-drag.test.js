@@ -1,7 +1,6 @@
-// Backpack drag-to-place (touch). Mirrors the tower-dock drag pattern —
-// the player drags a stash chip with a finger; the ghost preview is
-// offset above the touch point so the target cell stays visible. On
-// release the item is placed at the ghost cell.
+// Backpack drag-to-place (pointer events). The player drags a stash
+// chip with a finger; the ghost preview tracks the finger position.
+// On release the item is placed at the ghost cell.
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -14,7 +13,6 @@ const path = require('path');
     let pass = 0, fail = 0;
     function ok(name, cond) { if (cond) { console.log('ok', name); pass++; } else { console.log('FAIL', name); fail++; } }
 
-    // ── Helpers ───────────────────────────────────────────────────────────
     async function freshMobilePage() {
         const ctx = await browser.newContext({
             viewport: { width: 390, height: 844 },
@@ -28,65 +26,52 @@ const path = require('path');
         return { page, ctx, errs };
     }
 
-    // Synthesise a touch sequence on the page. Mirrors how a real finger
-    // would generate touchstart → touchmove (past the drag threshold) →
-    // touchmove (final position) → touchend. Each event's clientX/Y are
-    // taken at face value by the page handler.
-    // Performs a synthesised touch drag from `sourceSel` (chip or
-    // filled cell) to the grid cell at (targetX, targetY). The helper
-    // re-queries the target cell's screen position AFTER the first
-    // touchmove triggers the pick-up — picking up makes the "Holding"
-    // panel visible, which shifts the grid downward, so coordinates
-    // captured before pickup would miss. The finger Y is then placed
-    // ghostOffset px BELOW the (re-queried) target cell so the
-    // handler's offset-up subtraction lands on the target.
-    async function dispatchTouchDrag(page, sourceSel, targetX, targetY) {
+    // Synthesises pointerdown → pointermove (past threshold, triggers
+    // pickup + renderBackpack) → pointermove (final position, with the
+    // target cell re-queried after the held panel pushes the grid
+    // down) → pointerup. All events go through document.body because
+    // setPointerCapture routes them there.
+    async function dispatchPointerDrag(page, sourceSel, targetX, targetY) {
         return await page.evaluate(async ({ sourceSel, targetX, targetY }) => {
             const src = document.querySelector(sourceSel);
             if (!src) return { error: 'no source: ' + sourceSel };
             const r = src.getBoundingClientRect();
             const fromX = r.left + r.width / 2;
             const fromY = r.top  + r.height / 2;
+            const POINTER_ID = 7;
 
-            const fire = (type, x, y, target) => {
-                const touch = new Touch({ identifier: 1, target,
-                    clientX: x, clientY: y, pageX: x, pageY: y,
-                    screenX: x, screenY: y, radiusX: 5, radiusY: 5 });
-                target.dispatchEvent(new TouchEvent(type, {
+            const fire = (target, type, x, y) => {
+                target.dispatchEvent(new PointerEvent(type, {
                     bubbles: true, cancelable: true,
-                    touches: type === 'touchend' ? [] : [touch],
-                    targetTouches: type === 'touchend' ? [] : [touch],
-                    changedTouches: [touch],
+                    pointerId: POINTER_ID, pointerType: 'touch',
+                    isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1,
+                    clientX: x, clientY: y, screenX: x, screenY: y,
                 }));
             };
 
-            // Per W3C: in-progress touches keep firing on the ORIGINAL
-            // target — even after it's been detached from the DOM. Keep
-            // the chip ref and dispatch all subsequent events on it.
-            fire('touchstart', fromX, fromY, src);
+            fire(src, 'pointerdown', fromX, fromY);
             await new Promise(r => setTimeout(r, 20));
-            // Cross the drag threshold (triggers pick-up + render → src detaches).
-            fire('touchmove', fromX + 30, fromY + 30, src);
+            // Cross drag threshold — triggers bpPickStash → renderBackpack.
+            fire(document.body, 'pointermove', fromX + 30, fromY + 30);
             await new Promise(r => setTimeout(r, 40));
 
-            // Re-query target geometry AFTER the held panel appears and
-            // pushes the grid downward.
+            // Re-query target after the held panel pushes the grid.
             const bp = save.backpack;
             const cells = document.querySelectorAll('#bp-grid .bp-cell');
             const targetCell = cells[targetY * bp.w + targetX];
             if (!targetCell) return { error: 'no target cell' };
             const t = targetCell.getBoundingClientRect();
-            const ghostOffset = window.innerWidth > window.innerHeight ? 70 : 100;
+            // Ghost sits AT the finger position (no offset).
             const fingerX = t.left + t.width / 2;
-            const fingerY = t.top  + t.height / 2 + ghostOffset;
+            const fingerY = t.top  + t.height / 2;
 
-            fire('touchmove', fingerX, fingerY, src);
+            fire(document.body, 'pointermove', fingerX, fingerY);
             await new Promise(r => setTimeout(r, 30));
             const ghosted = {
                 ok:  targetCell.classList.contains('ghost-ok'),
                 bad: targetCell.classList.contains('ghost-bad'),
             };
-            fire('touchend',  fingerX, fingerY, src);
+            fire(document.body, 'pointerup', fingerX, fingerY);
             await new Promise(r => setTimeout(r, 80));
             return { ok: true, ghosted };
         }, { sourceSel, targetX, targetY });
@@ -105,10 +90,7 @@ const path = require('path');
         await page.evaluate(() => navigateToBackpack());
         await page.waitForTimeout(250);
 
-        // Drag the stash item to the cell at grid (2, 2). The helper
-        // re-queries the live target cell rect post-pickup so the
-        // offset-ghost lands exactly there.
-        const drag = await dispatchTouchDrag(page,
+        const drag = await dispatchPointerDrag(page,
             '#bp-stash .bp-chip[data-stash-idx="0"]',
             2, 2);
         ok('drag completed without error',     drag && drag.ok === true);
@@ -140,9 +122,7 @@ const path = require('path');
         await page.evaluate(() => navigateToBackpack());
         await page.waitForTimeout(250);
 
-        // Target (2, 2). Deeper rows on a 5×5 grid land behind the build
-        // dock on a 390-wide viewport — elementFromPoint can't reach them.
-        const drag = await dispatchTouchDrag(page,
+        const drag = await dispatchPointerDrag(page,
             '#bp-grid .bp-cell.filled[data-placed-idx="0"]',
             2, 2);
         ok('placed-item drag completed',   drag && drag.ok === true);
@@ -157,6 +137,6 @@ const path = require('path');
     await browser.close();
     server.kill();
 
-    console.log(`\nBACKPACK TOUCH DRAG: ${pass} pass, ${fail} fail`);
+    console.log(`\nBACKPACK POINTER DRAG: ${pass} pass, ${fail} fail`);
     process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });

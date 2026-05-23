@@ -1289,19 +1289,26 @@ function init() {
     document.getElementById('bp-tostash').addEventListener('click', bpHeldToStash);
     document.getElementById('bp-discard').addEventListener('click', bpSellHeld);
 
-    // ── Backpack drag-to-place (touch) ────────────────────────────────────
-    // Mobile drag is modelled after the tower-dock pattern: touchstart on a
-    // stash chip or placed cell records the start; once the gesture passes
-    // the drag threshold we pick the item up; ghost preview tracks an
-    // OFFSET point (~100 px above the finger in portrait, 70 px in
-    // landscape) so the player can see what they're dropping onto. Release
-    // commits placement at the ghost cell.
+    // ── Backpack drag-to-place (pointer events) ──────────────────────────
+    // Why Pointer Events instead of Touch Events: bpPickStash /
+    // bpPickPlaced calls renderBackpack mid-gesture, which destroys the
+    // source chip/cell via innerHTML = ''. Touch Events route to the
+    // ORIGINAL target for the rest of the gesture — and when that target
+    // is detached, browsers diverge (Chrome keeps dispatching to the
+    // orphan; iOS Safari and some Android stacks fire touchcancel and
+    // end the gesture).
+    //
+    // Pointer Events route to whatever's under the pointer at each
+    // event, NOT to the original target — so when the chip is destroyed
+    // by renderBackpack, subsequent events naturally find body or the
+    // grid and bubble up to our document.body listeners. No
+    // setPointerCapture: that would redirect the click event as well,
+    // breaking tap-to-pickup.
+    //
+    // The ghost preview sits AT the finger position — no offset.
     const BP_DRAG_THRESHOLD_PX = 8;
-    let bpTouch = null;     // { source, idx, startX, startY, dragging }
+    let bpTouch = null;     // { source, idx, startX, startY, dragging, pointerId }
 
-    function bpGhostOffsetPx() {
-        return (window.innerWidth > window.innerHeight) ? 70 : 100;
-    }
     function bpCellAtPoint(clientX, clientY) {
         const el = document.elementFromPoint(clientX, clientY);
         if (!el || !el.closest) return null;
@@ -1318,79 +1325,61 @@ function init() {
         return bp && !bp.classList.contains('hidden');
     }
 
-    // Per W3C Touch Events, an in-progress touch keeps dispatching events
-    // to its ORIGINAL target element. The moment bpPickStash /
-    // bpPickPlaced calls renderBackpack, the chip/cell is detached from
-    // the DOM tree — and once detached, its events stop bubbling to
-    // document. Binding move/end listeners directly on the source
-    // element survives that: the listener stays on the orphaned element
-    // and keeps receiving events for the full gesture.
-    let bpTouchSource = null;
-
-    function bpOnTouchMove(e) {
-        if (!bpTouch) return;
-        // Suppress scroll/pan on every touchmove (incl. pre-threshold) —
-        // otherwise the surrounding scrollable container can claim the
-        // gesture during the small pre-pickup window. touch-action:none
-        // on the chip/cell handles the source element itself.
-        e.preventDefault();
-        const t = e.touches[0];
+    function bpOnPointerMove(e) {
+        if (!bpTouch || e.pointerId !== bpTouch.pointerId) return;
+        // touch-action:none on the chip/cell handles the source. This
+        // preventDefault is the backstop for the rest of the gesture
+        // path while pointer is bubbling through other elements.
+        if (e.cancelable) e.preventDefault();
         if (!bpTouch.dragging) {
-            if (Math.hypot(t.clientX - bpTouch.startX, t.clientY - bpTouch.startY) < BP_DRAG_THRESHOLD_PX) return;
+            if (Math.hypot(e.clientX - bpTouch.startX, e.clientY - bpTouch.startY) < BP_DRAG_THRESHOLD_PX) return;
             bpTouch.dragging = true;
             if (bpTouch.source === 'stash')  bpPickStash(bpTouch.idx);
             else                              bpPickPlaced(bpTouch.idx);
-            // Source element is now detached. Our listeners on it keep firing.
+            // Source chip/cell is now destroyed by renderBackpack.
+            // Subsequent pointer events route to whatever's under the
+            // finger and bubble up to document.body — uninterrupted.
         }
-        const target = bpCellAtPoint(t.clientX, t.clientY - bpGhostOffsetPx());
+        const target = bpCellAtPoint(e.clientX, e.clientY);
         if (target) bpPaintGhost(target.x, target.y);
         else        bpClearGhost();
     }
-    function bpOnTouchEnd(e) {
-        if (!bpTouch) return;
+    function bpOnPointerEnd(e) {
+        if (!bpTouch || e.pointerId !== bpTouch.pointerId) return;
         const state = bpTouch;
         bpTouch = null;
-        if (bpTouchSource) {
-            bpTouchSource.removeEventListener('touchmove',   bpOnTouchMove);
-            bpTouchSource.removeEventListener('touchend',    bpOnTouchEnd);
-            bpTouchSource.removeEventListener('touchcancel', bpOnTouchEnd);
-            bpTouchSource = null;
-        }
         if (!state.dragging) return;        // pure tap — let click handlers fire
-        e.preventDefault();
-        const t = e.changedTouches[0];
-        const target = bpCellAtPoint(t.clientX, t.clientY - bpGhostOffsetPx());
+        if (e.cancelable) e.preventDefault();
+        const target = bpCellAtPoint(e.clientX, e.clientY);
         if (target) bpPlaceAt(target.x, target.y);
         // No target → keep held so the user can still tap-to-place.
     }
-    function bpBindDragListeners(elem) {
-        bpTouchSource = elem;
-        elem.addEventListener('touchmove',   bpOnTouchMove, { passive: false });
-        elem.addEventListener('touchend',    bpOnTouchEnd,  { passive: false });
-        elem.addEventListener('touchcancel', bpOnTouchEnd,  { passive: false });
-    }
+    // Bound ONCE to document.body — pointermove/up route to the element
+    // under the finger and bubble up. No setPointerCapture: that would
+    // redirect the click event too, breaking tap-to-pickup.
+    document.body.addEventListener('pointermove',   bpOnPointerMove, { passive: false });
+    document.body.addEventListener('pointerup',     bpOnPointerEnd);
+    document.body.addEventListener('pointercancel', bpOnPointerEnd);
 
-    document.getElementById('bp-stash').addEventListener('touchstart', (e) => {
-        if (!bpBackpackVisible() || e.touches.length !== 1) return;
+    document.getElementById('bp-stash').addEventListener('pointerdown', (e) => {
+        if (!bpBackpackVisible() || (e.pointerType === 'mouse' && e.button !== 0)) return;
+        if (bpTouch) return;
         const chip = e.target.closest && e.target.closest('.bp-chip');
         if (!chip) return;
         const i = parseInt(chip.dataset.stashIdx, 10);
         if (!Number.isFinite(i)) return;
-        const t = e.touches[0];
-        bpTouch = { source: 'stash', idx: i, startX: t.clientX, startY: t.clientY, dragging: false };
-        bpBindDragListeners(chip);
-    }, { passive: true });
+        bpTouch = { source: 'stash', idx: i, startX: e.clientX, startY: e.clientY, dragging: false, pointerId: e.pointerId };
+    });
 
-    document.getElementById('bp-grid').addEventListener('touchstart', (e) => {
-        if (!bpBackpackVisible() || e.touches.length !== 1) return;
+    document.getElementById('bp-grid').addEventListener('pointerdown', (e) => {
+        if (!bpBackpackVisible() || (e.pointerType === 'mouse' && e.button !== 0)) return;
+        if (bpTouch) return;
         const cell = e.target.closest && e.target.closest('.bp-cell.filled');
         if (!cell) return;
         const idx = parseInt(cell.dataset.placedIdx, 10);
         if (!Number.isFinite(idx)) return;
-        const t = e.touches[0];
-        bpTouch = { source: 'placed', idx, startX: t.clientX, startY: t.clientY, dragging: false };
-        bpBindDragListeners(cell);
-    }, { passive: true });
+        bpTouch = { source: 'placed', idx, startX: e.clientX, startY: e.clientY, dragging: false, pointerId: e.pointerId };
+    });
     document.getElementById('menu-dailyseed-btn').addEventListener('click', () => {
         if (!NeonSave.hasUnlocked(save, 'qol.dailyseed')) return;
         const today = new Date();
