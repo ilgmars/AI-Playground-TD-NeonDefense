@@ -1,17 +1,22 @@
 name: Deploy Pages
 
-# Gates the GitHub Pages deploy on the full test suite. Tests run first;
-# if any suite fails, the deploy job is skipped (badge goes red, the
-# previous Pages build stays live).
+# Combined deploy: main → /, multiplayer → /multiplayer/. The two
+# branches share a single Pages environment, so whichever branch is
+# pushed must rebuild the combined artifact from both refs (each at
+# its current HEAD). That way:
+#   https://ilgmars.github.io/AI-Playground-TD-NeonDefense/             → main
+#   https://ilgmars.github.io/AI-Playground-TD-NeonDefense/multiplayer/ → mp
+#
+# Tests run on the branch that triggered the workflow (the ref the
+# push landed on). If they fail, no deploy happens and the previous
+# Pages build stays live for both paths.
 #
 # Setup note: this workflow requires the repository's Pages source to
-# be switched to "GitHub Actions" in Settings → Pages. While the source
-# is still "Deploy from a branch", every push to main auto-deploys and
-# bypasses this gate.
+# be switched to "GitHub Actions" in Settings → Pages.
 
 on:
   push:
-    branches: [main]
+    branches: [main, multiplayer]
   workflow_dispatch:
 
 permissions:
@@ -31,7 +36,7 @@ jobs:
   test:
     name: Tests (gate)
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -45,22 +50,32 @@ jobs:
           CI: 'true'
 
   deploy:
-    name: Deploy to Pages
+    name: Deploy combined site (main + /multiplayer/)
     needs: test       # only if the test gate is green
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out main → site/
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: site
+      - name: Check out multiplayer → site/multiplayer/
+        uses: actions/checkout@v4
+        with:
+          ref: multiplayer
+          path: site/multiplayer
+      - name: Strip nested .git / CI metadata from the artifact
+        run: |
+          rm -rf site/.git site/.github site/multiplayer/.git site/multiplayer/.github
       - name: Configure Pages
         uses: actions/configure-pages@v5
-      - name: Upload static site
+      - name: Upload combined artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Publish the repo root — index.html + src/ + style.css. Excludes
-          # are handled by the action's defaults (no .git, etc).
-          path: '.'
+          path: site
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
