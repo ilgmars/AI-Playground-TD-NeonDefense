@@ -111,7 +111,8 @@ opponent. First to die loses.
 | **2** | Race mode: lobby UI, Trystero adapter (lazy-loaded), room code → seed, leaderboard overlay, reconnect / stale-peer handling. | ~ 1 day | done |
 | **3a** | Co-op controllers: lockstep input exchange + seeded PRNG. Fully tested in isolation; not yet wired into Game.update(). | ~ 1 day | done |
 | **3b** | Co-op integration: shared HP/money pool, dual cursor, Aegis dev-mode pre-boot toggle, gameSpeed pinning. | ~ 2 days | pending |
-| **4** | Versus (spike protocol + balance pass). | ~ 2-3 days | pending |
+| **4a** | Versus protocol: spike meter + queue + wave-boundary drain, comeback mechanic, sudden-death. Fully tested. | ~ 1 day | done |
+| **4b** | Versus integration: per-side seeds (roomCode+A / +B), opponent HUD inset, wave-clear spike consumption, balance pass. | ~ 1-2 days | pending |
 
 Each phase is independently shippable.
 
