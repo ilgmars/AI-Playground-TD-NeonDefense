@@ -203,11 +203,10 @@ const path = require('path');
         await ctx.close();
     }
 
-    // ── Scenario 4 — floating ghost shows OFF-GRID and turns red ─────
-    // Dragging past the edge of the grid should keep the floating
-    // ghost visible (item is rendered even when there's no valid
-    // drop target). The ghost gains the `.invalid` class when the
-    // current position can't accept the item.
+    // ── Scenario 4 — dragging off-grid clears the grid highlight ─────
+    // No floating ghost any more; verify that drifting off the grid
+    // simply clears the ghost-ok/ghost-bad cells, and moving back
+    // onto a free cell re-paints them.
     {
         const { page, ctx } = await freshMobilePage();
         await page.evaluate(() => {
@@ -238,8 +237,6 @@ const path = require('path');
             fire(document.body, 'pointermove', 5, 5);
             await new Promise(r => setTimeout(r, 30));
             const offGrid = {
-                visible: !document.getElementById('bp-drag-ghost').classList.contains('hidden'),
-                invalid: document.getElementById('bp-drag-ghost').classList.contains('invalid'),
                 gridGhostCells: document.querySelectorAll('#bp-grid .bp-cell.ghost-ok, #bp-grid .bp-cell.ghost-bad').length,
             };
 
@@ -249,22 +246,19 @@ const path = require('path');
             fire(document.body, 'pointermove', t.left + t.width/2, t.bottom - 1);
             await new Promise(r => setTimeout(r, 30));
             const valid = {
-                visible: !document.getElementById('bp-drag-ghost').classList.contains('hidden'),
-                invalid: document.getElementById('bp-drag-ghost').classList.contains('invalid'),
+                ghostOk: !!document.querySelector('#bp-grid .bp-cell.ghost-ok'),
             };
 
             fire(document.body, 'pointerup', t.left + t.width/2, t.bottom - 1);
             await new Promise(r => setTimeout(r, 60));
             const afterRelease = {
-                visible: !document.getElementById('bp-drag-ghost').classList.contains('hidden'),
+                ghostCells: document.querySelectorAll('#bp-grid .bp-cell.ghost-ok, #bp-grid .bp-cell.ghost-bad').length,
             };
             return { offGrid, valid, afterRelease };
         });
-        ok('floating ghost stays visible off-grid', result.offGrid.visible === true);
-        ok('floating ghost is red (invalid) off-grid', result.offGrid.invalid === true);
         ok('no grid cells highlighted while off-grid', result.offGrid.gridGhostCells === 0);
-        ok('floating ghost is green (valid) on a free cell', result.valid.visible && !result.valid.invalid);
-        ok('floating ghost hidden after release', result.afterRelease.visible === false);
+        ok('grid highlight returns when back on a free cell', result.valid.ghostOk === true);
+        ok('grid highlight cleared after release', result.afterRelease.ghostCells === 0);
         await ctx.close();
     }
 
@@ -305,7 +299,6 @@ const path = require('path');
             fire(document.body, 'pointermove', t.left + t.width/2, t.bottom - 1);
             await new Promise(r => setTimeout(r, 30));
             const midDrag = {
-                invalid: document.getElementById('bp-drag-ghost').classList.contains('invalid'),
                 ghostBad: !!document.querySelector('#bp-grid .bp-cell.ghost-bad'),
             };
             fire(document.body, 'pointerup', t.left + t.width/2, t.bottom - 1);
@@ -317,7 +310,6 @@ const path = require('path');
                 held: !!bpHeld,
             };
         });
-        ok('ghost is red while over an occupied cell',  result.midDrag.invalid === true);
         ok('underlying cell shows ghost-bad',           result.midDrag.ghostBad === true);
         // Invalid drop: the pre-existing item is unchanged, the dragged
         // item is in held-limbo (not placed, not back in stash) so the
@@ -361,7 +353,6 @@ const path = require('path');
             const afterPickup = {
                 held: !!bpHeld,
                 placed: save.backpack.placed.length,
-                ghostVisible: !document.getElementById('bp-drag-ghost').classList.contains('hidden'),
             };
             // Drop at (3, 3).
             const cells = document.querySelectorAll('#bp-grid .bp-cell');
@@ -376,7 +367,6 @@ const path = require('path');
             };
         });
         ok('placed item picked up mid-drag (held = true)', result.afterPickup.held === true);
-        ok('floating ghost shown while dragging placed item', result.afterPickup.ghostVisible === true);
         ok('placed item moved to new cell',
            result.placed.length === 1 && result.placed[0].x === 3 && result.placed[0].y === 3);
         await ctx.close();

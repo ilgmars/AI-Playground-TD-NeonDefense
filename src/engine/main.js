@@ -686,54 +686,9 @@ let bpCellEls = {};   // "x,y" -> grid cell element, for non-destructive ghost
 function bpClearGhost() {
     for (const k in bpCellEls) bpCellEls[k].classList.remove('ghost-ok', 'ghost-bad');
 }
-// Floating drag preview — absolutely positioned, follows the finger.
-// Visible regardless of whether the drop point is inside the grid;
-// turns red when the placement is invalid (overlap, off-grid, or item
-// larger than the grid). Cleared in bpHideFloatingGhost on release.
-function bpUpdateFloatingGhost(fx, fy, valid) {
-    const ghost = document.getElementById('bp-drag-ghost');
-    if (!ghost) return;
-    if (!bpHeld || !BACKPACK_ITEMS[bpHeld.id]) { ghost.classList.add('hidden'); return; }
-    const def = BACKPACK_ITEMS[bpHeld.id];
-    const grid = document.getElementById('bp-grid');
-    const cs = (grid && grid.firstElementChild) ? grid.firstElementChild.offsetWidth : 40;
-    const size = NeonBackpack.shapeSize(def.shape, bpHeld.rot || 0);
-    // Bottom-centre of bounding box sits half a cell above the finger.
-    const left = fx - size.w * cs / 2;
-    const top  = fy - cs / 2 - size.h * cs;
-    ghost.style.left   = left + 'px';
-    ghost.style.top    = top  + 'px';
-    ghost.style.width  = (size.w * cs) + 'px';
-    ghost.style.height = (size.h * cs) + 'px';
-    ghost.style.gridTemplateColumns = `repeat(${size.w}, ${cs}px)`;
-    ghost.classList.remove('hidden');
-    ghost.classList.toggle('invalid', !valid);
-    // Rebuild the inner cells only when shape/rotation changes.
-    const key = bpHeld.id + '|' + (bpHeld.rot || 0);
-    if (ghost.dataset.shapeKey !== key) {
-        ghost.dataset.shapeKey = key;
-        ghost.innerHTML = '';
-        const offs = NeonBackpack.shapeOffsets(def.shape, bpHeld.rot || 0);
-        const set = new Set(offs.map(([x, y]) => x + ',' + y));
-        for (let y = 0; y < size.h; y++) {
-            for (let x = 0; x < size.w; x++) {
-                const d = document.createElement('div');
-                d.className = 'bp-drag-ghost-cell' + (set.has(x + ',' + y) ? ' filled' : '');
-                ghost.appendChild(d);
-            }
-        }
-    }
-}
-function bpHideFloatingGhost() {
-    const ghost = document.getElementById('bp-drag-ghost');
-    if (ghost) {
-        ghost.classList.add('hidden');
-        ghost.dataset.shapeKey = '';
-    }
-}
 // True iff the held item can be dropped at (x, y). Returns false when
 // the target is null OR when the shape can't fit / overlaps an
-// existing item. Used to colour the floating ghost.
+// existing item.
 function bpHeldPlacementValid(target) {
     if (!bpHeld || !target) return false;
     const def = BACKPACK_ITEMS[bpHeld.id];
@@ -1445,15 +1400,12 @@ function init() {
         // grid cells based on canPlace; null target = nothing painted.
         if (target) bpPaintGhost(target.x, target.y);
         else        bpClearGhost();
-        // Floating preview is ALWAYS shown while dragging — even when
-        // the target is off-grid or invalid. Red outline when invalid.
-        bpUpdateFloatingGhost(e.clientX, e.clientY, bpHeldPlacementValid(target));
     }
     function bpOnPointerEnd(e) {
         if (!bpTouch || e.pointerId !== bpTouch.pointerId) return;
         const state = bpTouch;
         bpTouch = null;
-        bpHideFloatingGhost();
+        bpClearGhost();
         if (!state.dragging) return;        // pure tap — let click handlers fire
         if (e.cancelable) e.preventDefault();
         const target = bpDropTargetCell(e.clientX, e.clientY);
