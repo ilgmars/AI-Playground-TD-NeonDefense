@@ -104,13 +104,13 @@ opponent. First to die loses.
 
 ## Roadmap
 
-| Phase | Deliverable | Estimate |
-|---|---|---|
-| **0** | This folder (design + signalling notes) — done. | ✓ |
-| **1** | Trystero scaffold (signalling only). Two browsers in a room can exchange chat messages. Smoke test in `tests/multiplayer.test.js`. | ~ half a day |
-| **2** | Race mode. Room code → seed; small "Lobby" overlay; leaderboard pinned to the play screen; reconnect handling. | ~ 1 day |
-| **3** | Co-op (lockstep). Input record/replay round-trip is the test. Aegis "peer-input" affordance. | ~ 2-3 days |
-| **4** | Versus (spike protocol + balance pass). | ~ 2-3 days |
+| Phase | Deliverable | Estimate | Status |
+|---|---|---|---|
+| **0** | This folder (design + signalling notes). | ✓ | done |
+| **1** | Protocol + actions + guard + mock transport + 80 logic tests. | ~ half a day | done |
+| **2** | Race mode: lobby UI, Trystero adapter (lazy-loaded), room code → seed, leaderboard overlay, reconnect / stale-peer handling. | ~ 1 day | done |
+| **3** | Co-op (lockstep). Input record/replay round-trip is the test. Aegis "peer-input" affordance. | ~ 2-3 days | pending |
+| **4** | Versus (spike protocol + balance pass). | ~ 2-3 days | pending |
 
 Each phase is independently shippable.
 

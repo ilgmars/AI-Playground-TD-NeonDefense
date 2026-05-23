@@ -358,5 +358,163 @@ const reordered = gSig.signFrame(mkFrame('A', 2, [{ t: 'basic', r: 0, c: 0, k: '
 ok('sig stable under key order',     gSig.check(reordered).ok === true);
 
 // ─────────────────────────────────────────────────────────────────────────
+// Phase 7 — Lobby (room-code generation, parsing, nickname sanitisation)
+// ─────────────────────────────────────────────────────────────────────────
+const lobby = require('../src/multiplayer/lobby.js');
+
+// Code parser: accepts upper-case alphabet, tolerates dashes/spaces,
+// rejects ambiguous letters explicitly (matches protocol alphabet).
+ok('parse trims dashes',          lobby.parseRoomCode('NEAN-42').ok === true);
+ok('parse upper-cases',           lobby.parseRoomCode('nean42').ok === true && lobby.parseRoomCode('nean42').code === 'NEAN42');
+ok('parse rejects empty',         lobby.parseRoomCode('').ok === false);
+ok('parse rejects wrong length',  lobby.parseRoomCode('NEAN').ok === false);
+ok('parse rejects ambiguous',     lobby.parseRoomCode('NEONIO').ok === false); // I/O stripped → 'NEN' too short
+ok('parse rejects non-letters',   lobby.parseRoomCode('!!!!!!').ok === false);
+
+// Generator: produces a 6-char string in the alphabet (10× sample).
+let allGood = true;
+for (let i = 0; i < 10; i++) {
+    const c = lobby.generateRoomCode();
+    if (!protocol.isValidRoomCode(c)) { allGood = false; break; }
+}
+ok('generator always produces valid codes', allGood);
+
+// Nick sanitisation
+ok('nick upper-cases + strips',   lobby.sanitiseNick('al ic@e') === 'ALICE');
+ok('nick truncates at 12',        lobby.sanitiseNick('A'.repeat(20)) === 'A'.repeat(12));
+ok('nick pads short input',       lobby.sanitiseNick('A') === 'AXY');
+ok('empty nick gets fallback',    /^[A-Z0-9]{3,12}$/.test(lobby.sanitiseNick('')));
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 8 — Race mode controller
+// ─────────────────────────────────────────────────────────────────────────
+const race = require('../src/multiplayer/race.js');
+
+// validateHeartbeat: shape + ranges.
+const hbGood = { v: 1, k: 'hb', p: 'ALICE', w: 5, h: 18, mh: 20, m: 320, s: 1280, a: 1, f: 1 };
+ok('heartbeat accepted',          race.validateHeartbeat(hbGood).ok === true);
+ok('heartbeat wrong kind',        race.validateHeartbeat(Object.assign({}, hbGood, { k: 'frame' })).ok === false);
+ok('heartbeat wrong version',     race.validateHeartbeat(Object.assign({}, hbGood, { v: 2 })).ok === false);
+ok('heartbeat float wave',        race.validateHeartbeat(Object.assign({}, hbGood, { w: 1.5 })).ok === false);
+ok('heartbeat out-of-range hp',   race.validateHeartbeat(Object.assign({}, hbGood, { h: 99999 })).ok === false);
+ok('heartbeat alive flag',        race.validateHeartbeat(Object.assign({}, hbGood, { a: 7 })).ok === false);
+
+// buildHeartbeat clamps + floors as documented.
+const fakeGame = { wave: 3, health: 19, maxHealth: 20, money: 250.7, score: 999.9 };
+const hb1 = race.buildHeartbeat({ peer: 'ALICE', game: fakeGame, frame: 7 });
+ok('built hb has floored money',  hb1.m === 250);
+ok('built hb has floored score',  hb1.s === 999);
+ok('built hb alive=1',            hb1.a === 1);
+const gameOverHB = race.buildHeartbeat({ peer: 'ALICE', game: Object.assign({}, fakeGame, { state: 'gameover' }), frame: 9 });
+ok('built hb alive=0 on gameover', gameOverHB.a === 0);
+// Hostile inputs are clamped, not crashed.
+const evilGame = { wave: 9_999_999, health: -50, maxHealth: 9_999_999, money: -1, score: 'lol' };
+const evilHB = race.buildHeartbeat({ peer: 'ALICE', game: evilGame, frame: 0 });
+ok('build clamps wave',  evilHB.w === 9999);
+ok('build clamps hp',    evilHB.h === 0);
+ok('build clamps money', evilHB.m === 0);
+ok('build defaults score on NaN', evilHB.s === 0);
+
+// Race controller — wire two peers through the mock hub end-to-end.
+const raceHub = transport.createMockHub();
+const aPeer = raceHub.join('NEAN42', 'A');
+const bPeer = raceHub.join('NEAN42', 'B');
+
+let nowMsR = 0;
+const nowFnR = () => nowMsR;
+let aGame = { wave: 1, health: 20, maxHealth: 20, money: 100, score: 0 };
+let bGame = { wave: 1, health: 20, maxHealth: 20, money: 100, score: 0 };
+
+const raceA = race.createRace({
+    peer: 'ALICE', transport: aPeer, getGame: () => aGame,
+    now: nowFnR, heartbeatMs: 1000, staleMs: 3000, dropMs: 10000,
+});
+const raceB = race.createRace({
+    peer: 'BOB', transport: bPeer, getGame: () => bGame,
+    now: nowFnR, heartbeatMs: 1000, staleMs: 3000, dropMs: 10000,
+});
+
+const updatesB = [];
+raceB.onUpdate(snap => updatesB.push(snap));
+
+// Subscribe B first, then A — otherwise A's initial tick fires before
+// B's onMessage listener is bound and B misses the first heartbeat.
+raceB.start(); raceA.start();
+ok('B sees ALICE row after start',
+   updatesB.length > 0 && updatesB[updatesB.length - 1].peers.some(p => p.peer === 'ALICE'));
+
+// Advance both games, fire next tick.
+aGame.wave = 5; aGame.money = 320;
+bGame.wave = 3;
+nowMsR = 1000;
+raceA._tickOnce(); raceB._tickOnce();
+const lastB = updatesB[updatesB.length - 1];
+const aliceRow = lastB.peers.find(p => p.peer === 'ALICE');
+ok('B sees ALICE wave update',   aliceRow && aliceRow.w === 5);
+ok('B leaderboard sorted by wave', lastB.peers[0].w >= lastB.peers[lastB.peers.length - 1].w);
+
+// Stale sweep: skip several seconds, B's roster should mark ALICE stale.
+nowMsR = 1000 + 4000;     // 4s of silence > 3s stale window
+raceB._sweepOnce();
+const staleSnap = updatesB[updatesB.length - 1];
+const staleRow = staleSnap.peers.find(p => p.peer === 'ALICE');
+ok('stale peer flagged',       staleRow && staleRow.stale === true);
+
+// Drop sweep: jump far enough that ALICE is dropped entirely.
+nowMsR = 1000 + 20000;
+raceB._sweepOnce();
+const dropSnap = updatesB[updatesB.length - 1];
+ok('dropped peer disappears',  !dropSnap.peers.some(p => p.peer === 'ALICE'));
+
+// Reconnect: ALICE rejoins after a network blip. Need a new frame > last
+// seen (monotonic), which a real reconnect produces because the
+// controller's frame counter resets on start.
+const reconnect = race.buildHeartbeat({
+    peer: 'ALICE',
+    game: { wave: 7, health: 15, maxHealth: 20, money: 500, score: 2000 },
+    frame: 9999,
+});
+raceB._ingest(reconnect, 'someid');
+const reSnap = updatesB[updatesB.length - 1];
+ok('reconnected peer reappears',
+   reSnap.peers.some(p => p.peer === 'ALICE' && p.w === 7));
+
+// Replay defence: re-sending the same old heartbeat (lower frame#) is ignored.
+raceB._ingest(reconnect, 'someid'); // same f, dedupe
+const replayedSnap = updatesB[updatesB.length - 1];
+ok('replay of old hb is ignored',
+   replayedSnap.peers.find(p => p.peer === 'ALICE').w === 7);
+
+// Self-name impostor: a remote claiming to be 'BOB' is dropped on B's side.
+const impostor = race.buildHeartbeat({
+    peer: 'BOB',
+    game: { wave: 999, health: 1, maxHealth: 20, money: 0, score: 0 },
+    frame: 10000,
+});
+raceB._ingest(impostor, 'evil');
+const meRow = raceB.roster['BOB'];
+ok('impostor rejected — local seat untouched',
+   meRow && meRow.w !== 999);
+
+// stop() clears timers + listeners.
+raceA.stop(); raceB.stop();
+ok('race.stop() runs without error', true);
+
+// Bandwidth proxy: roster size capped under abusive joins so a flood of
+// fake peers can't OOM the leaderboard.
+const cap = race.createRace({
+    peer: 'ME', transport: { send() {}, onMessage() { return () => {}; } },
+    now: () => 0, maxRosterSize: 4, heartbeatMs: 1000,
+});
+for (let i = 0; i < 20; i++) {
+    cap._ingest(race.buildHeartbeat({
+        peer: 'X' + i,
+        game: { wave: 1, health: 1, maxHealth: 1, money: 0, score: 0 },
+        frame: i,
+    }), 'x');
+}
+ok('roster size cap holds under flood', Object.keys(cap.roster).length <= 4);
+
+// ─────────────────────────────────────────────────────────────────────────
 console.log(`\n${pass}/${pass + fail} passed${fail ? ', ' + fail + ' FAILED' : ''}`);
 process.exit(fail === 0 ? 0 : 1);

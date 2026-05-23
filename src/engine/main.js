@@ -321,6 +321,7 @@ function navigateToMainMenu() {
     hideScreen('tower-mastery');
     hideScreen('backpack');
     hideScreen('save-code-modal');
+    hideScreen('mp-lobby');
     showScreen('main-menu');
     _exitSubScreenState();
     // Halt the in-progress run so update() bails — the menu owns the canvas now.
@@ -1504,6 +1505,12 @@ function init() {
         uiGoBack();             // pops the pushed state so history stays balanced
     });
 
+    // ── Multiplayer lobby + race overlay ─────────────────────────────────
+    // The lobby screen is purely menu navigation — no network until JOIN.
+    // On JOIN we lazy-load Trystero, attach the race controller, and
+    // start the run with the room code's hash as the world seed.
+    setupMultiplayerLobby();
+
     // M2: Run Setup BACK button goes to Main Menu.
     document.getElementById('setup-back-btn').addEventListener('click', uiGoBack);
     document.getElementById('tree-back-btn').addEventListener('click',  uiGoBack);
@@ -2606,6 +2613,188 @@ function init() {
         if (y + tooltip.offsetHeight > window.innerHeight - 4) y = e.clientY - tooltip.offsetHeight - pad;
         tooltip.style.left = x + 'px';
         tooltip.style.top  = y + 'px';
+    }
+
+    // ── Multiplayer lobby wiring ────────────────────────────────────────
+    // Lazy: nothing here touches the network until JOIN is clicked. Once
+    // a room is live, the race controller polls window.game once per
+    // second and broadcasts a small heartbeat; other peers' heartbeats
+    // populate the leaderboard overlay. The race overlay is display-
+    // only — Aegis is naive (see multiplayer/anti-cheat.md).
+    let _activeRace = null;     // race controller instance
+    let _activeRoom = null;     // transport peer
+    let _raceUnsub  = null;     // unsubscribe from onUpdate
+    let _activeRoomCode = null;
+
+    function setStatus(el, text, color) {
+        el.textContent = text;
+        el.style.color = color || 'var(--text-muted)';
+    }
+
+    function setupMultiplayerLobby() {
+        if (typeof NeonMP === 'undefined' || !NeonMP.lobby || !NeonMP.race) {
+            // Scripts didn't load (e.g. broken cache); hide the button so
+            // the menu doesn't dangle a non-functional entry point.
+            const btn = document.getElementById('menu-multiplayer-btn');
+            if (btn) btn.classList.add('hidden');
+            return;
+        }
+        const lobby = NeonMP.lobby;
+        const race  = NeonMP.race;
+
+        const openBtn  = document.getElementById('menu-multiplayer-btn');
+        const backBtn  = document.getElementById('mp-back-btn');
+        const joinBtn  = document.getElementById('mp-join-btn');
+        const newBtn   = document.getElementById('mp-room-new-btn');
+        const nickIn   = document.getElementById('mp-nick-input');
+        const roomIn   = document.getElementById('mp-room-input');
+        const modeSel  = document.getElementById('mp-mode-select');
+        const status   = document.getElementById('mp-status');
+
+        // Restore persisted nick + last room so a quick re-join is one click.
+        nickIn.value = lobby.loadNick();
+        const lastRoom = lobby.loadLastRoom();
+        if (lastRoom) roomIn.value = lastRoom;
+
+        openBtn.addEventListener('click', () => {
+            _enterSubScreen();
+            hideScreen('main-menu');
+            showScreen('mp-lobby');
+            setStatus(status, 'Pick a mode and room code, then JOIN.', 'var(--text-muted)');
+        });
+        backBtn.addEventListener('click', uiGoBack);
+
+        // NEW CODE generates a fresh 6-char code into the input.
+        newBtn.addEventListener('click', () => {
+            roomIn.value = lobby.generateRoomCode();
+        });
+
+        // Normalise as the player types so they see the canonical form.
+        roomIn.addEventListener('input', () => {
+            const raw = roomIn.value;
+            roomIn.value = raw.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6);
+        });
+
+        joinBtn.addEventListener('click', async () => {
+            const mode = modeSel.value;
+            if (mode !== 'race') {
+                setStatus(status, mode.toUpperCase() + ' is not implemented yet.', '#fbbf24');
+                return;
+            }
+            const parsed = lobby.parseRoomCode(roomIn.value);
+            if (!parsed.ok) {
+                setStatus(status, 'Room code must be 6 chars (A–Z, 2–9, no I/O).', '#fb7185');
+                return;
+            }
+            const nick = lobby.sanitiseNick(nickIn.value);
+            lobby.saveNick(nick);
+            lobby.saveLastRoom(parsed.code);
+            nickIn.value = nick;
+            roomIn.value = parsed.code;
+
+            setStatus(status, 'Connecting to room ' + parsed.code + '…', 'var(--accent)');
+            joinBtn.disabled = true;
+            try {
+                await joinRace(parsed.code, nick);
+                setStatus(status, 'Connected. Starting run…', '#4ade80');
+                // Tear down the lobby and drop straight into a run with
+                // the room code as the world seed.
+                hideScreen('mp-lobby');
+                _exitSubScreenState();
+                const seed = NeonMP.protocol.roomCodeToSeed(parsed.code);
+                // Use the player's last loadout if present so we don't
+                // force them through Run Setup for a race; their build
+                // choices are private anyway.
+                restartGame(seed);
+                showScreen('mp-race-overlay');
+                const roomBadge = document.getElementById('mp-race-room');
+                if (roomBadge) roomBadge.textContent = parsed.code;
+            } catch (err) {
+                setStatus(status, 'Could not connect: ' + (err && err.message ? err.message : err),
+                          '#fb7185');
+                leaveRace();
+            } finally {
+                joinBtn.disabled = false;
+            }
+        });
+
+        // Leave button on the race overlay.
+        const leaveBtn = document.getElementById('mp-race-leave');
+        if (leaveBtn) leaveBtn.addEventListener('click', () => {
+            leaveRace();
+            hideScreen('mp-race-overlay');
+        });
+    }
+
+    // joinRace: lazy-load Trystero, join the room, wire the race
+    // controller, subscribe the overlay renderer. Throws on transport
+    // failure; the lobby surface catches and shows the message.
+    async function joinRace(roomCode, nick) {
+        if (!NeonMP || !NeonMP.trystero || !NeonMP.race) {
+            throw new Error('multiplayer scripts missing');
+        }
+        leaveRace();         // ensure no stale controller from a previous join
+        const room = await NeonMP.trystero.joinRoom(roomCode, nick);
+        _activeRoom = room;
+        _activeRoomCode = roomCode;
+
+        _activeRace = NeonMP.race.createRace({
+            peer: nick,
+            transport: room,
+            getGame: () => (typeof game !== 'undefined' ? game : {}),
+        });
+        _raceUnsub = _activeRace.onUpdate(renderRaceOverlay);
+        _activeRace.start();
+    }
+
+    function leaveRace() {
+        if (typeof _raceUnsub === 'function') {
+            try { _raceUnsub(); } catch (_) {}
+            _raceUnsub = null;
+        }
+        if (_activeRace) {
+            try { _activeRace.stop(); } catch (_) {}
+            _activeRace = null;
+        }
+        if (_activeRoom) {
+            try { _activeRoom.leave(); } catch (_) {}
+            _activeRoom = null;
+        }
+        _activeRoomCode = null;
+        const list = document.getElementById('mp-race-list');
+        if (list) list.innerHTML = '';
+    }
+
+    function renderRaceOverlay(snap) {
+        const list = document.getElementById('mp-race-list');
+        if (!list) return;
+        const peers = snap.peers || [];
+        // Build markup imperatively so we control class state per row.
+        // The list is small (≤ 16) so this is cheap per second.
+        const frag = document.createDocumentFragment();
+        for (const p of peers) {
+            const row = document.createElement('div');
+            row.className = 'mp-race-row' +
+                (p.peer === snap.me ? ' is-me' : '') +
+                (p.stale ? ' is-stale' : '') +
+                (!p.alive ? ' is-dead' : '');
+            const hpPct = p.mh > 0 ? Math.max(0, Math.min(1, p.h / p.mh)) : 0;
+            row.innerHTML =
+                '<span class="mp-race-name">' + escapeHTML(p.peer) + '</span>' +
+                '<span class="mp-race-wave">w' + p.w + '</span>' +
+                '<span class="mp-race-hp">' +
+                    '<span class="mp-race-hp-bar" style="width:' + Math.round(hpPct * 100) + '%"></span>' +
+                    '<span class="mp-race-hp-text">' + (p.alive ? (p.h + '/' + p.mh) : 'OUT') + '</span>' +
+                '</span>';
+            frag.appendChild(row);
+        }
+        list.innerHTML = '';
+        list.appendChild(frag);
+    }
+    function escapeHTML(s) {
+        return String(s).replace(/[&<>"']/g, c => ({
+            '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;',
+        }[c]));
     }
 }
 
