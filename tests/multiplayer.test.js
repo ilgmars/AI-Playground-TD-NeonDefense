@@ -735,6 +735,24 @@ const coopMod = require('../src/multiplayer/coop.js');
     ok('coop self-echo not applied (no extra log entry)',
        gameA.log.filter(e => e.k === 'potion').length === 0);
 
+    // Boon pick syncs through actions.applyInput → game.pickBoon.
+    // Verify our makeFakeGame supports it.
+    const gameWithBoon = makeFakeGame();
+    gameWithBoon.pickBoon = function (id, opts) {
+        this.log.push({ k: 'boon', id, source: opts && opts.source });
+        return true;
+    };
+    const boonHub = transport.createMockHub();
+    const bX = boonHub.join('B', 'X');
+    const bY = boonHub.join('B', 'Y');
+    const X = coopMod.createCoop({ peer: 'X', transport: bX, getGame: () => gameA });
+    const Y = coopMod.createCoop({ peer: 'Y', transport: bY, getGame: () => gameWithBoon });
+    X.start(); Y.start();
+    X.broadcast({ k: 'boon', id: 'overdrive' });
+    ok('coop boon E2E: Y applied X\'s pick',
+       gameWithBoon.log.some(e => e.k === 'boon' && e.id === 'overdrive' && e.source === 'remote'));
+    X.stop(); Y.stop();
+
     A.stop(); B.stop();
 }
 

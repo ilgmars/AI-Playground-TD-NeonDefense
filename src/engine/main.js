@@ -2782,17 +2782,12 @@ function init() {
             // hook can install the seeded RNG before aegis.js. main.js
             // re-runs init() on reload and detects window.__neonMPPending
             // to auto-resume the join (see resumeMultiplayerIfPending).
-            const seed = NeonMP.protocol.roomCodeToSeed(
-                mode === 'versus' ? parsed.code + 'A' : parsed.code
-            );
-            // For versus we also persist the side ('A' or 'B') — first
-            // joiner of a room is 'A', second is 'B'. We can't know who's
-            // first without talking to the room first, so we default to
-            // 'A' here and reconcile on the wire (later: server-coordinated).
-            const cfg = {
-                mode, roomCode: parsed.code, nick, seed,
-                side: mode === 'versus' ? 'A' : null,
-            };
+            // The seed stored here is the lobby seed — same on every
+            // peer of the room. For coop both peers play that world.
+            // For versus the seed is replaced after the A/B handshake
+            // with the side-suffixed hash (in resumeMultiplayerIfPending).
+            const seed = NeonMP.protocol.roomCodeToSeed(parsed.code);
+            const cfg = { mode, roomCode: parsed.code, nick, seed };
             try {
                 sessionStorage.setItem('neonMP', JSON.stringify(cfg));
                 setStatus(status, 'Re-launching with deterministic RNG…', 'var(--accent)');
@@ -2857,12 +2852,28 @@ function init() {
                 const roomBadge = document.getElementById('mp-race-room');
                 if (roomBadge) roomBadge.textContent = parsed.code + ' (co-op)';
             } else if (cfg.mode === 'versus') {
-                await joinVersus(parsed.code, nick, cfg.side || 'A');
-                restartGame(cfg.seed);
+                // joinVersus now runs the A/B handshake and returns the
+                // resolved side. The world seed is the side-suffixed
+                // hash; Math.random is re-installed with that seed so
+                // boon / loot / OVERCLOCK rolls match the side.
+                const resolved = await joinVersus(parsed.code, nick);
+                if (!resolved.ok) {
+                    setStatus(document.getElementById('mp-status'),
+                        resolved.reason || 'Versus room full.', '#fb7185');
+                    leaveActiveMultiplayer();
+                    showScreen('main-menu');
+                    return;
+                }
+                const sideSeed = NeonMP.protocol.roomCodeToSeed(parsed.code + resolved.side);
+                // Re-install seeded RNG with side-specific seed so the
+                // two peers see disjoint enemy / boon streams. Aegis
+                // dev mode is on (from pre-boot), so the swap is fine.
+                Math.random = NeonMP.prng.mulberry32(sideSeed);
+                restartGame(sideSeed);
                 bindVersusHooksToGame();
                 showScreen('mp-race-overlay');
                 const roomBadge = document.getElementById('mp-race-room');
-                if (roomBadge) roomBadge.textContent = parsed.code + ' (vs)';
+                if (roomBadge) roomBadge.textContent = parsed.code + ' (vs ' + resolved.side + ')';
             }
         } catch (err) {
             console.warn('[MP] resume failed:', err);
@@ -2901,11 +2912,41 @@ function init() {
             getGame: () => (typeof game !== 'undefined' ? game : null),
             allowBuildTypes: allowBuild,
             secret,
+            // Mirror remote state into UI: close the boon chooser when
+            // the peer picks one, render remote cursors, etc.
+            onApply: ({ peer, input }) => {
+                if (input.k === 'boon' && window.NeonBoons && window.NeonBoons.isActive()) {
+                    // Both peers reached the boon screen; whoever's
+                    // input lands first wins. close() drops the local
+                    // overlay so the partner's pick takes effect.
+                    try { window.NeonBoons.close(); } catch (_) {}
+                }
+            },
         });
         _activeCoop.start();
+
+        // Cursor overlay: a separate listener on the same transport
+        // routes 'cursor' messages to the cursor renderer.
+        room.onMessage((msg, fromId) => {
+            if (msg && msg.kind === 'cursor' && msg.p && msg.p !== nick) {
+                onRemoteCursor(msg);
+            }
+        });
+
+        // Send our own cursor at ~10 Hz from the canvas mousemove.
+        attachCursorBroadcast();
     }
 
-    async function joinVersus(roomCode, nick, side) {
+    // Versus A/B handshake — first two peers (lowest joinedAt, ties
+    // broken by nick) get 'A' and 'B'. Returns:
+    //   { ok: true, side: 'A' | 'B' } — slot assigned, game can start.
+    //   { ok: false, reason: 'room full' } — third+ peer, abort.
+    // Handshake window: HANDSHAKE_MS after our claim is sent we close
+    // collection and decide. Late joiners broadcast their claim too; if
+    // we see a claim newer than the window after we've already started,
+    // we ignore it (we're committed to our side at that point).
+    const VERSUS_HANDSHAKE_MS = 1500;
+    async function joinVersus(roomCode, nick) {
         if (!NeonMP || !NeonMP.trystero || !NeonMP.versus) {
             throw new Error('versus scripts missing');
         }
@@ -2915,6 +2956,43 @@ function init() {
         _activeRoomCode = roomCode;
         _activeMode = 'versus';
 
+        const myJoinAt = Date.now();
+        // Map of peer → { ts } collected during the window. Includes us.
+        const claims = new Map();
+        claims.set(nick, { ts: myJoinAt });
+
+        const claimUnsub = room.onMessage((msg) => {
+            if (!msg || msg.kind !== 'vs-claim') return;
+            if (typeof msg.p !== 'string' || typeof msg.ts !== 'number') return;
+            const peer = msg.p.slice(0, 32);
+            const prev = claims.get(peer);
+            if (!prev || msg.ts < prev.ts) claims.set(peer, { ts: msg.ts });
+            // Reply with our own claim so the new joiner sees us.
+            // Throttled implicitly: each peer only emits one claim per
+            // join; replies are idempotent for the receiver.
+            try { room.send({ kind: 'vs-claim', p: nick, ts: myJoinAt }); } catch (_) {}
+        });
+
+        try { room.send({ kind: 'vs-claim', p: nick, ts: myJoinAt }); } catch (_) {}
+
+        // Wait for the handshake window to collect everyone's claims.
+        await new Promise(r => setTimeout(r, VERSUS_HANDSHAKE_MS));
+        // Sort by (ts asc, nick asc) — same comparator on every peer.
+        const sorted = Array.from(claims.entries())
+            .map(([peer, info]) => ({ peer, ts: info.ts }))
+            .sort((a, b) => (a.ts - b.ts) || (a.peer < b.peer ? -1 : a.peer > b.peer ? 1 : 0));
+        const myIdx = sorted.findIndex(c => c.peer === nick);
+        if (myIdx < 0 || myIdx > 1) {
+            // 3rd+ joiner — versus is 2-player; refuse politely.
+            try { claimUnsub(); } catch (_) {}
+            return { ok: false, reason: 'Versus rooms are 2-player; this one is full.' };
+        }
+        const side = myIdx === 0 ? 'A' : 'B';
+        try { claimUnsub(); } catch (_) {}
+
+        // Now wire the rest of the controllers — race for HUD, versus
+        // for spike protocol — only after the side is fixed so the
+        // controllers don't fire on stale state.
         _activeRace = NeonMP.race.createRace({
             peer: nick, transport: room,
             getGame: () => (typeof game !== 'undefined' ? game : {}),
@@ -2924,9 +3002,14 @@ function init() {
 
         _activeVersus = NeonMP.versus.createVersus({
             peer: nick, transport: room,
+            // 2-player only for now; target the opposite side's peer
+            // explicitly so 3+ peer rooms (rejected above) wouldn't
+            // accidentally see cross-fire.
+            target: sorted[1 - myIdx] ? sorted[1 - myIdx].peer : null,
         });
         _activeVersus.start();
-        window.__neonMPVersusSide = side || 'A';
+        window.__neonMPVersusSide = side;
+        return { ok: true, side };
     }
 
     // Bind versus hooks onto the live Game. Called after each
@@ -2956,6 +3039,14 @@ function init() {
         window.__neonMPVersusSide = null;
         const list = document.getElementById('mp-race-list');
         if (list) list.innerHTML = '';
+        // Drop remote cursors and clear the overlay so it doesn't show
+        // stale dots after the room ends.
+        _remoteCursors.clear();
+        const overlay = document.getElementById('mp-cursor-overlay');
+        if (overlay) {
+            const ctx = overlay.getContext('2d');
+            if (ctx) ctx.clearRect(0, 0, overlay.width, overlay.height);
+        }
     }
 
     // joinRace: lazy-load Trystero, join the room, wire the race
@@ -3011,6 +3102,27 @@ function init() {
         if (!_activeCoop) return;
         _activeCoop.broadcast({ k: 'potion' });
     }
+    function mpBroadcastBoon(boonId) {
+        if (!_activeCoop) return;
+        if (typeof boonId !== 'string' || boonId.length === 0) return;
+        _activeCoop.broadcast({ k: 'boon', id: boonId });
+    }
+    // Throttle cursor frames so we don't flood the data channel. 10 Hz
+    // gives smooth motion without saturating the budget; mouse moves
+    // come in much faster than that on desktop.
+    let _mpLastCursorSentAt = 0;
+    function mpBroadcastCursor(x, y) {
+        if (!_activeCoop || !_activeRoom) return;
+        const now = Date.now();
+        if (now - _mpLastCursorSentAt < 100) return;
+        _mpLastCursorSentAt = now;
+        try {
+            _activeRoom.send({
+                kind: 'cursor', p: _activeCoop.me,
+                x: Math.round(x), y: Math.round(y), t: now,
+            });
+        } catch (_) { /* swallow */ }
+    }
     // Expose globally so the input handlers scattered through init()
     // can call them without piping the reference through every closure.
     window.__neonMPBroadcast = {
@@ -3018,7 +3130,126 @@ function init() {
         upgrade: mpBroadcastUpgrade,
         sell: mpBroadcastSell,
         potion: mpBroadcastPotion,
+        boon: mpBroadcastBoon,
+        cursor: mpBroadcastCursor,
     };
+
+    // Remote-cursor state. Each row: { peer, x, y, lastSeen }. We
+    // render via a transparent <canvas> overlay sized to the game
+    // canvas so the cursors visually live above towers / enemies.
+    const _remoteCursors = new Map(); // peer -> { x, y, lastSeen, color }
+    const REMOTE_CURSOR_TTL_MS = 2000;
+    const REMOTE_CURSOR_PALETTE = ['#22d3ee', '#fbbf24', '#a78bfa', '#fb7185', '#4ade80', '#f97316'];
+
+    function pickCursorColor(peer) {
+        // Stable hash → palette index so the same peer keeps the same
+        // colour across reconnects.
+        let h = 0;
+        for (let i = 0; i < peer.length; i++) h = (h * 31 + peer.charCodeAt(i)) | 0;
+        return REMOTE_CURSOR_PALETTE[Math.abs(h) % REMOTE_CURSOR_PALETTE.length];
+    }
+
+    function onRemoteCursor(msg) {
+        if (typeof msg.x !== 'number' || typeof msg.y !== 'number') return;
+        const peer = String(msg.p).slice(0, 32);
+        let row = _remoteCursors.get(peer);
+        if (!row) {
+            row = { x: 0, y: 0, lastSeen: 0, color: pickCursorColor(peer) };
+            _remoteCursors.set(peer, row);
+        }
+        row.x = msg.x;
+        row.y = msg.y;
+        row.lastSeen = Date.now();
+        scheduleCursorRender();
+    }
+
+    let _cursorOverlay = null;
+    let _cursorRenderQueued = false;
+    function scheduleCursorRender() {
+        if (_cursorRenderQueued) return;
+        _cursorRenderQueued = true;
+        requestAnimationFrame(() => {
+            _cursorRenderQueued = false;
+            renderRemoteCursors();
+        });
+    }
+    function ensureCursorOverlay() {
+        if (_cursorOverlay) return _cursorOverlay;
+        const canvas = document.getElementById('game-canvas');
+        if (!canvas) return null;
+        const overlay = document.createElement('canvas');
+        overlay.id = 'mp-cursor-overlay';
+        overlay.style.position = 'absolute';
+        overlay.style.left = '0';
+        overlay.style.top = '0';
+        overlay.style.pointerEvents = 'none';
+        overlay.style.zIndex = '5';
+        canvas.parentElement.appendChild(overlay);
+        _cursorOverlay = overlay;
+        return overlay;
+    }
+    function renderRemoteCursors() {
+        const overlay = ensureCursorOverlay();
+        if (!overlay) return;
+        const canvas = document.getElementById('game-canvas');
+        if (!canvas) return;
+        // Match the canvas pixel rect.
+        const rect = canvas.getBoundingClientRect();
+        if (overlay.width !== rect.width || overlay.height !== rect.height) {
+            overlay.width = rect.width;
+            overlay.height = rect.height;
+            overlay.style.width = rect.width + 'px';
+            overlay.style.height = rect.height + 'px';
+        }
+        const ctx = overlay.getContext('2d');
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+        const now = Date.now();
+        let alive = false;
+        for (const [peer, row] of _remoteCursors) {
+            if (now - row.lastSeen > REMOTE_CURSOR_TTL_MS) {
+                _remoteCursors.delete(peer);
+                continue;
+            }
+            alive = true;
+            const age = (now - row.lastSeen) / REMOTE_CURSOR_TTL_MS;
+            const alpha = Math.max(0.25, 1 - age);
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = row.color;
+            ctx.shadowColor = row.color;
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            ctx.arc(row.x, row.y, 7, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(15,23,42,0.85)';
+            ctx.font = 'bold 10px monospace';
+            const label = peer;
+            const w = ctx.measureText(label).width;
+            ctx.fillRect(row.x + 10, row.y - 8, w + 6, 14);
+            ctx.fillStyle = row.color;
+            ctx.fillText(label, row.x + 13, row.y + 2);
+            ctx.restore();
+        }
+        // Keep the loop alive while any cursor is still in TTL window.
+        if (alive) scheduleCursorRender();
+    }
+
+    // Attach a mousemove listener on the canvas that throttles cursor
+    // broadcasts to ~10 Hz. Bound once per coop join; the handler is
+    // a no-op when the broadcast helper is missing (i.e. left coop).
+    let _cursorMoveAttached = false;
+    function attachCursorBroadcast() {
+        if (_cursorMoveAttached) return;
+        const canvas = document.getElementById('game-canvas');
+        if (!canvas) return;
+        canvas.addEventListener('mousemove', (e) => {
+            if (!window.__neonMPBroadcast || !window.__neonMPBroadcast.cursor) return;
+            const rect = canvas.getBoundingClientRect();
+            window.__neonMPBroadcast.cursor(e.clientX - rect.left, e.clientY - rect.top);
+        });
+        _cursorMoveAttached = true;
+    }
 
     function renderRaceOverlay(snap) {
         const list = document.getElementById('mp-race-list');

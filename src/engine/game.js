@@ -815,6 +815,13 @@ class Game {
         if (window.SoundFX && SoundFX.build) SoundFX.build();
         return true;
     }
+    // Multiplayer adapter — actions.applyInput dispatches boon picks
+    // here. Mirrors chooseBoon with the boolean contract the dispatcher
+    // expects (true = applied, false = rejected). Both peers in co-op
+    // need to apply the same boon so their economy/damage multipliers
+    // line up; calling chooseBoon directly preserves the existing
+    // local-click path.
+    pickBoon(boonId) { return this.chooseBoon(boonId); }
 
     buildTower(c, r, type) {
         if (!this.map.isBuildable(c, r)) return false;

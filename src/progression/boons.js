@@ -21,7 +21,29 @@ const NeonBoons = (function () {
     function pick(boonId) {
         if (!active) return;
         if (window.game) window.game.chooseBoon(boonId);
+        // Multiplayer co-op: broadcast the local pick so the peer's
+        // simulation applies the same boon. apply() on the remote side
+        // also closes their overlay because their chooseBoon path
+        // increments game.boons; their pendingBoon/open() check next
+        // tick is a no-op. (Mock & race transports both no-op.)
+        if (window.__neonMPBroadcast && window.__neonMPBroadcast.boon) {
+            try { window.__neonMPBroadcast.boon(boonId); } catch (_) {}
+        }
         close();
+    }
+    // Apply a boon that arrived from a remote co-op peer. Closes any
+    // open chooser overlay on the local side so both peers progress
+    // out of the boon screen in lockstep.
+    function applyRemote(boonId) {
+        if (window.game && typeof window.game.boons !== 'undefined') {
+            // Don't double-apply if we already picked the same boon.
+            if (window.game.boons.indexOf(boonId) >= 0) {
+                if (active) close();
+                return;
+            }
+            window.game.chooseBoon(boonId);
+        }
+        if (active) close();
     }
 
     function render(choices) {
@@ -68,7 +90,7 @@ const NeonBoons = (function () {
         return true;
     }
 
-    return { open, close, isActive: () => active };
+    return { open, close, applyRemote, isActive: () => active };
 })();
 
 if (typeof window !== 'undefined') window.NeonBoons = NeonBoons;
