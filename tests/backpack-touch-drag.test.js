@@ -203,6 +203,185 @@ const path = require('path');
         await ctx.close();
     }
 
+    // ── Scenario 4 — floating ghost shows OFF-GRID and turns red ─────
+    // Dragging past the edge of the grid should keep the floating
+    // ghost visible (item is rendered even when there's no valid
+    // drop target). The ghost gains the `.invalid` class when the
+    // current position can't accept the item.
+    {
+        const { page, ctx } = await freshMobilePage();
+        await page.evaluate(() => {
+            const s = NeonSave.load();
+            s.backpack = { w: 5, h: 5, placed: [], stash: ['plasma_cell'], luckBoost: 0 };
+            NeonSave.write(s); location.reload();
+        });
+        await page.waitForTimeout(700);
+        await page.evaluate(() => navigateToBackpack());
+        await page.waitForTimeout(250);
+
+        const result = await page.evaluate(async () => {
+            const chip = document.querySelector('#bp-stash .bp-chip[data-stash-idx="0"]');
+            const r = chip.getBoundingClientRect();
+            const POINTER_ID = 31;
+            const fire = (target, type, x, y) => target.dispatchEvent(new PointerEvent(type, {
+                bubbles: true, cancelable: true,
+                pointerId: POINTER_ID, pointerType: 'touch',
+                isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1,
+                clientX: x, clientY: y, screenX: x, screenY: y,
+            }));
+            fire(chip, 'pointerdown', r.left + r.width/2, r.top + r.height/2);
+            await new Promise(r => setTimeout(r, 20));
+            fire(document.body, 'pointermove', r.left + r.width/2 + 30, r.top + r.height/2 + 30);
+            await new Promise(r => setTimeout(r, 40));
+
+            // Move WAY off the grid — top-left corner of viewport.
+            fire(document.body, 'pointermove', 5, 5);
+            await new Promise(r => setTimeout(r, 30));
+            const offGrid = {
+                visible: !document.getElementById('bp-drag-ghost').classList.contains('hidden'),
+                invalid: document.getElementById('bp-drag-ghost').classList.contains('invalid'),
+                gridGhostCells: document.querySelectorAll('#bp-grid .bp-cell.ghost-ok, #bp-grid .bp-cell.ghost-bad').length,
+            };
+
+            // Move BACK onto a valid grid cell.
+            const cells = document.querySelectorAll('#bp-grid .bp-cell');
+            const t = cells[2 * save.backpack.w + 2].getBoundingClientRect();
+            fire(document.body, 'pointermove', t.left + t.width/2, t.bottom - 1);
+            await new Promise(r => setTimeout(r, 30));
+            const valid = {
+                visible: !document.getElementById('bp-drag-ghost').classList.contains('hidden'),
+                invalid: document.getElementById('bp-drag-ghost').classList.contains('invalid'),
+            };
+
+            fire(document.body, 'pointerup', t.left + t.width/2, t.bottom - 1);
+            await new Promise(r => setTimeout(r, 60));
+            const afterRelease = {
+                visible: !document.getElementById('bp-drag-ghost').classList.contains('hidden'),
+            };
+            return { offGrid, valid, afterRelease };
+        });
+        ok('floating ghost stays visible off-grid', result.offGrid.visible === true);
+        ok('floating ghost is red (invalid) off-grid', result.offGrid.invalid === true);
+        ok('no grid cells highlighted while off-grid', result.offGrid.gridGhostCells === 0);
+        ok('floating ghost is green (valid) on a free cell', result.valid.visible && !result.valid.invalid);
+        ok('floating ghost hidden after release', result.afterRelease.visible === false);
+        await ctx.close();
+    }
+
+    // ── Scenario 5 — invalid placement (overlap) → red ghost, no drop ──
+    {
+        const { page, ctx } = await freshMobilePage();
+        await page.evaluate(() => {
+            const s = NeonSave.load();
+            // Pre-place an item at (2, 2) so dragging another onto it
+            // is an overlap conflict.
+            s.backpack = { w: 5, h: 5,
+                placed: [{ id: 'plasma_cell', x: 2, y: 2, rot: 0 }],
+                stash: ['plasma_cell'], luckBoost: 0 };
+            NeonSave.write(s); location.reload();
+        });
+        await page.waitForTimeout(700);
+        await page.evaluate(() => navigateToBackpack());
+        await page.waitForTimeout(250);
+
+        const result = await page.evaluate(async () => {
+            const chip = document.querySelector('#bp-stash .bp-chip[data-stash-idx="0"]');
+            const r = chip.getBoundingClientRect();
+            const POINTER_ID = 32;
+            const fire = (target, type, x, y) => target.dispatchEvent(new PointerEvent(type, {
+                bubbles: true, cancelable: true,
+                pointerId: POINTER_ID, pointerType: 'touch',
+                isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1,
+                clientX: x, clientY: y, screenX: x, screenY: y,
+            }));
+            fire(chip, 'pointerdown', r.left + r.width/2, r.top + r.height/2);
+            await new Promise(r => setTimeout(r, 20));
+            fire(document.body, 'pointermove', r.left + r.width/2 + 30, r.top + r.height/2 + 30);
+            await new Promise(r => setTimeout(r, 40));
+
+            // Aim at the already-occupied cell (2, 2).
+            const cells = document.querySelectorAll('#bp-grid .bp-cell');
+            const t = cells[2 * save.backpack.w + 2].getBoundingClientRect();
+            fire(document.body, 'pointermove', t.left + t.width/2, t.bottom - 1);
+            await new Promise(r => setTimeout(r, 30));
+            const midDrag = {
+                invalid: document.getElementById('bp-drag-ghost').classList.contains('invalid'),
+                ghostBad: !!document.querySelector('#bp-grid .bp-cell.ghost-bad'),
+            };
+            fire(document.body, 'pointerup', t.left + t.width/2, t.bottom - 1);
+            await new Promise(r => setTimeout(r, 60));
+            return {
+                midDrag,
+                placedLen: save.backpack.placed.length,
+                stashLen: save.backpack.stash.length,
+                held: !!bpHeld,
+            };
+        });
+        ok('ghost is red while over an occupied cell',  result.midDrag.invalid === true);
+        ok('underlying cell shows ghost-bad',           result.midDrag.ghostBad === true);
+        // Invalid drop: the pre-existing item is unchanged, the dragged
+        // item is in held-limbo (not placed, not back in stash) so the
+        // user can tap to retry or send back via the STASH button.
+        ok('invalid drop did NOT add to placed',        result.placedLen === 1);
+        ok('item is still held after invalid drop',     result.held === true);
+        ok('dragged item not stashed after invalid drop', result.stashLen === 0);
+        await ctx.close();
+    }
+
+    // ── Scenario 6 — drag an already-placed item to a new cell ─────────
+    // The user asked to confirm picking-up + moving works on mobile.
+    {
+        const { page, ctx } = await freshMobilePage();
+        await page.evaluate(() => {
+            const s = NeonSave.load();
+            s.backpack = { w: 5, h: 5,
+                placed: [{ id: 'plasma_cell', x: 0, y: 0, rot: 0 }],
+                stash: [], luckBoost: 0 };
+            NeonSave.write(s); location.reload();
+        });
+        await page.waitForTimeout(700);
+        await page.evaluate(() => navigateToBackpack());
+        await page.waitForTimeout(250);
+
+        const result = await page.evaluate(async () => {
+            const src = document.querySelector('#bp-grid .bp-cell.filled[data-placed-idx="0"]');
+            const r = src.getBoundingClientRect();
+            const POINTER_ID = 33;
+            const fire = (target, type, x, y) => target.dispatchEvent(new PointerEvent(type, {
+                bubbles: true, cancelable: true,
+                pointerId: POINTER_ID, pointerType: 'touch',
+                isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1,
+                clientX: x, clientY: y, screenX: x, screenY: y,
+            }));
+            // Pick up the placed item.
+            fire(src, 'pointerdown', r.left + r.width/2, r.top + r.height/2);
+            await new Promise(r => setTimeout(r, 20));
+            fire(document.body, 'pointermove', r.left + r.width/2 + 30, r.top + r.height/2 + 30);
+            await new Promise(r => setTimeout(r, 40));
+            const afterPickup = {
+                held: !!bpHeld,
+                placed: save.backpack.placed.length,
+                ghostVisible: !document.getElementById('bp-drag-ghost').classList.contains('hidden'),
+            };
+            // Drop at (3, 3).
+            const cells = document.querySelectorAll('#bp-grid .bp-cell');
+            const t = cells[3 * save.backpack.w + 3].getBoundingClientRect();
+            fire(document.body, 'pointermove', t.left + t.width/2, t.bottom - 1);
+            await new Promise(r => setTimeout(r, 30));
+            fire(document.body, 'pointerup', t.left + t.width/2, t.bottom - 1);
+            await new Promise(r => setTimeout(r, 80));
+            return {
+                afterPickup,
+                placed: save.backpack.placed.slice(),
+            };
+        });
+        ok('placed item picked up mid-drag (held = true)', result.afterPickup.held === true);
+        ok('floating ghost shown while dragging placed item', result.afterPickup.ghostVisible === true);
+        ok('placed item moved to new cell',
+           result.placed.length === 1 && result.placed[0].x === 3 && result.placed[0].y === 3);
+        await ctx.close();
+    }
+
     await browser.close();
     server.kill();
 
