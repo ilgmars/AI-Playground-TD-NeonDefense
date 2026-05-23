@@ -932,6 +932,7 @@ function renderBackpack() {
                 cell.style.borderColor = BP_RARITY_COLOR[def && def.rarity] || '#64748b';
                 if (pItem.x === x && pItem.y === y) cell.textContent = (def ? def.name[0] : '?');
                 if (def) cell.title = `${def.name}\n${def.desc || ''}`;
+                cell.dataset.placedIdx = String(ownerIdx);     // needed by the touch-drag handler
                 cell.addEventListener('click', () => bpPickPlaced(ownerIdx));
                 cell.addEventListener('mouseenter', () => { if (bpHeld) bpClearGhost(); });
             } else {
@@ -952,6 +953,7 @@ function renderBackpack() {
         const def = BACKPACK_ITEMS[id];
         const chip = document.createElement('button');
         chip.className = 'bp-chip';
+        chip.dataset.stashIdx = String(i);     // needed by the touch-drag handler
         chip.style.borderColor = BP_RARITY_COLOR[def && def.rarity] || '#64748b';
         const shape = document.createElement('div');
         shape.className = 'bp-mini';
@@ -1286,6 +1288,84 @@ function init() {
     document.getElementById('bp-rotate').addEventListener('click', bpRotateHeld);
     document.getElementById('bp-tostash').addEventListener('click', bpHeldToStash);
     document.getElementById('bp-discard').addEventListener('click', bpSellHeld);
+
+    // ── Backpack drag-to-place (touch) ────────────────────────────────────
+    // Mobile drag is modelled after the tower-dock pattern: touchstart on a
+    // stash chip or placed cell records the start; once the gesture passes
+    // the drag threshold we pick the item up; ghost preview tracks an
+    // OFFSET point (~100 px above the finger in portrait, 70 px in
+    // landscape) so the player can see what they're dropping onto. Release
+    // commits placement at the ghost cell.
+    const BP_DRAG_THRESHOLD_PX = 8;
+    let bpTouch = null;     // { source, idx, startX, startY, dragging }
+
+    function bpGhostOffsetPx() {
+        return (window.innerWidth > window.innerHeight) ? 70 : 100;
+    }
+    function bpCellAtPoint(clientX, clientY) {
+        const el = document.elementFromPoint(clientX, clientY);
+        if (!el || !el.closest) return null;
+        const cell = el.closest('.bp-cell');
+        if (!cell) return null;
+        const grid = document.getElementById('bp-grid');
+        if (!grid || cell.parentElement !== grid) return null;
+        const idx = Array.prototype.indexOf.call(grid.children, cell);
+        if (idx < 0 || !save.backpack) return null;
+        return { x: idx % save.backpack.w, y: Math.floor(idx / save.backpack.w) };
+    }
+    function bpBackpackVisible() {
+        const bp = document.getElementById('backpack');
+        return bp && !bp.classList.contains('hidden');
+    }
+
+    document.getElementById('bp-stash').addEventListener('touchstart', (e) => {
+        if (!bpBackpackVisible() || e.touches.length !== 1) return;
+        const chip = e.target.closest && e.target.closest('.bp-chip');
+        if (!chip) return;
+        const i = parseInt(chip.dataset.stashIdx, 10);
+        if (!Number.isFinite(i)) return;
+        const t = e.touches[0];
+        bpTouch = { source: 'stash', idx: i, startX: t.clientX, startY: t.clientY, dragging: false };
+    }, { passive: true });
+
+    document.getElementById('bp-grid').addEventListener('touchstart', (e) => {
+        if (!bpBackpackVisible() || e.touches.length !== 1) return;
+        const cell = e.target.closest && e.target.closest('.bp-cell.filled');
+        if (!cell) return;
+        const idx = parseInt(cell.dataset.placedIdx, 10);
+        if (!Number.isFinite(idx)) return;
+        const t = e.touches[0];
+        bpTouch = { source: 'placed', idx, startX: t.clientX, startY: t.clientY, dragging: false };
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!bpTouch) return;
+        const t = e.touches[0];
+        if (!bpTouch.dragging) {
+            if (Math.hypot(t.clientX - bpTouch.startX, t.clientY - bpTouch.startY) < BP_DRAG_THRESHOLD_PX) return;
+            bpTouch.dragging = true;
+            if (bpTouch.source === 'stash')  bpPickStash(bpTouch.idx);
+            else                              bpPickPlaced(bpTouch.idx);
+            // After a render we lost the grid cell map — reacquire below.
+        }
+        // Drag committed — suppress scroll + paint ghost at offset point.
+        e.preventDefault();
+        const target = bpCellAtPoint(t.clientX, t.clientY - bpGhostOffsetPx());
+        if (target) bpPaintGhost(target.x, target.y);
+        else        bpClearGhost();
+    }, { passive: false });
+
+    document.addEventListener('touchend', (e) => {
+        if (!bpTouch) return;
+        const state = bpTouch;
+        bpTouch = null;
+        if (!state.dragging) return;        // pure tap — let click handlers fire
+        e.preventDefault();
+        const t = e.changedTouches[0];
+        const target = bpCellAtPoint(t.clientX, t.clientY - bpGhostOffsetPx());
+        if (target) bpPlaceAt(target.x, target.y);
+        // No target → keep held so the user can still tap-to-place.
+    }, { passive: false });
     document.getElementById('menu-dailyseed-btn').addEventListener('click', () => {
         if (!NeonSave.hasUnlocked(save, 'qol.dailyseed')) return;
         const today = new Date();
