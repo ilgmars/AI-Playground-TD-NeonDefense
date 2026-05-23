@@ -682,9 +682,28 @@ const BP_RARITY_COLOR = {
 // Held item while arranging: { source:'stash'|'placed', id, rot }.
 let bpHeld = null;
 let bpCellEls = {};   // "x,y" -> grid cell element, for non-destructive ghost
+// Last painted ghost cell. While an item is held, the ghost stays visible
+// here even when the finger drifts off-grid or releases on an invalid
+// drop — so the player can see the chosen item is still in hand.
+let bpLastGhost = null;
 
 function bpClearGhost() {
     for (const k in bpCellEls) bpCellEls[k].classList.remove('ghost-ok', 'ghost-bad');
+    bpLastGhost = null;
+}
+// Repaint the ghost at its last known cell, clamped into the current
+// grid. Used after renderBackpack rebuilds cells (which wipes ghost
+// classes) so a held item never looks like nothing's selected.
+function bpRepaintLastGhost() {
+    if (!bpHeld || !BACKPACK_ITEMS[bpHeld.id]) return;
+    const bp = save.backpack;
+    if (!bp) return;
+    const size = NeonBackpack.shapeSize(BACKPACK_ITEMS[bpHeld.id].shape, bpHeld.rot || 0);
+    let x = bpLastGhost ? bpLastGhost.x : 0;
+    let y = bpLastGhost ? bpLastGhost.y : 0;
+    x = Math.max(0, Math.min(bp.w - size.w, x));
+    y = Math.max(0, Math.min(bp.h - size.h, y));
+    bpPaintGhost(x, y);
 }
 // True iff the held item can be dropped at (x, y). Returns false when
 // the target is null OR when the shape can't fit / overlaps an
@@ -699,18 +718,22 @@ function bpHeldPlacementValid(target) {
 // re-renders the grid (a re-render would race the click after a hover).
 function bpPaintGhost(x, y) {
     if (!bpHeld || !BACKPACK_ITEMS[bpHeld.id]) return;
-    bpClearGhost();
+    // Clear previous classes inline — we don't want to also reset
+    // bpLastGhost here (bpClearGhost does that), since the whole point
+    // of this paint is to update lastGhost to the new spot.
+    for (const k in bpCellEls) bpCellEls[k].classList.remove('ghost-ok', 'ghost-bad');
     const def = BACKPACK_ITEMS[bpHeld.id];
     const okp = NeonBackpack.canPlace(save.backpack, BACKPACK_ITEMS, def, x, y, bpHeld.rot);
     for (const [dx, dy] of NeonBackpack.shapeOffsets(def.shape, bpHeld.rot)) {
         const el = bpCellEls[(x + dx) + ',' + (y + dy)];
         if (el) el.classList.add(okp ? 'ghost-ok' : 'ghost-bad');
     }
+    bpLastGhost = { x, y };
 }
 
 function navigateToBackpack() {
     _enterSubScreen();
-    bpHeld = null;
+    bpHeld = null; bpLastGhost = null;
     hideScreen('main-menu');
     hideScreen('tower-mastery');
     showScreen('backpack');
@@ -741,7 +764,7 @@ function bpMiniShape(def, rot, container) {
 function bpPersist() { NeonSave.write(save); }
 
 function bpReturnHeldToStash() {
-    if (bpHeld) { save.backpack.stash.push(bpHeld.id); bpHeld = null; }
+    if (bpHeld) { save.backpack.stash.push(bpHeld.id); bpHeld = null; bpLastGhost = null; }
 }
 
 function bpPickStash(i) {
@@ -768,10 +791,10 @@ function bpPickPlaced(idx) {
 function bpPlaceAt(x, y) {
     if (!bpHeld) return;
     const def = BACKPACK_ITEMS[bpHeld.id];
-    if (!def) { bpHeld = null; renderBackpack(); return; }
+    if (!def) { bpHeld = null; bpLastGhost = null; renderBackpack(); return; }
     if (NeonBackpack.canPlace(save.backpack, BACKPACK_ITEMS, def, x, y, bpHeld.rot)) {
         save.backpack.placed.push({ id: bpHeld.id, x, y, rot: bpHeld.rot });
-        bpHeld = null;
+        bpHeld = null; bpLastGhost = null;
         bpPersist();
         bpStatus('Placed.');
         renderBackpack();
@@ -791,7 +814,7 @@ function bpRotateHeld() {
 function bpHeldToStash() {
     if (!bpHeld) return;
     save.backpack.stash.push(bpHeld.id);
-    bpHeld = null;
+    bpHeld = null; bpLastGhost = null;
     bpPersist();
     renderBackpack();
 }
@@ -801,7 +824,7 @@ function bpSellHeld() {
     const def = BACKPACK_ITEMS[bpHeld.id];
     const rarity = def && def.rarity;
     const refund = NeonSave.sellItem(save, rarity);
-    bpHeld = null;
+    bpHeld = null; bpLastGhost = null;
     if (typeof updateMainMenuState === 'function') updateMainMenuState();
     bpStatus(refund > 0
         ? `Sold ${def ? def.name : 'item'} for ${refund} meta-XP.`
@@ -943,7 +966,10 @@ function renderBackpack() {
                 if (def) cell.title = `${def.name}\n${def.desc || ''}`;
                 cell.dataset.placedIdx = String(ownerIdx);     // needed by the touch-drag handler
                 cell.addEventListener('click', () => bpPickPlaced(ownerIdx));
-                cell.addEventListener('mouseenter', () => { if (bpHeld) bpClearGhost(); });
+                // Hovering a filled cell while holding — leave the
+                // last ghost where it is so the player can still see
+                // their choice. Painting here would highlight cells
+                // already occupied by another item, which is noisy.
             } else {
                 cell.addEventListener('click', () => bpPlaceAt(x, y));
                 // Non-destructive hover preview (no re-render → click survives).
@@ -952,7 +978,10 @@ function renderBackpack() {
             gridEl.appendChild(cell);
         }
     }
-    gridEl.addEventListener('mouseleave', bpClearGhost);
+    // Note: no mouseleave clear — while an item is held the ghost
+    // should persist at its last position so the player can see the
+    // chosen item is still in hand.
+    if (bpHeld) bpRepaintLastGhost();
 
     // Stash
     const stashEl = document.getElementById('bp-stash');
@@ -1339,15 +1368,11 @@ function init() {
             size = NeonBackpack.shapeSize(BACKPACK_ITEMS[bpHeld.id].shape, bpHeld.rot || 0);
         }
         // Item is larger than the grid — there's no valid placement.
-        // Return null so no grid cells get highlighted; the floating
-        // ghost still tracks the finger and renders red.
         if (size.w > bp.w || size.h > bp.h) return null;
-        // Drop the search outright if the finger is nowhere near the
-        // grid — keeps the ghost from snapping to a corner when the
-        // player drifts way off.
-        const NEAR = cs * 2;
-        if (fx < gr.left - NEAR || fx > gr.right + NEAR ||
-            fy < gr.top  - NEAR || fy > gr.bottom + NEAR) return null;
+        // Always clamp into the grid (no NEAR cutoff) so the ghost
+        // tracks the finger's closest grid cell even when the finger
+        // drifts well outside the grid — the chosen item should
+        // always look like it's "in hand" near where the finger is.
         // Bottom-centre of the item sits half a cell above the finger:
         //   bottom-centre Y = fy - cs/2
         //   top-row centre Y = fy - cs/2 - (size.h - 1) * cs
@@ -1397,20 +1422,31 @@ function init() {
         }
         const target = bpDropTargetCell(e.clientX, e.clientY);
         // bpPaintGhost paints ghost-ok / ghost-bad on the underlying
-        // grid cells based on canPlace; null target = nothing painted.
+        // grid cells based on canPlace. target is always clamped to a
+        // valid in-grid cell while an item is held, so the ghost
+        // tracks the finger even when it drifts off-grid.
         if (target) bpPaintGhost(target.x, target.y);
-        else        bpClearGhost();
     }
     function bpOnPointerEnd(e) {
         if (!bpTouch || e.pointerId !== bpTouch.pointerId) return;
         const state = bpTouch;
         bpTouch = null;
-        bpClearGhost();
         if (!state.dragging) return;        // pure tap — let click handlers fire
         if (e.cancelable) e.preventDefault();
         const target = bpDropTargetCell(e.clientX, e.clientY);
-        if (target && bpHeldPlacementValid(target)) bpPlaceAt(target.x, target.y);
-        // Invalid or null target → keep held so the user can tap-to-place.
+        // Only commit the drop when the finger is actually inside the
+        // grid box. Outside, the ghost may still be clamped to a valid
+        // cell, but releasing there shouldn't auto-place — keep the
+        // item held and leave the ghost where it is.
+        const grid = document.getElementById('bp-grid');
+        const gr = grid && grid.getBoundingClientRect();
+        const fingerInGrid = gr &&
+            e.clientX >= gr.left && e.clientX <= gr.right &&
+            e.clientY >= gr.top  && e.clientY <= gr.bottom;
+        if (fingerInGrid && target && bpHeldPlacementValid(target)) {
+            bpPlaceAt(target.x, target.y);
+        }
+        // Invalid / off-grid → keep held; ghost stays at last painted cell.
     }
     // Bound ONCE to document.body — pointermove/up route to the element
     // under the finger and bubble up. No setPointerCapture: that would

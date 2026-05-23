@@ -203,10 +203,9 @@ const path = require('path');
         await ctx.close();
     }
 
-    // ── Scenario 4 — dragging off-grid clears the grid highlight ─────
-    // No floating ghost any more; verify that drifting off the grid
-    // simply clears the ghost-ok/ghost-bad cells, and moving back
-    // onto a free cell re-paints them.
+    // ── Scenario 4 — dragging off-grid keeps the ghost at the
+    // closest in-grid cell, so the chosen item is always visible
+    // while held. Moving back onto a free cell re-targets normally.
     {
         const { page, ctx } = await freshMobilePage();
         await page.evaluate(() => {
@@ -256,9 +255,9 @@ const path = require('path');
             };
             return { offGrid, valid, afterRelease };
         });
-        ok('no grid cells highlighted while off-grid', result.offGrid.gridGhostCells === 0);
+        ok('off-grid still shows ghost (clamped to nearest cell)', result.offGrid.gridGhostCells > 0);
         ok('grid highlight returns when back on a free cell', result.valid.ghostOk === true);
-        ok('grid highlight cleared after release', result.afterRelease.ghostCells === 0);
+        ok('grid highlight cleared after successful release', result.afterRelease.ghostCells === 0);
         await ctx.close();
     }
 
@@ -476,8 +475,8 @@ const path = require('path');
         });
         ok('highlight at first cell (single cell for 1×1 item)',
            result.atA.length === 1 && result.atA[0] === 1 * result.bpW + 1);
-        ok('off-grid clears all highlights',
-           result.offGridCount === 0);
+        ok('off-grid keeps ghost visible (clamped to nearest cell)',
+           result.offGridCount > 0);
         ok('highlight moves cleanly to second cell with no stale cells',
            result.atB.length === 1 && result.atB[0] === 3 * result.bpW + 4);
         await ctx.close();
