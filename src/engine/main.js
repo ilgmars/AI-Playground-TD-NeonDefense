@@ -313,6 +313,15 @@ function uiGoBack() {
 
 // Main Menu → Run Setup → Game is the canonical forward path.
 function navigateToMainMenu() {
+    // If the player leaves the backpack screen with an item still in
+    // hand (e.g. via the device Back button, a deep link, or pressing
+    // RST while the backpack was open), auto-return it to the stash
+    // and persist. Losing a held item to a stray nav tap is the most
+    // common "what just happened?" mobile complaint.
+    if (typeof bpHeld !== 'undefined' && bpHeld && typeof bpReturnHeldToStash === 'function') {
+        bpReturnHeldToStash();
+        if (typeof bpPersist === 'function') bpPersist();
+    }
     hideScreen('start-screen');
     hideScreen('game-over');
     hideScreen('restart-confirm');

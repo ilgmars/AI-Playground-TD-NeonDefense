@@ -25,6 +25,7 @@ const SUITES = [
     { name: 'mobile-nav',      file: 'tests/mobile-nav.test.js' },
     { name: 'backpack-touch',         file: 'tests/backpack-touch-drag.test.js' },
     { name: 'backpack-touch-contin',  file: 'tests/backpack-touch-drag-continuity.test.js' },
+    { name: 'backpack-mobile-issues', file: 'tests/backpack-mobile-issues.test.js' },
     { name: 'retire-flawless',        file: 'tests/retire-flawless.test.js' },
     { name: 'variant-mastery', file: 'tests/variant-mastery.test.js' },
     { name: 'backpack-ui',     file: 'tests/backpack-ui.test.js' },
