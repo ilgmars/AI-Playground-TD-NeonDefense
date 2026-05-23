@@ -1639,6 +1639,15 @@ function init() {
         // Combined SYS button: swap target overlay based on current label.
         const action = document.getElementById('restart-btn').dataset.action;
         if (action === 'retire') {
+            // Surface flawless-retire eligibility right where the player decides.
+            const flawless = !game.hpEverLost;
+            const status = document.getElementById('retire-flawless-status');
+            if (status) {
+                status.textContent = flawless
+                    ? '✓ Flawless — bonus available.'
+                    : '✗ HP already lost — bonus forfeited.';
+                status.style.color = flawless ? '#4ade80' : '#f87171';
+            }
             document.getElementById('retire-confirm').classList.remove('hidden');
         } else {
             document.getElementById('restart-confirm').classList.remove('hidden');
@@ -1877,7 +1886,11 @@ function init() {
     // (whether or not the player submits a name) and updates ascensionCleared.
     // Exposes the XP breakdown to renderRunResultXP for the overlay.
     window.onRunEnded = function (result) {
-        const { wave, tier, retired } = result;
+        const { wave, tier, retired, hpEverLost } = result;
+        // Flawless retire: the +50% bonus only fires if no enemy ever
+        // reached the base this run. Take damage even once and the
+        // retire still ends the run normally, but without the kicker.
+        const flawlessRetire = retired && !hpEverLost;
 
         // ── AEGIS LOCK ────────────────────────────────────────────────────
         // If Aegis flagged the save (signed-save tamper, RNG override,
@@ -1901,7 +1914,7 @@ function init() {
         const firstClear = wave >= 30 && tier > save.ascensionCleared;
 
         const xp = NeonSave.calculateRunXP(wave, tier, firstClear);
-        const retireBonus = retired ? Math.floor(xp.total * 0.5) : 0;
+        const retireBonus = flawlessRetire ? Math.floor(xp.total * 0.5) : 0;
         xp.retireBonus = retireBonus;
         xp.total += retireBonus;
         save.metaXP        += xp.total;

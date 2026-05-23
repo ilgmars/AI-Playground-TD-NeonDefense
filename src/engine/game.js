@@ -44,6 +44,11 @@ class Game {
 
         this.health = 20;
         this.maxHealth = 20;
+        // Tracks whether any enemy ever reached the base this run. The
+        // retire +50% XP bonus only fires when this stays false (i.e. a
+        // "flawless" retire). Boons / backpack items that grant max HP
+        // mid-run don't reset it.
+        this.hpEverLost = false;
 
         this.applyLoadout();
 
@@ -582,6 +587,7 @@ class Game {
             e.update();
             if (e.reachedEnd) {
                 this.health--;
+                this.hpEverLost = true;     // gates the retire bonus in onRunEnded
                 this.enemies.splice(i, 1);
                 this.uiDirty = true;
                 if (this.health <= 0) {
@@ -1121,6 +1127,6 @@ class Game {
         this.state = 'victory';
         document.getElementById('victory').classList.remove('hidden');
         document.getElementById('victory-wave').textContent = this.wave;
-        if (window.onRunEnded) window.onRunEnded({ wave: this.wave, tier: this.ascensionTier, retired: true });
+        if (window.onRunEnded) window.onRunEnded({ wave: this.wave, tier: this.ascensionTier, retired: true, hpEverLost: this.hpEverLost });
     }
 }
