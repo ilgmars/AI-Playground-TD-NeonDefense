@@ -143,6 +143,33 @@ room by sending a million inputs**. Mitigation:
 
 Throttle limits live alongside `ALLOW_INPUT_KINDS` for easy tuning.
 
+## Implementation: `PeerGuard` (src/multiplayer/guard.js)
+
+Every inbound frame passes through a `PeerGuard` before reaching the
+action dispatcher. The guard is local-only (no cross-peer
+coordination) and stacks four cheat-resistance checks on top of the
+schema validation already in `protocol.validateFrame`:
+
+| Layer | What it catches |
+|---|---|
+| **Schema allow-list** (`protocol.validateInput`) | Unknown input kinds, unknown tower types, out-of-range coordinates, oversize id strings. |
+| **Per-frame kind caps** (`DEFAULT_PER_FRAME_CAPS`) | A single tick claiming 200 boon picks or 50 builds — a human can't produce more than ~4 gestures per tick. |
+| **Monotonic frame numbers + dedupe** (per peer) | Replay attacks: rebroadcasting an old `build` frame to spam towers; re-sending the same frame twice. A small `reorderWindow` (default 30) lets legitimately late frames through. |
+| **Token-bucket throttle** (per peer, default 30/sec) | DoS — a peer flooding inputs. Each input in a frame consumes one token so flooders can't pack thousands into one envelope. |
+| **HMAC over frame body** (optional) | A stranger who lands in the same Trystero room cannot impersonate a peer that joined with the room code. Secret is `fnv1a('mp:' + roomCode)`. The MAC is FNV-based — not cryptographic-grade, but the room code is only ~30 bits of entropy anyway, and the threat model is opportunistic interlopers, not state-level adversaries. |
+
+These layers are independent. The schema allow-list and money/HP
+audit (Pillar 3) remain the load-bearing checks. The guard is the
+ring around them.
+
+What the guard explicitly does NOT do:
+- It does not arbitrate truth between simulations. If peer A's hash
+  diverges from peer B's, that's a desync event handled in
+  [sync.md](sync.md#desync-detection), not a cheating event.
+- It does not block large-but-legitimate input bursts (e.g. a
+  shift-click chain across an empty row). Those stay under the
+  per-frame cap and the throttle.
+
 ## Replay attestation (future)
 
 Once `.ndr` replay files exist (input log + initial seed), a peer

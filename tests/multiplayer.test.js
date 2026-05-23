@@ -1,0 +1,362 @@
+// Multiplayer — protocol + actions + mock-transport tests.
+// Pure Node; mirrors the style of tests/aegis.test.js (logic phase).
+
+let pass = 0, fail = 0;
+function ok(name, cond) {
+    if (cond) { console.log('ok', name); pass++; }
+    else      { console.log('FAIL', name); fail++; }
+}
+
+const protocol  = require('../src/multiplayer/protocol.js');
+const actions   = require('../src/multiplayer/actions.js');
+const transport = require('../src/multiplayer/transport.js');
+const guard     = require('../src/multiplayer/guard.js');
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 1 — protocol
+// ─────────────────────────────────────────────────────────────────────────
+
+// fnv1a parity with NeonAegis (signalling.md: same code seeds both lobby
+// and world). We don't load Aegis here, but the constants must match —
+// 0x811c9dc5 / 0x01000193 — which the next two tests pin down by value.
+ok('fnv1a deterministic',           protocol.fnv1a('NEAN42') === protocol.fnv1a('NEAN42'));
+ok('fnv1a sensitive to input',      protocol.fnv1a('NEAN42') !== protocol.fnv1a('NEAN43'));
+ok('fnv1a known vector (empty)',    protocol.fnv1a('') === 0x811c9dc5);
+
+// Room codes — alphabet excludes I/O/0/1 to avoid ambiguity
+ok('room code valid',               protocol.isValidRoomCode('NEAN42') === true);
+ok('room code wrong length',        protocol.isValidRoomCode('NEAN4') === false);
+ok('room code lowercase rejected',  protocol.isValidRoomCode('nean42') === false);
+ok('room code excludes O',          protocol.isValidRoomCode('NEONXX') === false);
+ok('room code excludes 0',          protocol.isValidRoomCode('NEAN40') === false);
+ok('roomCodeToSeed deterministic',  protocol.roomCodeToSeed('NEAN42') === protocol.roomCodeToSeed('NEAN42'));
+ok('roomCodeToSeed case-insensitive', protocol.roomCodeToSeed('NEAN42') === protocol.roomCodeToSeed('nean42'));
+
+// validateInput — happy paths
+ok('build accepted',     protocol.validateInput({ k: 'build', c: 3, r: 4, t: 'sniper' }).ok === true);
+ok('upgrade accepted',   protocol.validateInput({ k: 'upgrade', tower: 2, slot: 1 }).ok === true);
+ok('sell accepted',      protocol.validateInput({ k: 'sell', tower: 0 }).ok === true);
+ok('potion accepted',    protocol.validateInput({ k: 'potion' }).ok === true);
+ok('boon accepted',      protocol.validateInput({ k: 'boon', id: 'overdrive' }).ok === true);
+ok('ability accepted',   protocol.validateInput({ k: 'ability', id: 'overclock' }).ok === true);
+
+// validateInput — rejections (anti-cheat allow-list)
+ok('null input rejected',         protocol.validateInput(null).ok === false);
+ok('unknown kind rejected',       protocol.validateInput({ k: 'eval', code: 'alert(1)' }).ok === false);
+ok('unknown build type rejected', protocol.validateInput({ k: 'build', c: 0, r: 0, t: 'mythic_destroyer' }).ok === false);
+ok('non-integer coord rejected',  protocol.validateInput({ k: 'build', c: 1.5, r: 0, t: 'basic' }).ok === false);
+ok('out-of-range coord rejected', protocol.validateInput({ k: 'build', c: 9999, r: 0, t: 'basic' }).ok === false);
+ok('negative tower idx rejected', protocol.validateInput({ k: 'upgrade', tower: -1, slot: 0 }).ok === false);
+ok('slot out of range rejected',  protocol.validateInput({ k: 'upgrade', tower: 0, slot: 7 }).ok === false);
+ok('boon empty id rejected',      protocol.validateInput({ k: 'boon', id: '' }).ok === false);
+ok('boon oversize id rejected',   protocol.validateInput({ k: 'boon', id: 'x'.repeat(65) }).ok === false);
+
+// Extending the allow-list per anti-cheat.md (live TOWERS + variants)
+const custom = new Set(['basic', 'variant_cryo']);
+ok('custom allow-list accepts variant',
+    protocol.validateInput({ k: 'build', c: 0, r: 0, t: 'variant_cryo' }, custom).ok === true);
+ok('custom allow-list excludes default',
+    protocol.validateInput({ k: 'build', c: 0, r: 0, t: 'sniper' }, custom).ok === false);
+
+// validateFrame
+const goodFrame = {
+    v: 1, p: 'ALICE', f: 42, i: [
+        { k: 'build', c: 3, r: 4, t: 'sniper' },
+        { k: 'upgrade', tower: 0, slot: 0 },
+    ],
+};
+ok('frame accepted', protocol.validateFrame(goodFrame).ok === true);
+ok('frame bad version rejected',  protocol.validateFrame(Object.assign({}, goodFrame, { v: 2 })).ok === false);
+ok('frame negative frame# rejected', protocol.validateFrame(Object.assign({}, goodFrame, { f: -1 })).ok === false);
+ok('frame missing peer rejected', protocol.validateFrame(Object.assign({}, goodFrame, { p: '' })).ok === false);
+ok('frame non-array inputs rejected', protocol.validateFrame(Object.assign({}, goodFrame, { i: 'oops' })).ok === false);
+ok('frame oversize inputs rejected',
+    protocol.validateFrame(Object.assign({}, goodFrame, { i: new Array(257).fill({ k: 'potion' }) })).ok === false);
+ok('frame bad inner input rejected',
+    protocol.validateFrame(Object.assign({}, goodFrame, { i: [{ k: 'eval' }] })).ok === false);
+
+// hash field preserved on accept
+const hashed = protocol.validateFrame(Object.assign({}, goodFrame, { hash: 'abc123' }));
+ok('frame hash passes through', hashed.ok && hashed.frame.hash === 'abc123');
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 2 — throttle (anti-cheat.md DoS mitigation)
+// ─────────────────────────────────────────────────────────────────────────
+let nowMs = 1000;
+const clock = () => nowMs;
+const throttle = protocol.createThrottle(30, clock);
+
+// Burst of 30 → all accepted, 31st rejected.
+let burstAccepted = 0;
+for (let i = 0; i < 30; i++) if (throttle.accept('ALICE')) burstAccepted++;
+ok('throttle initial burst (30)', burstAccepted === 30);
+ok('throttle 31st rejected',      throttle.accept('ALICE') === false);
+
+// After 1 second, bucket refills to full.
+nowMs += 1000;
+let refillAccepted = 0;
+for (let i = 0; i < 30; i++) if (throttle.accept('ALICE')) refillAccepted++;
+ok('throttle refills over time',  refillAccepted === 30);
+
+// Different peer has its own bucket.
+ok('per-peer isolation', throttle.accept('BOB') === true);
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 3 — snapshotHash (desync detection, sync.md)
+// ─────────────────────────────────────────────────────────────────────────
+const gameA = {
+    wave: 5, health: 18, money: 320,
+    towers: [
+        { c: 2, r: 3, type: 'basic',  damageDealt: 1200 },
+        { c: 5, r: 7, type: 'sniper', damageDealt: 800 },
+    ],
+    enemies: [{ active: true }, { active: false }, { active: true }],
+};
+const gameB = {
+    // same logical state, towers in reversed order — hash should match
+    wave: 5, health: 18, money: 320.4,
+    towers: [
+        { c: 5, r: 7, type: 'sniper', damageDealt: 800 },
+        { c: 2, r: 3, type: 'basic',  damageDealt: 1200 },
+    ],
+    enemies: [{ active: true }, { active: true }, { active: false }],
+};
+ok('snapshotHash stable',                protocol.snapshotHash(gameA) === protocol.snapshotHash(gameA));
+ok('snapshotHash order-insensitive',     protocol.snapshotHash(gameA) === protocol.snapshotHash(gameB));
+ok('snapshotHash detects wave divergence',
+    protocol.snapshotHash(gameA) !== protocol.snapshotHash(Object.assign({}, gameA, { wave: 6 })));
+ok('snapshotHash detects money divergence',
+    protocol.snapshotHash(gameA) !== protocol.snapshotHash(Object.assign({}, gameA, { money: 999 })));
+ok('snapshotHash detects tower-count divergence',
+    protocol.snapshotHash(gameA) !== protocol.snapshotHash(Object.assign({}, gameA, { towers: [gameA.towers[0]] })));
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 4 — actions dispatcher
+// ─────────────────────────────────────────────────────────────────────────
+function makeFakeGame() {
+    return {
+        money: 1000,
+        health: 20,
+        towers: [{ c: 0, r: 0, type: 'basic', level: 0, sold: false }],
+        log: [],
+        buildTower(c, r, t, opts) {
+            this.log.push({ k: 'build', c, r, t, source: opts && opts.source });
+            if (c < 0 || r < 0) return false;
+            const cost = 50;
+            if (this.money < cost) return false;
+            this.money -= cost;
+            this.towers.push({ c, r, type: t, level: 0, sold: false });
+            return true;
+        },
+        upgradeTower(tower, slot, opts) {
+            this.log.push({ k: 'upgrade', slot, source: opts && opts.source });
+            if (this.money < 100) return false;
+            this.money -= 100;
+            tower.level = (tower.level || 0) + 1;
+            return true;
+        },
+        sellTower(tower, opts) {
+            this.log.push({ k: 'sell', source: opts && opts.source });
+            tower.sold = true;
+            this.money += 25;
+            return true;
+        },
+        buyPotion(opts) {
+            this.log.push({ k: 'potion', source: opts && opts.source });
+            return true;
+        },
+        pickBoon(id, opts) {
+            this.log.push({ k: 'boon', id, source: opts && opts.source });
+            return true;
+        },
+        useAbility(id, opts) {
+            this.log.push({ k: 'ability', id, source: opts && opts.source });
+            return true;
+        },
+    };
+}
+
+let game = makeFakeGame();
+
+// Happy-path: a build deducts money and appends a tower.
+const r1 = actions.applyInput(game, { k: 'build', c: 3, r: 4, t: 'basic' }, { source: 'remote' });
+ok('build applied',           r1.ok === true);
+ok('build deducted money',    game.money === 950);
+ok('build added tower',       game.towers.length === 2);
+ok('build tagged source',     game.log[0].source === 'remote');
+
+// Upgrade
+const r2 = actions.applyInput(game, { k: 'upgrade', tower: 0, slot: 1 });
+ok('upgrade applied',         r2.ok === true);
+ok('upgrade incremented',     game.towers[0].level === 1);
+
+// Upgrade against missing tower index → reject, no crash.
+const r3 = actions.applyInput(game, { k: 'upgrade', tower: 99, slot: 0 });
+ok('missing tower rejected',  r3.ok === false && r3.reason === 'no-tower');
+
+// Game rejects (insufficient funds) → ok:false propagated.
+game.money = 0;
+const r4 = actions.applyInput(game, { k: 'build', c: 1, r: 1, t: 'sniper' });
+ok('game-side rejection bubbles up', r4.ok === false && r4.reason === 'rejected');
+
+// applyFrame end-to-end: validates + dispatches in one call.
+game = makeFakeGame();
+const frame = {
+    v: 1, p: 'BOB', f: 100, i: [
+        { k: 'build',   c: 2, r: 2, t: 'sniper' },
+        { k: 'potion' },
+        { k: 'eval',    payload: 'oh no' },   // dropped at validation
+    ],
+};
+const res = actions.applyFrame(game, frame, { source: 'remote' });
+ok('applyFrame validates entire frame',
+    res.ok === false && res.reason === 'input:bad-kind');
+
+// Same frame minus the bad input — should dispatch both.
+frame.i.pop();
+const res2 = actions.applyFrame(game, frame, { source: 'remote' });
+ok('applyFrame dispatches all valid',
+    res2.ok === true && res2.applied.length === 2 && res2.dropped.length === 0);
+ok('applyFrame tags source on each call',
+    game.log.every(e => e.source === 'remote'));
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 5 — mock transport round-trip (Phase-1 deliverable in roadmap:
+//   "Two browsers in a room can exchange chat messages")
+// ─────────────────────────────────────────────────────────────────────────
+const hub = transport.createMockHub();
+const alice = hub.join('NEAN42', 'ALICE');
+const bob   = hub.join('NEAN42', 'BOB');
+const carl  = hub.join('OTHER1', 'CARL'); // different room — should not hear
+
+const inboxBob  = [];
+const inboxCarl = [];
+bob.onMessage((m, from) => inboxBob.push({ m, from }));
+carl.onMessage((m, from) => inboxCarl.push({ m, from }));
+
+alice.send({ kind: 'chat', body: 'hi bob' });
+ok('mock transport delivers same-room',   inboxBob.length === 1 && inboxBob[0].m.body === 'hi bob');
+ok('mock transport tags sender',          inboxBob[0].from === 'ALICE');
+ok('mock transport room isolation',       inboxCarl.length === 0);
+
+// Sender doesn't receive its own messages.
+const inboxAlice = [];
+alice.onMessage((m, from) => inboxAlice.push({ m, from }));
+bob.send({ kind: 'chat', body: 'hello back' });
+ok('no self-echo',                        inboxAlice.length === 1 && inboxAlice[0].m.body === 'hello back');
+
+// Messages are deep-cloned across the wire.
+const refMsg = { kind: 'chat', payload: { n: 1 } };
+inboxBob.length = 0;
+alice.send(refMsg);
+refMsg.payload.n = 999; // mutate after send
+ok('wire deep-clones payload',            inboxBob[0].m.payload.n === 1);
+
+// Leaving the room stops delivery.
+bob.leave();
+inboxBob.length = 0;
+alice.send({ kind: 'chat', body: 'gone' });
+ok('leave() removes listener',            inboxBob.length === 0);
+
+// ─────────────────────────────────────────────────────────────────────────
+// End-to-end: peer A's input frame → peer B applies it against its Game
+// ─────────────────────────────────────────────────────────────────────────
+const peerA = hub.join('LOCKSTEP', 'A');
+const peerB = hub.join('LOCKSTEP', 'B');
+const gameB_e2e = makeFakeGame();
+peerB.onMessage((msg) => {
+    if (msg && msg.kind === 'frame') actions.applyFrame(gameB_e2e, msg.frame, { source: 'remote' });
+});
+peerA.send({ kind: 'frame', frame: { v: 1, p: 'A', f: 7, i: [{ k: 'build', c: 5, r: 5, t: 'sniper' }] } });
+ok('lockstep frame applied on peer B',    gameB_e2e.towers.length === 2);
+ok('lockstep build came from remote',     gameB_e2e.log[0].source === 'remote');
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 6 — PeerGuard (cheat-resistance layer)
+// ─────────────────────────────────────────────────────────────────────────
+let guardClock = 10_000;
+const guardNow = () => guardClock;
+const rejected = [];
+const g = guard.createGuard({
+    perSec: 30,
+    now: guardNow,
+    onReject: (info) => rejected.push(info),
+});
+
+function mkFrame(peer, fnum, inputs) {
+    return { v: 1, p: peer, f: fnum, i: inputs || [] };
+}
+
+// Happy path: monotonic frames from same peer pass.
+ok('guard accepts f0', g.check(mkFrame('A', 0, [{ k: 'potion' }])).ok === true);
+ok('guard accepts f1', g.check(mkFrame('A', 1, [])).ok === true);
+ok('guard accepts f2', g.check(mkFrame('A', 2, [])).ok === true);
+
+// Duplicate frame from same peer dropped.
+const dupRes = g.check(mkFrame('A', 1, []));
+ok('guard drops duplicate frame', dupRes.ok === false && dupRes.reason === 'duplicate');
+
+// Out-of-window old frame dropped.
+g.check(mkFrame('A', 100, []));
+const oldRes = g.check(mkFrame('A', 50, [])); // 50 < 100-30
+ok('guard drops replay-old', oldRes.ok === false && oldRes.reason === 'replay-old');
+
+// Late but inside reorder window is OK.
+ok('guard accepts late-inside-window', g.check(mkFrame('A', 90, [])).ok === true);
+
+// Per-frame kind cap — 5 builds in one frame is the cheat we're catching.
+const cappy = mkFrame('A', 200, [
+    { k: 'build', c: 1, r: 1, t: 'basic' },
+    { k: 'build', c: 2, r: 1, t: 'basic' },
+    { k: 'build', c: 3, r: 1, t: 'basic' },
+    { k: 'build', c: 4, r: 1, t: 'basic' },
+    { k: 'build', c: 5, r: 1, t: 'basic' },
+]);
+const capRes = g.check(cappy);
+ok('guard enforces per-frame build cap', capRes.ok === false && capRes.reason === 'cap:build');
+
+// Different peers don't share monotonic state.
+ok('guard isolates per-peer monotonic', g.check(mkFrame('B', 0, [])).ok === true);
+
+// Throttle: with 30/sec and frames carrying multiple inputs, a flood
+// is rejected. Use a fresh guard so we control the clock.
+let floodClock = 0;
+const gFlood = guard.createGuard({ perSec: 10, now: () => floodClock });
+let floodAccepted = 0;
+for (let i = 0; i < 20; i++) {
+    if (gFlood.check(mkFrame('C', i, [{ k: 'potion' }])).ok) floodAccepted++;
+}
+ok('guard throttles flood', floodAccepted === 10);
+
+// onReject hook fired for at least one of the rejections.
+ok('guard onReject fired', rejected.length > 0);
+
+// HMAC signatures: a guard with a secret rejects unsigned frames and
+// frames signed by a different secret.
+const secret  = guard.deriveSecret('NEAN42', 'gameplay');
+const secret2 = guard.deriveSecret('OTHER1', 'gameplay');
+ok('deriveSecret deterministic',     secret === guard.deriveSecret('NEAN42', 'gameplay'));
+ok('deriveSecret namespace differs', secret !== guard.deriveSecret('NEAN42', 'lobby'));
+
+const gSig = guard.createGuard({ secret, now: guardNow });
+const f1 = mkFrame('A', 0, [{ k: 'potion' }]);
+ok('signed-guard rejects unsigned',  gSig.check(f1).ok === false);
+
+const f1Signed = gSig.signFrame(f1);
+ok('signed-guard accepts signed',    gSig.check(f1Signed).ok === true);
+
+// Tampered after signing → sig invalid.
+const tampered = Object.assign({}, f1Signed, { f: 99 });
+ok('signed-guard rejects tampered',  gSig.check(tampered).ok === false);
+
+// Signed with wrong room secret → rejected.
+const gSig2 = guard.createGuard({ secret: secret2, now: guardNow });
+ok('wrong-secret sig rejected',      gSig.check(gSig2.signFrame(mkFrame('A', 1, []))).ok === false);
+
+// Sig survives input-key reordering (canonicalisation).
+const reordered = gSig.signFrame(mkFrame('A', 2, [{ t: 'basic', r: 0, c: 0, k: 'build' }]));
+ok('sig stable under key order',     gSig.check(reordered).ok === true);
+
+// ─────────────────────────────────────────────────────────────────────────
+console.log(`\n${pass}/${pass + fail} passed${fail ? ', ' + fail + ' FAILED' : ''}`);
+process.exit(fail === 0 ? 0 : 1);

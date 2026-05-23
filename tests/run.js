@@ -14,6 +14,7 @@ const path = require('path');
 const SUITES = [
     // ── Fast logic + crypto-ish unit tests (no browser) ───────────────────
     { name: 'aegis',           file: 'tests/aegis.test.js' },
+    { name: 'multiplayer',     file: 'tests/multiplayer.test.js' },
     { name: 'backpack',        file: 'tests/backpack.test.js' },
     { name: 'backpack-items',  file: 'tests/backpack-items.test.js' },
     { name: 'ascension',       file: 'tests/ascension.test.js' },
