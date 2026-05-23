@@ -1305,12 +1305,51 @@ function init() {
     // setPointerCapture: that would redirect the click event as well,
     // breaking tap-to-pickup.
     //
-    // The ghost preview sits slightly ABOVE the finger — enough that
-    // the cell peeks out from behind the thumb, not so much that the
-    // mapping feels disconnected. ~40 px works across both orientations.
+    // Drag-target mapping: the attach point on the held item is its
+    // BOTTOM-CENTRE — that point follows the finger. The ghost preview
+    // then sits half a cell ABOVE the finger so the highlighted cell
+    // peeks out from behind the thumb. For multi-cell items this means
+    // the whole shape extends upward from the finger, regardless of
+    // shape/rotation.
     const BP_DRAG_THRESHOLD_PX = 8;
-    const BP_GHOST_OFFSET_PX = 40;
     let bpTouch = null;     // { source, idx, startX, startY, dragging, pointerId }
+
+    // Given the finger position, return the top-left grid cell where
+    // the held item would land. Works for any shape/rotation by
+    // reading shapeSize from the held def. Falls back to bpCellAtPoint
+    // when nothing is held (e.g. during the pre-threshold window).
+    function bpDropTargetCell(fx, fy) {
+        const bp = save.backpack;
+        if (!bp) return null;
+        const grid = document.getElementById('bp-grid');
+        if (!grid || !grid.firstElementChild) return null;
+        const gr = grid.getBoundingClientRect();
+        const cs = grid.firstElementChild.offsetWidth || 40;
+        let size = { w: 1, h: 1 };
+        if (bpHeld && BACKPACK_ITEMS[bpHeld.id]) {
+            size = NeonBackpack.shapeSize(BACKPACK_ITEMS[bpHeld.id].shape, bpHeld.rot || 0);
+        }
+        // Drop the search outright if the finger is nowhere near the
+        // grid — keeps the ghost from snapping to a corner when the
+        // player drifts way off.
+        const NEAR = cs * 2;
+        if (fx < gr.left - NEAR || fx > gr.right + NEAR ||
+            fy < gr.top  - NEAR || fy > gr.bottom + NEAR) return null;
+        // Bottom-centre of the item sits half a cell above the finger:
+        //   bottom-centre Y = fy - cs/2
+        //   top-row centre Y = fy - cs/2 - (size.h - 1) * cs
+        // Subtract cs/2 to convert cell centre → cell top, then floor
+        // against the grid's top edge.
+        const tlx = fx - (size.w - 1) * cs / 2 - cs / 2;
+        const tly = fy - size.h * cs;
+        const gx = Math.floor((tlx - gr.left) / cs);
+        const gy = Math.floor((tly - gr.top)  / cs);
+        // Clamp so the ghost always shows a complete shape within the
+        // grid, even when the finger is right against an edge.
+        const cx = Math.max(0, Math.min(bp.w - size.w, gx));
+        const cy = Math.max(0, Math.min(bp.h - size.h, gy));
+        return { x: cx, y: cy };
+    }
 
     function bpCellAtPoint(clientX, clientY) {
         const el = document.elementFromPoint(clientX, clientY);
@@ -1343,7 +1382,7 @@ function init() {
             // Subsequent pointer events route to whatever's under the
             // finger and bubble up to document.body — uninterrupted.
         }
-        const target = bpCellAtPoint(e.clientX, e.clientY - BP_GHOST_OFFSET_PX);
+        const target = bpDropTargetCell(e.clientX, e.clientY);
         if (target) bpPaintGhost(target.x, target.y);
         else        bpClearGhost();
     }
@@ -1353,7 +1392,7 @@ function init() {
         bpTouch = null;
         if (!state.dragging) return;        // pure tap — let click handlers fire
         if (e.cancelable) e.preventDefault();
-        const target = bpCellAtPoint(e.clientX, e.clientY - BP_GHOST_OFFSET_PX);
+        const target = bpDropTargetCell(e.clientX, e.clientY);
         if (target) bpPlaceAt(target.x, target.y);
         // No target → keep held so the user can still tap-to-place.
     }

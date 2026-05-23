@@ -61,12 +61,13 @@ const path = require('path');
             const targetCell = cells[targetY * bp.w + targetX];
             if (!targetCell) return { error: 'no target cell' };
             const t = targetCell.getBoundingClientRect();
-            // Ghost sits slightly above the finger (~40 px) so the
-            // cell peeks above the thumb. Finger Y = target centre +
-            // offset; handler subtracts offset to land on target.
-            const GHOST_OFFSET = 40;
+            // Bottom-attach: the item's bottom edge sits at the
+            // finger Y; the ghost cell is half a block above. For a
+            // 1×1 item that means finger at the bottom edge of the
+            // target cell. Use t.bottom - 1 to stay inside the cell
+            // after floor rounding.
             const fingerX = t.left + t.width / 2;
-            const fingerY = t.top  + t.height / 2 + GHOST_OFFSET;
+            const fingerY = t.bottom - 1;
 
             fire(document.body, 'pointermove', fingerX, fingerY);
             await new Promise(r => setTimeout(r, 30));
@@ -134,6 +135,71 @@ const path = require('path');
 
         const moved = await page.evaluate(() => save.backpack.placed[0]);
         ok('placed item dragged to new cell', moved && moved.x === 2 && moved.y === 2);
+        await ctx.close();
+    }
+
+    // ── Scenario 3 — bottom-attach for a 1×3 column item ───────────────
+    // bounty_module is shape [[1],[1],[1]] (1 wide × 3 tall). Putting
+    // the bottom of the item at the finger should place it so the
+    // BOTTOM cell is in row 3 (i.e. top-left lands at row 1). If the
+    // attach point was wrong (e.g. top-of-item at finger), the item
+    // would land at top-left row 3 — off the bottom of a 5-tall grid
+    // — and never be placed.
+    {
+        const { page, ctx } = await freshMobilePage();
+        await page.evaluate(() => {
+            const s = NeonSave.load();
+            s.backpack = { w: 5, h: 5, placed: [], stash: ['bounty_module'], luckBoost: 0 };
+            NeonSave.write(s); location.reload();
+        });
+        await page.waitForTimeout(700);
+        await page.evaluate(() => navigateToBackpack());
+        await page.waitForTimeout(250);
+
+        const result = await page.evaluate(async () => {
+            const chip = document.querySelector('#bp-stash .bp-chip[data-stash-idx="0"]');
+            const r = chip.getBoundingClientRect();
+            const POINTER_ID = 21;
+            const fire = (target, type, x, y) => target.dispatchEvent(new PointerEvent(type, {
+                bubbles: true, cancelable: true,
+                pointerId: POINTER_ID, pointerType: 'touch',
+                isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1,
+                clientX: x, clientY: y, screenX: x, screenY: y,
+            }));
+            fire(chip, 'pointerdown', r.left + r.width/2, r.top + r.height/2);
+            await new Promise(r => setTimeout(r, 20));
+            fire(document.body, 'pointermove', r.left + r.width/2 + 30, r.top + r.height/2 + 30);
+            await new Promise(r => setTimeout(r, 40));
+            // Aim the finger at the BOTTOM of where the item should land:
+            // column 2, row 3 (the bottom cell of the 1×3 column). The
+            // top of the item should end up at row 1.
+            const bp = save.backpack;
+            const cells = document.querySelectorAll('#bp-grid .bp-cell');
+            const bottomCell = cells[3 * bp.w + 2];
+            const t = bottomCell.getBoundingClientRect();
+            const fingerX = t.left + t.width / 2;
+            const fingerY = t.bottom - 1;
+            fire(document.body, 'pointermove', fingerX, fingerY);
+            await new Promise(r => setTimeout(r, 30));
+            // Read the ghost cells while still mid-drag so we can
+            // confirm the entire column is highlighted, not just one
+            // cell at the finger.
+            const ghostKeys = Array.from(document.querySelectorAll('#bp-grid .bp-cell.ghost-ok'))
+                .map(el => {
+                    const idx = Array.prototype.indexOf.call(el.parentElement.children, el);
+                    return [idx % bp.w, Math.floor(idx / bp.w)];
+                });
+            fire(document.body, 'pointerup', fingerX, fingerY);
+            await new Promise(r => setTimeout(r, 80));
+            return { placed: save.backpack.placed.slice(), ghostKeys };
+        });
+        ok('1×3 item placed at top-left (2, 1)',
+           result.placed.length === 1 && result.placed[0].x === 2 && result.placed[0].y === 1);
+        // The ghost-ok class should be on all 3 cells of the column
+        // mid-drag (col 2, rows 1–3). Sort for stable comparison.
+        const keys = result.ghostKeys.map(([x, y]) => `${x},${y}`).sort().join('|');
+        ok('full 3-cell column highlighted mid-drag',
+           keys === '2,1|2,2|2,3');
         await ctx.close();
     }
 

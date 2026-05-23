@@ -105,18 +105,16 @@ const path = require('path');
             await new Promise(r => setTimeout(r, 40));
             detachedDuringDrag.after = chip.isConnected;
 
-            // Trace a 6-step path from the chip's original position into
-            // the grid centre, hitting cell (2, 2). Ghost sits ~40 px
-            // above the finger; the test puts the finger at
-            // (cellCentre, cellCentre + offset) so the handler's offset
-            // subtraction lands on the target cell.
-            const GHOST_OFFSET = 40;
+            // Trace a 6-step path from the chip's original position to
+            // the grid. Bottom-attach: finger Y lands at the BOTTOM edge
+            // of the target cell (for a 1×1 item, that's where the
+            // bottom of the item sits, with the ghost half a cell up).
             const bp = save.backpack;
             const cells = document.querySelectorAll('#bp-grid .bp-cell');
             const targetCell = cells[2 * bp.w + 2];
             const t = targetCell.getBoundingClientRect();
             const endX = t.left + t.width / 2;
-            const endY = t.top  + t.height / 2 + GHOST_OFFSET;
+            const endY = t.bottom - 1;
 
             for (let i = 1; i <= 6; i++) {
                 const x = fromX + (endX - fromX) * (i / 6);
