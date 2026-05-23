@@ -15,7 +15,17 @@ const path = require('path');
     const page = await ctx.newPage();
     const errs = [];
     page.on('pageerror', e => errs.push(e.message));
-    page.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
+    page.on('console', m => {
+        if (m.type() !== 'error') return;
+        const t = m.text();
+        // Filter out external infrastructure noise: the pre-boot reload
+        // triggers the resume flow, which lazy-loads Trystero — its
+        // BitTorrent tracker WebSockets fail in headless CI (no cert
+        // bundle / blocked network). That noise is unrelated to the
+        // game code we're testing.
+        if (/tracker\.|trystero|WebSocket connection|esm\.sh|jsdelivr/i.test(t)) return;
+        errs.push('console: ' + t);
+    });
 
     await page.goto('http://127.0.0.1:8861/index.html', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(800);
@@ -124,6 +134,82 @@ const path = require('path');
     const afterLeave = await page.evaluate(() =>
         document.getElementById('mp-race-overlay').classList.contains('hidden'));
     ok('LEAVE hides race overlay', afterLeave === true);
+
+    // ── Coop scripts present + dropdown un-disabled ─────────────────
+    const coopAvail = await page.evaluate(() => ({
+        coopMod:   !!(NeonMP && NeonMP.coop && typeof NeonMP.coop.createCoop === 'function'),
+        versusMod: !!(NeonMP && NeonMP.versus && typeof NeonMP.versus.createVersus === 'function'),
+    }));
+    ok('NeonMP.coop loaded',   coopAvail.coopMod);
+    ok('NeonMP.versus loaded', coopAvail.versusMod);
+    // Race overlay closed the lobby but the game is mid-run; navigate
+    // explicitly back to the main menu so the MULTIPLAYER button is
+    // visible/clickable.
+    await page.evaluate(() => navigateToMainMenu());
+    await page.waitForTimeout(100);
+    await page.click('#menu-multiplayer-btn');
+    await page.waitForTimeout(150);
+    const dropdownState = await page.evaluate(() => {
+        const opts = document.querySelectorAll('#mp-mode-select option');
+        const out = {};
+        opts.forEach(o => out[o.value] = !o.disabled);
+        return out;
+    });
+    ok('coop option un-disabled',   dropdownState.coop === true);
+    ok('versus option un-disabled', dropdownState.versus === true);
+
+    // ── Coop in-browser end-to-end ─────────────────────────────────
+    const coopE2E = await page.evaluate(() => {
+        const hub = NeonMP.transport.createMockHub();
+        const a = hub.join('COOP1', 'A');
+        const b = hub.join('COOP1', 'B');
+        function fakeGame() {
+            return {
+                money: 1000, health: 20,
+                towers: [{ c: 0, r: 0, type: 'basic', level: 0, sold: false }],
+                log: [],
+                buildTower(c, r, t, opts) {
+                    this.money -= 50;
+                    this.towers.push({ c, r, type: t });
+                    this.log.push({ k: 'build', src: opts && opts.source });
+                    return true;
+                },
+                upgradeTower() { return true; },
+                sellTower() { return true; },
+                buyPotion(opts) { this.log.push({ k: 'potion', src: opts && opts.source }); return true; },
+            };
+        }
+        const gA = fakeGame();
+        const gB = fakeGame();
+        const A = NeonMP.coop.createCoop({ peer: 'A', transport: a, getGame: () => gA });
+        const B = NeonMP.coop.createCoop({ peer: 'B', transport: b, getGame: () => gB });
+        A.start(); B.start();
+        A.broadcast({ k: 'build', c: 5, r: 5, t: 'sniper' });
+        const res = {
+            bTowers: gB.towers.length,
+            bMoney:  gB.money,
+            bRemoteTag: gB.log[gB.log.length - 1].src,
+        };
+        A.stop(); B.stop();
+        return res;
+    });
+    ok('browser coop: B saw A\'s build', coopE2E.bTowers === 2);
+    ok('browser coop: B money deducted', coopE2E.bMoney === 950);
+    ok('browser coop: tagged remote',    coopE2E.bRemoteTag === 'remote');
+
+    // ── Pre-boot hook: reload with sessionStorage primed; the inline
+    // <script> in <body> must swap Math.random + set __neonAegisDev.
+    await page.evaluate(() => sessionStorage.setItem('neonMP', JSON.stringify({
+        mode: 'coop', roomCode: 'NEAN42', nick: 'ALICE', seed: 12345,
+    })));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(800);
+    const preBoot = await page.evaluate(() => ({
+        aegisDev: window.__neonAegisDev === true,
+        sessionCleared: sessionStorage.getItem('neonMP') === null,
+    }));
+    ok('pre-boot set __neonAegisDev=true', preBoot.aegisDev === true);
+    ok('resume cleared sessionStorage',    preBoot.sessionCleared === true);
 
     // No JS errors anywhere
     ok('no JS errors', errs.length === 0);

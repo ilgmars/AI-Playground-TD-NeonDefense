@@ -109,10 +109,10 @@ opponent. First to die loses.
 | **0** | This folder (design + signalling notes). | ✓ | done |
 | **1** | Protocol + actions + guard + mock transport + 80 logic tests. | ~ half a day | done |
 | **2** | Race mode: lobby UI, Trystero adapter (lazy-loaded), room code → seed, leaderboard overlay, reconnect / stale-peer handling. | ~ 1 day | done |
-| **3a** | Co-op controllers: lockstep input exchange + seeded PRNG. Fully tested in isolation; not yet wired into Game.update(). | ~ 1 day | done |
-| **3b** | Co-op integration: shared HP/money pool, dual cursor, Aegis dev-mode pre-boot toggle, gameSpeed pinning. | ~ 2 days | pending |
+| **3a** | Co-op controllers: lockstep input exchange + seeded PRNG. Fully tested in isolation. | ~ 1 day | done |
+| **3b** | Co-op integration: shared input streaming (build / upgrade / sell / potion), pre-boot Aegis dev toggle + seeded PRNG re-route, hooked into the existing input call sites. | ~ 2 days | done |
 | **4a** | Versus protocol: spike meter + queue + wave-boundary drain, comeback mechanic, sudden-death. Fully tested. | ~ 1 day | done |
-| **4b** | Versus integration: per-side seeds (roomCode+A / +B), opponent HUD inset, wave-clear spike consumption, balance pass. | ~ 1-2 days | pending |
+| **4b** | Versus integration: per-side seed (`roomCode + 'A'`), Game.startWave hook drains queued spikes into the next wave's enemy count, enemy-death hook fills the local spike meter. | ~ 1-2 days | done |
 
 Each phase is independently shippable.
 

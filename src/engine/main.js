@@ -2087,7 +2087,11 @@ function init() {
         
         if (btn.dataset.confirm === 'true') {
             let totalSell = 0;
-            for (let t of game.selectedTowers) {
+            // Capture references to broadcast BEFORE we mutate game.towers,
+            // so mpBroadcastSell can look up the index correctly.
+            const toSell = game.selectedTowers.slice();
+            for (let t of toSell) {
+                if (window.__neonMPBroadcast) window.__neonMPBroadcast.sell(t);
                 totalSell += t.getSellValue();
                 game.towers = game.towers.filter(tower => tower !== t);
             }
@@ -2141,7 +2145,12 @@ function init() {
         // Upgrades 1-3 (only when a tower is selected)
         if (e.key >= '1' && e.key <= '3' && game.selectedTowers && game.selectedTowers.length > 0) {
             let idx = parseInt(e.key) - 1;
+            const selBefore = game.selectedTowers.slice();
+            const moneyBefore = game.money;
             game.buyUpgrade(idx);
+            if (window.__neonMPBroadcast && game.money < moneyBefore) {
+                for (const t of selBefore) window.__neonMPBroadcast.upgrade(t, idx);
+            }
         }
         // Build 1-9 — Relay (income) maps to 9. Order matches the build menu.
         else if (e.key >= '1' && e.key <= '9') {
@@ -2338,7 +2347,10 @@ function init() {
     document.getElementById('place-confirm-yes').addEventListener('click', (e) => {
         e.stopPropagation();
         if (!pendingPlacement) return;
-        game.buildTower(pendingPlacement.col, pendingPlacement.row, pendingPlacement.type);
+        const built = game.buildTower(pendingPlacement.col, pendingPlacement.row, pendingPlacement.type);
+        if (built && window.__neonMPBroadcast) {
+            window.__neonMPBroadcast.build(pendingPlacement.col, pendingPlacement.row, pendingPlacement.type);
+        }
         hidePlaceConfirm();
     });
 
@@ -2442,6 +2454,7 @@ function init() {
 
         if (selectedTowerType) {
             if (game.buildTower(c, r, selectedTowerType)) {
+                if (window.__neonMPBroadcast) window.__neonMPBroadcast.build(c, r, selectedTowerType);
                 // Hold Shift to keep the same tower selected for chain
                 // placement; otherwise deselect after a single placement.
                 if (!e.shiftKey) selectTower(selectedTowerType);
@@ -2651,6 +2664,11 @@ function init() {
         tooltip.style.top  = y + 'px';
     }
 
+    // After init() finishes wiring the menu + lobby, check whether the
+    // page was reloaded via the multiplayer pre-boot hook (coop/versus).
+    // If so, auto-resume the JOIN with the persisted nick/code/mode.
+    setTimeout(resumeMultiplayerIfPending, 50);
+
     // ── Multiplayer lobby wiring ────────────────────────────────────────
     // Lazy: nothing here touches the network until JOIN is clicked. Once
     // a room is live, the race controller polls window.game once per
@@ -2661,6 +2679,9 @@ function init() {
     let _activeRoom = null;     // transport peer
     let _raceUnsub  = null;     // unsubscribe from onUpdate
     let _activeRoomCode = null;
+    let _activeCoop = null;     // co-op controller (build/upgrade/sell sync)
+    let _activeVersus = null;   // versus controller (spike protocol)
+    let _activeMode = null;     // 'race' | 'coop' | 'versus'
 
     function setStatus(el, text, color) {
         el.textContent = text;
@@ -2713,8 +2734,8 @@ function init() {
 
         joinBtn.addEventListener('click', async () => {
             const mode = modeSel.value;
-            if (mode !== 'race') {
-                setStatus(status, mode.toUpperCase() + ' is not implemented yet.', '#fbbf24');
+            if (!lobby.isValidMode(mode)) {
+                setStatus(status, mode.toUpperCase() + ' is not a known mode.', '#fb7185');
                 return;
             }
             const parsed = lobby.parseRoomCode(roomIn.value);
@@ -2728,28 +2749,60 @@ function init() {
             nickIn.value = nick;
             roomIn.value = parsed.code;
 
-            setStatus(status, 'Connecting to room ' + parsed.code + '…', 'var(--accent)');
-            joinBtn.disabled = true;
+            // Race mode = display-only, no PRNG re-seed needed. Coop and
+            // Versus replace Math.random with a room-seeded mulberry32
+            // which the Aegis sensor would flag mid-run — so for those
+            // two modes we stash the request in sessionStorage and
+            // reload so the pre-boot inline script can install the
+            // seeded RNG BEFORE aegis.js captures the snapshot.
+            if (mode === 'race') {
+                setStatus(status, 'Connecting to room ' + parsed.code + '…', 'var(--accent)');
+                joinBtn.disabled = true;
+                try {
+                    await joinRace(parsed.code, nick);
+                    setStatus(status, 'Connected. Starting run…', '#4ade80');
+                    hideScreen('mp-lobby');
+                    _exitSubScreenState();
+                    const seed = NeonMP.protocol.roomCodeToSeed(parsed.code);
+                    restartGame(seed);
+                    showScreen('mp-race-overlay');
+                    const roomBadge = document.getElementById('mp-race-room');
+                    if (roomBadge) roomBadge.textContent = parsed.code;
+                } catch (err) {
+                    setStatus(status, 'Could not connect: ' + (err && err.message ? err.message : err),
+                              '#fb7185');
+                    leaveRace();
+                } finally {
+                    joinBtn.disabled = false;
+                }
+                return;
+            }
+
+            // Coop / Versus: persist intent and reload so the pre-boot
+            // hook can install the seeded RNG before aegis.js. main.js
+            // re-runs init() on reload and detects window.__neonMPPending
+            // to auto-resume the join (see resumeMultiplayerIfPending).
+            const seed = NeonMP.protocol.roomCodeToSeed(
+                mode === 'versus' ? parsed.code + 'A' : parsed.code
+            );
+            // For versus we also persist the side ('A' or 'B') — first
+            // joiner of a room is 'A', second is 'B'. We can't know who's
+            // first without talking to the room first, so we default to
+            // 'A' here and reconcile on the wire (later: server-coordinated).
+            const cfg = {
+                mode, roomCode: parsed.code, nick, seed,
+                side: mode === 'versus' ? 'A' : null,
+            };
             try {
-                await joinRace(parsed.code, nick);
-                setStatus(status, 'Connected. Starting run…', '#4ade80');
-                // Tear down the lobby and drop straight into a run with
-                // the room code as the world seed.
-                hideScreen('mp-lobby');
-                _exitSubScreenState();
-                const seed = NeonMP.protocol.roomCodeToSeed(parsed.code);
-                // Use the player's last loadout if present so we don't
-                // force them through Run Setup for a race; their build
-                // choices are private anyway.
-                restartGame(seed);
-                showScreen('mp-race-overlay');
-                const roomBadge = document.getElementById('mp-race-room');
-                if (roomBadge) roomBadge.textContent = parsed.code;
-            } catch (err) {
-                setStatus(status, 'Could not connect: ' + (err && err.message ? err.message : err),
-                          '#fb7185');
-                leaveRace();
-            } finally {
+                sessionStorage.setItem('neonMP', JSON.stringify(cfg));
+                setStatus(status, 'Re-launching with deterministic RNG…', 'var(--accent)');
+                joinBtn.disabled = true;
+                // Reload triggers neonMPBoot (in index.html <body>) which
+                // sets __neonAegisDev + seeded Math.random before any
+                // game scripts run.
+                setTimeout(() => location.reload(), 250);
+            } catch (e) {
+                setStatus(status, 'Could not start: ' + (e && e.message ? e.message : e), '#fb7185');
                 joinBtn.disabled = false;
             }
         });
@@ -2757,9 +2810,152 @@ function init() {
         // Leave button on the race overlay.
         const leaveBtn = document.getElementById('mp-race-leave');
         if (leaveBtn) leaveBtn.addEventListener('click', () => {
-            leaveRace();
+            leaveActiveMultiplayer();
             hideScreen('mp-race-overlay');
         });
+
+        // Un-disable co-op and versus options now that the controllers exist.
+        if (NeonMP.coop) {
+            const coopOpt = modeSel.querySelector('option[value="coop"]');
+            if (coopOpt) {
+                coopOpt.removeAttribute('disabled');
+                coopOpt.textContent = 'CO-OP — shared map + economy';
+            }
+        }
+        if (NeonMP.versus) {
+            const verOpt = modeSel.querySelector('option[value="versus"]');
+            if (verOpt) {
+                verOpt.removeAttribute('disabled');
+                verOpt.textContent = 'VERSUS — push enemy spikes to opponent';
+            }
+        }
+    }
+
+    // Called once after init() to honour the pre-boot hook. If
+    // sessionStorage 'neonMP' was set, the reload landed us here with
+    // a seeded Math.random and Aegis dev mode on — finish the JOIN.
+    async function resumeMultiplayerIfPending() {
+        const cfg = window.__neonMPPending;
+        if (!cfg || typeof cfg !== 'object') return;
+        // Single-shot: clear the flag and storage so a manual reload
+        // doesn't keep re-joining.
+        try { sessionStorage.removeItem('neonMP'); } catch (_) {}
+        window.__neonMPPending = null;
+        if (!NeonMP || !NeonMP.lobby) return;
+        const lobby = NeonMP.lobby;
+        const nick = lobby.sanitiseNick(cfg.nick);
+        const parsed = lobby.parseRoomCode(cfg.roomCode);
+        if (!parsed.ok) return;
+
+        // Start the run with the room-derived seed so map.js draws an
+        // identical world for every peer in the room.
+        try {
+            if (cfg.mode === 'coop') {
+                await joinCoop(parsed.code, nick);
+                restartGame(cfg.seed);
+                showScreen('mp-race-overlay');
+                const roomBadge = document.getElementById('mp-race-room');
+                if (roomBadge) roomBadge.textContent = parsed.code + ' (co-op)';
+            } else if (cfg.mode === 'versus') {
+                await joinVersus(parsed.code, nick, cfg.side || 'A');
+                restartGame(cfg.seed);
+                bindVersusHooksToGame();
+                showScreen('mp-race-overlay');
+                const roomBadge = document.getElementById('mp-race-room');
+                if (roomBadge) roomBadge.textContent = parsed.code + ' (vs)';
+            }
+        } catch (err) {
+            console.warn('[MP] resume failed:', err);
+            leaveActiveMultiplayer();
+        }
+    }
+
+    async function joinCoop(roomCode, nick) {
+        if (!NeonMP || !NeonMP.trystero || !NeonMP.coop) {
+            throw new Error('co-op scripts missing');
+        }
+        leaveActiveMultiplayer();
+        const room = await NeonMP.trystero.joinRoom(roomCode, nick);
+        _activeRoom = room;
+        _activeRoomCode = roomCode;
+        _activeMode = 'coop';
+
+        // Race controller still drives the leaderboard overlay — it's
+        // pure display, no game effect, and gives players a quick read
+        // of "is my partner alive". Co-op controller carries the inputs.
+        _activeRace = NeonMP.race.createRace({
+            peer: nick, transport: room,
+            getGame: () => (typeof game !== 'undefined' ? game : {}),
+        });
+        _raceUnsub = _activeRace.onUpdate(renderRaceOverlay);
+        _activeRace.start();
+
+        const secret = NeonMP.guard
+            ? NeonMP.guard.deriveSecret(roomCode, 'coop')
+            : null;
+        const allowBuild = (typeof TOWERS === 'object')
+            ? new Set(Object.keys(TOWERS))
+            : null;
+        _activeCoop = NeonMP.coop.createCoop({
+            peer: nick, transport: room,
+            getGame: () => (typeof game !== 'undefined' ? game : null),
+            allowBuildTypes: allowBuild,
+            secret,
+        });
+        _activeCoop.start();
+    }
+
+    async function joinVersus(roomCode, nick, side) {
+        if (!NeonMP || !NeonMP.trystero || !NeonMP.versus) {
+            throw new Error('versus scripts missing');
+        }
+        leaveActiveMultiplayer();
+        const room = await NeonMP.trystero.joinRoom(roomCode, nick);
+        _activeRoom = room;
+        _activeRoomCode = roomCode;
+        _activeMode = 'versus';
+
+        _activeRace = NeonMP.race.createRace({
+            peer: nick, transport: room,
+            getGame: () => (typeof game !== 'undefined' ? game : {}),
+        });
+        _raceUnsub = _activeRace.onUpdate(renderRaceOverlay);
+        _activeRace.start();
+
+        _activeVersus = NeonMP.versus.createVersus({
+            peer: nick, transport: room,
+        });
+        _activeVersus.start();
+        window.__neonMPVersusSide = side || 'A';
+    }
+
+    // Bind versus hooks onto the live Game. Called after each
+    // restartGame() in a versus run because restartGame builds a fresh
+    // Game instance that doesn't carry forward the hooks.
+    function bindVersusHooksToGame() {
+        if (typeof game === 'undefined' || !_activeVersus) return;
+        game._onKill = (type) => {
+            try { _activeVersus.recordKill(type, game); } catch (_) {}
+        };
+        game._onWaveStart = (waveNum) => {
+            try { return _activeVersus.nextWaveSpike(); } catch (_) { return null; }
+        };
+    }
+
+    function leaveActiveMultiplayer() {
+        if (typeof _raceUnsub === 'function') {
+            try { _raceUnsub(); } catch (_) {}
+            _raceUnsub = null;
+        }
+        if (_activeRace) { try { _activeRace.stop(); } catch (_) {} _activeRace = null; }
+        if (_activeCoop) { try { _activeCoop.stop(); } catch (_) {} _activeCoop = null; }
+        if (_activeVersus) { try { _activeVersus.stop(); } catch (_) {} _activeVersus = null; }
+        if (_activeRoom) { try { _activeRoom.leave(); } catch (_) {} _activeRoom = null; }
+        _activeRoomCode = null;
+        _activeMode = null;
+        window.__neonMPVersusSide = null;
+        const list = document.getElementById('mp-race-list');
+        if (list) list.innerHTML = '';
     }
 
     // joinRace: lazy-load Trystero, join the room, wire the race
@@ -2769,10 +2965,11 @@ function init() {
         if (!NeonMP || !NeonMP.trystero || !NeonMP.race) {
             throw new Error('multiplayer scripts missing');
         }
-        leaveRace();         // ensure no stale controller from a previous join
+        leaveActiveMultiplayer();         // ensure no stale controller from a previous join
         const room = await NeonMP.trystero.joinRoom(roomCode, nick);
         _activeRoom = room;
         _activeRoomCode = roomCode;
+        _activeMode = 'race';
 
         _activeRace = NeonMP.race.createRace({
             peer: nick,
@@ -2783,23 +2980,45 @@ function init() {
         _activeRace.start();
     }
 
-    function leaveRace() {
-        if (typeof _raceUnsub === 'function') {
-            try { _raceUnsub(); } catch (_) {}
-            _raceUnsub = null;
-        }
-        if (_activeRace) {
-            try { _activeRace.stop(); } catch (_) {}
-            _activeRace = null;
-        }
-        if (_activeRoom) {
-            try { _activeRoom.leave(); } catch (_) {}
-            _activeRoom = null;
-        }
-        _activeRoomCode = null;
-        const list = document.getElementById('mp-race-list');
-        if (list) list.innerHTML = '';
+    // Back-compat alias used by older join paths and the LEAVE button —
+    // also clears coop / versus state if present.
+    function leaveRace() { leaveActiveMultiplayer(); }
+
+    // Broadcast helpers — invoked by the input call sites AFTER the
+    // local action has been applied to the local game. They're no-ops
+    // when no co-op room is active.
+    function mpBroadcastBuild(c, r, type) {
+        if (!_activeCoop) return;
+        const allow = (typeof TOWERS === 'object') ? new Set(Object.keys(TOWERS)) : null;
+        const effective = (typeof game !== 'undefined' && typeof game.getEffectiveTowerType === 'function')
+            ? game.getEffectiveTowerType(type) : type;
+        const t = (allow && allow.has(effective)) ? effective : type;
+        _activeCoop.broadcast({ k: 'build', c, r, t });
     }
+    function mpBroadcastUpgrade(tower, slot) {
+        if (!_activeCoop || !game || !Array.isArray(game.towers)) return;
+        const idx = game.towers.indexOf(tower);
+        if (idx < 0) return;
+        _activeCoop.broadcast({ k: 'upgrade', tower: idx, slot });
+    }
+    function mpBroadcastSell(tower) {
+        if (!_activeCoop || !game || !Array.isArray(game.towers)) return;
+        const idx = game.towers.indexOf(tower);
+        if (idx < 0) return;
+        _activeCoop.broadcast({ k: 'sell', tower: idx });
+    }
+    function mpBroadcastPotion() {
+        if (!_activeCoop) return;
+        _activeCoop.broadcast({ k: 'potion' });
+    }
+    // Expose globally so the input handlers scattered through init()
+    // can call them without piping the reference through every closure.
+    window.__neonMPBroadcast = {
+        build: mpBroadcastBuild,
+        upgrade: mpBroadcastUpgrade,
+        sell: mpBroadcastSell,
+        potion: mpBroadcastPotion,
+    };
 
     function renderRaceOverlay(snap) {
         const list = document.getElementById('mp-race-list');
@@ -2856,7 +3075,12 @@ function updateBuildMenuForLoadout(towerLoadout) {
 
 window.buyPotion = function() {
     if (game.state !== 'playing' && game.state !== 'paused') return;
-    game.buyPotion();
+    const hpBefore = game.health;
+    const ok = game.buyPotion();
+    // game.buyPotion returns undefined; infer success by HP change.
+    if (window.__neonMPBroadcast && game.health > hpBefore) {
+        window.__neonMPBroadcast.potion();
+    }
 }
 
 window.selectTower = function(type) {

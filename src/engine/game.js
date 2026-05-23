@@ -175,6 +175,13 @@ class Game {
     }
 
     startWave() {
+        // Multiplayer hook (versus mode): drain the spike queue BEFORE
+        // the wave is built, so the controller can return how many
+        // extra enemies (and of which types) the wave should include.
+        // Returns { amount, mix } or null. No-op in single-player.
+        const spikeInjection = this._onWaveStart
+            ? (() => { try { return this._onWaveStart(this.wave); } catch (_) { return null; } })()
+            : null;
         // M3: A10 — every 10th wave is a boss wave (one boss replaces normal spawns).
         this.isBossWave = this.ascension.spawnBoss && this.wave > 0 && this.wave % 10 === 0;
 
@@ -380,6 +387,16 @@ class Game {
             spawnRate: Math.max(12, def.spawnRate - loops * 2),
             hpMult: def.hpMult * finalHpMult
         };
+
+        // Versus spike injection — bump the wave count by the queued
+        // total. Mix isn't fine-grained here (the wave still spawns
+        // homogeneous enemies of def.type), but the AMOUNT is honoured.
+        // Bounded so a fat spike can't push a wave past the 300 cap.
+        if (spikeInjection && spikeInjection.amount > 0) {
+            const bonus = Math.max(0, Math.min(60, spikeInjection.amount | 0));
+            this.currentWaveDef.count = Math.min(300, this.currentWaveDef.count + bonus);
+            this.lastSpikeBonus = bonus;
+        }
 
         this.enemiesSpawned = 0;
         this.spawnTimer = 60;
@@ -594,6 +611,12 @@ class Game {
                     this.gameOver();
                 }
             } else if (!e.active) {
+                // Multiplayer hook (versus mode): notify the controller
+                // about the kill so it can fill the local spike meter.
+                // No-op in single-player / race / co-op.
+                if (this._onKill) {
+                    try { this._onKill(e.type, this); } catch (_) {}
+                }
                 // Base reward with late-game scaling
                 let reward = e.reward;
                 if (this.wave > 35) {
@@ -845,6 +868,42 @@ class Game {
             sellBtn.dataset.confirm = 'false';
             sellBtn.innerHTML = `SELL <span class="cost" id="sell-value"></span>`;
         }
+    }
+
+    // Multiplayer adapter — applies one upgrade to one specific tower.
+    // Used by actions.applyInput so a peer's UPGRADE input is replayable
+    // without depending on the local selection state (Aegis sees the
+    // same per-tower deduction it would for a local click). Returns
+    // true if the upgrade was bought, false on rejection.
+    upgradeTower(tower, slot) {
+        if (!tower || typeof slot !== 'number') return false;
+        if (this.towers.indexOf(tower) < 0) return false;
+        const cost = Math.floor(tower.getUpgradeCost(slot) * this.upgradeCostMult);
+        if (this.money < cost) return false;
+        this.money -= cost;
+        tower.upgrade(slot);
+        this.addUpgradeEffect(tower.x, tower.y);
+        this.uiDirty = true;
+        SoundFX.upgrade();
+        return true;
+    }
+
+    // Multiplayer adapter — sells a specific tower. Mirrors the inline
+    // logic in main.js sell-btn handler; co-op sells go through here so
+    // the same money/HP audit fires for remote inputs.
+    sellTower(tower) {
+        if (!tower) return false;
+        const idx = this.towers.indexOf(tower);
+        if (idx < 0) return false;
+        const sellValue = tower.getSellValue();
+        this.towers.splice(idx, 1);
+        this.money += sellValue;
+        // Keep selection consistent if the sold tower was selected.
+        if (this.selectedTowers && this.selectedTowers.indexOf(tower) >= 0) {
+            this.selectedTowers = this.selectedTowers.filter(t => t !== tower);
+        }
+        this.uiDirty = true;
+        return true;
     }
 
     buyUpgrade(index) {

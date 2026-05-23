@@ -695,6 +695,64 @@ function makePair() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Phase 10b — Co-op input streaming (build/upgrade/sell/potion sync)
+// ─────────────────────────────────────────────────────────────────────────
+const coopMod = require('../src/multiplayer/coop.js');
+
+{
+    const hub = transport.createMockHub();
+    const aPeer = hub.join('COOP', 'A');
+    const bPeer = hub.join('COOP', 'B');
+    let gameB = makeFakeGame();
+    let gameA = makeFakeGame();
+    const A = coopMod.createCoop({
+        peer: 'A', transport: aPeer, getGame: () => gameA,
+    });
+    const B = coopMod.createCoop({
+        peer: 'B', transport: bPeer, getGame: () => gameB,
+    });
+    A.start(); B.start();
+
+    // A places a tower locally and broadcasts. B applies on receive.
+    const moneyBefore = gameB.money;
+    A.broadcast({ k: 'build', c: 5, r: 5, t: 'sniper' });
+    ok('coop E2E: B saw A\'s build', gameB.towers.length === 2);
+    ok('coop E2E: B money deducted', gameB.money < moneyBefore);
+    ok('coop E2E: B input tagged remote',
+       gameB.log[gameB.log.length - 1].source === 'remote');
+
+    // B places a tower — A should receive.
+    B.broadcast({ k: 'build', c: 6, r: 6, t: 'sniper' });
+    ok('coop E2E: A saw B\'s build', gameA.towers.length === 2);
+
+    // Malformed broadcast is rejected locally (not sent).
+    const r = A.broadcast({ k: 'eval' });
+    ok('coop rejects bad local broadcast', r.ok === false);
+
+    // Self-echo defence: a frame with our own peer is dropped (mock
+    // hub doesn't echo, so we have to inject the message manually).
+    aPeer.send({ kind: 'coop-frame', frame: { v: 1, p: 'A', f: 999, i: [{ k: 'potion' }] }});
+    ok('coop self-echo not applied (no extra log entry)',
+       gameA.log.filter(e => e.k === 'potion').length === 0);
+
+    A.stop(); B.stop();
+}
+
+// PRNG re-routing: same room code → same Math.random sequence on both
+// peers, so deterministic boon picks / enemy spawns align.
+{
+    const prngHub = require('../src/multiplayer/prng.js');
+    const restoreA = prngHub.installFromRoomCode('NEAN42');
+    const seqAlice = [Math.random(), Math.random(), Math.random()];
+    restoreA();
+    const restoreB = prngHub.installFromRoomCode('NEAN42');
+    const seqBob = [Math.random(), Math.random(), Math.random()];
+    restoreB();
+    ok('PRNG re-route gives identical streams across peers',
+       seqAlice[0] === seqBob[0] && seqAlice[1] === seqBob[1] && seqAlice[2] === seqBob[2]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Phase 11 — Versus spike protocol
 // ─────────────────────────────────────────────────────────────────────────
 const versusMod = require('../src/multiplayer/versus.js');
