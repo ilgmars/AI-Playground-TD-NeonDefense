@@ -50,3 +50,35 @@ jobs:
           path: /tmp/shots/**
           if-no-files-found: ignore
           retention-days: 7
+
+  # Separate job for the long-running autopilot smoke test (~3 min).
+  # Runs in parallel with the fast suite so total wall-clock stays
+  # bounded. Failure here does NOT block APK/Pages — only the `test`
+  # job above is the gate (build-apk.yml uses needs: test). The smoke
+  # is intended to catch slow autopilot regressions that the fast
+  # suites can't see.
+  smoke:
+    name: Autopilot smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser (chromium) + OS deps
+        run: npx playwright install --with-deps chromium
+
+      - name: Run autopilot smoke
+        run: node tests/autopilot.smoke.js --snapshots=10,30 --speed=2048 --ascension=3
+        env:
+          CI: 'true'

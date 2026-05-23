@@ -2347,6 +2347,14 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 .bp-cell.filled { color: #e2e8f0; }
 .bp-cell.ghost-ok  { outline: 2px solid #a3e635; outline-offset: -2px; background: rgba(163,230,53,0.22); }
 .bp-cell.ghost-bad { outline: 2px solid #fb7185; outline-offset: -2px; background: rgba(251,113,133,0.22); }
+/* Mobile drag-to-place: telling the browser these elements are NOT
+   scroll/pan starters keeps the touch routed to our JS handlers when
+   the finger crosses from the stash into the grid. Without this,
+   #bp-grid-wrap's overflow:auto claims the gesture for panning and
+   the drag breaks the moment the finger enters the grid. The
+   document-level touchmove still calls preventDefault as a backstop. */
+.bp-cell.filled,
+.bp-chip { touch-action: none; }
 #bp-stash-title { font-size: 0.8rem; letter-spacing: 2px; color: var(--text-muted); margin-bottom: 6px; }
 #bp-stash {
     display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;

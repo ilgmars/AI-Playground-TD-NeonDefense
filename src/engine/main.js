@@ -1340,16 +1340,24 @@ function init() {
 
     document.addEventListener('touchmove', (e) => {
         if (!bpTouch) return;
+        // Suppress scroll/pan IMMEDIATELY — even before the drag
+        // threshold is crossed. Otherwise the surrounding scrollable
+        // container (#bp-grid-wrap, #bp-stash) can claim the touch
+        // gesture the moment the finger leaves the chip, and the
+        // browser stops dispatching further touchmove events to JS.
+        // touch-action:none on the chip/cell elements is the primary
+        // guard; this preventDefault is the backstop for the rest of
+        // the gesture path. (CSS file: .bp-chip, .bp-cell.filled.)
+        e.preventDefault();
         const t = e.touches[0];
         if (!bpTouch.dragging) {
             if (Math.hypot(t.clientX - bpTouch.startX, t.clientY - bpTouch.startY) < BP_DRAG_THRESHOLD_PX) return;
             bpTouch.dragging = true;
             if (bpTouch.source === 'stash')  bpPickStash(bpTouch.idx);
             else                              bpPickPlaced(bpTouch.idx);
-            // After a render we lost the grid cell map — reacquire below.
+            // After a render the source element is gone — the document-
+            // level touchmove listener keeps dispatching regardless.
         }
-        // Drag committed — suppress scroll + paint ghost at offset point.
-        e.preventDefault();
         const target = bpCellAtPoint(t.clientX, t.clientY - bpGhostOffsetPx());
         if (target) bpPaintGhost(target.x, target.y);
         else        bpClearGhost();
