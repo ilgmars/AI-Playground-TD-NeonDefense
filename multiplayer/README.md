@@ -109,7 +109,8 @@ opponent. First to die loses.
 | **0** | This folder (design + signalling notes). | ✓ | done |
 | **1** | Protocol + actions + guard + mock transport + 80 logic tests. | ~ half a day | done |
 | **2** | Race mode: lobby UI, Trystero adapter (lazy-loaded), room code → seed, leaderboard overlay, reconnect / stale-peer handling. | ~ 1 day | done |
-| **3** | Co-op (lockstep). Input record/replay round-trip is the test. Aegis "peer-input" affordance. | ~ 2-3 days | pending |
+| **3a** | Co-op controllers: lockstep input exchange + seeded PRNG. Fully tested in isolation; not yet wired into Game.update(). | ~ 1 day | done |
+| **3b** | Co-op integration: shared HP/money pool, dual cursor, Aegis dev-mode pre-boot toggle, gameSpeed pinning. | ~ 2 days | pending |
 | **4** | Versus (spike protocol + balance pass). | ~ 2-3 days | pending |
 
 Each phase is independently shippable.

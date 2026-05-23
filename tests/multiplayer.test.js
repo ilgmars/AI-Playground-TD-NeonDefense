@@ -516,5 +516,184 @@ for (let i = 0; i < 20; i++) {
 ok('roster size cap holds under flood', Object.keys(cap.roster).length <= 4);
 
 // ─────────────────────────────────────────────────────────────────────────
+// Phase 9 — Seeded PRNG (multiplayer determinism)
+// ─────────────────────────────────────────────────────────────────────────
+const prngMod = require('../src/multiplayer/prng.js');
+
+// Two independent generators with the same seed produce the same stream.
+const prngA = prngMod.mulberry32(12345);
+const prngB = prngMod.mulberry32(12345);
+let streamMatch = true;
+for (let i = 0; i < 100; i++) if (prngA() !== prngB()) { streamMatch = false; break; }
+ok('mulberry32 deterministic stream', streamMatch);
+
+// Different seeds diverge.
+const prngC = prngMod.mulberry32(12346);
+ok('mulberry32 sensitive to seed', prngMod.mulberry32(12345)() !== prngC());
+
+// install() swaps Math.random; restore() puts the original back.
+const before = Math.random;
+const restore = prngMod.install(12345);
+ok('install replaces Math.random', Math.random !== before);
+// First three values of the seeded stream are reproducible.
+const seq1 = [Math.random(), Math.random(), Math.random()];
+restore();
+ok('restore returns original Math.random', Math.random === before);
+const restore2 = prngMod.install(12345);
+const seq2 = [Math.random(), Math.random(), Math.random()];
+restore2();
+ok('reinstall reproduces sequence', seq1[0] === seq2[0] && seq1[1] === seq2[1] && seq1[2] === seq2[2]);
+
+// installFromRoomCode derives the same seed roomCodeToSeed gives — so a
+// numeric seed input in single-player and a room-code input in MP both
+// land on the same world.
+const restore3 = prngMod.installFromRoomCode('NEAN42');
+const fromCode = Math.random();
+restore3();
+const restore4 = prngMod.install(protocol.roomCodeToSeed('NEAN42'));
+const fromSeed = Math.random();
+restore4();
+ok('installFromRoomCode == install(roomCodeToSeed)', fromCode === fromSeed);
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 10 — Lockstep controller
+// ─────────────────────────────────────────────────────────────────────────
+const lockstep = require('../src/multiplayer/lockstep.js');
+
+// Build two peers that share a transport via simple inboxes.
+function makePair() {
+    let aMsgs = [], bMsgs = [];
+    let aApplied = [], bApplied = [];
+    const A = lockstep.createLockstep({
+        me: 'A', peers: ['A', 'B'],
+        send: (frame) => bMsgs.push(frame),
+        apply: (event) => aApplied.push(event),
+        hash: () => 'h-a',
+        syncEvery: 4,
+        // Lockstep itself sends a frame per tick, so we need a generous
+        // throttle inside the guard or it'll start dropping our own
+        // frames at high tick counts in the tests below.
+        perSec: 6000,
+    });
+    const B = lockstep.createLockstep({
+        me: 'B', peers: ['A', 'B'],
+        send: (frame) => aMsgs.push(frame),
+        apply: (event) => bApplied.push(event),
+        hash: () => 'h-b',
+        syncEvery: 4,
+        perSec: 6000,
+    });
+    // Pump pending messages between the peers.
+    // Naming: aMsgs holds frames addressed TO A (sent by B); deliver them
+    // to A. bMsgs holds frames addressed TO B (sent by A); deliver to B.
+    function pump() {
+        while (aMsgs.length || bMsgs.length) {
+            const fb = bMsgs.shift();
+            if (fb) B.receive(fb, fb.p);
+            const fa = aMsgs.shift();
+            if (fa) A.receive(fa, fa.p);
+        }
+    }
+    return { A, B, pump, aApplied, bApplied };
+}
+
+// Step zero: A blocks because B hasn't sent its frame 0 yet, and v.v.
+{
+    let A = lockstep.createLockstep({
+        me: 'A', peers: ['A', 'B'],
+        send: () => {}, apply: () => {}, hash: () => 'h',
+    });
+    ok('blocks waiting for peer', A.advance() === false && A.blocked === true);
+}
+
+// End-to-end: two peers, A places a build at tick 0, B's apply sees it.
+{
+    const p = makePair();
+    p.A.submitInput({ k: 'build', c: 5, r: 5, t: 'basic' });
+    p.A.advance(); // publishes A's frame 0 (still blocked on B)
+    p.pump();
+    p.B.advance(); // publishes B's empty frame 0, sees A's frame 0
+    p.pump();
+    // Now both have each other's frame 0 — calling advance again drains.
+    p.A.advance();
+    p.B.advance();
+    ok('A applied A\'s own input at tick 0',
+       p.aApplied.length === 1 && p.aApplied[0].input.k === 'build');
+    ok('B applied A\'s input at tick 0',
+       p.bApplied.length === 1 && p.bApplied[0].peer === 'A');
+}
+
+// Heartbeats keep things moving when nobody types. After 10 ticks of
+// silence, both peers' currentTick should advance to 10.
+{
+    const p = makePair();
+    for (let t = 0; t < 10; t++) {
+        p.A.advance(); p.pump();
+        p.B.advance(); p.pump();
+        p.A.advance(); p.B.advance(); // drain
+        p.pump();
+    }
+    ok('heartbeats advance the tick', p.A.currentTick >= 10 && p.B.currentTick >= 10);
+}
+
+// Desync detection: hashes differ at sync tick, onDesync fires.
+{
+    const desyncs = [];
+    const A = lockstep.createLockstep({
+        me: 'A', peers: ['A', 'B'],
+        send: () => {}, apply: () => {}, hash: () => 'h-A',
+        syncEvery: 1,
+        onDesync: (info) => desyncs.push(info),
+        perSec: 6000,
+    });
+    // Inject a fake B frame with a different hash at tick 0.
+    A.advance();        // publishes A's frame 0 with hash h-A
+    // Build a frame from "B" with hash h-B.
+    A.receive({ v: 1, p: 'B', f: 0, i: [], hash: 'h-B' }, 'B');
+    ok('desync detected when hashes differ',
+       desyncs.length > 0 && desyncs[0].mine === 'h-A' && desyncs[0].others.B === 'h-B');
+}
+
+// Stale peer dropped after timeout — surviving peer can advance alone.
+{
+    let blocks = 0;
+    const A = lockstep.createLockstep({
+        me: 'A', peers: ['A', 'GHOST'],
+        send: () => {}, apply: () => {}, hash: () => 'h',
+        peerTimeout: 5, syncEvery: 999,
+        onStall: () => blocks++,
+        perSec: 6000,
+    });
+    // Force currentTick forward past the timeout window with no frames
+    // from GHOST. We can't easily mutate currentTick directly, so we
+    // simulate via advancing past blocks. After peerTimeout ticks of
+    // silence (lastSeenTick.GHOST never set, defaults to 0), advance
+    // should drop GHOST.
+    // First: advance the local frame counter. Submit A's frames so the
+    // missing peer is GHOST. We can't actually push currentTick without
+    // GHOST's input, so the test exercises drop-on-stall via direct
+    // construction: build a controller starting at tick 0 with peer
+    // GHOST whose lastSeenTick stays at 0.
+    A.advance(); // sets blocked; GHOST missing, last=0, current=0, 0-0 < 5
+    ok('stalls at start', A.blocked === true);
+    // Move A's currentTick — only possible by removing GHOST first. So
+    // we use the controller's advance() loop after explicitly dropping
+    // GHOST via removePeer (the user-facing API for "peer left").
+    A.removePeer('GHOST');
+    A.advance();
+    ok('advance succeeds after peer removed', A.currentTick === 1);
+}
+
+// Malformed wire frame rejected via guard.
+{
+    const A = lockstep.createLockstep({
+        me: 'A', peers: ['A', 'B'],
+        send: () => {}, apply: () => {}, hash: () => 'h',
+    });
+    const r = A.receive({ v: 1, p: 'B', f: 0, i: [{ k: 'eval' }] }, 'B');
+    ok('guard rejects malformed wire frame', r.ok === false);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 console.log(`\n${pass}/${pass + fail} passed${fail ? ', ' + fail + ' FAILED' : ''}`);
 process.exit(fail === 0 ? 0 : 1);
