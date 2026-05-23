@@ -771,6 +771,84 @@ const coopMod = require('../src/multiplayer/coop.js');
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Phase 10c — Global leaderboard (public MP channel)
+// ─────────────────────────────────────────────────────────────────────────
+const globalMod = require('../src/multiplayer/global.js');
+
+// validateEntry — name sanitisation + range checks.
+ok('global rejects empty name',   globalMod.validateEntry({ name: '', wave: 5, tier: 0 }) === null);
+ok('global rejects float wave',   globalMod.validateEntry({ name: 'A', wave: 1.5, tier: 0 }) === null);
+ok('global rejects huge wave',    globalMod.validateEntry({ name: 'A', wave: 99999, tier: 0 }) === null);
+ok('global rejects huge tier',    globalMod.validateEntry({ name: 'A', wave: 5, tier: 1000 }) === null);
+const cleaned = globalMod.validateEntry({ name: '  pr3-x !  ', wave: 12, tier: 2 });
+ok('global trims + sanitises name', cleaned && cleaned.name === 'PR3-X');
+ok('global accepts up to 16 chars',
+   globalMod.validateEntry({ name: 'ALPHABETALPHABETALPHA', wave: 1, tier: 0 }).name.length === 16);
+
+// E2E: two boards via a shared mock hub. A publishes → B receives.
+// Uses the synchronous .attach() entrypoint so the test stays linear
+// (no async/await needed at module level).
+{
+    const hub = transport.createMockHub();
+    const boardA = globalMod.createGlobalBoard();
+    const boardB = globalMod.createGlobalBoard();
+    boardA.attach(hub.join('NEON23', 'A'));
+    boardB.attach(hub.join('NEON23', 'B'));
+    let bSeen = null;
+    boardB.onUpdate(snap => { bSeen = snap; });
+
+    boardA.publish({ name: 'ALICE', wave: 12, tier: 2 });
+    ok('global E2E: B sees A\'s entry',
+       bSeen && bSeen.some(e => e.name === 'ALICE' && e.wave === 12 && e.tier === 2));
+
+    // Bypass the per-board publish throttle by using a fresh board for
+    // each "higher wave" claim — production has a 5 s gate that the
+    // test would otherwise have to mock.
+    const boardC = globalMod.createGlobalBoard();
+    boardC.attach(hub.join('NEON23', 'C'));
+    boardC.publish({ name: 'ALICE', wave: 25, tier: 2 });
+    const alice = bSeen.find(e => e.name === 'ALICE' && e.tier === 2);
+    ok('global merges by (name,tier) — keeps higher wave',
+       alice && alice.wave === 25);
+
+    // Bad entries are dropped silently at publish().
+    const rBad = boardA.publish({ name: '', wave: 1, tier: 0 });
+    ok('global publish rejects bad entry', rBad.ok === false && rBad.reason === 'bad-entry');
+
+    // Snapshot sorts by (tier, wave, t). ALICE w25 a2 beats BOB w50 a0.
+    const boardD = globalMod.createGlobalBoard();
+    boardD.attach(hub.join('NEON23', 'D'));
+    boardD.publish({ name: 'BOB', wave: 50, tier: 0 });
+    const snap = boardB.snapshot();
+    ok('global snapshot sorts by tier first',
+       snap[0].name === 'ALICE' && snap[0].tier === 2);
+
+    // Cheated flag is preserved through validate + merge. Use a fresh
+    // sender peer to avoid the receiver-side 100ms throttle (boardD
+    // already sent BOB above; B would drop a second packet from D
+    // landing within 100ms).
+    const boardE = globalMod.createGlobalBoard();
+    boardE.attach(hub.join('NEON23', 'E'));
+    boardE.publish({ name: 'EVE', wave: 99, tier: 2, cheated: true });
+    const eve = boardB.snapshot().find(e => e.name === 'EVE');
+    ok('global preserves cheated flag', eve && eve.cheated === true);
+
+    // Honest entries default to cheated: false (absent flag treated as
+    // not cheated).
+    const honest = boardB.snapshot().find(e => e.name === 'ALICE');
+    ok('global honest entries are not cheated', honest && honest.cheated === false);
+
+    // Garbage cheated value (non-boolean) is coerced to false.
+    const boardF = globalMod.createGlobalBoard();
+    boardF.attach(hub.join('NEON23', 'F'));
+    boardF.publish({ name: 'CARL', wave: 5, tier: 0, cheated: 'yes' });
+    const carl = boardB.snapshot().find(e => e.name === 'CARL');
+    ok('global coerces non-bool cheated to false', carl && carl.cheated === false);
+
+    boardA.stop(); boardB.stop(); boardC.stop(); boardD.stop(); boardE.stop(); boardF.stop();
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Phase 11 — Versus spike protocol
 // ─────────────────────────────────────────────────────────────────────────
 const versusMod = require('../src/multiplayer/versus.js');

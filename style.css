@@ -2560,3 +2560,113 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
         padding: 6px 8px;
     }
 }
+
+/* Scoreboard global/local source toggle */
+.scoreboard-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    gap: 8px;
+}
+.scoreboard-title {
+    font-size: 1rem;
+    color: var(--accent);
+    letter-spacing: 2px;
+    margin: 0;
+}
+.scoreboard-source-toggle {
+    display: inline-flex;
+    gap: 0;
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.score-source-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    padding: 4px 8px;
+    font-size: 0.7rem;
+    letter-spacing: 1.5px;
+    cursor: pointer;
+    font-family: inherit;
+    border-right: 1px solid rgba(255,255,255,0.1);
+}
+.score-source-btn:last-child { border-right: none; }
+.score-source-btn.selected {
+    background: rgba(56, 189, 248, 0.18);
+    color: var(--accent);
+}
+.score-source-btn:hover:not(.selected) {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.scoreboard-cheats-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 0 8px;
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+}
+.scoreboard-cheats-toggle input { margin: 0; cursor: pointer; }
+.score-cheated {
+    opacity: 0.55;
+    text-decoration: line-through;
+}
+.score-cheated-tag {
+    color: #fb7185;
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+    margin-left: 6px;
+    text-decoration: none;
+    display: inline-block;
+    transform: translateY(-1px);
+}
+
+/* Co-op waiting lobby */
+.mp-waitroom-code {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-family: monospace;
+    font-size: 1.2rem;
+    letter-spacing: 4px;
+    color: var(--accent);
+}
+.mp-waitroom-peers {
+    width: min(420px, 86vw);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 14px 0;
+}
+.mp-waitroom-peer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    font-family: monospace;
+}
+.mp-waitroom-peer.is-me {
+    border-color: rgba(56, 189, 248, 0.4);
+}
+.mp-waitroom-peer-name { flex: 1; color: var(--text-main); }
+.mp-waitroom-peer-status {
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+}
+.mp-waitroom-peer.is-ready .mp-waitroom-peer-status {
+    color: #4ade80;
+    font-weight: 700;
+}

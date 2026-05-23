@@ -322,6 +322,7 @@ function navigateToMainMenu() {
     hideScreen('backpack');
     hideScreen('save-code-modal');
     hideScreen('mp-lobby');
+    hideScreen('mp-waitroom');
     showScreen('main-menu');
     _exitSubScreenState();
     // Halt the in-progress run so update() bails — the menu owns the canvas now.
@@ -1947,22 +1948,112 @@ function init() {
         }
     }
 
-    function renderScores(tier) {
-        const scores = (save.highScores['a' + tier] || []).slice().sort((a, b) => b.wave - a.wave);
+    // Scoreboard source — 'local' (this device's localStorage) or
+    // 'global' (received via the public MP global-leaderboard room).
+    // The toggle defaults to local so existing players see their own
+    // history first; clicking GLOBAL flips the source and forces a
+    // re-render.
+    let _scoreSource = 'local';
+    let _showCheats = false;
+    const _esc = s => String(s || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+
+    function _renderScoreRow(idx, s, waveColor) {
+        const div = document.createElement('div');
+        div.style.display = 'flex';
+        div.style.justifyContent = 'space-between';
+        div.style.padding = '4px 0';
+        div.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+        const cheatedClass = s.cheated ? ' class="score-cheated"' : '';
+        const tag = s.cheated ? '<span class="score-cheated-tag" title="Aegis flagged this run">CHEATED</span>' : '';
+        div.innerHTML =
+            `<span${cheatedClass} style="color:#fff;">#${idx+1} ${_esc(s.name)}${tag}</span>` +
+            `<span${cheatedClass} style="color:${waveColor};">WAVE ${s.wave}</span>`;
+        return div;
+    }
+    function _filterCheats(arr) {
+        return _showCheats ? arr : arr.filter(s => !s.cheated);
+    }
+
+    function _renderLocalScores(tier) {
+        const scores = _filterCheats((save.highScores['a' + tier] || []).slice())
+            .sort((a, b) => b.wave - a.wave);
         scoresList.innerHTML = '';
         if (scores.length === 0) {
             scoresList.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.9rem;">NO DATA YET</div>';
             return;
         }
         scores.slice(0, 5).forEach((s, i) => {
-            const div = document.createElement('div');
-            div.style.display = 'flex';
-            div.style.justifyContent = 'space-between';
-            div.style.padding = '4px 0';
-            div.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
-            div.innerHTML = `<span style="color:#fff;">#${i+1} ${s.name}</span> <span style="color:#a3e635;">WAVE ${s.wave}</span>`;
-            scoresList.appendChild(div);
+            scoresList.appendChild(_renderScoreRow(i, s, '#a3e635'));
         });
+    }
+
+    function _renderGlobalScores(tier) {
+        scoresList.innerHTML = '';
+        if (!window.NeonMP || !NeonMP.global) {
+            scoresList.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.9rem;">GLOBAL OFFLINE</div>';
+            return;
+        }
+        const snap = _filterCheats(
+            NeonMP.global.snapshot().filter(e => (e.tier | 0) === (tier | 0))
+        ).slice(0, 5);
+        if (snap.length === 0) {
+            scoresList.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.9rem;">WAITING FOR PEERS…</div>';
+            return;
+        }
+        snap.forEach((s, i) => {
+            scoresList.appendChild(_renderScoreRow(i, s, '#22d3ee'));
+        });
+    }
+
+    function renderScores(tier) {
+        if (_scoreSource === 'global') _renderGlobalScores(tier);
+        else                            _renderLocalScores(tier);
+    }
+
+    function setScoreSource(src) {
+        _scoreSource = (src === 'global') ? 'global' : 'local';
+        const localBtn  = document.getElementById('score-source-local');
+        const globalBtn = document.getElementById('score-source-global');
+        if (localBtn)  { localBtn.classList.toggle('selected', _scoreSource === 'local');   localBtn.setAttribute('aria-selected', _scoreSource === 'local'); }
+        if (globalBtn) { globalBtn.classList.toggle('selected', _scoreSource === 'global'); globalBtn.setAttribute('aria-selected', _scoreSource === 'global'); }
+        renderScores(visibleScoreTier);
+    }
+
+    // Cheated-run toggle persists in localStorage so the player's choice
+    // sticks across reloads. Default is OFF (cheaters hidden).
+    try {
+        const persisted = localStorage.getItem('neonShowCheats');
+        if (persisted === '1') _showCheats = true;
+    } catch (_) {}
+    const cheatsToggle = document.getElementById('score-show-cheats');
+    if (cheatsToggle) {
+        cheatsToggle.checked = _showCheats;
+        cheatsToggle.addEventListener('change', e => {
+            _showCheats = !!e.target.checked;
+            try { localStorage.setItem('neonShowCheats', _showCheats ? '1' : '0'); } catch (_) {}
+            renderScores(visibleScoreTier);
+        });
+    }
+
+    document.getElementById('score-source-local').addEventListener('click', () => setScoreSource('local'));
+    document.getElementById('score-source-global').addEventListener('click', () => {
+        setScoreSource('global');
+        // Lazy: start the global board the first time the player asks
+        // for it. Quiet failure if Trystero is blocked (the renderer
+        // shows "GLOBAL OFFLINE" instead of throwing).
+        if (window.NeonMP && NeonMP.global) {
+            try { NeonMP.global.singleton().start(); } catch (_) {}
+        }
+    });
+
+    // Subscribe to global board updates so live entries refresh while
+    // the gameover screen is open.
+    if (window.NeonMP && NeonMP.global) {
+        try {
+            NeonMP.global.singleton().onUpdate(() => {
+                if (_scoreSource === 'global') renderScores(visibleScoreTier);
+            });
+        } catch (_) {}
     }
 
     function setScoreTab(tier) {
@@ -1975,6 +2066,13 @@ function init() {
 
     renderScoreTabs();
 
+    // Pre-fill the player name input from the persisted localStorage
+    // value so the player doesn't retype it every run.
+    try {
+        const savedName = localStorage.getItem('neonPlayerName');
+        if (savedName) playerNameInput.value = savedName;
+    } catch (_) {}
+
     window.loadScores = function() {
         // Default the visible tab to the current run's tier on each game-over.
         setScoreTab(game ? game.ascensionTier : selectedTier);
@@ -1982,15 +2080,33 @@ function init() {
 
     // Name submission — appends to per-tier high-score list. Does NOT
     // re-award XP; that happens in onRunEnded immediately after death.
+    // Names allow A-Z 0-9 + space + dash, up to 16 chars. Old saves with
+    // 3-char names continue to render unchanged.
     submitScoreBtn.addEventListener('click', () => {
-        const name = playerNameInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        if (name.length > 0 && name.length <= 3 && game.state === 'gameover') {
+        const raw = playerNameInput.value.toUpperCase().replace(/[^A-Z0-9 \-]/g, '').trim();
+        const name = raw.slice(0, 16);
+        if (name.length > 0 && game.state === 'gameover') {
             const tier = game.ascensionTier;
+            // Cheated flag — true if Aegis flagged this save OR if any
+            // sensor tripped during the run. We tag the score so honest
+            // peers can hide it (off by default in the scoreboard UI).
+            const cheated = !!(
+                (typeof NeonAegis !== 'undefined' && NeonAegis.isFlagged && NeonAegis.isFlagged(save)) ||
+                (typeof NeonAegis !== 'undefined' && NeonAegis.lastFlag && NeonAegis.lastFlag()) ||
+                (window.__neonAegisLastFlag)
+            );
             const list = save.highScores['a' + tier] || [];
-            list.push({ name: name.slice(0, 3), wave: game.wave });
+            list.push({ name, wave: game.wave, cheated });
             list.sort((a, b) => b.wave - a.wave);
             save.highScores['a' + tier] = list.slice(0, 5);
             NeonSave.write(save);
+            // Remember the name for the global leaderboard publisher and
+            // for next-run convenience.
+            try { localStorage.setItem('neonPlayerName', name); } catch (_) {}
+            // Broadcast to the global leaderboard if available.
+            if (window.NeonMP && window.NeonMP.global && window.NeonMP.global.publish) {
+                window.NeonMP.global.publish({ name, wave: game.wave, tier, cheated });
+            }
             document.getElementById('score-entry').style.display = 'none';
             renderScoreTabs();
             setScoreTab(tier);
@@ -2847,6 +2963,16 @@ function init() {
         try {
             if (cfg.mode === 'coop') {
                 await joinCoop(parsed.code, nick);
+                // Show the waiting room instead of jumping straight to
+                // the run — players coordinate via READY before the
+                // map appears. openCoopWaitroom resolves once everyone
+                // is ready (or returns null if the player leaves).
+                const ready = await openCoopWaitroom(parsed.code, nick);
+                if (!ready) {
+                    leaveActiveMultiplayer();
+                    showScreen('main-menu');
+                    return;
+                }
                 restartGame(cfg.seed);
                 showScreen('mp-race-overlay');
                 const roomBadge = document.getElementById('mp-race-room');
@@ -3233,6 +3359,107 @@ function init() {
         }
         // Keep the loop alive while any cursor is still in TTL window.
         if (alive) scheduleCursorRender();
+    }
+
+    // Open the co-op waiting room. Peers exchange {kind:'wr', nick,
+    // ready} heartbeats so each side renders a live roster. The
+    // returned promise resolves true once every known peer (including
+    // us) is ready, or false if the player hit LEAVE.
+    function openCoopWaitroom(roomCode, nick) {
+        const overlay = document.getElementById('mp-waitroom');
+        const peersEl = document.getElementById('mp-waitroom-peers');
+        const codeEl  = document.getElementById('mp-waitroom-code');
+        const statusEl = document.getElementById('mp-waitroom-status');
+        const readyBtn = document.getElementById('mp-waitroom-ready');
+        const leaveBtn = document.getElementById('mp-waitroom-leave');
+        const copyBtn  = document.getElementById('mp-waitroom-copy');
+        if (!overlay || !_activeRoom) return Promise.resolve(false);
+
+        codeEl.textContent = roomCode;
+        statusEl.textContent = 'Share the room code with a friend, then both click READY.';
+        showScreen('mp-waitroom');
+
+        // Peer table: nick → ready. Includes us.
+        const peers = new Map();
+        peers.set(nick, false);
+        let meReady = false;
+
+        function render() {
+            peersEl.innerHTML = '';
+            const sorted = Array.from(peers.entries()).sort();
+            for (const [peer, ready] of sorted) {
+                const row = document.createElement('div');
+                row.className = 'mp-waitroom-peer' +
+                    (peer === nick ? ' is-me' : '') +
+                    (ready ? ' is-ready' : '');
+                const safe = String(peer || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+                row.innerHTML =
+                    `<span class="mp-waitroom-peer-name">${safe}</span>` +
+                    `<span class="mp-waitroom-peer-status">${ready ? 'READY' : 'waiting…'}</span>`;
+                peersEl.appendChild(row);
+            }
+            const allReady = sorted.length >= 2 && sorted.every(([, r]) => r);
+            statusEl.textContent = sorted.length < 2
+                ? 'Waiting for another player to join…'
+                : allReady
+                    ? 'All ready — starting…'
+                    : 'Click READY when you\'re set.';
+        }
+
+        const offMsg = _activeRoom.onMessage((msg) => {
+            if (!msg || msg.kind !== 'wr') return;
+            if (typeof msg.p !== 'string' || msg.p === nick) return;
+            const peer = msg.p.slice(0, 32);
+            peers.set(peer, !!msg.ready);
+            // Reply with our own state so newcomers see us.
+            try { _activeRoom.send({ kind: 'wr', p: nick, ready: meReady }); } catch (_) {}
+            render();
+            tryStart();
+        });
+
+        // Announce ourselves.
+        try { _activeRoom.send({ kind: 'wr', p: nick, ready: false }); } catch (_) {}
+        render();
+
+        return new Promise(resolve => {
+            let done = false;
+            function finish(result) {
+                if (done) return;
+                done = true;
+                try { offMsg(); } catch (_) {}
+                readyBtn.removeEventListener('click', onReady);
+                leaveBtn.removeEventListener('click', onLeave);
+                copyBtn.removeEventListener('click', onCopy);
+                hideScreen('mp-waitroom');
+                resolve(result);
+            }
+            function onReady() {
+                meReady = !meReady;
+                peers.set(nick, meReady);
+                try { _activeRoom.send({ kind: 'wr', p: nick, ready: meReady }); } catch (_) {}
+                readyBtn.textContent = meReady ? 'UN-READY' : 'READY';
+                render();
+                tryStart();
+            }
+            function onLeave() { finish(false); }
+            function onCopy() {
+                try {
+                    navigator.clipboard.writeText(roomCode).then(
+                        () => { copyBtn.textContent = 'COPIED'; setTimeout(() => { copyBtn.textContent = 'COPY'; }, 1500); },
+                        () => { /* ignore — clipboard permission denied */ }
+                    );
+                } catch (_) {}
+            }
+            function tryStart() {
+                const sorted = Array.from(peers.entries());
+                if (sorted.length >= 2 && sorted.every(([, r]) => r)) {
+                    finish(true);
+                }
+            }
+            readyBtn.addEventListener('click', onReady);
+            leaveBtn.addEventListener('click', onLeave);
+            copyBtn.addEventListener('click', onCopy);
+        });
     }
 
     // Attach a mousemove listener on the canvas that throttles cursor
