@@ -61,9 +61,12 @@ const path = require('path');
             const targetCell = cells[targetY * bp.w + targetX];
             if (!targetCell) return { error: 'no target cell' };
             const t = targetCell.getBoundingClientRect();
-            // Ghost sits AT the finger position (no offset).
+            // Ghost sits slightly above the finger (~40 px) so the
+            // cell peeks above the thumb. Finger Y = target centre +
+            // offset; handler subtracts offset to land on target.
+            const GHOST_OFFSET = 40;
             const fingerX = t.left + t.width / 2;
-            const fingerY = t.top  + t.height / 2;
+            const fingerY = t.top  + t.height / 2 + GHOST_OFFSET;
 
             fire(document.body, 'pointermove', fingerX, fingerY);
             await new Promise(r => setTimeout(r, 30));

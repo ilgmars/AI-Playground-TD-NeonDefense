@@ -1305,8 +1305,11 @@ function init() {
     // setPointerCapture: that would redirect the click event as well,
     // breaking tap-to-pickup.
     //
-    // The ghost preview sits AT the finger position — no offset.
+    // The ghost preview sits slightly ABOVE the finger — enough that
+    // the cell peeks out from behind the thumb, not so much that the
+    // mapping feels disconnected. ~40 px works across both orientations.
     const BP_DRAG_THRESHOLD_PX = 8;
+    const BP_GHOST_OFFSET_PX = 40;
     let bpTouch = null;     // { source, idx, startX, startY, dragging, pointerId }
 
     function bpCellAtPoint(clientX, clientY) {
@@ -1340,7 +1343,7 @@ function init() {
             // Subsequent pointer events route to whatever's under the
             // finger and bubble up to document.body — uninterrupted.
         }
-        const target = bpCellAtPoint(e.clientX, e.clientY);
+        const target = bpCellAtPoint(e.clientX, e.clientY - BP_GHOST_OFFSET_PX);
         if (target) bpPaintGhost(target.x, target.y);
         else        bpClearGhost();
     }
@@ -1350,7 +1353,7 @@ function init() {
         bpTouch = null;
         if (!state.dragging) return;        // pure tap — let click handlers fire
         if (e.cancelable) e.preventDefault();
-        const target = bpCellAtPoint(e.clientX, e.clientY);
+        const target = bpCellAtPoint(e.clientX, e.clientY - BP_GHOST_OFFSET_PX);
         if (target) bpPlaceAt(target.x, target.y);
         // No target → keep held so the user can still tap-to-place.
     }
