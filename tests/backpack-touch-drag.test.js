@@ -372,6 +372,117 @@ const path = require('path');
         await ctx.close();
     }
 
+    // ── Scenario 7 — floating ghost element is gone from the DOM ────
+    // After the floating preview was removed, the element should not
+    // exist at all and no .bp-drag-ghost-cell children should ever be
+    // created.
+    {
+        const { page, ctx } = await freshMobilePage();
+        await page.evaluate(() => {
+            const s = NeonSave.load();
+            s.backpack = { w: 5, h: 5, placed: [], stash: ['plasma_cell'], luckBoost: 0 };
+            NeonSave.write(s); location.reload();
+        });
+        await page.waitForTimeout(700);
+        await page.evaluate(() => navigateToBackpack());
+        await page.waitForTimeout(250);
+
+        const result = await page.evaluate(async () => {
+            const before = {
+                el: !!document.getElementById('bp-drag-ghost'),
+                cells: document.querySelectorAll('.bp-drag-ghost-cell').length,
+            };
+            const chip = document.querySelector('#bp-stash .bp-chip[data-stash-idx="0"]');
+            const r = chip.getBoundingClientRect();
+            const POINTER_ID = 41;
+            const fire = (target, type, x, y) => target.dispatchEvent(new PointerEvent(type, {
+                bubbles: true, cancelable: true,
+                pointerId: POINTER_ID, pointerType: 'touch',
+                isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1,
+                clientX: x, clientY: y, screenX: x, screenY: y,
+            }));
+            fire(chip, 'pointerdown', r.left + r.width/2, r.top + r.height/2);
+            await new Promise(r => setTimeout(r, 20));
+            fire(document.body, 'pointermove', r.left + r.width/2 + 30, r.top + r.height/2 + 30);
+            await new Promise(r => setTimeout(r, 40));
+            const cells = document.querySelectorAll('#bp-grid .bp-cell');
+            const t = cells[2 * save.backpack.w + 2].getBoundingClientRect();
+            fire(document.body, 'pointermove', t.left + t.width/2, t.bottom - 1);
+            await new Promise(r => setTimeout(r, 30));
+            const midDrag = {
+                el: !!document.getElementById('bp-drag-ghost'),
+                cells: document.querySelectorAll('.bp-drag-ghost-cell').length,
+            };
+            fire(document.body, 'pointerup', t.left + t.width/2, t.bottom - 1);
+            await new Promise(r => setTimeout(r, 60));
+            return { before, midDrag };
+        });
+        ok('no #bp-drag-ghost element in DOM (initial)', result.before.el === false);
+        ok('no .bp-drag-ghost-cell children (initial)',   result.before.cells === 0);
+        ok('no #bp-drag-ghost element appears mid-drag',  result.midDrag.el === false);
+        ok('no .bp-drag-ghost-cell children mid-drag',    result.midDrag.cells === 0);
+        await ctx.close();
+    }
+
+    // ── Scenario 8 — re-entry after off-grid: highlight returns to the
+    // right cells, with no stale ghost classes left over from earlier
+    // positions.
+    {
+        const { page, ctx } = await freshMobilePage();
+        await page.evaluate(() => {
+            const s = NeonSave.load();
+            s.backpack = { w: 5, h: 5, placed: [], stash: ['plasma_cell'], luckBoost: 0 };
+            NeonSave.write(s); location.reload();
+        });
+        await page.waitForTimeout(700);
+        await page.evaluate(() => navigateToBackpack());
+        await page.waitForTimeout(250);
+
+        const result = await page.evaluate(async () => {
+            const chip = document.querySelector('#bp-stash .bp-chip[data-stash-idx="0"]');
+            const r = chip.getBoundingClientRect();
+            const POINTER_ID = 51;
+            const fire = (target, type, x, y) => target.dispatchEvent(new PointerEvent(type, {
+                bubbles: true, cancelable: true,
+                pointerId: POINTER_ID, pointerType: 'touch',
+                isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1,
+                clientX: x, clientY: y, screenX: x, screenY: y,
+            }));
+            fire(chip, 'pointerdown', r.left + r.width/2, r.top + r.height/2);
+            await new Promise(r => setTimeout(r, 20));
+            fire(document.body, 'pointermove', r.left + r.width/2 + 30, r.top + r.height/2 + 30);
+            await new Promise(r => setTimeout(r, 40));
+            // First hover cell A
+            const bp = save.backpack;
+            const cells = document.querySelectorAll('#bp-grid .bp-cell');
+            const cellA = cells[1 * bp.w + 1].getBoundingClientRect();
+            fire(document.body, 'pointermove', cellA.left + cellA.width/2, cellA.bottom - 1);
+            await new Promise(r => setTimeout(r, 30));
+            const atA = Array.from(document.querySelectorAll('#bp-grid .bp-cell.ghost-ok'))
+                .map(el => Array.prototype.indexOf.call(el.parentElement.children, el));
+            // Go off-grid
+            fire(document.body, 'pointermove', 5, 5);
+            await new Promise(r => setTimeout(r, 30));
+            const offGridCount = document.querySelectorAll('#bp-grid .bp-cell.ghost-ok, #bp-grid .bp-cell.ghost-bad').length;
+            // Hover cell B
+            const cellB = cells[3 * bp.w + 4].getBoundingClientRect();
+            fire(document.body, 'pointermove', cellB.left + cellB.width/2, cellB.bottom - 1);
+            await new Promise(r => setTimeout(r, 30));
+            const atB = Array.from(document.querySelectorAll('#bp-grid .bp-cell.ghost-ok'))
+                .map(el => Array.prototype.indexOf.call(el.parentElement.children, el));
+            fire(document.body, 'pointerup', cellB.left + cellB.width/2, cellB.bottom - 1);
+            await new Promise(r => setTimeout(r, 60));
+            return { atA, offGridCount, atB, bpW: bp.w };
+        });
+        ok('highlight at first cell (single cell for 1×1 item)',
+           result.atA.length === 1 && result.atA[0] === 1 * result.bpW + 1);
+        ok('off-grid clears all highlights',
+           result.offGridCount === 0);
+        ok('highlight moves cleanly to second cell with no stale cells',
+           result.atB.length === 1 && result.atB[0] === 3 * result.bpW + 4);
+        await ctx.close();
+    }
+
     await browser.close();
     server.kill();
 
