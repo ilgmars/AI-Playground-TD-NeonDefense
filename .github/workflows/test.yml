@@ -9,10 +9,13 @@ on:
 permissions:
   contents: read
 
-# Opt into the Node 24 runtime for actions/* steps (silences the
-# deprecation warning emitted when actions still target Node 20).
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+# actions/* versions pinned here all target Node 24 natively, so no
+# FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 escape hatch is needed. The Node
+# version used by `npm test` itself is bumped to 22 LTS (Node 20 LTS
+# ended Apr 2026; 22 is the current active LTS).
+#   - actions/checkout@v6 (was v4)
+#   - actions/setup-node@v6 (was v4)
+#   - actions/upload-artifact@v7 (was v4)
 
 jobs:
   test:
@@ -22,12 +25,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -44,7 +47,7 @@ jobs:
 
       - name: Upload screenshot artefacts on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: failure-screenshots
           path: /tmp/shots/**
@@ -64,12 +67,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
