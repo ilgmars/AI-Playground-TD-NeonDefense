@@ -2751,6 +2751,16 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     color: #4ade80;
     font-weight: 700;
 }
+.mp-waitroom-peer.is-host {
+    border-color: rgba(250, 204, 21, 0.55);
+}
+.mp-waitroom-peer-host {
+    margin-left: 6px;
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+    color: #facc15;
+    font-weight: 700;
+}
 
 /* Multiplayer connectivity diagnostics */
 .mp-diagnostics {

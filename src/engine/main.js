@@ -2075,12 +2075,31 @@ function init() {
         resizeCanvas();
 
         let useSeed = (typeof seed === 'number') ? seed : null;
-        game = new Game(canvas, useSeed, selectedTier, {
-            heroId: selectedHero,
-            kitId: selectedKit,
-            abilityId: selectedAbility,
-            towerLoadout: sanitizeTowerLoadout(selectedTowerLoadout)
-        });
+        // Multiplayer fair-play: in MP mode everyone runs the SAME
+        // base configuration regardless of their tech-tree unlocks —
+        // default hero/kit, no ability, no tower variants. The
+        // ascension tier comes from the host (set in waitroom; falls
+        // back to local selectedTier for non-coordinated modes like
+        // race). Avoids the case where ALICE's +25 % money kit
+        // outclasses BOB before the first wave spawns.
+        const mpActive = !!_activeMode;
+        const tierToUse = (mpActive && _mpHostTier != null)
+            ? _mpHostTier
+            : selectedTier;
+        const loadoutToUse = mpActive
+            ? {
+                heroId: 'hero.' + DEFAULT_HERO,
+                kitId:  'kit.'  + DEFAULT_KIT,
+                abilityId: 'ability.none',
+                towerLoadout: {},
+            }
+            : {
+                heroId: selectedHero,
+                kitId: selectedKit,
+                abilityId: selectedAbility,
+                towerLoadout: sanitizeTowerLoadout(selectedTowerLoadout),
+            };
+        game = new Game(canvas, useSeed, tierToUse, loadoutToUse);
         window.game = game;
         if (typeof NeonAegis !== 'undefined') NeonAegis.protectGame(game);
         game.start();
@@ -3004,6 +3023,11 @@ function init() {
     let _activeCoop = null;     // co-op controller (build/upgrade/sell sync)
     let _activeVersus = null;   // versus controller (spike protocol)
     let _activeMode = null;     // 'race' | 'coop' | 'versus'
+    // Host election state. The peer in the room with the EARLIEST
+    // wr-announce timestamp is the host; their ascension tier wins
+    // for everyone in the room. Updated as wr packets arrive.
+    let _mpHostNick = null;
+    let _mpHostTier = null;     // host's selectedTier; null = use local
 
     function setStatus(el, text, color) {
         el.textContent = text;
@@ -3426,6 +3450,8 @@ function init() {
         if (_activeRoom) { try { _activeRoom.leave(); } catch (_) {} _activeRoom = null; }
         _activeRoomCode = null;
         _activeMode = null;
+        _mpHostNick = null;
+        _mpHostTier = null;
         window.__neonMPVersusSide = null;
         const list = document.getElementById('mp-race-list');
         if (list) list.innerHTML = '';
@@ -3672,21 +3698,27 @@ function init() {
             const sorted = Array.from(peers.entries()).sort();
             for (const [peer, ready] of sorted) {
                 const row = document.createElement('div');
+                const isHost = (peer === _mpHostNick);
                 row.className = 'mp-waitroom-peer' +
                     (peer === nick ? ' is-me' : '') +
-                    (ready ? ' is-ready' : '');
+                    (ready ? ' is-ready' : '') +
+                    (isHost ? ' is-host' : '');
                 const safe = String(peer || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+                const hostTag = isHost ? ' <span class="mp-waitroom-peer-host">★ HOST</span>' : '';
                 row.innerHTML =
-                    `<span class="mp-waitroom-peer-name">${safe}</span>` +
+                    `<span class="mp-waitroom-peer-name">${safe}${hostTag}</span>` +
                     `<span class="mp-waitroom-peer-status">${ready ? 'READY' : 'waiting…'}</span>`;
                 peersEl.appendChild(row);
             }
             const allReady = sorted.length >= 2 && sorted.every(([, r]) => r);
-            statusEl.textContent = sorted.length < 2
+            const hostLine = _mpHostNick
+                ? ` · Host: ${_mpHostNick} (A${_mpHostTier ?? 0})`
+                : '';
+            statusEl.textContent = (sorted.length < 2
                 ? 'Waiting for another player to join…'
                 : allReady
                     ? 'All ready — starting…'
-                    : 'Click READY when you\'re set.';
+                    : 'Click READY when you\'re set.') + hostLine;
         }
 
         // Monotonic seq on every wr broadcast — important because the
@@ -3696,10 +3728,38 @@ function init() {
         // content every time and the dedupe silently swallows it,
         // which is exactly how the waitroom got stuck with one peer
         // ready and the other never learning about it.
+        // Each peer broadcasts their FIRST-JOIN timestamp (joinedAt)
+        // every wr. The peer with the smallest joinedAt is the room
+        // HOST. Their selectedTier propagates to clients; clients'
+        // local selectedTier is overridden when the run starts. If
+        // joinedAt ties (clock skew), the lexicographically smallest
+        // nick wins — same comparator on every client → no split.
+        const joinedAt = Date.now();
+        const peerInfo = new Map(); // peer → { ready, joinedAt, tier }
+        peerInfo.set(nick, { ready: false, joinedAt, tier: selectedTier });
+
         let wrSeq = 0;
         function announce() {
             wrSeq += 1;
-            try { _activeRoom.send({ kind: 'wr', p: nick, ready: meReady, seq: wrSeq, t: Date.now() }); } catch (_) {}
+            try {
+                _activeRoom.send({
+                    kind: 'wr', p: nick, ready: meReady,
+                    seq: wrSeq, t: Date.now(),
+                    joinedAt, tier: selectedTier,
+                });
+            } catch (_) {}
+        }
+
+        function electHost() {
+            // Lowest joinedAt wins; nick lex order breaks ties.
+            const sorted = Array.from(peerInfo.entries())
+                .sort((a, b) =>
+                    (a[1].joinedAt - b[1].joinedAt) ||
+                    (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+            const hostNick = sorted[0] && sorted[0][0];
+            const hostTier = sorted[0] && sorted[0][1].tier;
+            _mpHostNick = hostNick;
+            _mpHostTier = (hostTier == null) ? null : (hostTier | 0);
         }
 
         const offMsg = _activeRoom.onMessage((msg) => {
@@ -3707,12 +3767,22 @@ function init() {
             if (typeof msg.p !== 'string' || msg.p === nick) return;
             const peer = msg.p.slice(0, 32);
             peers.set(peer, !!msg.ready);
+            const info = peerInfo.get(peer) || {};
+            info.ready = !!msg.ready;
+            if (typeof msg.joinedAt === 'number') info.joinedAt = msg.joinedAt;
+            if (Number.isInteger(msg.tier)) info.tier = msg.tier;
+            peerInfo.set(peer, info);
+            electHost();
             // Reply with our own state so the new peer sees us, even if
             // they joined AFTER our initial announce.
             announce();
             render();
             tryStart();
         });
+
+        // Local-only host election on entry (in case we're the
+        // first/only peer).
+        electHost();
 
         // Re-announce when a new Trystero peer connects (WebRTC just
         // completed handshake). This is the key fix for "waitroom never
