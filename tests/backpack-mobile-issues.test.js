@@ -286,22 +286,29 @@ const path = require('path');
         await ctx.close();
     }
 
-    // ── 8. Discard while NOTHING held — must be a safe no-op ──────────
-    // The button is normally only visible when holding, but a stale
-    // tap from a previous frame shouldn't crash.
+    // ── 8. Buttons inert + JS funcs safe while nothing held ──────────
+    // Placeholder state hides the action buttons via CSS so the player
+    // CAN'T accidentally tap them. Verify the buttons are not visible,
+    // then call the underlying JS functions directly to confirm they
+    // bail out gracefully when bpHeld is null (no crash, no state
+    // mutation). Belt-and-braces against a stale call path.
     {
         const { page, ctx, errs } = await freshMobilePage();
         await seedBackpack(page, ['plasma_cell']);
-        await page.evaluate(() => {
-            // Force-show the held panel by un-hiding it so we can tap
-            // the button while bpHeld is null.
-            document.getElementById('bp-held').classList.remove('hidden');
+        // Buttons are hidden in placeholder mode.
+        const hidden = await page.evaluate(() => {
+            const ids = ['bp-rotate', 'bp-tostash', 'bp-discard', 'bp-restore'];
+            const out = {};
+            for (const id of ids) out[id] = document.getElementById(id).offsetParent === null;
+            return out;
         });
-        await page.click('#bp-discard');
-        await page.waitForTimeout(80);
-        await page.click('#bp-tostash');
-        await page.waitForTimeout(80);
-        await page.click('#bp-rotate');
+        ok('placeholder: rotate button hidden',  hidden['bp-rotate']  === true);
+        ok('placeholder: stash button hidden',   hidden['bp-tostash'] === true);
+        ok('placeholder: discard button hidden', hidden['bp-discard'] === true);
+        ok('placeholder: restore button hidden', hidden['bp-restore'] === true);
+
+        // Direct function calls — still defensive against null bpHeld.
+        await page.evaluate(() => { bpRotateHeld(); bpHeldToStash(); bpSellHeld(); bpRestoreHeld(); });
         await page.waitForTimeout(80);
         const after = await page.evaluate(() => ({
             held:     !!bpHeld,
