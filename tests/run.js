@@ -22,6 +22,10 @@ const SUITES = [
 
     // ── Browser flows (Playwright + chromium) ─────────────────────────────
     { name: 'mp-browser',      file: 'tests/mp-browser.test.js' },
+    // Real two-client end-to-end over actual Trystero. Self-skips when
+    // the environment can't reach trackers / WebRTC (set NEON_MP_FORCE=1
+    // to make those skips into failures, e.g. for a release smoke).
+    { name: 'mp-connectivity', file: 'tests/mp-connectivity.test.js' },
     { name: 'mobile-nav',      file: 'tests/mobile-nav.test.js' },
     { name: 'backpack-touch',         file: 'tests/backpack-touch-drag.test.js' },
     { name: 'backpack-touch-contin',  file: 'tests/backpack-touch-drag-continuity.test.js' },

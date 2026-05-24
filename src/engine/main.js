@@ -2888,6 +2888,38 @@ function init() {
             roomIn.value = lobby.generateRoomCode();
         });
 
+        // TEST CONNECTION — runs the connectivity probe and shows a
+        // human-readable summary in the diagnostics panel. Doesn't
+        // actually try to join a room; safe to click repeatedly.
+        const testBtn = document.getElementById('mp-test-btn');
+        const diagEl  = document.getElementById('mp-diagnostics');
+        function showDiagnostics(text, severity) {
+            if (!diagEl) return;
+            diagEl.classList.remove('hidden', 'is-ok', 'is-bad');
+            if (severity === 'ok')  diagEl.classList.add('is-ok');
+            if (severity === 'bad') diagEl.classList.add('is-bad');
+            diagEl.textContent = text;
+        }
+        if (testBtn) {
+            testBtn.addEventListener('click', async () => {
+                if (!NeonMP || !NeonMP.connectivity) {
+                    showDiagnostics('Connectivity module not loaded — refresh the page.', 'bad');
+                    return;
+                }
+                testBtn.disabled = true;
+                showDiagnostics('Probing CDN / trackers / WebRTC…', null);
+                try {
+                    const report = await NeonMP.connectivity.probe();
+                    showDiagnostics(NeonMP.connectivity.summarise(report),
+                                    report.verdict === 'ok' ? 'ok' : 'bad');
+                } catch (e) {
+                    showDiagnostics('Probe failed: ' + (e && e.message || e), 'bad');
+                } finally {
+                    testBtn.disabled = false;
+                }
+            });
+        }
+
         // Normalise as the player types so they see the canonical form.
         roomIn.addEventListener('input', () => {
             const raw = roomIn.value;
@@ -2926,8 +2958,22 @@ function init() {
             if (mode === 'race') {
                 setStatus(status, 'Connecting to room ' + parsed.code + '…', 'var(--accent)');
                 joinBtn.disabled = true;
+                // Progressive status: surface every Trystero phase so a
+                // hang has a recognisable cause instead of a spinner.
+                const onStatus = (evt) => {
+                    if (evt.kind === 'cdn-load')
+                        setStatus(status, 'Loading Trystero from ' + (evt.url || 'CDN') + '…', 'var(--accent)');
+                    else if (evt.kind === 'cdn-fail')
+                        setStatus(status, 'CDN failed: ' + evt.error + ' — trying fallback…', '#fbbf24');
+                    else if (evt.kind === 'cdn-ok')
+                        setStatus(status, 'Library loaded. Joining room…', 'var(--accent)');
+                    else if (evt.kind === 'joined')
+                        setStatus(status, 'In room ' + evt.room + '. Waiting for peers…', '#4ade80');
+                    else if (evt.kind === 'peer-join')
+                        setStatus(status, 'Peer joined (' + evt.peerCount + ' connected).', '#4ade80');
+                };
                 try {
-                    await joinRace(parsed.code, nick);
+                    await joinRace(parsed.code, nick, onStatus);
                     setStatus(status, 'Connected. Starting run…', '#4ade80');
                     hideScreen('mp-lobby');
                     _exitSubScreenState();
@@ -3234,12 +3280,12 @@ function init() {
     // joinRace: lazy-load Trystero, join the room, wire the race
     // controller, subscribe the overlay renderer. Throws on transport
     // failure; the lobby surface catches and shows the message.
-    async function joinRace(roomCode, nick) {
+    async function joinRace(roomCode, nick, onStatus) {
         if (!NeonMP || !NeonMP.trystero || !NeonMP.race) {
             throw new Error('multiplayer scripts missing');
         }
         leaveActiveMultiplayer();         // ensure no stale controller from a previous join
-        const room = await NeonMP.trystero.joinRoom(roomCode, nick);
+        const room = await NeonMP.trystero.joinRoom(roomCode, nick, { onStatus });
         _activeRoom = room;
         _activeRoomCode = roomCode;
         _activeMode = 'race';

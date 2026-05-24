@@ -970,5 +970,144 @@ ok('spike rejects oversize amount', versusMod.validateSpike(Object.assign({}, go
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-console.log(`\n${pass}/${pass + fail} passed${fail ? ', ' + fail + ' FAILED' : ''}`);
-process.exit(fail === 0 ? 0 : 1);
+// Phase 12 — Connectivity probe
+// ─────────────────────────────────────────────────────────────────────────
+const connMod = require('../src/multiplayer/connectivity.js');
+
+// Stub WebSocket + fetch + RTCPeerConnection on the global so probe()
+// can be unit-tested without touching the real network.
+function mockGlobals(opts) {
+    const origFetch = global.fetch;
+    const origWS    = global.WebSocket;
+    const origRTC   = global.RTCPeerConnection;
+    const origAbort = global.AbortController;
+    global.AbortController = function () { return { abort() {}, signal: {} }; };
+
+    if (opts.fetchOk === false) {
+        global.fetch = () => Promise.reject(new Error('blocked'));
+    } else {
+        global.fetch = () => Promise.resolve({ ok: true, status: 200 });
+    }
+
+    global.WebSocket = function (url) {
+        this.url = url;
+        this.readyState = 0;
+        setTimeout(() => {
+            if (opts.wsOk === false) {
+                this.readyState = 3;
+                if (this.onerror) this.onerror({});
+                if (this.onclose) this.onclose({ code: 1006 });
+            } else {
+                this.readyState = 1;
+                if (this.onopen) this.onopen({});
+            }
+        }, 0);
+    };
+    global.WebSocket.prototype.close = function () { this.readyState = 3; };
+
+    global.RTCPeerConnection = function () {
+        this._dc = null;
+        const self = this;
+        setTimeout(() => {
+            if (opts.rtcOk === false) {
+                // No candidates → onicecandidate(null) without prior host => probe sees no-host-candidates
+                if (self.onicecandidate) self.onicecandidate({ candidate: null });
+                return;
+            }
+            // Fire a host candidate, then a srflx candidate (or skip srflx
+            // when opts.stunOk === false), then end-of-gathering.
+            if (self.onicecandidate) self.onicecandidate({ candidate: { candidate: 'candidate:1 1 udp 2122260223 192.168.1.5 50000 typ host generation 0' }});
+            if (opts.stunOk !== false && self.onicecandidate)
+                self.onicecandidate({ candidate: { candidate: 'candidate:2 1 udp 1685987327 198.51.100.7 50001 typ srflx raddr 192.168.1.5 rport 50000 generation 0' }});
+            if (self.onicecandidate) self.onicecandidate({ candidate: null });
+        }, 0);
+    };
+    global.RTCPeerConnection.prototype.createDataChannel = function () { return {}; };
+    global.RTCPeerConnection.prototype.createOffer = function () { return Promise.resolve({ type: 'offer', sdp: '' }); };
+    global.RTCPeerConnection.prototype.setLocalDescription = function () { return Promise.resolve(); };
+    global.RTCPeerConnection.prototype.close = function () {};
+
+    return function restore() {
+        global.fetch = origFetch;
+        global.WebSocket = origWS;
+        global.RTCPeerConnection = origRTC;
+        global.AbortController = origAbort;
+    };
+}
+
+// Happy path — everything works → verdict 'ok'.
+{
+    const restore = mockGlobals({ fetchOk: true, wsOk: true, rtcOk: true, stunOk: true });
+    connMod.probe({ timeoutMs: 200 }).then(report => {
+        ok('probe happy path: verdict ok',          report.verdict === 'ok');
+        ok('probe happy path: cdn any ok',           report.cdn.anyOk === true);
+        ok('probe happy path: all trackers ok',      report.tracker.okCount === report.tracker.total);
+        ok('probe happy path: webrtc ok',            report.webrtc.ok === true);
+        ok('probe happy path: stun reported working', report.webrtc.stunWorks === true);
+        const summary = connMod.summarise(report);
+        ok('summary mentions OK',                    /Connection looks good/.test(summary));
+        restore();
+    });
+}
+
+// CDN blocked → verdict 'cdn-blocked', summary explains.
+{
+    const restore = mockGlobals({ fetchOk: false, wsOk: true, rtcOk: true });
+    connMod.probe({ timeoutMs: 200 }).then(report => {
+        ok('cdn-blocked: verdict',                   report.verdict === 'cdn-blocked');
+        ok('cdn-blocked: cdn anyOk false',           report.cdn.anyOk === false);
+        const summary = connMod.summarise(report);
+        ok('cdn-blocked: summary calls it out',      /CDN/.test(summary));
+        restore();
+    });
+}
+
+// All trackers down → verdict 'trackers-blocked'.
+{
+    const restore = mockGlobals({ fetchOk: true, wsOk: false, rtcOk: true });
+    connMod.probe({ timeoutMs: 200 }).then(report => {
+        ok('trackers-blocked: verdict',              report.verdict === 'trackers-blocked');
+        ok('trackers-blocked: 0 trackers ok',        report.tracker.okCount === 0);
+        const summary = connMod.summarise(report);
+        ok('trackers-blocked: summary mentions WSS', /tracker/i.test(summary));
+        restore();
+    });
+}
+
+// WebRTC unsupported → verdict 'no-webrtc'.
+{
+    const restore = mockGlobals({ fetchOk: true, wsOk: true, rtcOk: false });
+    connMod.probe({ timeoutMs: 200 }).then(report => {
+        ok('no-webrtc: verdict',                     report.verdict === 'no-webrtc');
+        restore();
+    });
+}
+
+// STUN unreachable but WebRTC works → still 'ok' (local-network is fine).
+{
+    const restore = mockGlobals({ fetchOk: true, wsOk: true, rtcOk: true, stunOk: false });
+    connMod.probe({ timeoutMs: 200 }).then(report => {
+        ok('stun-blocked: verdict still ok',          report.verdict === 'ok');
+        ok('stun-blocked: stunWorks=false reported',  report.webrtc.stunWorks === false);
+        const summary = connMod.summarise(report);
+        ok('stun-blocked: summary mentions local-network fallback',
+           /local-network/i.test(summary));
+        restore();
+    });
+}
+
+// withTimeout primitive — never resolves vs. resolves before deadline.
+{
+    connMod._withTimeout(new Promise(() => {}), 30, 'hang').then(r => {
+        ok('withTimeout: hung promise resolves with timeout', r.ok === false && r.reason === 'timeout');
+    });
+    connMod._withTimeout(Promise.resolve({ ok: true }), 30, 'fast').then(r => {
+        ok('withTimeout: fast promise passes through',        r.ok === true);
+    });
+}
+
+// Give the async probe microtasks time to flush before printing the count.
+setTimeout(() => {
+    console.log(`\n${pass}/${pass + fail} passed${fail ? ', ' + fail + ' FAILED' : ''}`);
+    process.exit(fail === 0 ? 0 : 1);
+}, 800);

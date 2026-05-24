@@ -2678,3 +2678,30 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     color: #4ade80;
     font-weight: 700;
 }
+
+/* Multiplayer connectivity diagnostics */
+.mp-diagnostics {
+    width: min(420px, 86vw);
+    max-height: 32vh;
+    overflow: auto;
+    margin: 4px auto;
+    padding: 8px 10px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.72rem;
+    color: var(--text-main);
+    white-space: pre-wrap;
+    word-break: break-all;
+    line-height: 1.4;
+    text-align: left;
+}
+.mp-diagnostics.is-ok    { border-color: rgba(74, 222, 128, 0.45); }
+.mp-diagnostics.is-bad   { border-color: rgba(251, 113, 133, 0.55); }
+.mp-hint {
+    margin: 4px 0 0;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    max-width: 420px;
+}
