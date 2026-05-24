@@ -967,11 +967,13 @@ function renderBackpack() {
             : 'Reach wave 20 in any run to unlock.';
     }
 
-    // Held panel
+    // Held panel — ALWAYS visible (placeholder when nothing held) so
+    // picking up an item doesn't push the grid down and steal taps.
     const heldWrap = document.getElementById('bp-held');
     if (bpHeld && BACKPACK_ITEMS[bpHeld.id]) {
         const def = BACKPACK_ITEMS[bpHeld.id];
-        heldWrap.classList.remove('hidden');
+        heldWrap.classList.remove('is-empty');
+        heldWrap.classList.remove('hidden');     // back-compat with old saves
         document.getElementById('bp-held-name').textContent = def.name;
         bpMiniShape(def, bpHeld.rot, document.getElementById('bp-held-shape'));
         const descEl = document.getElementById('bp-held-desc');
@@ -987,7 +989,16 @@ function renderBackpack() {
         const restoreBtn = document.getElementById('bp-restore');
         if (restoreBtn) restoreBtn.classList.toggle('hidden', !bpHeld.origin);
     } else {
-        heldWrap.classList.add('hidden');
+        // Empty / placeholder state — keep the panel in layout flow.
+        heldWrap.classList.add('is-empty');
+        heldWrap.classList.remove('hidden');
+        // Reset inner text so a stale name/desc doesn't linger.
+        const n = document.getElementById('bp-held-name'); if (n) n.textContent = '';
+        const d = document.getElementById('bp-held-desc'); if (d) d.textContent = '';
+        const s = document.getElementById('bp-held-shape'); if (s) s.innerHTML = '';
+        const sv = document.getElementById('bp-sell-val'); if (sv) sv.textContent = '';
+        const restoreBtn = document.getElementById('bp-restore');
+        if (restoreBtn) restoreBtn.classList.add('hidden');
     }
 
     // Grid
@@ -1547,6 +1558,15 @@ function init() {
         if (!cell) return;
         const idx = parseInt(cell.dataset.placedIdx, 10);
         if (!Number.isFinite(idx)) return;
+        // While holding an item: if the touched filled cell is currently
+        // under our ghost-bad footprint, the player is trying to put
+        // their held item HERE — not pick up the existing item. Skip
+        // engaging the drag so the click handler routes the tap through
+        // bpPlaceAt (refused, with red feedback) rather than swapping.
+        // Without this guard, a touch-drag would call bpPickPlaced
+        // unconditionally on any filled cell, undoing the click-handler
+        // fix from the previous commit.
+        if (bpHeld && cell.classList.contains('ghost-bad')) return;
         bpTouch = { source: 'placed', idx, startX: e.clientX, startY: e.clientY, dragging: false, pointerId: e.pointerId };
     });
     document.getElementById('menu-dailyseed-btn').addEventListener('click', () => {

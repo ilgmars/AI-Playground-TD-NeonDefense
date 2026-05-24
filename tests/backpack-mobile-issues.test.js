@@ -1094,6 +1094,115 @@ const path = require('path');
         await ctx.close();
     }
 
+    // ── 31. Held panel as placeholder — no layout shift on pickup ─────
+    // The grid's top edge must stay at the same y-coordinate whether or
+    // not an item is held. Previously the held panel toggled between
+    // display:none and display:flex, pushing the grid down by ~60px on
+    // every pickup and stealing taps as the player's finger landed on a
+    // different cell than they aimed at.
+    {
+        const { page, ctx, errs } = await freshMobilePage();
+        await seedBackpack(page, ['plasma_cell']);
+        // Empty-state geometry
+        const before = await page.evaluate(() => {
+            const grid = document.getElementById('bp-grid').getBoundingClientRect();
+            const held = document.getElementById('bp-held');
+            return {
+                gridTop: grid.top,
+                heldIsEmptyClass: held.classList.contains('is-empty'),
+                heldVisible: held.offsetParent !== null,
+                emptyHintVisible: document.getElementById('bp-held-empty').offsetParent !== null,
+            };
+        });
+        ok('empty state: panel rendered',         before.heldVisible === true);
+        ok('empty state: is-empty class set',     before.heldIsEmptyClass === true);
+        ok('empty state: hint visible',           before.emptyHintVisible === true);
+
+        // Pick the chip up. Layout should NOT shift.
+        await page.click('#bp-stash .bp-chip[data-stash-idx="0"]');
+        await page.waitForTimeout(80);
+        const after = await page.evaluate(() => {
+            const grid = document.getElementById('bp-grid').getBoundingClientRect();
+            const held = document.getElementById('bp-held');
+            return {
+                gridTop: grid.top,
+                heldIsEmptyClass: held.classList.contains('is-empty'),
+                emptyHintVisible: document.getElementById('bp-held-empty').offsetParent !== null,
+                rotateVisible: document.getElementById('bp-rotate').offsetParent !== null,
+            };
+        });
+        ok('held state: is-empty class cleared',  after.heldIsEmptyClass === false);
+        ok('held state: hint hidden',             after.emptyHintVisible === false);
+        ok('held state: rotate button visible',   after.rotateVisible === true);
+        // Allow ~2px slop for sub-pixel rendering / scrollbar.
+        ok('grid top y stays put on pickup (no layout shift)',
+           Math.abs(before.gridTop - after.gridTop) < 3);
+
+        // Drop it back — gridTop should also stay put.
+        await page.click('#bp-tostash');
+        await page.waitForTimeout(80);
+        const released = await page.evaluate(() => {
+            const grid = document.getElementById('bp-grid').getBoundingClientRect();
+            return { gridTop: grid.top };
+        });
+        ok('grid top y stays put on release', Math.abs(before.gridTop - released.gridTop) < 3);
+        ok('no JS errors',                    errs.length === 0);
+        await ctx.close();
+    }
+
+    // ── 32. Touch-drag from a ghost-bad filled cell DOES NOT swap ─────
+    // Click handler fix from the previous commit covered tap taps;
+    // touch-drag (pointerdown + move past threshold) bypassed the click
+    // handler and re-introduced the unintended swap. The pointerdown
+    // guard now refuses to engage drag when the source cell is under
+    // the held item's ghost-bad footprint.
+    {
+        const { page, ctx, errs } = await freshMobilePage();
+        await seedBackpack(page, ['coolant_coil'], {
+            w: 3, h: 3,
+            placed: [{ id: 'plasma_cell', x: 0, y: 0, rot: 0 }],
+        });
+        await page.click('#bp-stash .bp-chip[data-stash-idx="0"]');
+        await page.waitForTimeout(60);
+        // Paint the ghost at (0,0) — overlap → ghost-bad on the plasma cell.
+        await page.evaluate(() => { if (window.bpPaintGhost) window.bpPaintGhost(0, 0); });
+        await page.waitForTimeout(40);
+
+        // Pointer-down + move past 8px threshold on the filled cell.
+        // With the guard, bpTouch should NEVER be set, so no pickup.
+        const after = await page.evaluate(async () => {
+            const src = document.querySelector('#bp-grid .bp-cell[data-placed-idx="0"]');
+            const r = src.getBoundingClientRect();
+            const POINTER_ID = 91;
+            const fire = (t, type, x, y) => t.dispatchEvent(new PointerEvent(type, {
+                bubbles: true, cancelable: true,
+                pointerId: POINTER_ID, pointerType: 'touch',
+                isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1,
+                clientX: x, clientY: y, screenX: x, screenY: y,
+            }));
+            fire(src, 'pointerdown', r.left + 5, r.top + 5);
+            await new Promise(r => setTimeout(r, 20));
+            fire(document.body, 'pointermove', r.left + 30, r.top + 30);
+            await new Promise(r => setTimeout(r, 30));
+            fire(document.body, 'pointerup', r.left + 30, r.top + 30);
+            await new Promise(r => setTimeout(r, 60));
+            return {
+                heldId:    bpHeld && bpHeld.id,
+                placed:    save.backpack.placed.slice(),
+                stashIds:  save.backpack.stash.slice(),
+            };
+        });
+        ok('touch-drag over ghost-bad: held unchanged',
+           after.heldId === 'coolant_coil');
+        ok('touch-drag over ghost-bad: plasma still placed',
+           after.placed.length === 1 &&
+           after.placed[0].id === 'plasma_cell');
+        ok('touch-drag over ghost-bad: stash still empty',
+           after.stashIds.length === 0);
+        ok('touch-drag over ghost-bad: no JS errors', errs.length === 0);
+        await ctx.close();
+    }
+
     // ── 20a. Drop with finger just BELOW the bottom edge ──────────────
     // Regression: bpDropTargetCell clamps the ghost to a valid in-grid
     // cell when the finger drifts ~2 cells past the edge, but the
