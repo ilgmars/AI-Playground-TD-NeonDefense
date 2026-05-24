@@ -2319,6 +2319,14 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     justify-content: center; margin-bottom: 10px; padding: 8px 14px;
     border: 1px dashed #c084fc; border-radius: 8px; background: rgba(192,132,252,0.08);
+    /* Locked min-height so the placeholder state and active state
+       occupy the same vertical space. Without this the grid below
+       jumps when an item is picked up — the original "elements move"
+       complaint. Tall enough for the active state's button row plus
+       the mini-shape on mobile, including the case where buttons
+       wrap to two lines on narrow viewports. */
+    min-height: 88px;
+    box-sizing: border-box;
 }
 /* Legacy: explicit .hidden still wins (only used as a back-compat
    safety net). Empty placeholder is now the default unheld state. */
