@@ -55,13 +55,21 @@
     //
     // Multiple URLs per strategy = Trystero picks one that responds;
     // peers using the same list converge on the same broker quickly.
-    // EMQX MQTT broker. Protocol picked per page scheme:
-    //   HTTPS page  → wss://broker.emqx.io:8084/mqtt  (secure WS)
-    //   HTTP  page  → ws://broker.emqx.io:8083/mqtt   (plain WS)
-    // Browsers BLOCK plain ws:// from https:// pages (mixed content)
-    // and BLOCK secure wss:// from http:// origins isn't an issue but
-    // wastes the TLS handshake locally. This picks the right one.
+    // MQTT relay URL selection, in order of preference:
+    //   1. window.__neonMqttRelayUrls (from mqtt-config.js — private
+    //      HiveMQ Cloud cluster with URL-embedded basic auth). Set
+    //      from .credentials or the NEON_TURN_CONFIG GitHub Secret.
+    //   2. Public EMQX broker, protocol-matched to the page scheme:
+    //      HTTPS page → wss://broker.emqx.io:8084/mqtt (secure WS)
+    //      HTTP  page → ws://broker.emqx.io:8083/mqtt  (plain WS,
+    //                   browser blocks plain ws:// from https as
+    //                   mixed content).
     function mqttRelayUrls() {
+        if (typeof window !== 'undefined' &&
+            Array.isArray(window.__neonMqttRelayUrls) &&
+            window.__neonMqttRelayUrls.length > 0) {
+            return window.__neonMqttRelayUrls;
+        }
         const httpOrigin = typeof location !== 'undefined' && location.protocol === 'http:';
         return httpOrigin
             ? ['ws://broker.emqx.io:8083/mqtt']

@@ -11,3 +11,6 @@ android/app/neon-release.keystore
 # Generated TURN bundle — content rotates per deploy, so we don't
 # track it. Stub committed at turn-config.example.js for shape ref.
 src/multiplayer/turn-config.js
+# Generated HiveMQ Cloud relay URL (URL-embedded basic auth). Same
+# generator script writes this from .credentials / NEON_TURN_CONFIG.
+src/multiplayer/mqtt-config.js
