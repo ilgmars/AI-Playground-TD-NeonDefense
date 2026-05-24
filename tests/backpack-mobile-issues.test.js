@@ -295,17 +295,21 @@ const path = require('path');
     {
         const { page, ctx, errs } = await freshMobilePage();
         await seedBackpack(page, ['plasma_cell']);
-        // Buttons are hidden in placeholder mode.
+        // Buttons are invisible in placeholder mode (visibility:hidden,
+        // not display:none — keeps the panel's layout fixed).
         const hidden = await page.evaluate(() => {
             const ids = ['bp-rotate', 'bp-tostash', 'bp-discard', 'bp-restore'];
             const out = {};
-            for (const id of ids) out[id] = document.getElementById(id).offsetParent === null;
+            for (const id of ids) {
+                const el = document.getElementById(id);
+                out[id] = getComputedStyle(el).visibility === 'hidden';
+            }
             return out;
         });
-        ok('placeholder: rotate button hidden',  hidden['bp-rotate']  === true);
-        ok('placeholder: stash button hidden',   hidden['bp-tostash'] === true);
-        ok('placeholder: discard button hidden', hidden['bp-discard'] === true);
-        ok('placeholder: restore button hidden', hidden['bp-restore'] === true);
+        ok('placeholder: rotate button invisible',  hidden['bp-rotate']  === true);
+        ok('placeholder: stash button invisible',   hidden['bp-tostash'] === true);
+        ok('placeholder: discard button invisible', hidden['bp-discard'] === true);
+        ok('placeholder: restore button invisible', hidden['bp-restore'] === true);
 
         // Direct function calls — still defensive against null bpHeld.
         await page.evaluate(() => { bpRotateHeld(); bpHeldToStash(); bpSellHeld(); bpRestoreHeld(); });
@@ -702,11 +706,12 @@ const path = require('path');
         const afterRestore = await page.evaluate(() => ({
             held: !!bpHeld,
             placed: save.backpack.placed.slice(),
-            // The held panel as a whole goes away when nothing is held,
-            // so the RESTORE button is no longer rendered (parent
-            // hidden). offsetParent === null is the truthful "not
-            // visible to the user" check.
-            restoreInvisible: document.getElementById('bp-restore').offsetParent === null,
+            // After RESTORE clears the held item, the panel goes back
+            // to placeholder mode where the button is visibility:hidden.
+            // computed-visibility is the truthful "is the user unable
+            // to interact with this" check.
+            restoreInvisible:
+                getComputedStyle(document.getElementById('bp-restore')).visibility === 'hidden',
         }));
         ok('RESTORE: held cleared',                  afterRestore.held === false);
         ok('RESTORE: original placement back',
@@ -1118,15 +1123,19 @@ const path = require('path');
     {
         const { page, ctx, errs } = await freshMobilePage();
         await seedBackpack(page, ['plasma_cell']);
-        // Empty-state geometry
+        // Empty-state geometry. Use computed visibility instead of
+        // offsetParent because the placeholder uses visibility:hidden
+        // (NOT display:none) to keep the layout flow identical
+        // between empty and active states.
         const before = await page.evaluate(() => {
             const grid = document.getElementById('bp-grid').getBoundingClientRect();
             const held = document.getElementById('bp-held');
+            const hint = document.getElementById('bp-held-empty');
             return {
                 gridTop: grid.top,
                 heldIsEmptyClass: held.classList.contains('is-empty'),
-                heldVisible: held.offsetParent !== null,
-                emptyHintVisible: document.getElementById('bp-held-empty').offsetParent !== null,
+                heldVisible: getComputedStyle(held).visibility !== 'hidden',
+                emptyHintVisible: getComputedStyle(hint).visibility !== 'hidden',
             };
         });
         ok('empty state: panel rendered',         before.heldVisible === true);
@@ -1139,11 +1148,13 @@ const path = require('path');
         const after = await page.evaluate(() => {
             const grid = document.getElementById('bp-grid').getBoundingClientRect();
             const held = document.getElementById('bp-held');
+            const hint = document.getElementById('bp-held-empty');
+            const rotate = document.getElementById('bp-rotate');
             return {
                 gridTop: grid.top,
                 heldIsEmptyClass: held.classList.contains('is-empty'),
-                emptyHintVisible: document.getElementById('bp-held-empty').offsetParent !== null,
-                rotateVisible: document.getElementById('bp-rotate').offsetParent !== null,
+                emptyHintVisible: getComputedStyle(hint).visibility !== 'hidden',
+                rotateVisible: getComputedStyle(rotate).visibility !== 'hidden',
             };
         });
         ok('held state: is-empty class cleared',  after.heldIsEmptyClass === false);
