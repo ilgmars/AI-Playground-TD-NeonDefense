@@ -55,18 +55,32 @@
     //
     // Multiple URLs per strategy = Trystero picks one that responds;
     // peers using the same list converge on the same broker quickly.
+    // EMQX MQTT broker. Protocol picked per page scheme:
+    //   HTTPS page  → wss://broker.emqx.io:8084/mqtt  (secure WS)
+    //   HTTP  page  → ws://broker.emqx.io:8083/mqtt   (plain WS)
+    // Browsers BLOCK plain ws:// from https:// pages (mixed content)
+    // and BLOCK secure wss:// from http:// origins isn't an issue but
+    // wastes the TLS handshake locally. This picks the right one.
+    function mqttRelayUrls() {
+        const httpOrigin = typeof location !== 'undefined' && location.protocol === 'http:';
+        return httpOrigin
+            ? ['ws://broker.emqx.io:8083/mqtt']
+            : ['wss://broker.emqx.io:8084/mqtt'];
+    }
     const STRATEGY_RELAY_URLS = {
-        // Just EMQX for now per the user's request. The Trystero
-        // default also includes hivemq:8884 (no TLS WS — deprecated)
-        // and mosquitto:8081, both of which were flaky. Single
-        // curated WSS endpoint is simpler to reason about; if peers
-        // can't reach this one, Nostr in parallel is the fallback.
-        mqtt: ['wss://broker.emqx.io:8084/mqtt'],
+        // mqtt's relay list is computed at join time (so we can read
+        // location.protocol). See readStrategyRelayUrls below.
+        mqtt: 'auto',
         // Nostr left at Trystero defaults — the relay list is large
         // and most are reachable. Override here if specific relays
         // are needed.
         nostr: null,
     };
+    function readStrategyRelayUrls(strategy) {
+        const v = STRATEGY_RELAY_URLS[strategy];
+        if (v === 'auto' && strategy === 'mqtt') return mqttRelayUrls();
+        return v;
+    }
 
     const CDN_LOAD_TIMEOUT_MS = 15000;
     const FIRST_PEER_MS       = 12000;  // how long to wait on the
@@ -245,10 +259,10 @@
             // defaults include hivemq:8884 which has no TLS WS in 2026
             // (deprecated). Our list keeps only confirmed-working WSS
             // endpoints.
-            const relays = STRATEGY_RELAY_URLS[strategy];
+            const relays = readStrategyRelayUrls(strategy);
             if (relays && relays.length) {
                 cfg.relayUrls = relays;
-                status({ kind: 'relay-urls', strategy, count: relays.length });
+                status({ kind: 'relay-urls', strategy, urls: relays });
             }
             const room = mod.joinRoom(cfg, String(roomCode));
             status({ kind: 'joined', room: roomCode, strategy });

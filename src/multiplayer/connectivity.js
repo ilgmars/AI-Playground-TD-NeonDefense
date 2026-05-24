@@ -24,13 +24,16 @@
         'https://cdn.jsdelivr.net/npm/trystero@0.21.5/+esm',
     ];
 
-    // Public MQTT broker used for Trystero signalling. Matches the
-    // curated STRATEGY_RELAY_URLS.mqtt list in transport-trystero.js
-    // — EMQX is the single confirmed-stable WSS endpoint in 2026
-    // (HiveMQ deprecated TLS WS; Mosquitto :8081 was flaky).
-    const TRACKER_URLS = [
-        'wss://broker.emqx.io:8084/mqtt',
-    ];
+    // Public MQTT broker used for Trystero signalling. EMQX is the
+    // single confirmed-stable endpoint we use in 2026. Protocol
+    // chosen per page scheme: ws:// for http origins, wss:// for
+    // https (mirrors mqttRelayUrls() in transport-trystero.js).
+    const TRACKER_URLS = (function () {
+        const httpOrigin = typeof location !== 'undefined' && location.protocol === 'http:';
+        return httpOrigin
+            ? ['ws://broker.emqx.io:8083/mqtt']
+            : ['wss://broker.emqx.io:8084/mqtt'];
+    })();
 
     const STUN_URL = 'stun:stun.l.google.com:19302';
     const STEP_TIMEOUT_MS = 6000;
