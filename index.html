@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Neon Defense</title>
-    <link rel="stylesheet" href="style.css?v=20260524132239">
+    <link rel="stylesheet" href="style.css?v=20260524172405">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
 </head>
 
@@ -296,8 +296,12 @@
                     <div class="mp-row">
                         <span class="mp-label">MODE</span>
                         <select id="mp-mode-select" class="loadout-select">
-                            <option value="race">RACE — shared map, race the leaderboard</option>
-                            <option value="coop" disabled>CO-OP — coming soon</option>
+                            <!-- CO-OP is the default mode now. It starts here
+                                 disabled as a safety net (scripts missing) and
+                                 setupMultiplayerLobby() un-disables + selects
+                                 it once NeonMP.coop is confirmed loaded. -->
+                            <option value="coop" disabled>CO-OP — shared map + economy</option>
+                            <option value="race">RACE — same world, race the leaderboard</option>
                             <option value="versus" disabled>VERSUS — coming soon</option>
                         </select>
                     </div>
@@ -595,35 +599,35 @@
         <button id="place-confirm-no" aria-label="Cancel placement">✗</button>
     </div>
 
-    <script src="src/config/config.js?v=20260524132239"></script>
-    <script src="src/security/aegis.js?v=20260524132239"></script>
-    <script src="src/audio/audio.js?v=20260524132239"></script>
-    <script src="src/render/assets.js?v=20260524132239"></script>
-    <script src="src/engine/map.js?v=20260524132239"></script>
-    <script src="src/entities/entities.js?v=20260524132239"></script>
-    <script src="src/ai/autopilot.js?v=20260524132239"></script>
-    <script src="src/progression/save.js?v=20260524132239"></script>
-    <script src="src/progression/tree.js?v=20260524132239"></script>
-    <script src="src/progression/abilities.js?v=20260524132239"></script>
-    <script src="src/progression/backpack.js?v=20260524132239"></script>
-    <script src="src/engine/game.js?v=20260524132239"></script>
-    <script src="src/minigames/overclock.js?v=20260524132239"></script>
-    <script src="src/progression/boons.js?v=20260524132239"></script>
+    <script src="src/config/config.js?v=20260524172405"></script>
+    <script src="src/security/aegis.js?v=20260524172405"></script>
+    <script src="src/audio/audio.js?v=20260524172405"></script>
+    <script src="src/render/assets.js?v=20260524172405"></script>
+    <script src="src/engine/map.js?v=20260524172405"></script>
+    <script src="src/entities/entities.js?v=20260524172405"></script>
+    <script src="src/ai/autopilot.js?v=20260524172405"></script>
+    <script src="src/progression/save.js?v=20260524172405"></script>
+    <script src="src/progression/tree.js?v=20260524172405"></script>
+    <script src="src/progression/abilities.js?v=20260524172405"></script>
+    <script src="src/progression/backpack.js?v=20260524172405"></script>
+    <script src="src/engine/game.js?v=20260524172405"></script>
+    <script src="src/minigames/overclock.js?v=20260524172405"></script>
+    <script src="src/progression/boons.js?v=20260524172405"></script>
     <!-- Multiplayer (lazy: Trystero loads only when the player opens the lobby) -->
-    <script src="src/multiplayer/protocol.js?v=20260524132239"></script>
-    <script src="src/multiplayer/transport.js?v=20260524132239"></script>
-    <script src="src/multiplayer/actions.js?v=20260524132239"></script>
-    <script src="src/multiplayer/guard.js?v=20260524132239"></script>
-    <script src="src/multiplayer/race.js?v=20260524132239"></script>
-    <script src="src/multiplayer/lockstep.js?v=20260524132239"></script>
-    <script src="src/multiplayer/prng.js?v=20260524132239"></script>
-    <script src="src/multiplayer/versus.js?v=20260524132239"></script>
-    <script src="src/multiplayer/coop.js?v=20260524132239"></script>
-    <script src="src/multiplayer/global.js?v=20260524132239"></script>
-    <script src="src/multiplayer/lobby.js?v=20260524132239"></script>
-    <script src="src/multiplayer/connectivity.js?v=20260524132239"></script>
-    <script src="src/multiplayer/transport-trystero.js?v=20260524132239"></script>
-    <script src="src/engine/main.js?v=20260524132239"></script>
+    <script src="src/multiplayer/protocol.js?v=20260524172405"></script>
+    <script src="src/multiplayer/transport.js?v=20260524172405"></script>
+    <script src="src/multiplayer/actions.js?v=20260524172405"></script>
+    <script src="src/multiplayer/guard.js?v=20260524172405"></script>
+    <script src="src/multiplayer/race.js?v=20260524172405"></script>
+    <script src="src/multiplayer/lockstep.js?v=20260524172405"></script>
+    <script src="src/multiplayer/prng.js?v=20260524172405"></script>
+    <script src="src/multiplayer/versus.js?v=20260524172405"></script>
+    <script src="src/multiplayer/coop.js?v=20260524172405"></script>
+    <script src="src/multiplayer/global.js?v=20260524172405"></script>
+    <script src="src/multiplayer/lobby.js?v=20260524172405"></script>
+    <script src="src/multiplayer/connectivity.js?v=20260524172405"></script>
+    <script src="src/multiplayer/transport-trystero.js?v=20260524172405"></script>
+    <script src="src/engine/main.js?v=20260524172405"></script>
 </body>
 
 </html>

@@ -101,7 +101,9 @@ const path = require('path');
         await page.waitForTimeout(150);
         await page.fill('#mp-nick-input', nick);
         await page.fill('#mp-room-input', roomCode);
-        // mp-mode-select defaults to "race" — leave it.
+        // Default mode is now coop. This scenario tests race, so
+        // pick race explicitly.
+        await page.selectOption('#mp-mode-select', 'race');
         const joinPromise = page.click('#mp-join-btn');
         // joinRace awaits Trystero load + signalling subscription. Up
         // to 30 s to let the slowest broker handshake settle.
@@ -196,6 +198,120 @@ const path = require('path');
     // Tear down cleanly.
     await alice.ctx.close();
     await bob.ctx.close();
+
+    // ── 7. CO-OP waitroom act test ────────────────────────────────────
+    // Coop mode uses a sessionStorage + reload handshake so the
+    // pre-boot RNG can install before aegis.js runs. The flow:
+    //   1. fill nick + room + select 'coop' → click JOIN ROOM
+    //   2. page reloads
+    //   3. waitroom overlay appears, broadcasts {kind:'wr', p:nick}
+    //   4. OTHER player must show up in #mp-waitroom-peers
+    //   5. both click READY → run starts
+    //
+    // The historical bug: waitroom announced ONCE at entry, before the
+    // WebRTC data channel was open, so the message went into the void
+    // and the other player never appeared. Now there's a 2 s
+    // re-announce loop + onPeerJoin re-announce, both of which this
+    // test exercises.
+    const coopRoom = 'C' + Math.random().toString(36).slice(2, 7).toUpperCase()
+                          .replace(/[01OI]/g, '2');
+    console.log('\n  coop room code:', coopRoom);
+
+    async function spawnCoopClient(nick) {
+        const ctx = await browser.newContext({
+            viewport: { width: 390, height: 844 },
+            hasTouch: true, isMobile: true,
+        });
+        const page = await ctx.newPage();
+        const errs = [];
+        page.on('pageerror', e => errs.push(e.message));
+        page.on('console', m => {
+            if (m.type() !== 'error') return;
+            const t = m.text();
+            if (/mqtt|trystero|websocket|mosquitto|hivemq|emqx/i.test(t)) return;
+            errs.push('console: ' + t);
+        });
+        await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(600);
+        await page.click('#menu-multiplayer-btn');
+        await page.waitForTimeout(150);
+        // Explicitly select coop in case the default selection logic
+        // hasn't fired by the time we get here.
+        await page.selectOption('#mp-mode-select', 'coop');
+        await page.fill('#mp-nick-input', nick);
+        await page.fill('#mp-room-input', coopRoom);
+        // Coop JOIN persists sessionStorage and reloads. We catch the
+        // navigation so we can keep working with the same page.
+        await Promise.all([
+            page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+            page.click('#mp-join-btn'),
+        ]).catch(() => { /* in some flows reload is instant; ignore */ });
+        // After reload, init runs, resumeMultiplayerIfPending detects
+        // sessionStorage, calls joinCoop + openCoopWaitroom. Wait for
+        // the waitroom overlay to appear.
+        try {
+            await page.waitForSelector('#mp-waitroom:not(.hidden)', { timeout: 20000 });
+        } catch (_) { /* surface in the assertions below */ }
+        return { ctx, page, errs };
+    }
+
+    console.log('  spawning ALICE (coop)...');
+    const aliceCoop = await spawnCoopClient('ALICE');
+    console.log('  spawning BOB (coop)...');
+    const bobCoop   = await spawnCoopClient('BOB');
+
+    async function waitroomNames(page) {
+        return await page.evaluate(() => {
+            return Array.from(document.querySelectorAll('#mp-waitroom-peers .mp-waitroom-peer .mp-waitroom-peer-name'))
+                .map(el => el.textContent.trim());
+        });
+    }
+
+    // Poll for up to 25 s — periodic 2 s re-announce + a few WebRTC
+    // handshake seconds means the other peer should land in well
+    // under that.
+    const t1 = Date.now();
+    let aliceSeesBobCoop = false, bobSeesAliceCoop = false;
+    while (Date.now() - t1 < 25000) {
+        const a = await waitroomNames(aliceCoop.page);
+        const b = await waitroomNames(bobCoop.page);
+        if (a.includes('BOB'))   aliceSeesBobCoop = true;
+        if (b.includes('ALICE')) bobSeesAliceCoop = true;
+        if (aliceSeesBobCoop && bobSeesAliceCoop) break;
+        await new Promise(r => setTimeout(r, 500));
+    }
+    console.log('  coop ALICE waitroom names:', await waitroomNames(aliceCoop.page));
+    console.log('  coop BOB   waitroom names:', await waitroomNames(bobCoop.page));
+    ok('coop: ALICE waitroom shows BOB within 25 s', aliceSeesBobCoop);
+    ok('coop: BOB   waitroom shows ALICE within 25 s', bobSeesAliceCoop);
+
+    // ── 8. Both clients click READY → run starts. ────────────────────
+    if (aliceSeesBobCoop && bobSeesAliceCoop) {
+        await aliceCoop.page.click('#mp-waitroom-ready');
+        await bobCoop.page.click('#mp-waitroom-ready');
+        // Wait for the run to actually start on both — waitroom hides
+        // and race overlay appears.
+        await Promise.all([
+            aliceCoop.page.waitForSelector('#mp-waitroom.hidden', { timeout: 10000 }).catch(() => {}),
+            bobCoop.page.waitForSelector('#mp-waitroom.hidden', { timeout: 10000 }).catch(() => {}),
+        ]);
+        const aliceRunning = await aliceCoop.page.evaluate(() =>
+            window.game && (window.game.state === 'playing' || window.game.state === 'paused'));
+        const bobRunning = await bobCoop.page.evaluate(() =>
+            window.game && (window.game.state === 'playing' || window.game.state === 'paused'));
+        ok('coop: ALICE run started after both READY', aliceRunning === true);
+        ok('coop: BOB   run started after both READY', bobRunning === true);
+    } else {
+        skipMsg('coop READY → run start (waitroom never paired peers)');
+    }
+
+    ok('coop ALICE: no unexpected JS errors', aliceCoop.errs.length === 0);
+    if (aliceCoop.errs.length) aliceCoop.errs.forEach(e => console.log('  COOP ALICE err:', e));
+    ok('coop BOB:   no unexpected JS errors', bobCoop.errs.length === 0);
+    if (bobCoop.errs.length) bobCoop.errs.forEach(e => console.log('  COOP BOB err:', e));
+
+    await aliceCoop.ctx.close();
+    await bobCoop.ctx.close();
     await browser.close();
     server.kill();
 

@@ -3184,12 +3184,14 @@ function init() {
             hideScreen('mp-race-overlay');
         });
 
-        // Un-disable co-op and versus options now that the controllers exist.
+        // Un-disable co-op and pick it as the default mode now that the
+        // controllers exist. Race stays as the safety-net fallback.
         if (NeonMP.coop) {
             const coopOpt = modeSel.querySelector('option[value="coop"]');
             if (coopOpt) {
                 coopOpt.removeAttribute('disabled');
                 coopOpt.textContent = 'CO-OP — shared map + economy';
+                modeSel.value = 'coop';
             }
         }
         if (NeonMP.versus) {
@@ -3687,19 +3689,40 @@ function init() {
                     : 'Click READY when you\'re set.';
         }
 
+        function announce() {
+            try { _activeRoom.send({ kind: 'wr', p: nick, ready: meReady }); } catch (_) {}
+        }
+
         const offMsg = _activeRoom.onMessage((msg) => {
             if (!msg || msg.kind !== 'wr') return;
             if (typeof msg.p !== 'string' || msg.p === nick) return;
             const peer = msg.p.slice(0, 32);
             peers.set(peer, !!msg.ready);
-            // Reply with our own state so newcomers see us.
-            try { _activeRoom.send({ kind: 'wr', p: nick, ready: meReady }); } catch (_) {}
+            // Reply with our own state so the new peer sees us, even if
+            // they joined AFTER our initial announce.
+            announce();
             render();
             tryStart();
         });
 
-        // Announce ourselves.
-        try { _activeRoom.send({ kind: 'wr', p: nick, ready: false }); } catch (_) {}
+        // Re-announce when a new Trystero peer connects (WebRTC just
+        // completed handshake). This is the key fix for "waitroom never
+        // lists the other player": the initial announce() at entry was
+        // sent BEFORE the data channel was open, so it was dropped on
+        // the floor. onPeerJoin fires the moment the channel is
+        // actually usable. Best-effort — adapter may swallow errors
+        // and the periodic re-broadcast below is the backstop.
+        try {
+            _activeRoom.onPeerJoin && _activeRoom.onPeerJoin(() => announce());
+        } catch (_) {}
+
+        // Periodic re-broadcast so peers that joined after our last
+        // send eventually learn about us. 2 s cadence is well within
+        // the player's "did anyone show up?" patience.
+        const heartbeatTimer = setInterval(announce, 2000);
+
+        // Initial announce.
+        announce();
         render();
 
         return new Promise(resolve => {
@@ -3707,6 +3730,7 @@ function init() {
             function finish(result) {
                 if (done) return;
                 done = true;
+                clearInterval(heartbeatTimer);
                 try { offMsg(); } catch (_) {}
                 readyBtn.removeEventListener('click', onReady);
                 leaveBtn.removeEventListener('click', onLeave);
@@ -3717,7 +3741,7 @@ function init() {
             function onReady() {
                 meReady = !meReady;
                 peers.set(nick, meReady);
-                try { _activeRoom.send({ kind: 'wr', p: nick, ready: meReady }); } catch (_) {}
+                announce();
                 readyBtn.textContent = meReady ? 'UN-READY' : 'READY';
                 render();
                 tryStart();

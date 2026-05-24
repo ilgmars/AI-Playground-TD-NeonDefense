@@ -104,13 +104,21 @@
     // Build the adapter shell around a strategy-specific room handle.
     // Same surface as the mock transport: {id, send, onMessage, leave,
     // peerCount, onPeerJoin, onPeerLeave}.
+    //
+    // Trystero 0.21.5's room.onPeerJoin / onPeerLeave are SETTERS: each
+    // call REPLACES the previous callback. We multiplex by registering
+    // ONE underlying handler that fans out to a local listener list,
+    // so multiple consumers (race overlay, coop waitroom, status
+    // callback) can all subscribe without overwriting each other.
     function wrapRoom(strategy, room, peerId, onStatus) {
         const status = typeof onStatus === 'function' ? onStatus : () => {};
         const [sendMP, recvMP] = room.makeAction('mp');
-        const listeners = [];
+        const msgListeners  = [];
+        const joinListeners = [];
+        const leaveListeners = [];
         recvMP((msg, peer) => {
             if (!msg || typeof msg !== 'object') return;
-            for (const fn of listeners) {
+            for (const fn of msgListeners) {
                 try { fn(msg, peer); } catch (_) { /* swallow */ }
             }
         });
@@ -119,10 +127,16 @@
             room.onPeerJoin((id) => {
                 _peerCount += 1;
                 status({ kind: 'peer-join', id, peerCount: _peerCount, strategy });
+                for (const fn of joinListeners) {
+                    try { fn({ id }); } catch (_) {}
+                }
             });
             room.onPeerLeave((id) => {
                 _peerCount = Math.max(0, _peerCount - 1);
                 status({ kind: 'peer-leave', id, peerCount: _peerCount, strategy });
+                for (const fn of leaveListeners) {
+                    try { fn({ id }); } catch (_) {}
+                }
             });
         } catch (_) { /* defensive */ }
         let left = false;
@@ -134,16 +148,18 @@
                 try { sendMP(msg); } catch (_) { /* swallow */ }
             },
             onMessage(fn) {
-                listeners.push(fn);
+                msgListeners.push(fn);
                 return () => {
-                    const i = listeners.indexOf(fn);
-                    if (i >= 0) listeners.splice(i, 1);
+                    const i = msgListeners.indexOf(fn);
+                    if (i >= 0) msgListeners.splice(i, 1);
                 };
             },
             leave() {
                 if (left) return;
                 left = true;
-                listeners.length = 0;
+                msgListeners.length = 0;
+                joinListeners.length = 0;
+                leaveListeners.length = 0;
                 try { room.leave(); } catch (_) { /* swallow */ }
             },
             peerCount() {
@@ -151,10 +167,10 @@
                 catch (_) { return _peerCount; }
             },
             onPeerJoin(fn) {
-                try { room.onPeerJoin((id) => fn({ id })); } catch (_) {}
+                if (typeof fn === 'function') joinListeners.push(fn);
             },
             onPeerLeave(fn) {
-                try { room.onPeerLeave((id) => fn({ id })); } catch (_) {}
+                if (typeof fn === 'function') leaveListeners.push(fn);
             },
         };
     }
