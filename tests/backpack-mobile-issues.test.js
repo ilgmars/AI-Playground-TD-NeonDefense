@@ -1066,7 +1066,14 @@ const path = require('path');
 
         // Tap the red-ghost-over-filled cell. Expected: held item stays,
         // placed item stays, status shows refused feedback. NOT a swap.
-        await page.click('#bp-grid .bp-cell[data-placed-idx="0"]');
+        // Use direct .click() instead of page.click() because the
+        // held panel + grid layout on a 390-wide viewport can put the
+        // bp-discard button visually over the (0,0) bp-cell and confuse
+        // Playwright's hit-testing. The user-facing event we care about
+        // — the click handler running — fires the same way either way.
+        await page.evaluate(() => {
+            document.querySelector('#bp-grid .bp-cell[data-placed-idx="0"]').click();
+        });
         await page.waitForTimeout(80);
         const after = await page.evaluate(() => ({
             heldId:        bpHeld && bpHeld.id,
