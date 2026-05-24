@@ -777,9 +777,16 @@ function bpPickPlaced(idx) {
     if (idx < 0 || idx >= bp.placed.length) return;
     if (bpHeld) bpReturnHeldToStash();
     const p = bp.placed.splice(idx, 1)[0];
-    bpHeld = { source: 'placed', id: p.id, rot: p.rot || 0 };
+    bpHeld = {
+        source: 'placed', id: p.id, rot: p.rot || 0,
+        // Remember the spot we came from so a single tap can undo the
+        // pickup (RESTORE button). Without this, accidentally tapping a
+        // placed item on mobile would force the player into a drop /
+        // to-stash / discard decision with no escape.
+        origin: { x: p.x | 0, y: p.y | 0, rot: p.rot | 0 },
+    };
     bpPersist();
-    bpStatus('Re-place ' + (BACKPACK_ITEMS[p.id] ? BACKPACK_ITEMS[p.id].name : p.id) + ', or send it TO STASH.');
+    bpStatus('Re-place ' + (BACKPACK_ITEMS[p.id] ? BACKPACK_ITEMS[p.id].name : p.id) + ', RESTORE, or STASH.');
     renderBackpack();
 }
 
@@ -804,6 +811,32 @@ function bpRotateHeld() {
     if (!bpHeld) return;
     bpHeld.rot = (bpHeld.rot + 1) % 4;
     renderBackpack();
+}
+
+// RESTORE — put the held item back where it came from, preserving
+// rotation. Only meaningful when the item was picked up from the grid
+// (bpHeld.origin is set). For stash-picked items this falls back to
+// bpHeldToStash so the button is never a dead end.
+function bpRestoreHeld() {
+    if (!bpHeld) return;
+    const origin = bpHeld.origin;
+    if (!origin) { bpHeldToStash(); return; }
+    const def = BACKPACK_ITEMS[bpHeld.id];
+    if (!def) { bpHeldToStash(); return; }
+    // canPlace against the current grid — origin should be empty since
+    // we just picked the item up, but defend against concurrent edits.
+    if (NeonBackpack.canPlace(save.backpack, BACKPACK_ITEMS, def, origin.x, origin.y, origin.rot)) {
+        save.backpack.placed.push({ id: bpHeld.id, x: origin.x, y: origin.y, rot: origin.rot });
+        bpHeld = null; bpLastGhost = null;
+        bpPersist();
+        bpStatus('Restored.');
+        renderBackpack();
+    } else {
+        // Origin is no longer valid (someone filled it). Fall through to
+        // stash so the player isn't stuck.
+        bpHeldToStash();
+        bpStatus('Original spot unavailable — sent to stash.');
+    }
 }
 
 function bpHeldToStash() {
@@ -934,6 +967,11 @@ function renderBackpack() {
             const refund = NeonSave.getSellRefund(def.rarity);
             sellEl.textContent = refund > 0 ? `+${refund}` : '';
         }
+        // RESTORE is only meaningful when the held item originated from
+        // a placed cell (an escape hatch for accidental pickups). For
+        // stash-picked items the button stays hidden.
+        const restoreBtn = document.getElementById('bp-restore');
+        if (restoreBtn) restoreBtn.classList.toggle('hidden', !bpHeld.origin);
     } else {
         heldWrap.classList.add('hidden');
     }
@@ -1319,6 +1357,7 @@ function init() {
     document.getElementById('bp-expand-h').addEventListener('click', () => bpExpand('h'));
     document.getElementById('bp-luck').addEventListener('click', bpBuyLuck);
     document.getElementById('bp-rotate').addEventListener('click', bpRotateHeld);
+    document.getElementById('bp-restore').addEventListener('click', bpRestoreHeld);
     document.getElementById('bp-tostash').addEventListener('click', bpHeldToStash);
     document.getElementById('bp-discard').addEventListener('click', bpSellHeld);
 
@@ -1597,41 +1636,44 @@ function init() {
     }
 
     document.getElementById('speed-btn').addEventListener('click', () => {
-        speedClickCount++;
-        
-        // Reset counter after 2 seconds of no clicks
-        clearTimeout(speedClickTimer);
-        speedClickTimer = setTimeout(() => {
-            speedClickCount = 0;
-        }, 2000);
-        
-        // Easter egg: unlock x256 mode after 15 clicks
-        if (speedClickCount >= 15 && !ultraSpeedUnlocked) {
-            ultraSpeedUnlocked = true;
-            speedClickCount = 0;
-            
-            // Visual feedback
-            const speedDisplay = document.getElementById('speed-display');
-            const originalColor = speedDisplay.style.color;
-            speedDisplay.style.color = '#fbbf24';
-            speedDisplay.style.textShadow = '0 0 20px rgba(251, 191, 36, 0.8)';
-            speedDisplay.textContent = 'ULTRA!';
-            
-            setTimeout(() => {
-                speedDisplay.textContent = gameSpeed + 'X';
-                updateSpeedColor();
-            }, 1500);
+        // Multiplayer hard-caps speed at 16× and disables the 256× easter
+        // egg. Per-room speed is whatever the player picked in the lobby
+        // (each peer can pick independently — race / versus are local
+        // sims; co-op players should coordinate their pick verbally).
+        const mpActive = !!_activeMode;
+
+        if (!mpActive) {
+            speedClickCount++;
+
+            // Reset counter after 2 seconds of no clicks
+            clearTimeout(speedClickTimer);
+            speedClickTimer = setTimeout(() => {
+                speedClickCount = 0;
+            }, 2000);
+
+            // Easter egg: unlock x256 mode after 15 clicks
+            if (speedClickCount >= 15 && !ultraSpeedUnlocked) {
+                ultraSpeedUnlocked = true;
+                speedClickCount = 0;
+
+                // Visual feedback
+                const speedDisplay = document.getElementById('speed-display');
+                speedDisplay.style.color = '#fbbf24';
+                speedDisplay.style.textShadow = '0 0 20px rgba(251, 191, 36, 0.8)';
+                speedDisplay.textContent = 'ULTRA!';
+
+                setTimeout(() => {
+                    speedDisplay.textContent = gameSpeed + 'X';
+                    updateSpeedColor();
+                }, 1500);
+            }
         }
-        
-        // Normal speed cycling
-        if (ultraSpeedUnlocked) {
-            gameSpeed *= 2;
-            if (gameSpeed > 256) gameSpeed = 1;
-        } else {
-            gameSpeed *= 2;
-            if (gameSpeed > 16) gameSpeed = 1;
-        }
-        
+
+        // Speed cycling. Effective cap in multiplayer is always 16×.
+        const cap = (!mpActive && ultraSpeedUnlocked) ? 256 : 16;
+        gameSpeed *= 2;
+        if (gameSpeed > cap) gameSpeed = 1;
+
         document.getElementById('speed-display').textContent = gameSpeed + 'X';
         updateSpeedColor();
     });
@@ -1654,6 +1696,18 @@ function init() {
     }
 
     document.getElementById('autopilot-btn').addEventListener('click', () => {
+        // Autopilot is disabled in multiplayer — having one player's AI
+        // race ahead while another plays manually would either desync
+        // the room (co-op) or unfairly outperform a human opponent
+        // (versus / race). The button stays visible but rejects the
+        // toggle and forces game.autopilot off.
+        if (_activeMode) {
+            game.autopilot = false;
+            const display = document.getElementById('autopilot-display');
+            display.textContent = 'OFF';
+            display.classList.remove('on');
+            return;
+        }
         game.autopilot = !game.autopilot;
         const display = document.getElementById('autopilot-display');
         if (game.autopilot) {
@@ -2857,6 +2911,12 @@ function init() {
             nickIn.value = nick;
             roomIn.value = parsed.code;
 
+            // Lobby speed pick. Clamp to the 16× MP cap and to powers of 2
+            // (1/2/4/8/16) so a tampered <option> can't smuggle in 256.
+            const speedSel = document.getElementById('mp-speed-select');
+            const rawSpeed = parseInt(speedSel && speedSel.value, 10);
+            const startSpeed = [1, 2, 4, 8, 16].indexOf(rawSpeed) >= 0 ? rawSpeed : 1;
+
             // Race mode = display-only, no PRNG re-seed needed. Coop and
             // Versus replace Math.random with a room-seeded mulberry32
             // which the Aegis sensor would flag mid-run — so for those
@@ -2873,6 +2933,7 @@ function init() {
                     _exitSubScreenState();
                     const seed = NeonMP.protocol.roomCodeToSeed(parsed.code);
                     restartGame(seed);
+                    applyMultiplayerSpeed(startSpeed);
                     showScreen('mp-race-overlay');
                     const roomBadge = document.getElementById('mp-race-room');
                     if (roomBadge) roomBadge.textContent = parsed.code;
@@ -2895,7 +2956,7 @@ function init() {
             // For versus the seed is replaced after the A/B handshake
             // with the side-suffixed hash (in resumeMultiplayerIfPending).
             const seed = NeonMP.protocol.roomCodeToSeed(parsed.code);
-            const cfg = { mode, roomCode: parsed.code, nick, seed };
+            const cfg = { mode, roomCode: parsed.code, nick, seed, startSpeed };
             try {
                 sessionStorage.setItem('neonMP', JSON.stringify(cfg));
                 setStatus(status, 'Re-launching with deterministic RNG…', 'var(--accent)');
@@ -2966,6 +3027,7 @@ function init() {
                     return;
                 }
                 restartGame(cfg.seed);
+                applyMultiplayerSpeed(cfg.startSpeed);
                 showScreen('mp-race-overlay');
                 const roomBadge = document.getElementById('mp-race-room');
                 if (roomBadge) roomBadge.textContent = parsed.code + ' (co-op)';
@@ -2974,6 +3036,7 @@ function init() {
                 // resolved side. The world seed is the side-suffixed
                 // hash; Math.random is re-installed with that seed so
                 // boon / loot / OVERCLOCK rolls match the side.
+                // (startSpeed below is applied after restartGame.)
                 const resolved = await joinVersus(parsed.code, nick);
                 if (!resolved.ok) {
                     setStatus(document.getElementById('mp-status'),
@@ -2989,6 +3052,7 @@ function init() {
                 Math.random = NeonMP.prng.mulberry32(sideSeed);
                 restartGame(sideSeed);
                 bindVersusHooksToGame();
+                applyMultiplayerSpeed(cfg.startSpeed);
                 showScreen('mp-race-overlay');
                 const roomBadge = document.getElementById('mp-race-room');
                 if (roomBadge) roomBadge.textContent = parsed.code + ' (vs ' + resolved.side + ')';
@@ -3192,6 +3256,25 @@ function init() {
     // Back-compat alias used by older join paths and the LEAVE button —
     // also clears coop / versus state if present.
     function leaveRace() { leaveActiveMultiplayer(); }
+
+    // Force the lobby-selected speed onto the freshly-restarted game.
+    // Called once per JOIN, AFTER restartGame() (which always resets
+    // gameSpeed to 1). Also forces autopilot off — MP runs are
+    // human-only by policy (see autopilot-btn handler).
+    function applyMultiplayerSpeed(startSpeed) {
+        const allowed = [1, 2, 4, 8, 16];
+        const s = allowed.indexOf(startSpeed | 0) >= 0 ? (startSpeed | 0) : 1;
+        gameSpeed = s;
+        const sd = document.getElementById('speed-display');
+        if (sd) sd.textContent = gameSpeed + 'X';
+        if (typeof updateSpeedColor === 'function') {
+            try { updateSpeedColor(); } catch (_) {}
+        }
+        // Autopilot off, always, in multiplayer.
+        if (typeof game !== 'undefined' && game) game.autopilot = false;
+        const ad = document.getElementById('autopilot-display');
+        if (ad) { ad.textContent = 'OFF'; ad.classList.remove('on'); }
+    }
 
     // Broadcast helpers — invoked by the input call sites AFTER the
     // local action has been applied to the local game. They're no-ops

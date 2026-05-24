@@ -2322,7 +2322,15 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 #bp-held.hidden { display: none; }
 #bp-held-name { color: #c084fc; font-weight: 700; }
-#bp-held .small, #bp-held button { padding: 6px 12px; font-size: 0.72rem; white-space: nowrap; flex: 0 0 auto; }
+#bp-held .small, #bp-held button {
+    padding: 6px 12px; font-size: 0.72rem; white-space: nowrap; flex: 0 0 auto;
+    /* manipulation = taps fire immediately, no 300ms wait, no pan/zoom
+       gesture interpretation. Critical for the held-panel buttons,
+       which the player taps while their hand is still in "drag mode".
+       Without this, iOS Safari sometimes routes the tap to a scroll
+       gesture instead of a click. */
+    touch-action: manipulation;
+}
 #bp-held-shape, .bp-mini {
     display: grid; gap: 2px; padding: 2px;
 }

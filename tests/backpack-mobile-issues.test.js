@@ -637,6 +637,192 @@ const path = require('path');
         await ctx.close();
     }
 
+    // ── 21. RESTORE button puts a placed item back where it came from ─
+    // Picking up a placed item by mistake on mobile is easy. Without an
+    // undo affordance the player is forced to either drop somewhere
+    // else, send to stash, or sell. RESTORE returns the item to its
+    // original spot + rotation in one tap.
+    {
+        const { page, ctx, errs } = await freshMobilePage();
+        await seedBackpack(page, [], {
+            placed: [{ id: 'coolant_coil', x: 2, y: 1, rot: 1 }],
+        });
+        // Verify RESTORE is hidden when nothing held.
+        const initiallyHidden = await page.evaluate(() =>
+            document.getElementById('bp-restore').classList.contains('hidden'));
+        ok('RESTORE hidden when nothing held', initiallyHidden === true);
+
+        await page.click('#bp-grid .bp-cell.filled[data-placed-idx="0"]');
+        await page.waitForTimeout(80);
+        const afterPick = await page.evaluate(() => ({
+            held: !!bpHeld,
+            origin: bpHeld && bpHeld.origin,
+            heldRot: bpHeld && bpHeld.rot,
+            restoreVisible: !document.getElementById('bp-restore').classList.contains('hidden'),
+        }));
+        ok('picked placed: held set',           afterPick.held === true);
+        ok('picked placed: origin remembered',  afterPick.origin && afterPick.origin.x === 2 && afterPick.origin.y === 1 && afterPick.origin.rot === 1);
+        ok('picked placed: rot preserved',      afterPick.heldRot === 1);
+        ok('picked placed: RESTORE button shown', afterPick.restoreVisible === true);
+
+        // Rotate twice while held — visual rot should change, nothing
+        // should leak to placed.
+        await page.click('#bp-rotate');
+        await page.waitForTimeout(60);
+        await page.click('#bp-rotate');
+        await page.waitForTimeout(60);
+        const afterRotate = await page.evaluate(() => ({
+            held: !!bpHeld,
+            rot: bpHeld && bpHeld.rot,
+            placedLen: save.backpack.placed.length,
+        }));
+        ok('rotate twice: still held',       afterRotate.held === true);
+        ok('rotate twice: rot advanced',     afterRotate.rot === 3);   // 1 → 2 → 3
+        ok('rotate twice: nothing placed',   afterRotate.placedLen === 0);
+
+        // RESTORE — should put it back at (2,1, rot=1), even though
+        // we rotated mid-hold (RESTORE uses origin.rot, not current rot).
+        await page.click('#bp-restore');
+        await page.waitForTimeout(80);
+        const afterRestore = await page.evaluate(() => ({
+            held: !!bpHeld,
+            placed: save.backpack.placed.slice(),
+            // The held panel as a whole goes away when nothing is held,
+            // so the RESTORE button is no longer rendered (parent
+            // hidden). offsetParent === null is the truthful "not
+            // visible to the user" check.
+            restoreInvisible: document.getElementById('bp-restore').offsetParent === null,
+        }));
+        ok('RESTORE: held cleared',                  afterRestore.held === false);
+        ok('RESTORE: original placement back',
+           afterRestore.placed.length === 1 &&
+           afterRestore.placed[0].x === 2 &&
+           afterRestore.placed[0].y === 1 &&
+           afterRestore.placed[0].rot === 1);
+        ok('RESTORE: button no longer visible',      afterRestore.restoreInvisible === true);
+        ok('RESTORE: no JS errors',           errs.length === 0);
+        await ctx.close();
+    }
+
+    // ── 22. RESTORE for stash-pickup falls back to STASH ──────────────
+    // Items picked from the stash have no origin; RESTORE should
+    // behave like TO-STASH rather than being a dead button. (The
+    // button stays hidden in that case but the function call is
+    // defensive — exercised here directly via the global helper.)
+    {
+        const { page, ctx, errs } = await freshMobilePage();
+        await seedBackpack(page, ['plasma_cell']);
+        await page.click('#bp-stash .bp-chip[data-stash-idx="0"]');
+        await page.waitForTimeout(80);
+        const restoreHidden = await page.evaluate(() =>
+            document.getElementById('bp-restore').classList.contains('hidden'));
+        ok('RESTORE hidden for stash-picked item', restoreHidden === true);
+        // Direct function call mimics what would happen if a stale
+        // button click landed somehow — must still be safe.
+        await page.evaluate(() => bpRestoreHeld());
+        await page.waitForTimeout(80);
+        const after = await page.evaluate(() => ({
+            held: !!bpHeld,
+            stash: save.backpack.stash.length,
+        }));
+        ok('RESTORE on stash-pickup: held cleared',  after.held === false);
+        ok('RESTORE on stash-pickup: back in stash', after.stash === 1);
+        ok('RESTORE on stash-pickup: no JS errors',  errs.length === 0);
+        await ctx.close();
+    }
+
+    // ── 23. Rotate held many times — no leaks, ghost stays in grid ────
+    // 8 rotations brings rot back to 0; held item is untouched on grid.
+    {
+        const { page, ctx, errs } = await freshMobilePage();
+        await seedBackpack(page, ['overclock_matrix']);   // 3×2 T-shape
+        await page.click('#bp-stash .bp-chip[data-stash-idx="0"]');
+        await page.waitForTimeout(80);
+        for (let i = 0; i < 8; i++) {
+            await page.click('#bp-rotate');
+            await page.waitForTimeout(30);
+        }
+        const after = await page.evaluate(() => {
+            const ghostCells = Array.from(document.querySelectorAll('#bp-grid .bp-cell.ghost-ok, #bp-grid .bp-cell.ghost-bad'));
+            // Every ghost cell must still be inside the grid wrapper.
+            const grid = document.getElementById('bp-grid').getBoundingClientRect();
+            const allInside = ghostCells.every(el => {
+                const r = el.getBoundingClientRect();
+                return r.left >= grid.left - 1 && r.right <= grid.right + 1 &&
+                       r.top  >= grid.top  - 1 && r.bottom <= grid.bottom + 1;
+            });
+            return {
+                held: !!bpHeld,
+                rot: bpHeld && bpHeld.rot,
+                placedLen: save.backpack.placed.length,
+                stashLen: save.backpack.stash.length,
+                ghostInside: allInside,
+                ghostCount: ghostCells.length,
+            };
+        });
+        ok('8 rotations: still held',         after.held === true);
+        ok('8 rotations: rot back to 0',      after.rot === 0);
+        ok('8 rotations: nothing placed',     after.placedLen === 0);
+        ok('8 rotations: stash empty',        after.stashLen === 0);
+        ok('8 rotations: ghost stays in grid', after.ghostInside === true);
+        ok('8 rotations: no JS errors',       errs.length === 0);
+        await ctx.close();
+    }
+
+    // ── 24. Filled cell click on a tightly-packed grid picks up item ──
+    // Regression: every cell of a placed item must be a pickup target,
+    // not just the top-left. Tapping the bottom-right cell of a 2×2
+    // bulwark should pick it up the same as tapping the top-left.
+    {
+        const { page, ctx, errs } = await freshMobilePage();
+        await seedBackpack(page, [], {
+            w: 4, h: 4,
+            placed: [{ id: 'reactor_bulwark', x: 1, y: 1, rot: 0 }], // 2×2 covers (1,1)..(2,2)
+        });
+        // Click the BOTTOM-RIGHT cell of the placed shape.
+        const picked = await page.evaluate(async () => {
+            const cells = document.querySelectorAll('#bp-grid .bp-cell');
+            // Cell at (col=2, row=2) — bottom-right of a 2x2 at (1,1).
+            const target = cells[2 * 4 + 2];
+            target.click();
+            await new Promise(r => setTimeout(r, 60));
+            return {
+                held: !!bpHeld,
+                origin: bpHeld && bpHeld.origin,
+            };
+        });
+        ok('tap any cell of placed item: picks it up', picked.held === true);
+        ok('tap any cell: origin uses item top-left',
+           picked.origin && picked.origin.x === 1 && picked.origin.y === 1);
+        ok('tap any cell: no JS errors',               errs.length === 0);
+        await ctx.close();
+    }
+
+    // ── 25. Held-panel button touch-action keeps taps from being eaten ─
+    // CSS regression guard: the rotate / stash / discard / restore
+    // buttons need touch-action: manipulation (or none) so iOS doesn't
+    // interpret a tap as a scroll/zoom delay.
+    {
+        const { page, ctx } = await freshMobilePage();
+        await seedBackpack(page, ['plasma_cell']);
+        await page.click('#bp-stash .bp-chip[data-stash-idx="0"]');
+        await page.waitForTimeout(60);
+        const heldBtnTA = await page.evaluate(() => {
+            const ids = ['bp-rotate', 'bp-tostash', 'bp-discard'];
+            const out = {};
+            for (const id of ids) {
+                const el = document.getElementById(id);
+                out[id] = el ? getComputedStyle(el).touchAction : null;
+            }
+            return out;
+        });
+        const ok_ta = v => v === 'manipulation' || v === 'none';
+        ok('rotate button has touch-action manipulation/none', ok_ta(heldBtnTA['bp-rotate']));
+        ok('stash button has touch-action manipulation/none',  ok_ta(heldBtnTA['bp-tostash']));
+        ok('discard button has touch-action manipulation/none', ok_ta(heldBtnTA['bp-discard']));
+        await ctx.close();
+    }
+
     // ── 20a. Drop with finger just BELOW the bottom edge ──────────────
     // Regression: bpDropTargetCell clamps the ghost to a valid in-grid
     // cell when the finger drifts ~2 cells past the edge, but the
