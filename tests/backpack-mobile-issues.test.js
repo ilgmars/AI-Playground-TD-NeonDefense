@@ -1139,59 +1139,60 @@ const path = require('path');
         // offsetParent because the placeholder uses visibility:hidden
         // (NOT display:none) to keep the layout flow identical
         // between empty and active states.
+        // DOCUMENT-relative offset (not viewport-relative) so the test
+        // isn't confused by Playwright auto-scrolling on click.
+        const docOffsetTop = () => page.evaluate(() => {
+            let el = document.getElementById('bp-grid');
+            let top = 0;
+            while (el) { top += el.offsetTop; el = el.offsetParent; }
+            return top;
+        });
         const before = await page.evaluate(() => {
-            const grid = document.getElementById('bp-grid').getBoundingClientRect();
             const held = document.getElementById('bp-held');
             const hint = document.getElementById('bp-held-empty');
             return {
-                gridTop: grid.top,
                 heldIsEmptyClass: held.classList.contains('is-empty'),
                 heldVisible: getComputedStyle(held).visibility !== 'hidden',
                 emptyHintVisible: getComputedStyle(hint).visibility !== 'hidden',
             };
         });
+        const gridDocBefore = await docOffsetTop();
         ok('empty state: panel rendered',         before.heldVisible === true);
         ok('empty state: is-empty class set',     before.heldIsEmptyClass === true);
         ok('empty state: hint visible',           before.emptyHintVisible === true);
 
-        // Pick the chip up. Layout should NOT shift.
+        // Pick the chip up. Document-relative position should NOT shift.
         await page.click('#bp-stash .bp-chip[data-stash-idx="0"]');
         await page.waitForTimeout(80);
         const after = await page.evaluate(() => {
-            const grid = document.getElementById('bp-grid').getBoundingClientRect();
             const held = document.getElementById('bp-held');
             const hint = document.getElementById('bp-held-empty');
             const rotate = document.getElementById('bp-rotate');
             return {
-                gridTop: grid.top,
                 heldIsEmptyClass: held.classList.contains('is-empty'),
                 emptyHintVisible: getComputedStyle(hint).visibility !== 'hidden',
                 rotateVisible: getComputedStyle(rotate).visibility !== 'hidden',
             };
         });
+        const gridDocAfter = await docOffsetTop();
         ok('held state: is-empty class cleared',  after.heldIsEmptyClass === false);
         ok('held state: hint hidden',             after.emptyHintVisible === false);
         ok('held state: rotate button visible',   after.rotateVisible === true);
-        // The user-facing complaint was the entire held panel collapsing
-        // (display:none → flex), pushing the grid ~60–90px on every
-        // pickup. With min-height + visibility:hidden the box is locked,
-        // but content can still re-wrap inside, causing small variances.
-        // Cap at one cell-height (~40px) — anything smaller is below
-        // the player's perceptual threshold.
-        const shiftPickup = Math.abs(before.gridTop - after.gridTop);
-        console.log('  scenario 31 pickup shift (px):', shiftPickup);
-        ok('grid top y stays put on pickup (≤ 40px)', shiftPickup <= 40);
+        // User-facing complaint was the entire held panel collapsing
+        // (display:none → flex), pushing the grid 60-90px on pickup.
+        // Document-relative offset cancels Playwright auto-scroll;
+        // the assertion catches actual layout flow shift only.
+        const shiftPickup = Math.abs(gridDocBefore - gridDocAfter);
+        console.log('  scenario 31 pickup doc-shift (px):', shiftPickup);
+        ok('grid doc top stays put on pickup (≤ 40px)', shiftPickup <= 40);
 
-        // Drop it back — gridTop should also stay put.
+        // Drop it back — doc top should also stay put.
         await page.click('#bp-tostash');
         await page.waitForTimeout(80);
-        const released = await page.evaluate(() => {
-            const grid = document.getElementById('bp-grid').getBoundingClientRect();
-            return { gridTop: grid.top };
-        });
-        const shiftRelease = Math.abs(before.gridTop - released.gridTop);
-        console.log('  scenario 31 release shift (px):', shiftRelease);
-        ok('grid top y stays put on release (≤ 40px)', shiftRelease <= 40);
+        const gridDocReleased = await docOffsetTop();
+        const shiftRelease = Math.abs(gridDocBefore - gridDocReleased);
+        console.log('  scenario 31 release doc-shift (px):', shiftRelease);
+        ok('grid doc top stays put on release (≤ 40px)', shiftRelease <= 40);
         ok('no JS errors',                    errs.length === 0);
         await ctx.close();
     }
