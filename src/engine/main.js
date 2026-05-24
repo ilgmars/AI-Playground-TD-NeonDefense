@@ -1480,16 +1480,24 @@ function init() {
         const state = bpTouch;
         bpTouch = null;
         if (!state.dragging) return;        // pure tap — let click handlers fire
+        // If the finger is actually OVER a held-panel button (rotate /
+        // stash / restore / discard) when it lifts, don't commit a
+        // placement — let the synthesized click fire on that button
+        // instead. Previously bpDropTargetCell's ~2-cell NEAR window
+        // could match a grid row directly above the held panel and
+        // swallow the gesture as a drop, eating the rotate button
+        // click ("rotate doesn't work on touch").
+        const underFinger = document.elementFromPoint(e.clientX, e.clientY);
+        const overHeldBtn = underFinger && underFinger.closest && underFinger.closest('#bp-held button');
+        if (overHeldBtn) {
+            // Don't preventDefault — we want the click on the button
+            // to run normally.
+            return;
+        }
         // bpDropTargetCell returns null when the finger is more than
         // ~2 cells away from the grid (see the NEAR window inside).
         // If it returned a target AND placement is valid, commit and
         // suppress the synthesised click so we don't double-fire.
-        // If it's NOT a valid drop, do NOT preventDefault — that would
-        // suppress the click event that would otherwise let the player
-        // tap a held-panel button (ROTATE / STASH / RESTORE) in the
-        // same gesture. Previously the unconditional preventDefault
-        // ate that click and made rotate-after-touch-pickup feel
-        // broken on mobile.
         const target = bpDropTargetCell(e.clientX, e.clientY);
         if (target && bpHeldPlacementValid(target)) {
             if (e.cancelable) e.preventDefault();
@@ -1497,8 +1505,8 @@ function init() {
             return;
         }
         // No valid target → keep held; let the click fire naturally so
-        // the next tap (rotate button, another cell) registers without
-        // the player having to lift and tap again.
+        // the next tap registers without the player having to lift and
+        // tap again.
     }
     // Bound ONCE to document.body — pointermove/up route to the element
     // under the finger and bubble up. No setPointerCapture: that would
