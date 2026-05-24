@@ -1012,7 +1012,22 @@ function renderBackpack() {
                 if (pItem.x === x && pItem.y === y) cell.textContent = (def ? def.name[0] : '?');
                 if (def) cell.title = `${def.name}\n${def.desc || ''}`;
                 cell.dataset.placedIdx = String(ownerIdx);     // needed by the touch-drag handler
-                cell.addEventListener('click', () => bpPickPlaced(ownerIdx));
+                cell.addEventListener('click', () => {
+                    // Filled cell tapped while the held item's ghost is
+                    // covering it (ghost-bad means the held item's
+                    // footprint overlaps THIS cell). Treat as a
+                    // place attempt — refused with red feedback —
+                    // NOT as a pickup of the underlying item. Otherwise
+                    // the player who tried to place an oversized item
+                    // on top of an existing one would accidentally
+                    // swap the two.
+                    if (bpHeld && cell.classList.contains('ghost-bad')) {
+                        const at = bpLastGhost || { x, y };
+                        bpPlaceAt(at.x, at.y);
+                        return;
+                    }
+                    bpPickPlaced(ownerIdx);
+                });
                 // Hovering a filled cell while holding — leave the
                 // last ghost where it is so the player can still see
                 // their choice. Painting here would highlight cells

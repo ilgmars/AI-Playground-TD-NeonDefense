@@ -993,6 +993,107 @@ const path = require('path');
         await ctx.close();
     }
 
+    // ── 29. Tap on red-ghost over a filled cell DOES NOT swap items ───
+    // Regression: a filled cell can have BOTH .filled and .ghost-bad
+    // (the held item's footprint overlaps an existing placed item).
+    // The click handler used to bpPickPlaced() unconditionally on
+    // filled cells, accidentally swapping the held item for the one
+    // underneath. The fix routes ghost-bad-on-filled taps through
+    // bpPlaceAt — which refuses with red feedback — and only treats
+    // ghost-FREE filled cells as a pickup target.
+    {
+        const { page, ctx, errs } = await freshMobilePage();
+        // Pre-place plasma_cell at (0,0). Stash a coolant_coil (1x2)
+        // and pick it up. With the ghost at (0,0) the footprint covers
+        // (0,0) and (0,1); (0,0) is filled so canPlace returns false →
+        // both cells get .ghost-bad. (0,0) keeps its .filled class too.
+        await seedBackpack(page, ['coolant_coil'], {
+            w: 3, h: 3,
+            placed: [{ id: 'plasma_cell', x: 0, y: 0, rot: 0 }],
+        });
+        await page.click('#bp-stash .bp-chip[data-stash-idx="0"]');
+        await page.waitForTimeout(60);
+        // Hover (0,0) to paint the ghost there.
+        await page.evaluate(() => {
+            const target = document.querySelector('#bp-grid .bp-cell[data-placed-idx="0"]');
+            // Filled cells don't have mouseenter handler, so paint via
+            // bpPaintGhost directly to simulate the ghost arriving via
+            // touch-drag clamping.
+            if (window.bpPaintGhost) window.bpPaintGhost(0, 0);
+        });
+        await page.waitForTimeout(40);
+        const ghostState = await page.evaluate(() => {
+            const c = document.querySelector('#bp-grid .bp-cell[data-placed-idx="0"]');
+            return {
+                hasFilled:    c.classList.contains('filled'),
+                hasGhostBad:  c.classList.contains('ghost-bad'),
+                heldId:       bpHeld && bpHeld.id,
+                placedCount:  save.backpack.placed.length,
+                stashCount:   save.backpack.stash.length,
+            };
+        });
+        ok('pre-tap: filled cell has both filled + ghost-bad',
+           ghostState.hasFilled && ghostState.hasGhostBad);
+        ok('pre-tap: held is the coolant_coil',
+           ghostState.heldId === 'coolant_coil');
+        ok('pre-tap: plasma still placed',  ghostState.placedCount === 1);
+        ok('pre-tap: stash empty',          ghostState.stashCount === 0);
+
+        // Tap the red-ghost-over-filled cell. Expected: held item stays,
+        // placed item stays, status shows refused feedback. NOT a swap.
+        await page.click('#bp-grid .bp-cell[data-placed-idx="0"]');
+        await page.waitForTimeout(80);
+        const after = await page.evaluate(() => ({
+            heldId:        bpHeld && bpHeld.id,
+            placedItems:   save.backpack.placed.slice(),
+            stashIds:      save.backpack.stash.slice(),
+            statusText:    document.getElementById('bp-status').textContent,
+            heldFlash:     document.getElementById('bp-held').classList.contains('bp-held-flash'),
+        }));
+        ok('after tap: held still coolant_coil (no swap)',
+           after.heldId === 'coolant_coil');
+        ok('after tap: plasma_cell still placed at (0,0)',
+           after.placedItems.length === 1 &&
+           after.placedItems[0].id === 'plasma_cell' &&
+           after.placedItems[0].x === 0 && after.placedItems[0].y === 0);
+        ok('after tap: stash still empty',     after.stashIds.length === 0);
+        ok('after tap: refusal status shown',  /doesn'?t fit|ROTATE/i.test(after.statusText));
+        ok('after tap: held panel flashed',    after.heldFlash === true);
+        ok('after tap: no JS errors',          errs.length === 0);
+        await ctx.close();
+    }
+
+    // ── 30. Tap a filled cell NOT under the ghost → swap (preserved) ──
+    // The fix above must not break the legitimate swap gesture: while
+    // holding item A, tapping a placed item B that's NOT covered by
+    // A's ghost should still pick B up (returning A to the stash).
+    {
+        const { page, ctx, errs } = await freshMobilePage();
+        await seedBackpack(page, ['plasma_cell'], {
+            w: 4, h: 4,
+            placed: [{ id: 'credit_chip', x: 3, y: 3, rot: 0 }],
+        });
+        await page.click('#bp-stash .bp-chip[data-stash-idx="0"]');
+        await page.waitForTimeout(60);
+        // Paint the ghost at (0,0) so the credit_chip at (3,3) is far
+        // from the ghost footprint.
+        await page.evaluate(() => { if (window.bpPaintGhost) window.bpPaintGhost(0, 0); });
+        await page.waitForTimeout(40);
+        // Tap credit_chip at (3,3) — no ghost class on it.
+        await page.click('#bp-grid .bp-cell[data-placed-idx="0"]');
+        await page.waitForTimeout(80);
+        const after = await page.evaluate(() => ({
+            heldId:      bpHeld && bpHeld.id,
+            placedLen:   save.backpack.placed.length,
+            stashIds:    save.backpack.stash.slice(),
+        }));
+        ok('swap: held is now credit_chip',          after.heldId === 'credit_chip');
+        ok('swap: previously held plasma in stash',  after.stashIds.indexOf('plasma_cell') >= 0);
+        ok('swap: placed list shrunk to 0',          after.placedLen === 0);
+        ok('swap: no JS errors',                     errs.length === 0);
+        await ctx.close();
+    }
+
     // ── 20a. Drop with finger just BELOW the bottom edge ──────────────
     // Regression: bpDropTargetCell clamps the ghost to a valid in-grid
     // cell when the finger drifts ~2 cells past the edge, but the
