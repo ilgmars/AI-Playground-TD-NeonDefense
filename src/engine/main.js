@@ -801,9 +801,23 @@ function bpPlaceAt(x, y) {
         bpStatus('Placed.');
         renderBackpack();
     } else {
-        bpStatus("Doesn't fit there — rotate or pick another cell.");
+        // Build a status that points to the exact recovery action so
+        // the player isn't stuck wondering why nothing happened. RESTORE
+        // is only mentioned when an origin exists (placed-pickup).
+        const recovery = bpHeld.origin
+            ? "Doesn't fit — try ROTATE, RESTORE, or STASH."
+            : "Doesn't fit — try ROTATE or STASH.";
+        bpStatus(recovery);
+        // Flash the held panel so a player whose eyes were on the grid
+        // notices the controls. The shake on the grid stays as well.
         const g = document.getElementById('bp-grid');
         if (g) { g.classList.remove('bp-shake'); void g.offsetWidth; g.classList.add('bp-shake'); }
+        const heldEl = document.getElementById('bp-held');
+        if (heldEl) {
+            heldEl.classList.remove('bp-held-flash');
+            void heldEl.offsetWidth;
+            heldEl.classList.add('bp-held-flash');
+        }
     }
 }
 
@@ -1466,20 +1480,25 @@ function init() {
         const state = bpTouch;
         bpTouch = null;
         if (!state.dragging) return;        // pure tap — let click handlers fire
-        if (e.cancelable) e.preventDefault();
-        // bpDropTargetCell already returns null when the finger is more
-        // than ~2 cells away from the grid (see the NEAR window inside).
-        // If it returned a target AND placement is valid, commit — that
-        // matches what the player sees on the ghost. Previously a
-        // strict in-bbox check refused placement when the finger sat
-        // just below the bottom edge of the grid while the ghost was
-        // happily showing a valid bottom-row spot — exactly the
-        // "didn't accept where I dropped it" complaint.
+        // bpDropTargetCell returns null when the finger is more than
+        // ~2 cells away from the grid (see the NEAR window inside).
+        // If it returned a target AND placement is valid, commit and
+        // suppress the synthesised click so we don't double-fire.
+        // If it's NOT a valid drop, do NOT preventDefault — that would
+        // suppress the click event that would otherwise let the player
+        // tap a held-panel button (ROTATE / STASH / RESTORE) in the
+        // same gesture. Previously the unconditional preventDefault
+        // ate that click and made rotate-after-touch-pickup feel
+        // broken on mobile.
         const target = bpDropTargetCell(e.clientX, e.clientY);
         if (target && bpHeldPlacementValid(target)) {
+            if (e.cancelable) e.preventDefault();
             bpPlaceAt(target.x, target.y);
+            return;
         }
-        // No valid target → keep held; ghost stays at last painted cell.
+        // No valid target → keep held; let the click fire naturally so
+        // the next tap (rotate button, another cell) registers without
+        // the player having to lift and tap again.
     }
     // Bound ONCE to document.body — pointermove/up route to the element
     // under the finger and bubble up. No setPointerCapture: that would

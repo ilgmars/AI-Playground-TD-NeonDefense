@@ -2343,6 +2343,14 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 #bp-grid.bp-shake { animation: bpShake 0.3s; }
 @keyframes bpShake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+/* Flash the held panel when a drop is refused so the player sees
+   where the recovery controls (ROTATE / RESTORE / STASH) live. */
+#bp-held.bp-held-flash { animation: bpHeldFlash 0.45s ease-out; }
+@keyframes bpHeldFlash {
+    0%   { box-shadow: 0 0 0 0 rgba(192,132,252,0.0); border-color: #c084fc; }
+    35%  { box-shadow: 0 0 0 6px rgba(251,113,133,0.45); border-color: #fb7185; }
+    100% { box-shadow: 0 0 0 0 rgba(192,132,252,0.0); border-color: #c084fc; }
+}
 .bp-cell {
     width: var(--bp-cell); height: var(--bp-cell);
     border: 1px solid rgba(255,255,255,0.12); border-radius: 5px;
@@ -2353,8 +2361,23 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 .bp-cell:not(.filled):hover { background: rgba(192,132,252,0.12); }
 .bp-cell.filled { color: #e2e8f0; }
+/* Ghost cells are PREVIEW only — never a placed item. The green
+   variant uses a solid translucent fill; the red variant uses
+   diagonal stripes + a dashed outline so a player can't mistake
+   it for a placed-but-broken block (which was the "red block
+   stuck in the field, can't pick it up" mobile complaint). */
 .bp-cell.ghost-ok  { outline: 2px solid #a3e635; outline-offset: -2px; background: rgba(163,230,53,0.22); }
-.bp-cell.ghost-bad { outline: 2px solid #fb7185; outline-offset: -2px; background: rgba(251,113,133,0.22); }
+.bp-cell.ghost-bad {
+    outline: 2px dashed #fb7185;
+    outline-offset: -2px;
+    background-image: repeating-linear-gradient(
+        135deg,
+        rgba(251,113,133,0.32) 0,
+        rgba(251,113,133,0.32) 6px,
+        rgba(0,0,0,0)         6px,
+        rgba(0,0,0,0)         12px
+    );
+}
 /* Mobile drag-to-place: telling the browser these elements are NOT
    scroll/pan starters keeps the touch routed to our JS handlers when
    the finger crosses from the stash into the grid. Without this,

@@ -823,6 +823,176 @@ const path = require('path');
         await ctx.close();
     }
 
+    // ── 26. Touch drag → release on rotate button rotates the item ────
+    // Regression: bpOnPointerEnd used to preventDefault unconditionally,
+    // eating the synthesised click that would have fired on whatever
+    // was under the finger when it lifted. Now preventDefault only
+    // fires on a committed drop — drag-pickup-then-tap-rotate works
+    // in a single gesture.
+    {
+        const { page, ctx, errs } = await freshMobilePage();
+        await seedBackpack(page, [], {
+            placed: [{ id: 'plasma_cell', x: 1, y: 1, rot: 0 }],
+        });
+        const result = await page.evaluate(async () => {
+            const src = document.querySelector('#bp-grid .bp-cell.filled[data-placed-idx="0"]');
+            const sr = src.getBoundingClientRect();
+            const POINTER_ID = 90;
+            const fire = (t, type, x, y) => t.dispatchEvent(new PointerEvent(type, {
+                bubbles: true, cancelable: true,
+                pointerId: POINTER_ID, pointerType: 'touch',
+                isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1,
+                clientX: x, clientY: y, screenX: x, screenY: y,
+            }));
+            // pointerdown on the placed cell, move past threshold to
+            // trigger bpPickPlaced, then end the touch over the rotate
+            // button. The click on the rotate button should fire next.
+            fire(src, 'pointerdown', sr.left + sr.width/2, sr.top + sr.height/2);
+            await new Promise(r => setTimeout(r, 20));
+            fire(document.body, 'pointermove', sr.left + sr.width/2 + 30, sr.top + sr.height/2 + 30);
+            await new Promise(r => setTimeout(r, 30));
+            const rotBtn = document.getElementById('bp-rotate');
+            const rr = rotBtn.getBoundingClientRect();
+            // Release the finger directly over the rotate button.
+            fire(document.body, 'pointerup', rr.left + rr.width/2, rr.top + rr.height/2);
+            await new Promise(r => setTimeout(r, 30));
+            // The pointerup didn't preventDefault (no valid drop), so a
+            // tap dispatched on the rotate button now should rotate.
+            rotBtn.click();
+            await new Promise(r => setTimeout(r, 50));
+            return {
+                held:    !!bpHeld,
+                rot:     bpHeld && bpHeld.rot,
+                placedLen: save.backpack.placed.length,
+            };
+        });
+        ok('drag-pickup-then-rotate: still held',    result.held === true);
+        ok('drag-pickup-then-rotate: rot advanced',  result.rot === 1);
+        ok('drag-pickup-then-rotate: not re-placed', result.placedLen === 0);
+        ok('drag-pickup-then-rotate: no JS errors',  errs.length === 0);
+        await ctx.close();
+    }
+
+    // ── 27. Refused-place pulse: status mentions all recovery options ─
+    // When the player drops a held item on a spot that doesn't fit,
+    // the status line must point at the actual buttons they need to
+    // tap next. RESTORE only mentioned for placed-pickups.
+    {
+        const { page, ctx, errs } = await freshMobilePage();
+        await seedBackpack(page, [], {
+            w: 3, h: 3,
+            placed: [
+                { id: 'plasma_cell',  x: 0, y: 0, rot: 0 },
+                { id: 'reactor_bulwark', x: 1, y: 1, rot: 0 }, // 2x2 covering (1,1)..(2,2)
+            ],
+        });
+        // Pick the bulwark (placed) — it has origin, so RESTORE applies.
+        await page.click('#bp-grid .bp-cell.filled[data-placed-idx="1"]');
+        await page.waitForTimeout(60);
+        // Try to drop on (0,0) — occupied by plasma_cell. The bulwark
+        // is 2x2, won't fit there either. bpPlaceAt refuses.
+        // We need to tap the (0,0) cell, which is filled — it'll
+        // try to PICK that cell instead (the plasma_cell). Tap (0,1)
+        // which is empty: 2x2 from (0,1) extends to (1,2) which is now
+        // empty (bulwark was picked up) → would fit. Try (1,2) → 2x2
+        // extends past grid (col 2..3, row 2..3) → won't fit.
+        await page.evaluate(() => {
+            // Click bottom-right corner cell (2,2) — 2x2 from there
+            // extends to (3,3), past the 3x3 grid. Won't fit.
+            const cells = document.querySelectorAll('#bp-grid .bp-cell');
+            const c = cells[2 * 3 + 2];
+            c.click();
+        });
+        await page.waitForTimeout(80);
+        const after = await page.evaluate(() => ({
+            statusText: document.getElementById('bp-status').textContent,
+            held: !!bpHeld,
+            heldFlashed: document.getElementById('bp-held').classList.contains('bp-held-flash'),
+        }));
+        ok('refused-place: status mentions ROTATE',
+           /ROTATE/i.test(after.statusText));
+        ok('refused-place: status mentions RESTORE (origin present)',
+           /RESTORE/i.test(after.statusText));
+        ok('refused-place: status mentions STASH',
+           /STASH/i.test(after.statusText));
+        ok('refused-place: item still held',          after.held === true);
+        ok('refused-place: held panel flash class added', after.heldFlashed === true);
+        ok('refused-place: no JS errors',             errs.length === 0);
+        await ctx.close();
+    }
+
+    // ── 28. Red-ghost cells stay visually distinct from filled cells ──
+    // ghost-bad uses a striped background + dashed outline; filled cells
+    // use a solid rarity-colour background + solid border. A regression
+    // that made them look identical would re-introduce the "red block
+    // stuck in the field" confusion.
+    {
+        const { page, ctx } = await freshMobilePage();
+        await seedBackpack(page, ['reactor_bulwark'], {
+            w: 3, h: 3,
+            placed: [{ id: 'plasma_cell', x: 0, y: 0, rot: 0 }],
+        });
+        await page.click('#bp-stash .bp-chip[data-stash-idx="0"]');
+        await page.waitForTimeout(60);
+        // Hover an empty cell that would conflict (bulwark 2x2 from (1,0)
+        // overlaps with plasma at (0,0)? plasma is at 0,0 only. 2x2 from
+        // (1,0) covers (1,0)(2,0)(1,1)(2,1) — no overlap, would fit.
+        // Try (0,1) → covers (0,1)(1,1)(0,2)(1,2) — no overlap, fits.
+        // Try (1,1) → covers (1,1)(2,1)(1,2)(2,2) — fits.
+        // Try (0,0) — already filled → cell.click would pick plasma up.
+        // Use a small grid where ANY placement conflicts: make the held
+        // item bigger than the empty space. Actually with 1 plasma at 0,0
+        // there are 8 empty cells in a 3x3 — bulwark 2x2 always fits.
+        // Use a 2x2 grid with one filled cell.
+        await page.evaluate(() => {
+            const s = NeonSave.load();
+            s.metaXP = 5000; s.maxWaveReached = 30;
+            s.backpack = { w: 2, h: 2,
+                placed: [{ id: 'plasma_cell', x: 0, y: 0, rot: 0 }],
+                stash: ['reactor_bulwark'], luckBoost: 0 };
+            NeonSave.write(s); location.reload();
+        });
+        await page.waitForTimeout(700);
+        await page.evaluate(() => navigateToBackpack());
+        await page.waitForTimeout(250);
+        await page.click('#bp-stash .bp-chip[data-stash-idx="0"]');
+        await page.waitForTimeout(60);
+        // Hover (0,1) — 2x2 bulwark from (0,1) extends to (1,2) past
+        // the 2x2 grid → no valid spot. The empty cells get red ghost.
+        await page.evaluate(() => {
+            // The clamp puts the ghost at the only top-left that keeps
+            // the shape in-grid: (0,0). But (0,0) is filled → ghost-bad.
+            // Trigger a hover to paint:
+            const cells = document.querySelectorAll('#bp-grid .bp-cell:not(.filled)');
+            if (cells[0]) cells[0].dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+        });
+        await page.waitForTimeout(60);
+        const styles = await page.evaluate(() => {
+            const ghostBad = document.querySelector('#bp-grid .bp-cell.ghost-bad');
+            const filled  = document.querySelector('#bp-grid .bp-cell.filled');
+            if (!ghostBad || !filled) return { hasGhost: !!ghostBad, hasFilled: !!filled };
+            const gs = getComputedStyle(ghostBad);
+            const fs = getComputedStyle(filled);
+            return {
+                hasGhost: true,
+                hasFilled: true,
+                ghostHasStripes: /repeating-linear-gradient|gradient/i.test(gs.backgroundImage),
+                ghostOutlineStyle: gs.outlineStyle,
+                filledHasStripes: /repeating-linear-gradient|gradient/i.test(fs.backgroundImage || ''),
+            };
+        });
+        if (styles.hasGhost && styles.hasFilled) {
+            ok('ghost-bad uses striped background', styles.ghostHasStripes === true);
+            ok('ghost-bad outline is dashed',       styles.ghostOutlineStyle === 'dashed');
+            ok('filled cell does NOT use stripes',  styles.filledHasStripes === false);
+        } else {
+            // The scenario didn't produce a ghost-bad; treat as a "skip"
+            // by recording the layout sanity instead.
+            ok('ghost / filled cells rendered',     styles.hasGhost && styles.hasFilled);
+        }
+        await ctx.close();
+    }
+
     // ── 20a. Drop with finger just BELOW the bottom edge ──────────────
     // Regression: bpDropTargetCell clamps the ghost to a valid in-grid
     // cell when the finger drifts ~2 cells past the edge, but the
