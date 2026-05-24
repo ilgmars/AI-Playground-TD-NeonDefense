@@ -188,54 +188,146 @@
         };
     }
 
-    // Top-level join. Strategy order: mqtt → nostr → torrent (last-
-    // resort, mostly dead). If the primary strategy loads but no
-    // peer connects within FIRST_PEER_MS, we leave it and try the
-    // next. The returned adapter then routes ALL future traffic over
-    // whichever strategy actually connected.
+    // Top-level join. Runs MULTIPLE strategies in PARALLEL by default
+    // (mqtt + nostr): peers find each other via whichever channel
+    // works. Same room code on both. Outgoing messages fan out to all
+    // joined rooms; incoming messages fan in to the single onMessage
+    // listener list. This is much more robust than the serial fallback
+    // since you don't need both peers to pick the same strategy.
+    //
+    // If opts.strategies is a single string OR an array of length 1,
+    // the adapter degrades to the legacy serial-fallback behaviour.
     async function joinRoom(roomCode, peerId, opts) {
         opts = opts || {};
         const status = typeof opts.onStatus === 'function' ? opts.onStatus : () => {};
-        const strategies = Array.isArray(opts.strategies)
+        const requested = Array.isArray(opts.strategies)
             ? opts.strategies
-            : ['mqtt', 'nostr'];
+            : (opts.strategies ? [opts.strategies] : ['mqtt', 'nostr']);
 
-        let lastErr = null;
-        for (const strategy of strategies) {
-            status({ kind: 'try-strategy', strategy });
-            let mod;
-            try {
-                mod = await loadStrategy(strategy, status);
-            } catch (e) {
-                lastErr = e;
-                status({ kind: 'strategy-load-fail', strategy, error: e && e.message || String(e) });
-                continue;
-            }
-            status({ kind: 'joining', room: roomCode, strategy });
-            let room;
-            try {
-                const iceServers = readIceServers();
-                const joinCfg = { appId: APP_ID };
-                if (iceServers) {
-                    // Trystero passes rtcConfig straight to
-                    // RTCPeerConnection. iceServers gives peers a
-                    // TURN relay fallback when STUN host candidates
-                    // can't bridge the NAT — exactly the case that
-                    // kept multiplayer broken between mobile networks.
-                    joinCfg.rtcConfig = { iceServers };
-                    status({ kind: 'ice-config', count: iceServers.length, strategy });
-                }
-                room = mod.joinRoom(joinCfg, String(roomCode));
-            } catch (e) {
-                lastErr = e;
-                status({ kind: 'join-fail', strategy, error: e && e.message || String(e) });
-                continue;
-            }
-            status({ kind: 'joined', room: roomCode, strategy });
-            return wrapRoom(strategy, room, peerId, status);
+        const iceServers = readIceServers();
+        const joinCfg = { appId: APP_ID };
+        if (iceServers) {
+            joinCfg.rtcConfig = { iceServers };
+            status({ kind: 'ice-config', count: iceServers.length });
         }
-        throw new Error('All Trystero strategies failed. Last error: ' +
-            (lastErr && lastErr.message || lastErr || 'unknown'));
+
+        // Try each requested strategy in parallel. Resolve the
+        // settlement (mix of fulfilled / rejected) and keep every
+        // room that joined.
+        const attempts = requested.map(async (strategy) => {
+            status({ kind: 'try-strategy', strategy });
+            const mod = await loadStrategy(strategy, status);
+            const room = mod.joinRoom(joinCfg, String(roomCode));
+            status({ kind: 'joined', room: roomCode, strategy });
+            return { strategy, room };
+        });
+        const settled = await Promise.allSettled(attempts);
+        const rooms = [];
+        const errors = [];
+        for (const r of settled) {
+            if (r.status === 'fulfilled') rooms.push(r.value);
+            else errors.push(r.reason);
+        }
+        if (rooms.length === 0) {
+            throw new Error('All Trystero strategies failed. Errors: ' +
+                errors.map(e => e && e.message || String(e)).join('; '));
+        }
+        if (rooms.length === 1) {
+            // Single-strategy path: avoid the dedupe overhead.
+            return wrapRoom(rooms[0].strategy, rooms[0].room, peerId, status);
+        }
+        return wrapMultiRoom(rooms, peerId, status);
+    }
+
+    // Multi-strategy wrapper: fans out sends to every joined room,
+    // fans in messages from all rooms (deduped by peer+kind+content
+    // hash to avoid double-delivery when peers also have multiple
+    // strategies up). Peer-join/leave is union: any strategy
+    // surfacing a peer counts; the same peer arriving on a second
+    // strategy is ignored.
+    function wrapMultiRoom(rooms, peerId, onStatus) {
+        const status = typeof onStatus === 'function' ? onStatus : () => {};
+        const wrappers = rooms.map(({ strategy, room }) => wrapRoom(strategy, room, peerId, status));
+        const msgListeners  = [];
+        const joinListeners = [];
+        const leaveListeners = [];
+        const seenPeers = new Set();
+        const recentMsgs = new Map(); // msg-hash → expiry ms
+
+        function hashMsg(msg, from) {
+            try { return (from || '?') + '|' + JSON.stringify(msg); }
+            catch (_) { return null; }
+        }
+        function sweepDedupe(now) {
+            for (const [k, v] of recentMsgs) if (v < now) recentMsgs.delete(k);
+        }
+        function onAnyMsg(msg, from) {
+            const now = Date.now();
+            sweepDedupe(now);
+            const h = hashMsg(msg, from);
+            if (h) {
+                if (recentMsgs.has(h)) return;
+                recentMsgs.set(h, now + 3000);   // 3 s dedupe window
+            }
+            for (const fn of msgListeners) {
+                try { fn(msg, from); } catch (_) {}
+            }
+        }
+
+        // Wire every sub-adapter into the multi-room fan-out.
+        for (const w of wrappers) {
+            w.onMessage(onAnyMsg);
+            w.onPeerJoin(({ id }) => {
+                if (seenPeers.has(id)) return;
+                seenPeers.add(id);
+                status({ kind: 'peer-join', id, strategy: w.strategy });
+                for (const fn of joinListeners) {
+                    try { fn({ id }); } catch (_) {}
+                }
+            });
+            w.onPeerLeave(({ id }) => {
+                if (!seenPeers.has(id)) return;
+                seenPeers.delete(id);
+                status({ kind: 'peer-leave', id, strategy: w.strategy });
+                for (const fn of leaveListeners) {
+                    try { fn({ id }); } catch (_) {}
+                }
+            });
+        }
+
+        let left = false;
+        return {
+            id: String(peerId || 'me'),
+            strategy: wrappers.map(w => w.strategy).join('+'),
+            send(msg) {
+                if (left) return;
+                for (const w of wrappers) w.send(msg);
+            },
+            onMessage(fn) {
+                msgListeners.push(fn);
+                return () => {
+                    const i = msgListeners.indexOf(fn);
+                    if (i >= 0) msgListeners.splice(i, 1);
+                };
+            },
+            leave() {
+                if (left) return;
+                left = true;
+                msgListeners.length = 0;
+                joinListeners.length = 0;
+                leaveListeners.length = 0;
+                for (const w of wrappers) {
+                    try { w.leave(); } catch (_) {}
+                }
+            },
+            peerCount() { return seenPeers.size; },
+            onPeerJoin(fn) {
+                if (typeof fn === 'function') joinListeners.push(fn);
+            },
+            onPeerLeave(fn) {
+                if (typeof fn === 'function') leaveListeners.push(fn);
+            },
+        };
     }
 
     const api = {
