@@ -46,6 +46,28 @@
         ],
     };
 
+    // Curated broker / relay lists overriding Trystero's baked-in
+    // defaults. The 0.21.5 MQTT default set includes hivemq:8884 which
+    // the official broker matrix lists as having NO TLS WebSocket
+    // (only plain 8000 — blocked from HTTPS pages by mixed-content).
+    // Same MQTT defaults also include mosquitto:8081 which works but
+    // we add :443 as a redundant entry.
+    //
+    // Multiple URLs per strategy = Trystero picks one that responds;
+    // peers using the same list converge on the same broker quickly.
+    const STRATEGY_RELAY_URLS = {
+        // Just EMQX for now per the user's request. The Trystero
+        // default also includes hivemq:8884 (no TLS WS — deprecated)
+        // and mosquitto:8081, both of which were flaky. Single
+        // curated WSS endpoint is simpler to reason about; if peers
+        // can't reach this one, Nostr in parallel is the fallback.
+        mqtt: ['wss://broker.emqx.io:8084/mqtt'],
+        // Nostr left at Trystero defaults — the relay list is large
+        // and most are reachable. Override here if specific relays
+        // are needed.
+        nostr: null,
+    };
+
     const CDN_LOAD_TIMEOUT_MS = 15000;
     const FIRST_PEER_MS       = 12000;  // how long to wait on the
                                         // primary strategy before
@@ -205,9 +227,9 @@
             : (opts.strategies ? [opts.strategies] : ['mqtt', 'nostr']);
 
         const iceServers = readIceServers();
-        const joinCfg = { appId: APP_ID };
+        const baseCfg = { appId: APP_ID };
         if (iceServers) {
-            joinCfg.rtcConfig = { iceServers };
+            baseCfg.rtcConfig = { iceServers };
             status({ kind: 'ice-config', count: iceServers.length });
         }
 
@@ -217,7 +239,18 @@
         const attempts = requested.map(async (strategy) => {
             status({ kind: 'try-strategy', strategy });
             const mod = await loadStrategy(strategy, status);
-            const room = mod.joinRoom(joinCfg, String(roomCode));
+            const cfg = Object.assign({}, baseCfg);
+            // Override Trystero's baked-in relay list per strategy if
+            // we have a curated set. Critically for mqtt: the 0.21.5
+            // defaults include hivemq:8884 which has no TLS WS in 2026
+            // (deprecated). Our list keeps only confirmed-working WSS
+            // endpoints.
+            const relays = STRATEGY_RELAY_URLS[strategy];
+            if (relays && relays.length) {
+                cfg.relayUrls = relays;
+                status({ kind: 'relay-urls', strategy, count: relays.length });
+            }
+            const room = mod.joinRoom(cfg, String(roomCode));
             status({ kind: 'joined', room: roomCode, strategy });
             return { strategy, room };
         });

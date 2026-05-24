@@ -24,14 +24,12 @@
         'https://cdn.jsdelivr.net/npm/trystero@0.21.5/+esm',
     ];
 
-    // Public MQTT brokers Trystero rotates through for signalling.
-    // Switched here in 2026 because most WebTorrent trackers had gone
-    // stale (cert errors / 404s) — MQTT is operationally healthier.
-    // Baked-in list matches trystero@0.21.5/es2022/mqtt.mjs.
+    // Public MQTT broker used for Trystero signalling. Matches the
+    // curated STRATEGY_RELAY_URLS.mqtt list in transport-trystero.js
+    // — EMQX is the single confirmed-stable WSS endpoint in 2026
+    // (HiveMQ deprecated TLS WS; Mosquitto :8081 was flaky).
     const TRACKER_URLS = [
-        'wss://broker.hivemq.com:8884/mqtt',
         'wss://broker.emqx.io:8084/mqtt',
-        'wss://test.mosquitto.org:8081/mqtt',
     ];
 
     const STUN_URL = 'stun:stun.l.google.com:19302';
