@@ -30,6 +30,12 @@ const SUITES = [
     { name: 'backpack-touch',         file: 'tests/backpack-touch-drag.test.js' },
     { name: 'backpack-touch-contin',  file: 'tests/backpack-touch-drag-continuity.test.js' },
     { name: 'backpack-mobile-issues', file: 'tests/backpack-mobile-issues.test.js' },
+    // Real-shape sweep — runs every assertion across plasma_cell (1×1),
+    // coolant_coil (1×2), bounty_module (1×3), interest_ledger (2×1),
+    // reactor_bulwark (2×2), targeting_core / fabricator (L-shapes),
+    // overclock_matrix (T). Catches mobile regressions that 1×1-only
+    // tests miss.
+    { name: 'backpack-mobile-real',   file: 'tests/backpack-mobile-real.test.js' },
     { name: 'retire-flawless',        file: 'tests/retire-flawless.test.js' },
     { name: 'variant-mastery', file: 'tests/variant-mastery.test.js' },
     { name: 'backpack-ui',     file: 'tests/backpack-ui.test.js' },

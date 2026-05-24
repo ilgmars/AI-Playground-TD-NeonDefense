@@ -295,21 +295,19 @@ const path = require('path');
     {
         const { page, ctx, errs } = await freshMobilePage();
         await seedBackpack(page, ['plasma_cell']);
-        // Buttons are invisible in placeholder mode (visibility:hidden,
-        // not display:none — keeps the panel's layout fixed).
-        const hidden = await page.evaluate(() => {
+        // Buttons are DISABLED in placeholder mode. They still occupy
+        // layout space (so the panel size stays constant) but reject
+        // taps via the HTML disabled attribute.
+        const state = await page.evaluate(() => {
             const ids = ['bp-rotate', 'bp-tostash', 'bp-discard', 'bp-restore'];
             const out = {};
-            for (const id of ids) {
-                const el = document.getElementById(id);
-                out[id] = getComputedStyle(el).visibility === 'hidden';
-            }
+            for (const id of ids) out[id] = document.getElementById(id).disabled;
             return out;
         });
-        ok('placeholder: rotate button invisible',  hidden['bp-rotate']  === true);
-        ok('placeholder: stash button invisible',   hidden['bp-tostash'] === true);
-        ok('placeholder: discard button invisible', hidden['bp-discard'] === true);
-        ok('placeholder: restore button invisible', hidden['bp-restore'] === true);
+        ok('placeholder: rotate button disabled',  state['bp-rotate']  === true);
+        ok('placeholder: stash button disabled',   state['bp-tostash'] === true);
+        ok('placeholder: discard button disabled', state['bp-discard'] === true);
+        ok('placeholder: restore button disabled', state['bp-restore'] === true);
 
         // Direct function calls — still defensive against null bpHeld.
         await page.evaluate(() => { bpRotateHeld(); bpHeldToStash(); bpSellHeld(); bpRestoreHeld(); });
@@ -1149,35 +1147,30 @@ const path = require('path');
         });
         const before = await page.evaluate(() => {
             const held = document.getElementById('bp-held');
-            const hint = document.getElementById('bp-held-empty');
             return {
                 heldIsEmptyClass: held.classList.contains('is-empty'),
                 heldVisible: getComputedStyle(held).visibility !== 'hidden',
-                emptyHintVisible: getComputedStyle(hint).visibility !== 'hidden',
+                rotateDisabled: document.getElementById('bp-rotate').disabled,
             };
         });
         const gridDocBefore = await docOffsetTop();
         ok('empty state: panel rendered',         before.heldVisible === true);
         ok('empty state: is-empty class set',     before.heldIsEmptyClass === true);
-        ok('empty state: hint visible',           before.emptyHintVisible === true);
+        ok('empty state: rotate disabled',        before.rotateDisabled === true);
 
         // Pick the chip up. Document-relative position should NOT shift.
         await page.click('#bp-stash .bp-chip[data-stash-idx="0"]');
         await page.waitForTimeout(80);
         const after = await page.evaluate(() => {
             const held = document.getElementById('bp-held');
-            const hint = document.getElementById('bp-held-empty');
-            const rotate = document.getElementById('bp-rotate');
             return {
                 heldIsEmptyClass: held.classList.contains('is-empty'),
-                emptyHintVisible: getComputedStyle(hint).visibility !== 'hidden',
-                rotateVisible: getComputedStyle(rotate).visibility !== 'hidden',
+                rotateDisabled: document.getElementById('bp-rotate').disabled,
             };
         });
         const gridDocAfter = await docOffsetTop();
         ok('held state: is-empty class cleared',  after.heldIsEmptyClass === false);
-        ok('held state: hint hidden',             after.emptyHintVisible === false);
-        ok('held state: rotate button visible',   after.rotateVisible === true);
+        ok('held state: rotate button enabled',   after.rotateDisabled === false);
         // User-facing complaint was the entire held panel collapsing
         // (display:none → flex), pushing the grid 60-90px on pickup.
         // Document-relative offset cancels Playwright auto-scroll;

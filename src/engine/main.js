@@ -967,9 +967,20 @@ function renderBackpack() {
             : 'Reach wave 20 in any run to unlock.';
     }
 
-    // Held panel — ALWAYS visible (placeholder when nothing held) so
-    // picking up an item doesn't push the grid down and steal taps.
+    // Body class tracks whether an item is held so CSS can disable
+    // scroll/pan gestures on every grid cell. Without this, dragging
+    // the item downward scrolls the whole page.
+    document.body.classList.toggle('bp-holding', !!bpHeld);
+
+    // Held panel — same DOM + layout regardless of state. Toggle
+    // is-empty + button disabled flags to swap between placeholder
+    // and active. Layout dimensions stay identical so picking an
+    // item up doesn't shift the grid below.
     const heldWrap = document.getElementById('bp-held');
+    const rotateBtn  = document.getElementById('bp-rotate');
+    const stashBtn   = document.getElementById('bp-tostash');
+    const discardBtn = document.getElementById('bp-discard');
+    const restoreBtn = document.getElementById('bp-restore');
     if (bpHeld && BACKPACK_ITEMS[bpHeld.id]) {
         const def = BACKPACK_ITEMS[bpHeld.id];
         heldWrap.classList.remove('is-empty');
@@ -983,22 +994,33 @@ function renderBackpack() {
             const refund = NeonSave.getSellRefund(def.rarity);
             sellEl.textContent = refund > 0 ? `+${refund}` : '';
         }
-        // RESTORE is only meaningful when the held item originated from
-        // a placed cell (an escape hatch for accidental pickups). For
-        // stash-picked items the button stays hidden.
-        const restoreBtn = document.getElementById('bp-restore');
-        if (restoreBtn) restoreBtn.classList.toggle('hidden', !bpHeld.origin);
+        // Enable the action buttons.
+        if (rotateBtn)  rotateBtn.disabled  = false;
+        if (stashBtn)   stashBtn.disabled   = false;
+        if (discardBtn) discardBtn.disabled = false;
+        // RESTORE is only meaningful when the held item came from the
+        // grid (origin set). Hidden for stash pickups.
+        if (restoreBtn) {
+            restoreBtn.classList.toggle('hidden', !bpHeld.origin);
+            restoreBtn.disabled = !bpHeld.origin;
+        }
     } else {
-        // Empty / placeholder state — keep the panel in layout flow.
+        // Placeholder state — buttons disabled, dimmed via .is-empty.
+        // Keep the same children rendered so layout is unchanged.
         heldWrap.classList.add('is-empty');
         heldWrap.classList.remove('hidden');
-        // Reset inner text so a stale name/desc doesn't linger.
-        const n = document.getElementById('bp-held-name'); if (n) n.textContent = '';
-        const d = document.getElementById('bp-held-desc'); if (d) d.textContent = '';
-        const s = document.getElementById('bp-held-shape'); if (s) s.innerHTML = '';
+        document.getElementById('bp-held-name').textContent = '—';
+        const d = document.getElementById('bp-held-desc');
+        if (d) d.textContent = 'tap an item to pick it up';
+        // Render a 1×1 placeholder shape so the mini-shape area is the
+        // same size in both states.
+        const shapeEl = document.getElementById('bp-held-shape');
+        if (shapeEl) bpMiniShape({ shape: [[1]] }, 0, shapeEl);
         const sv = document.getElementById('bp-sell-val'); if (sv) sv.textContent = '';
-        const restoreBtn = document.getElementById('bp-restore');
-        if (restoreBtn) restoreBtn.classList.add('hidden');
+        if (rotateBtn)  rotateBtn.disabled  = true;
+        if (stashBtn)   stashBtn.disabled   = true;
+        if (discardBtn) discardBtn.disabled = true;
+        if (restoreBtn) { restoreBtn.classList.add('hidden'); restoreBtn.disabled = true; }
     }
 
     // Grid
