@@ -1040,10 +1040,17 @@ function renderBackpack() {
                 const pItem = bp.placed[ownerIdx];
                 const def = BACKPACK_ITEMS[pItem.id];
                 cell.classList.add('filled');
+                if (def && def.rarity) cell.dataset.rarity = def.rarity;
                 cell.style.background = (BP_RARITY_COLOR[def && def.rarity] || '#64748b') + '33';
                 cell.style.borderColor = BP_RARITY_COLOR[def && def.rarity] || '#64748b';
                 if (pItem.x === x && pItem.y === y) cell.textContent = (def ? def.name[0] : '?');
-                if (def) cell.title = `${def.name}\n${def.desc || ''}`;
+                // Tooltip: name, rarity (titlecased), description.
+                if (def) {
+                    const rarityLabel = def.rarity
+                        ? def.rarity.charAt(0).toUpperCase() + def.rarity.slice(1)
+                        : 'Common';
+                    cell.title = `${def.name}\n${rarityLabel}\n${def.desc || ''}`;
+                }
                 cell.dataset.placedIdx = String(ownerIdx);     // needed by the touch-drag handler
                 cell.addEventListener('click', () => {
                     // Filled cell tapped while the held item's ghost is
@@ -1103,7 +1110,12 @@ function renderBackpack() {
         text.appendChild(desc);
         chip.appendChild(shape);
         chip.appendChild(text);
-        if (def) chip.title = `${def.name}\n${def.desc || ''}`;
+        if (def) {
+            const rarityLabel = def.rarity
+                ? def.rarity.charAt(0).toUpperCase() + def.rarity.slice(1)
+                : 'Common';
+            chip.title = `${def.name}\n${rarityLabel}\n${def.desc || ''}`;
+        }
         chip.addEventListener('click', () => bpPickStash(i));
         stashEl.appendChild(chip);
     });
@@ -1510,9 +1522,11 @@ function init() {
         if (!bpTouch.dragging) {
             if (Math.hypot(e.clientX - bpTouch.startX, e.clientY - bpTouch.startY) < BP_DRAG_THRESHOLD_PX) return;
             bpTouch.dragging = true;
-            if (bpTouch.source === 'stash')  bpPickStash(bpTouch.idx);
-            else                              bpPickPlaced(bpTouch.idx);
-            // Source chip/cell is now destroyed by renderBackpack.
+            if (bpTouch.source === 'stash')       bpPickStash(bpTouch.idx);
+            else if (bpTouch.source === 'placed') bpPickPlaced(bpTouch.idx);
+            // 'held-move' — no pickup; item is already in hand. We're
+            // just letting the player re-aim the ghost via touch.
+            // Source chip/cell may be destroyed by renderBackpack here.
             // Subsequent pointer events route to whatever's under the
             // finger and bubble up to document.body — uninterrupted.
         }
@@ -1581,20 +1595,33 @@ function init() {
     document.getElementById('bp-grid').addEventListener('pointerdown', (e) => {
         if (!bpBackpackVisible() || (e.pointerType === 'mouse' && e.button !== 0)) return;
         if (bpTouch) return;
-        const cell = e.target.closest && e.target.closest('.bp-cell.filled');
-        if (!cell) return;
-        const idx = parseInt(cell.dataset.placedIdx, 10);
-        if (!Number.isFinite(idx)) return;
-        // While holding an item: if the touched filled cell is currently
-        // under our ghost-bad footprint, the player is trying to put
-        // their held item HERE — not pick up the existing item. Skip
-        // engaging the drag so the click handler routes the tap through
-        // bpPlaceAt (refused, with red feedback) rather than swapping.
-        // Without this guard, a touch-drag would call bpPickPlaced
-        // unconditionally on any filled cell, undoing the click-handler
-        // fix from the previous commit.
-        if (bpHeld && cell.classList.contains('ghost-bad')) return;
-        bpTouch = { source: 'placed', idx, startX: e.clientX, startY: e.clientY, dragging: false, pointerId: e.pointerId };
+        const anyCell = e.target.closest && e.target.closest('.bp-cell');
+        if (!anyCell) return;
+        const isFilled = anyCell.classList.contains('filled');
+
+        // Case 1: touched a filled cell. Standard placed-item pickup
+        // UNLESS the cell is also under our held item's ghost-bad
+        // footprint — that means the player is aiming a held item AT
+        // the existing item, NOT trying to grab it. Skip drag in that
+        // case so the click handler routes through bpPlaceAt instead
+        // (refused, with red feedback) and we don't accidentally swap.
+        if (isFilled) {
+            if (bpHeld && anyCell.classList.contains('ghost-bad')) return;
+            const idx = parseInt(anyCell.dataset.placedIdx, 10);
+            if (!Number.isFinite(idx)) return;
+            bpTouch = { source: 'placed', idx, startX: e.clientX, startY: e.clientY, dragging: false, pointerId: e.pointerId };
+            return;
+        }
+
+        // Case 2: touched an EMPTY cell while holding an item. Engage
+        // a "move-held" drag so the player can re-aim the held item by
+        // touch — the same gesture that works from the stash. Without
+        // this, dragging the red ghost (or any empty cell) on touch
+        // was a no-op and the player had to either tap-to-place blind
+        // or use STASH to recover.
+        if (bpHeld) {
+            bpTouch = { source: 'held-move', startX: e.clientX, startY: e.clientY, dragging: false, pointerId: e.pointerId };
+        }
     });
     document.getElementById('menu-dailyseed-btn').addEventListener('click', () => {
         if (!NeonSave.hasUnlocked(save, 'qol.dailyseed')) return;

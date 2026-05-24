@@ -2390,7 +2390,16 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     font-size: clamp(0.8rem, 3vw, 1.1rem); transition: background 0.1s;
 }
 .bp-cell:not(.filled):hover { background: rgba(192,132,252,0.12); }
-.bp-cell.filled { color: #e2e8f0; }
+/* Placed items get a distinct, opaque outline (2px solid border in
+   their rarity colour, plus a subtle inset glow) so they don't blur
+   into the grid background or get confused with the ghost preview. */
+.bp-cell.filled {
+    color: #e2e8f0;
+    border-width: 2px;
+    border-style: solid;
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.55);
+    font-weight: 700;
+}
 /* Ghost cells are PREVIEW only — never a placed item. The green
    variant uses a solid translucent fill; the red variant uses
    diagonal stripes + a dashed outline so a player can't mistake
