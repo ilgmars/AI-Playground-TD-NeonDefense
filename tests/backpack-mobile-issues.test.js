@@ -76,12 +76,14 @@ const path = require('path');
             held: !!bpHeld && bpHeld.id === 'plasma_cell',
             stashLen: save.backpack.stash.length,
             placedLen: save.backpack.placed.length,
-            heldPanelVisible: !document.getElementById('bp-held').classList.contains('hidden'),
+            // Panel is always in layout; the "active" state is when
+            // the is-empty placeholder class is NOT set.
+            heldPanelActive: !document.getElementById('bp-held').classList.contains('is-empty'),
         }));
         ok('double-tap chip: item still held',            state.held === true);
         ok('double-tap chip: not double-removed',         state.stashLen === 0);
         ok('double-tap chip: nothing placed',             state.placedLen === 0);
-        ok('double-tap chip: held panel shown',           state.heldPanelVisible === true);
+        ok('double-tap chip: held panel in active state', state.heldPanelActive === true);
         ok('double-tap chip: no JS errors',               errs.length === 0);
         await ctx.close();
     }
@@ -132,15 +134,18 @@ const path = require('path');
         await page.waitForTimeout(120);
         const after = await page.evaluate(() => ({
             held:        !!bpHeld,
-            heldHidden:  document.getElementById('bp-held').classList.contains('hidden'),
+            // Panel stays IN layout (placeholder) so the grid doesn't
+            // shift on pickup/release — check the .is-empty state
+            // instead of the legacy .hidden class.
+            heldEmpty:   document.getElementById('bp-held').classList.contains('is-empty'),
             stashLen:    save.backpack.stash.length,
             metaXPGain:  save.metaXP - 0,
         }));
-        ok('discard: clears held',          after.held === false);
-        ok('discard: hides held panel',     after.heldHidden === true);
-        ok('discard: stash stays empty',    after.stashLen === 0);
-        ok('discard: refunded XP',          after.metaXPGain >= beforeXP);
-        ok('discard: no JS errors',         errs.length === 0);
+        ok('discard: clears held',                 after.held === false);
+        ok('discard: panel reverts to placeholder', after.heldEmpty === true);
+        ok('discard: stash stays empty',           after.stashLen === 0);
+        ok('discard: refunded XP',                 after.metaXPGain >= beforeXP);
+        ok('discard: no JS errors',                errs.length === 0);
         await ctx.close();
     }
 
@@ -159,14 +164,14 @@ const path = require('path');
         const after = await page.evaluate(() => ({
             held:        !!bpHeld,
             stashLen:    save.backpack.stash.length,
-            heldHidden:  document.getElementById('bp-held').classList.contains('hidden'),
+            heldEmpty:   document.getElementById('bp-held').classList.contains('is-empty'),
             chipCount:   document.querySelectorAll('#bp-stash .bp-chip').length,
         }));
-        ok('to-stash: clears held',            after.held === false);
-        ok('to-stash: returns to stash',       after.stashLen === 1);
-        ok('to-stash: re-renders chip',        after.chipCount === 1);
-        ok('to-stash: hides held panel',       after.heldHidden === true);
-        ok('to-stash: no JS errors',           errs.length === 0);
+        ok('to-stash: clears held',                  after.held === false);
+        ok('to-stash: returns to stash',             after.stashLen === 1);
+        ok('to-stash: re-renders chip',              after.chipCount === 1);
+        ok('to-stash: panel reverts to placeholder', after.heldEmpty === true);
+        ok('to-stash: no JS errors',                 errs.length === 0);
         await ctx.close();
     }
 
@@ -452,12 +457,12 @@ const path = require('path');
         const after = await page.evaluate(() => ({
             held: !!bpHeld,
             stashLen: save.backpack.stash.length,
-            heldHidden: document.getElementById('bp-held').classList.contains('hidden'),
+            heldEmpty: document.getElementById('bp-held').classList.contains('is-empty'),
         }));
-        ok('renav clears held',         after.held === false);
-        ok('renav re-shows full stash', after.stashLen === 2);
-        ok('renav hides held panel',    after.heldHidden === true);
-        ok('renav: no JS errors',       errs.length === 0);
+        ok('renav clears held',                    after.held === false);
+        ok('renav re-shows full stash',            after.stashLen === 2);
+        ok('renav panel reverts to placeholder',   after.heldEmpty === true);
+        ok('renav: no JS errors',                  errs.length === 0);
         await ctx.close();
     }
 
@@ -576,11 +581,12 @@ const path = require('path');
         await page.waitForTimeout(150);
         const after = await page.evaluate(() => ({
             heldStill: bpHeld && bpHeld.id,
-            heldVisible: !document.getElementById('bp-held').classList.contains('hidden'),
+            // "Active" = not in placeholder state, item still in hand.
+            heldActive: !document.getElementById('bp-held').classList.contains('is-empty'),
         }));
-        ok('salvage preserves held item',  after.heldStill === beforeHeld);
-        ok('salvage keeps held panel up',  after.heldVisible === true);
-        ok('salvage: no JS errors',        errs.length === 0);
+        ok('salvage preserves held item',         after.heldStill === beforeHeld);
+        ok('salvage keeps held panel active',     after.heldActive === true);
+        ok('salvage: no JS errors',               errs.length === 0);
         await ctx.close();
     }
 
@@ -626,13 +632,15 @@ const path = require('path');
             const held = document.getElementById('bp-held').getBoundingClientRect();
             const grid = document.getElementById('bp-grid').getBoundingClientRect();
             return {
-                heldVisible: !document.getElementById('bp-held').classList.contains('hidden'),
+                // Panel is always rendered; check the active (non-placeholder)
+                // state when an item is held.
+                heldActive: !document.getElementById('bp-held').classList.contains('is-empty'),
                 heldTop: held.top, heldBottom: held.bottom,
                 gridTop: grid.top, gridBottom: grid.bottom,
                 gridFits: grid.bottom <= window.innerHeight + 1, // 1px slop
             };
         });
-        ok('held panel visible when item picked', layout.heldVisible === true);
+        ok('held panel active when item picked', layout.heldActive === true);
         ok('grid still fits in viewport with held panel up', layout.gridFits === true);
         await ctx.close();
     }
