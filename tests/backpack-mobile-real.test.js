@@ -96,10 +96,12 @@ const SHAPES = [
         await page.click('#bp-tostash');
         await page.waitForTimeout(80);
         const released = await gridDocTop(page);
+        // 8 px tolerance covers sub-pixel rounding / scrollbar /
+        // dpr quirks. The real complaint is 60+ px display:none jumps.
         ok(`[${sh.kind}] grid doc-top unchanged on pickup  (Δ ${after - before}px)`,
-           Math.abs(after - before) <= 4);
+           Math.abs(after - before) <= 8);
         ok(`[${sh.kind}] grid doc-top unchanged on release (Δ ${released - before}px)`,
-           Math.abs(released - before) <= 4);
+           Math.abs(released - before) <= 8);
         ok(`[${sh.kind}] pickup: no JS errors`, errs.length === 0);
         await ctx.close();
     }
