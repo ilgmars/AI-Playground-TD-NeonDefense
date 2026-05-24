@@ -1,3 +1,13 @@
 node_modules/
 android/neon-release.keystore
 android/app/neon-release.keystore
+
+# ── Secrets: never commit ───────────────────────────────────────────
+# Metered TURN/STUN credentials live here. The bundle generator
+# (tools/install-turn-config.sh) reads this and writes the public
+# bundle to src/multiplayer/turn-config.js, which is ALSO ignored
+# (regenerated per-deploy from the GitHub Secret NEON_TURN_CONFIG).
+.credentials
+# Generated TURN bundle — content rotates per deploy, so we don't
+# track it. Stub committed at turn-config.example.js for shape ref.
+src/multiplayer/turn-config.js

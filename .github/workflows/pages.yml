@@ -60,13 +60,22 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
+      # Materialise src/multiplayer/turn-config.js from the
+      # NEON_TURN_CONFIG GitHub Secret (Metered ICE-server JSON).
+      # If the secret isn't set the install script writes an EMPTY
+      # bundle and WebRTC falls back to public STUN only.
+      - name: Install TURN config
+        env:
+          NEON_TURN_CONFIG: ${{ secrets.NEON_TURN_CONFIG }}
+        run: ./tools/install-turn-config.sh
       - name: Configure Pages
         uses: actions/configure-pages@v6
       - name: Upload static site
         uses: actions/upload-pages-artifact@v5
         with:
-          # Publish the repo root — index.html + src/ + style.css. Excludes
-          # are handled by the action's defaults (no .git, etc).
+          # Publish the repo root — index.html + src/ + style.css.
+          # turn-config.js is now generated above; everything else
+          # is normal source.
           path: '.'
       - name: Deploy
         id: deployment

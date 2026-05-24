@@ -101,6 +101,19 @@
 
     const APP_ID = 'neon-defense-v1';
 
+    // Read the ICE config built by tools/install-turn-config.sh (which
+    // reads .credentials or the NEON_TURN_CONFIG env var). When the
+    // bundle exists, Trystero gets TURN + STUN servers via the rtcConfig
+    // option; otherwise WebRTC falls back to Trystero's baked-in
+    // Google STUN servers only (works for non-symmetric NAT).
+    function readIceServers() {
+        try {
+            const cfg = (typeof window !== 'undefined') && window.__neonTurnConfig;
+            if (!cfg || !Array.isArray(cfg.iceServers) || cfg.iceServers.length === 0) return null;
+            return cfg.iceServers;
+        } catch (_) { return null; }
+    }
+
     // Build the adapter shell around a strategy-specific room handle.
     // Same surface as the mock transport: {id, send, onMessage, leave,
     // peerCount, onPeerJoin, onPeerLeave}.
@@ -201,7 +214,18 @@
             status({ kind: 'joining', room: roomCode, strategy });
             let room;
             try {
-                room = mod.joinRoom({ appId: APP_ID }, String(roomCode));
+                const iceServers = readIceServers();
+                const joinCfg = { appId: APP_ID };
+                if (iceServers) {
+                    // Trystero passes rtcConfig straight to
+                    // RTCPeerConnection. iceServers gives peers a
+                    // TURN relay fallback when STUN host candidates
+                    // can't bridge the NAT — exactly the case that
+                    // kept multiplayer broken between mobile networks.
+                    joinCfg.rtcConfig = { iceServers };
+                    status({ kind: 'ice-config', count: iceServers.length, strategy });
+                }
+                room = mod.joinRoom(joinCfg, String(roomCode));
             } catch (e) {
                 lastErr = e;
                 status({ kind: 'join-fail', strategy, error: e && e.message || String(e) });
