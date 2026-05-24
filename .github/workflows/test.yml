@@ -39,6 +39,14 @@ jobs:
       - name: Install Playwright browser (chromium) + OS deps
         run: npx playwright install --with-deps chromium
 
+      # turn-config.js is gitignored — the install script materialises it.
+      # Without a secret the bundle is empty (STUN-only), which is fine
+      # for tests; the script tag in index.html just needs to NOT 404.
+      - name: Install TURN config (empty bundle if no secret)
+        env:
+          NEON_TURN_CONFIG: ${{ secrets.NEON_TURN_CONFIG }}
+        run: ./tools/install-turn-config.sh
+
       - name: Run tests
         run: npm test
         env:
@@ -80,6 +88,11 @@ jobs:
 
       - name: Install Playwright browser (chromium) + OS deps
         run: npx playwright install --with-deps chromium
+
+      - name: Install TURN config (empty bundle if no secret)
+        env:
+          NEON_TURN_CONFIG: ${{ secrets.NEON_TURN_CONFIG }}
+        run: ./tools/install-turn-config.sh
 
       - name: Run autopilot smoke
         run: node tests/autopilot.smoke.js --snapshots=10,30 --speed=2048 --ascension=3

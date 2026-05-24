@@ -47,6 +47,10 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - name: Install TURN config (so index.html doesn't 404)
+        env:
+          NEON_TURN_CONFIG: ${{ secrets.NEON_TURN_CONFIG }}
+        run: ./tools/install-turn-config.sh
       - run: npm test
         env:
           CI: 'true'
