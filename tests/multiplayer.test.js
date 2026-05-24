@@ -1069,7 +1069,8 @@ function mockGlobals(opts) {
         ok('trackers-blocked: verdict',              report.verdict === 'trackers-blocked');
         ok('trackers-blocked: 0 trackers ok',        report.tracker.okCount === 0);
         const summary = connMod.summarise(report);
-        ok('trackers-blocked: summary mentions WSS', /tracker/i.test(summary));
+        ok('trackers-blocked: summary mentions broker/tracker',
+           /tracker|broker|signalling/i.test(summary));
         restore();
     });
 }

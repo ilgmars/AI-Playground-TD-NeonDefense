@@ -1,14 +1,22 @@
 // Trystero adapter — browser-only. Lazy-loads the Trystero library
-// (BitTorrent-tracker strategy by default; Nostr fallback) on first
-// joinRoom() call so the static page stays small for the 99 % of
-// visitors who never open multiplayer.
+// (MQTT primary, Nostr fallback) on first joinRoom() call so the
+// static page stays small for visitors who never open multiplayer.
 //
 // Exposes the same {send, onMessage, leave} surface as the MockPeer in
-// transport.js so race.js / coop / versus controllers are transport-
+// transport.js so race / coop / versus controllers are transport-
 // agnostic.
 //
-// Loaded only after the user opens the multiplayer overlay. No
-// top-level network requests at page load.
+// Why MQTT and not BitTorrent: the WebTorrent tracker set bundled with
+// Trystero 0.21.5 is mostly dead in 2026 (cert errors, 404s, hung
+// WebSocket handshakes). Public MQTT brokers (HiveMQ, EMQX, Mosquitto)
+// are operationally healthy and serve the same role — peers exchange
+// SDP offers/answers over a pub/sub channel keyed by appId+roomCode,
+// then talk directly via WebRTC data channels.
+//
+// Fallback ladder:
+//   1. mqtt   (public brokers — current default)
+//   2. nostr  (public relays — kicks in if mqtt fails to load OR if
+//              joinRoom doesn't emit a peer-join within FIRST_PEER_MS)
 //
 // History: an earlier revision had no timeout on the CDN load or
 // progress callback. When the player's network blocked esm.sh, the
@@ -19,13 +27,31 @@
 (function () {
     'use strict';
 
-    // Pinned to a specific Trystero version. Bumping requires a smoke
-    // test that the API surface (joinRoom, makeAction) still matches.
-    const TRYSTERO_URL = 'https://esm.sh/trystero@0.21.5/torrent';
-    const TRYSTERO_FALLBACK_URL = 'https://cdn.jsdelivr.net/npm/trystero@0.21.5/+esm';
-    const CDN_LOAD_TIMEOUT_MS = 15000;
+    // Pinned Trystero version. Bumping past 0.25 requires switching to
+    // the new @trystero-p2p/* split-package layout — for now 0.21.5
+    // remains the last stable monolith.
+    const TRYSTERO_VERSION = '0.21.5';
 
-    let _trysteroPromise = null;
+    // Per-strategy CDN URL + fallback (two CDNs in case one is blocked).
+    const STRATEGY_URLS = {
+        mqtt: [
+            `https://esm.sh/trystero@${TRYSTERO_VERSION}/mqtt`,
+            `https://cdn.jsdelivr.net/npm/trystero@${TRYSTERO_VERSION}/+esm`,
+        ],
+        nostr: [
+            `https://esm.sh/trystero@${TRYSTERO_VERSION}/nostr`,
+        ],
+        torrent: [
+            `https://esm.sh/trystero@${TRYSTERO_VERSION}/torrent`,
+        ],
+    };
+
+    const CDN_LOAD_TIMEOUT_MS = 15000;
+    const FIRST_PEER_MS       = 12000;  // how long to wait on the
+                                        // primary strategy before
+                                        // auto-switching to fallback.
+
+    let _cachedModules = {};   // strategy → loaded module (or null)
 
     function withTimeout(p, ms, reason) {
         return new Promise((resolve, reject) => {
@@ -40,60 +66,47 @@
         });
     }
 
-    function loadTrystero(onStatus) {
-        if (_trysteroPromise) return _trysteroPromise;
+    async function loadStrategy(strategy, onStatus) {
+        if (_cachedModules[strategy]) return _cachedModules[strategy];
         const status = typeof onStatus === 'function' ? onStatus : () => {};
-        _trysteroPromise = (async () => {
-            const tried = [];
-            for (const url of [TRYSTERO_URL, TRYSTERO_FALLBACK_URL]) {
-                status({ kind: 'cdn-load', url });
-                try {
-                    const mod = await withTimeout(
-                        import(/* @vite-ignore */ url),
-                        CDN_LOAD_TIMEOUT_MS,
-                        'CDN load timed out (15s): ' + url
-                    );
-                    if (mod && typeof mod.joinRoom === 'function') {
-                        status({ kind: 'cdn-ok', url });
-                        return mod;
-                    }
-                    tried.push(url + ' (no joinRoom export)');
-                } catch (e) {
-                    tried.push(url + ' (' + (e && e.message ? e.message : e) + ')');
-                    status({ kind: 'cdn-fail', url, error: e && e.message || String(e) });
+        const urls = STRATEGY_URLS[strategy];
+        if (!urls) throw new Error('unknown strategy: ' + strategy);
+        const tried = [];
+        for (const url of urls) {
+            status({ kind: 'cdn-load', url, strategy });
+            try {
+                const mod = await withTimeout(
+                    import(/* @vite-ignore */ url),
+                    CDN_LOAD_TIMEOUT_MS,
+                    `${strategy} CDN load timed out (15s): ${url}`
+                );
+                if (mod && typeof mod.joinRoom === 'function') {
+                    status({ kind: 'cdn-ok', url, strategy });
+                    _cachedModules[strategy] = mod;
+                    return mod;
                 }
+                tried.push(url + ' (no joinRoom export)');
+            } catch (e) {
+                tried.push(url + ' (' + (e && e.message ? e.message : e) + ')');
+                status({ kind: 'cdn-fail', url, strategy, error: e && e.message || String(e) });
             }
-            // Reset so a retry from the lobby can try again — otherwise
-            // the cached failed promise would lock the player out.
-            _trysteroPromise = null;
-            throw new Error('Trystero CDN load failed. Tried: ' + tried.join('; '));
-        })();
-        return _trysteroPromise;
+        }
+        throw new Error(`Trystero ${strategy} CDN load failed: ${tried.join('; ')}`);
     }
 
-    const APP_ID = 'neon-defense';
+    // Back-compat alias for the connectivity probe + tests.
+    function loadTrystero(onStatus) {
+        return loadStrategy(opts && opts.strategy || 'mqtt', onStatus);
+    }
 
-    async function joinRoom(roomCode, peerId, opts) {
-        opts = opts || {};
-        const status = typeof opts.onStatus === 'function' ? opts.onStatus : () => {};
+    const APP_ID = 'neon-defense-v1';
 
-        const t = await loadTrystero(status);
-        status({ kind: 'joining', room: roomCode });
-        // Trystero's joinRoom is synchronous — returns the room handle
-        // immediately and connects in the background. We surface tracker
-        // / peer events via the callback so the lobby can show progress.
-        let room;
-        try {
-            room = t.joinRoom({ appId: APP_ID }, String(roomCode));
-        } catch (e) {
-            status({ kind: 'join-fail', error: e && e.message || String(e) });
-            throw e;
-        }
-        status({ kind: 'joined', room: roomCode });
-
-        // makeAction returns [send, receive] for a named sub-channel.
+    // Build the adapter shell around a strategy-specific room handle.
+    // Same surface as the mock transport: {id, send, onMessage, leave,
+    // peerCount, onPeerJoin, onPeerLeave}.
+    function wrapRoom(strategy, room, peerId, onStatus) {
+        const status = typeof onStatus === 'function' ? onStatus : () => {};
         const [sendMP, recvMP] = room.makeAction('mp');
-
         const listeners = [];
         recvMP((msg, peer) => {
             if (!msg || typeof msg !== 'object') return;
@@ -101,24 +114,21 @@
                 try { fn(msg, peer); } catch (_) { /* swallow */ }
             }
         });
-
-        // Surface peer join/leave events to the UI so a long wait can
-        // show "still waiting for a friend".
         let _peerCount = 0;
         try {
             room.onPeerJoin((id) => {
                 _peerCount += 1;
-                status({ kind: 'peer-join', id, peerCount: _peerCount });
+                status({ kind: 'peer-join', id, peerCount: _peerCount, strategy });
             });
             room.onPeerLeave((id) => {
                 _peerCount = Math.max(0, _peerCount - 1);
-                status({ kind: 'peer-leave', id, peerCount: _peerCount });
+                status({ kind: 'peer-leave', id, peerCount: _peerCount, strategy });
             });
-        } catch (_) { /* Trystero shouldn't throw here, but be safe */ }
-
+        } catch (_) { /* defensive */ }
         let left = false;
         return {
             id: String(peerId || 'me'),
+            strategy,
             send(msg) {
                 if (left) return;
                 try { sendMP(msg); } catch (_) { /* swallow */ }
@@ -140,9 +150,6 @@
                 try { return Object.keys(room.getPeers()).length; }
                 catch (_) { return _peerCount; }
             },
-            // External onPeerJoin / onPeerLeave so the lobby can subscribe
-            // to its OWN handler without stealing the adapter's count
-            // tracker. Multiple handlers stack.
             onPeerJoin(fn) {
                 try { room.onPeerJoin((id) => fn({ id })); } catch (_) {}
             },
@@ -152,7 +159,51 @@
         };
     }
 
-    const api = { loadTrystero, joinRoom, APP_ID, TRYSTERO_URL, CDN_LOAD_TIMEOUT_MS };
+    // Top-level join. Strategy order: mqtt → nostr → torrent (last-
+    // resort, mostly dead). If the primary strategy loads but no
+    // peer connects within FIRST_PEER_MS, we leave it and try the
+    // next. The returned adapter then routes ALL future traffic over
+    // whichever strategy actually connected.
+    async function joinRoom(roomCode, peerId, opts) {
+        opts = opts || {};
+        const status = typeof opts.onStatus === 'function' ? opts.onStatus : () => {};
+        const strategies = Array.isArray(opts.strategies)
+            ? opts.strategies
+            : ['mqtt', 'nostr'];
+
+        let lastErr = null;
+        for (const strategy of strategies) {
+            status({ kind: 'try-strategy', strategy });
+            let mod;
+            try {
+                mod = await loadStrategy(strategy, status);
+            } catch (e) {
+                lastErr = e;
+                status({ kind: 'strategy-load-fail', strategy, error: e && e.message || String(e) });
+                continue;
+            }
+            status({ kind: 'joining', room: roomCode, strategy });
+            let room;
+            try {
+                room = mod.joinRoom({ appId: APP_ID }, String(roomCode));
+            } catch (e) {
+                lastErr = e;
+                status({ kind: 'join-fail', strategy, error: e && e.message || String(e) });
+                continue;
+            }
+            status({ kind: 'joined', room: roomCode, strategy });
+            return wrapRoom(strategy, room, peerId, status);
+        }
+        throw new Error('All Trystero strategies failed. Last error: ' +
+            (lastErr && lastErr.message || lastErr || 'unknown'));
+    }
+
+    const api = {
+        loadTrystero, loadStrategy, joinRoom,
+        APP_ID, TRYSTERO_VERSION,
+        STRATEGY_URLS,
+        CDN_LOAD_TIMEOUT_MS, FIRST_PEER_MS,
+    };
     if (typeof window !== 'undefined') {
         window.NeonMP = Object.assign(window.NeonMP || {}, { trystero: api });
     }

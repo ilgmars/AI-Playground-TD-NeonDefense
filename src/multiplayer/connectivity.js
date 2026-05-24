@@ -20,19 +20,18 @@
     'use strict';
 
     const CDN_URLS = [
-        'https://esm.sh/trystero@0.21.5/torrent',
+        'https://esm.sh/trystero@0.21.5/mqtt',
         'https://cdn.jsdelivr.net/npm/trystero@0.21.5/+esm',
     ];
 
-    // WebTorrent trackers Trystero rotates through. Same list as 0.21.5
-    // torrent.mjs (see vendored module). Bumping Trystero updates the
-    // baked-in list there but doesn't require touching this — the probe
-    // is purely a "can we open a WSS?" health check.
+    // Public MQTT brokers Trystero rotates through for signalling.
+    // Switched here in 2026 because most WebTorrent trackers had gone
+    // stale (cert errors / 404s) — MQTT is operationally healthier.
+    // Baked-in list matches trystero@0.21.5/es2022/mqtt.mjs.
     const TRACKER_URLS = [
-        'wss://tracker.webtorrent.dev',
-        'wss://tracker.openwebtorrent.com',
-        'wss://tracker.btorrent.xyz',
-        'wss://tracker.files.fm:7073/announce',
+        'wss://broker.hivemq.com:8884/mqtt',
+        'wss://broker.emqx.io:8084/mqtt',
+        'wss://test.mosquitto.org:8081/mqtt',
     ];
 
     const STUN_URL = 'stun:stun.l.google.com:19302';
@@ -216,7 +215,7 @@
             }
         }
         if (report.tracker.okCount === 0) {
-            lines.push('✗ All ' + report.tracker.total + ' WebTorrent trackers unreachable.');
+            lines.push('✗ All ' + report.tracker.total + ' MQTT signalling brokers unreachable.');
             for (const t of report.tracker.results) {
                 if (!t.ok) lines.push('  ' + t.url + ' → ' + (t.reason || 'fail'));
             }
