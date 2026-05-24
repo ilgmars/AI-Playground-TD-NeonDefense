@@ -111,6 +111,9 @@ const path = require('path');
     });
     await page.fill('#mp-room-input', 'NEAN42');
     await page.fill('#mp-nick-input', 'ALICE');
+    // Default mode is now coop (sessionStorage + reload). This test
+    // verifies the immediate race-JOIN path, so pick race explicitly.
+    await page.selectOption('#mp-mode-select', 'race');
     await page.click('#mp-join-btn');
     await page.waitForTimeout(500);
     const joinState = await page.evaluate(() => ({
