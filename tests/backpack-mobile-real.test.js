@@ -16,6 +16,8 @@
 // Section H — placed items have a distinct opaque outline (rarity colour, 2px+)
 // Section I — tooltips include the rarity (placed cell + stash chip)
 // Section J — every reasonable grid size (2×2 … 9×8) accepts pickup + place
+// Section K — SELL button requires a confirm tap (regression guard)
+// Section L — SELL armed state auto-disarms after 3 s idle
 
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
@@ -431,6 +433,80 @@ const MODES = [
             ok(`[${mode.name}/${sz.label}] no JS errors`,             errs.length === 0);
             await ctx.close();
         }
+    }
+
+    // ── Section K — SELL button needs a confirm tap (regression guard) ─
+    // First tap arms (label flips to "CONFIRM SELL?"); item is NOT
+    // sold. Second tap within 3 s actually sells. Without this,
+    // a single thumb-slip burns the held item with zero recourse.
+    for (const mode of MODES) {
+        const { page, ctx, errs } = await freshPage(mode);
+        await openBackpack(page, ['reactor_bulwark']);
+        await page.click('#bp-stash .bp-chip[data-stash-idx="0"]');
+        await page.waitForTimeout(60);
+        const xpBefore = await page.evaluate(() => save.metaXP);
+
+        // First tap: arm. Item must still be held; XP unchanged.
+        await page.click('#bp-discard');
+        await page.waitForTimeout(80);
+        const armed = await page.evaluate(() => ({
+            held:        !!bpHeld,
+            label:       document.getElementById('bp-discard').textContent,
+            armedFlag:   document.getElementById('bp-discard').dataset.confirm,
+            xp:          save.metaXP,
+        }));
+        ok(`[${mode.name}] first SELL tap: held item NOT yet sold`,
+           armed.held === true);
+        ok(`[${mode.name}] first SELL tap: XP unchanged`,
+           armed.xp === xpBefore);
+        ok(`[${mode.name}] first SELL tap: button shows CONFIRM SELL`,
+           /CONFIRM/i.test(armed.label));
+        ok(`[${mode.name}] first SELL tap: data-confirm = "true"`,
+           armed.armedFlag === 'true');
+
+        // Second tap: commit.
+        await page.click('#bp-discard');
+        await page.waitForTimeout(80);
+        const sold = await page.evaluate(() => ({
+            held:  !!bpHeld,
+            xp:    save.metaXP,
+            label: document.getElementById('bp-discard').textContent,
+            armedFlag: document.getElementById('bp-discard').dataset.confirm,
+        }));
+        ok(`[${mode.name}] second SELL tap: item sold (held cleared)`,
+           sold.held === false);
+        ok(`[${mode.name}] second SELL tap: XP refunded (>${xpBefore})`,
+           sold.xp > xpBefore);
+        ok(`[${mode.name}] second SELL tap: button label reverted`,
+           !/CONFIRM/i.test(sold.label));
+        ok(`[${mode.name}] second SELL tap: data-confirm = "false"`,
+           sold.armedFlag === 'false');
+        ok(`[${mode.name}] SELL confirm: no JS errors`, errs.length === 0);
+        await ctx.close();
+    }
+
+    // ── Section L — SELL armed state auto-disarms after 3 s idle ──────
+    {
+        const { page, ctx, errs } = await freshPage(MODES[0]);
+        await openBackpack(page, ['plasma_cell']);
+        await page.click('#bp-stash .bp-chip[data-stash-idx="0"]');
+        await page.waitForTimeout(60);
+        await page.click('#bp-discard');     // arm
+        await page.waitForTimeout(80);
+        const armed = await page.evaluate(() => document.getElementById('bp-discard').dataset.confirm);
+        ok('SELL armed after first tap',          armed === 'true');
+        // Wait 3.2 s for the timeout to fire.
+        await page.waitForTimeout(3200);
+        const after = await page.evaluate(() => ({
+            held: !!bpHeld,
+            armed: document.getElementById('bp-discard').dataset.confirm,
+            label: document.getElementById('bp-discard').textContent,
+        }));
+        ok('SELL auto-disarms after 3 s idle',     after.armed === 'false');
+        ok('SELL idle: item NOT sold',             after.held === true);
+        ok('SELL idle: label reverted',            !/CONFIRM/i.test(after.label));
+        ok('SELL idle: no JS errors',              errs.length === 0);
+        await ctx.close();
     }
 
     await browser.close();

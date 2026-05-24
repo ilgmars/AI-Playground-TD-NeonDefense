@@ -1433,7 +1433,51 @@ function init() {
     document.getElementById('bp-rotate').addEventListener('click', bpRotateHeld);
     document.getElementById('bp-restore').addEventListener('click', bpRestoreHeld);
     document.getElementById('bp-tostash').addEventListener('click', bpHeldToStash);
-    document.getElementById('bp-discard').addEventListener('click', bpSellHeld);
+    // Two-step confirm on SELL (bp-discard). First click arms the
+    // button + flips its label to "CONFIRM SELL?". Second click within
+    // 3 s commits via bpSellHeld. Idle for 3 s → disarm. Mirrors the
+    // in-game sell-btn pattern so the gesture is familiar and the
+    // accidental tap doesn't burn an item.
+    (function wireDiscardConfirm() {
+        const btn = document.getElementById('bp-discard');
+        if (!btn) return;
+        let armed = false;
+        let armTimer = null;
+        let originalHTML = btn.innerHTML;
+        function disarm() {
+            armed = false;
+            btn.dataset.confirm = 'false';
+            btn.innerHTML = originalHTML;
+            // Re-render the sell value in case the held item changed
+            // while armed (defensive — usually unchanged).
+            const sv = btn.querySelector('#bp-sell-val');
+            if (sv && bpHeld && BACKPACK_ITEMS[bpHeld.id]) {
+                const def = BACKPACK_ITEMS[bpHeld.id];
+                const refund = NeonSave.getSellRefund(def.rarity);
+                sv.textContent = refund > 0 ? `+${refund}` : '';
+            }
+            if (armTimer) { clearTimeout(armTimer); armTimer = null; }
+        }
+        btn.addEventListener('click', () => {
+            if (!bpHeld) return;            // disabled in placeholder; defensive
+            if (armed) {
+                bpSellHeld();
+                disarm();
+                return;
+            }
+            armed = true;
+            btn.dataset.confirm = 'true';
+            originalHTML = btn.innerHTML;
+            btn.innerHTML = '✕ CONFIRM SELL?';
+            armTimer = setTimeout(disarm, 3000);
+        });
+        // If the held item changes (or is dropped) while armed, disarm
+        // so the next click on a different item doesn't fire instantly.
+        const obs = new MutationObserver(() => {
+            if (armed && !bpHeld) disarm();
+        });
+        obs.observe(document.getElementById('bp-held-name'), { childList: true, characterData: true, subtree: true });
+    })();
 
     // ── Backpack drag-to-place (pointer events) ──────────────────────────
     // Why Pointer Events instead of Touch Events: bpPickStash /

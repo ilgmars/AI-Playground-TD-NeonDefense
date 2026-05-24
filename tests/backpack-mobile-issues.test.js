@@ -130,7 +130,10 @@ const path = require('path');
         await page.click('#bp-stash .bp-chip[data-stash-idx="0"]');
         await page.waitForTimeout(80);
         const beforeXP = await page.evaluate(() => save.metaXP);
-        await page.click('#bp-discard');
+        // Two-tap confirm: first arms, second commits.
+        await page.click('#bp-discard');     // arm
+        await page.waitForTimeout(60);
+        await page.click('#bp-discard');     // confirm → sell
         await page.waitForTimeout(120);
         const after = await page.evaluate(() => ({
             held:        !!bpHeld,
@@ -336,6 +339,8 @@ const path = require('path');
             placedLen: save.backpack.placed.length,
         }));
         ok('pickup placed: removed from placed',  mid.placedLen === 0 && mid.held === true);
+        // Two-tap confirm: arm + commit.
+        await page.click('#bp-discard'); await page.waitForTimeout(60);
         await page.click('#bp-discard');
         await page.waitForTimeout(120);
         const after = await page.evaluate(() => ({
