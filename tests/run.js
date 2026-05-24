@@ -26,6 +26,12 @@ const SUITES = [
     // the environment can't reach trackers / WebRTC (set NEON_MP_FORCE=1
     // to make those skips into failures, e.g. for a release smoke).
     { name: 'mp-connectivity', file: 'tests/mp-connectivity.test.js' },
+    // Full UI-driven two-client lobby flow. Two browsers, real
+    // Trystero/MQTT signalling, real race-mode JOIN, asserts both
+    // peers see each other in the leaderboard. Self-skips when the
+    // sandbox can't reach signalling brokers. NEON_MP_FORCE=1
+    // promotes skips to failures (use locally before releasing).
+    { name: 'mp-lobby-act',    file: 'tests/mp-lobby-act.test.js' },
     { name: 'mobile-nav',      file: 'tests/mobile-nav.test.js' },
     { name: 'backpack-touch',         file: 'tests/backpack-touch-drag.test.js' },
     { name: 'backpack-touch-contin',  file: 'tests/backpack-touch-drag-continuity.test.js' },
