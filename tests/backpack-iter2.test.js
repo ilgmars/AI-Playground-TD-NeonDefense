@@ -166,11 +166,14 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
   const sellBefore = await page.evaluate(() => ({
     xp: save.metaXP, stash: save.backpack.stash.length,
   }));
-  // Pick up the stash item, then click SELL.
+  // Pick up the stash item, then click SELL twice (two-tap confirm:
+  // first arms, second commits).
   await page.locator('#bp-stash .bp-chip').first().click();
   await page.waitForSelector('#bp-held:not(.hidden)');
   const sellLabel = await page.locator('#bp-sell-val').textContent();
-  await page.locator('#bp-discard').click();
+  await page.locator('#bp-discard').click();   // arm
+  await page.waitForTimeout(60);
+  await page.locator('#bp-discard').click();   // confirm → sell
   await page.waitForTimeout(150);
   const sellAfter = await page.evaluate(() => ({
     xp: save.metaXP, stash: save.backpack.stash.length,
