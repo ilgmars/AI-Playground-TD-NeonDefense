@@ -2321,10 +2321,13 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     border: 1px dashed #c084fc; border-radius: 8px; background: rgba(192,132,252,0.08);
     /* Layout STAYS THE SAME whether we have an item or not — children
        use visibility:hidden in the inactive state instead of
-       display:none. That keeps the box occupying identical vertical
-       space so the grid below doesn't jump on pickup. */
+       display:none. min-height + box-sizing locks the OUTER height
+       so flex-wrap row count can vary inside without shifting the
+       grid below. 120px covers a worst-case 2-row button wrap on
+       narrow phones. */
     position: relative;
     box-sizing: border-box;
+    min-height: 120px;
 }
 /* Legacy: explicit .hidden still wins (only used as a back-compat
    safety net). Empty placeholder is now the default unheld state. */

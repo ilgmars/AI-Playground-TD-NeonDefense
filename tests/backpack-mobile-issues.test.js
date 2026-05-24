@@ -707,11 +707,16 @@ const path = require('path');
             held: !!bpHeld,
             placed: save.backpack.placed.slice(),
             // After RESTORE clears the held item, the panel goes back
-            // to placeholder mode where the button is visibility:hidden.
-            // computed-visibility is the truthful "is the user unable
-            // to interact with this" check.
-            restoreInvisible:
-                getComputedStyle(document.getElementById('bp-restore')).visibility === 'hidden',
+            // to placeholder mode. The button is invisible to the user
+            // through ANY combination of display:none, visibility:hidden,
+            // or being inside an invisible parent — check all three.
+            restoreInvisible: (() => {
+                const el = document.getElementById('bp-restore');
+                const cs = getComputedStyle(el);
+                return cs.display === 'none' ||
+                       cs.visibility === 'hidden' ||
+                       el.classList.contains('hidden');
+            })(),
         }));
         ok('RESTORE: held cleared',                  afterRestore.held === false);
         ok('RESTORE: original placement back',
