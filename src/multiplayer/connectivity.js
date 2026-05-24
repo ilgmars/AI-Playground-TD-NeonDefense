@@ -24,16 +24,25 @@
         'https://cdn.jsdelivr.net/npm/trystero@0.21.5/+esm',
     ];
 
-    // Public MQTT broker used for Trystero signalling. EMQX is the
-    // single confirmed-stable endpoint we use in 2026. Protocol
-    // chosen per page scheme: ws:// for http origins, wss:// for
-    // https (mirrors mqttRelayUrls() in transport-trystero.js).
-    const TRACKER_URLS = (function () {
+    // Probe URLs are computed at probe() time (not module load) so
+    // the test reflects whatever the LIVE transport will actually
+    // use — including the private HiveMQ broker if window.__neonMqttRelayUrls
+    // got set by mqtt-config.js. Without that, we fall back to the
+    // public-EMQX URL the transport defaults to (protocol matched to
+    // the page scheme).
+    function liveBrokerUrls() {
+        if (typeof window !== 'undefined' &&
+            Array.isArray(window.__neonMqttRelayUrls) &&
+            window.__neonMqttRelayUrls.length > 0) {
+            return window.__neonMqttRelayUrls.slice();
+        }
         const httpOrigin = typeof location !== 'undefined' && location.protocol === 'http:';
         return httpOrigin
             ? ['ws://broker.emqx.io:8083/mqtt']
             : ['wss://broker.emqx.io:8084/mqtt'];
-    })();
+    }
+    // Back-compat constant (some tests import this directly).
+    const TRACKER_URLS = liveBrokerUrls();
 
     const STUN_URL = 'stun:stun.l.google.com:19302';
     const STEP_TIMEOUT_MS = 6000;
@@ -161,8 +170,11 @@
     async function probe(opts) {
         opts = opts || {};
         const timeoutMs = opts.timeoutMs || STEP_TIMEOUT_MS;
+        // Re-read live URLs at probe() time — handles the case where
+        // window.__neonMqttRelayUrls was set AFTER this module loaded.
+        const liveUrls = liveBrokerUrls();
         const cdnProbes = CDN_URLS.map(u => withTimeout(probeCDN(u), timeoutMs, 'cdn:' + u));
-        const trackerProbes = TRACKER_URLS.map(u => withTimeout(probeTracker(u), timeoutMs, 'tracker:' + u));
+        const trackerProbes = liveUrls.map(u => withTimeout(probeTracker(u), timeoutMs, 'tracker:' + u));
         const rtcProbe = withTimeout(probeWebRTC(), timeoutMs, 'webrtc');
 
         const [cdnResults, trackerResults, rtcResult] = await Promise.all([
@@ -173,18 +185,29 @@
 
         const cdnOK     = cdnResults.some(r => r.ok);
         const trackerOK = trackerResults.filter(r => r.ok).length;
-        const rtcOK     = rtcResult.ok;
+        // RTC usable iff the RTCPeerConnection constructor exists. The
+        // strict "needs host candidates within 6 s" used to give false
+        // negatives on browsers / network configs that only surface
+        // candidates after the SDP exchange (mobile carrier networks,
+        // VPNs). probeWebRTC distinguishes 'no-rtc' (constructor
+        // missing — truly unsupported) from 'no-host-candidates'
+        // (constructor works, candidates just slow). Only the former
+        // is a hard fail.
+        const rtcUsable = !!(rtcResult && (
+            rtcResult.ok ||
+            rtcResult.reason !== 'no-rtc'
+        ));
         // Verdict: enough infra to play if at least one CDN works,
-        // at least one tracker is reachable, and WebRTC is alive.
-        // STUN failure is concerning but not fatal — host-only ICE
-        // candidates still work for local-network peers.
-        const verdict = cdnOK && trackerOK >= 1 && rtcOK
+        // at least one broker is reachable, and WebRTC is at least
+        // constructable. STUN failure is concerning but not fatal —
+        // host-only ICE candidates still work for local-network peers.
+        const verdict = cdnOK && trackerOK >= 1 && rtcUsable
             ? 'ok'
             : !cdnOK
                 ? 'cdn-blocked'
                 : trackerOK === 0
                     ? 'trackers-blocked'
-                    : !rtcOK
+                    : !rtcUsable
                         ? 'no-webrtc'
                         : 'unknown';
 

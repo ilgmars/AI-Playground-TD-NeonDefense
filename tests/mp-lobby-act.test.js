@@ -285,22 +285,57 @@ const path = require('path');
     ok('coop: ALICE waitroom shows BOB within 25 s', aliceSeesBobCoop);
     ok('coop: BOB   waitroom shows ALICE within 25 s', bobSeesAliceCoop);
 
-    // ── 8. Both clients click READY → run starts. ────────────────────
+    // ── 8. Both clients click READY → BOTH runs start. ────────────────
+    // Regression: pre-fix only ONE side started. The multi-strategy
+    // adapter's 3 s identical-payload dedupe was eating the periodic
+    // wr re-announce, so if a single MQTT delivery was missed the
+    // late peer never learned the other was ready. Fixed by adding a
+    // monotonic seq + timestamp to every wr broadcast so successive
+    // announces have unique content.
     if (aliceSeesBobCoop && bobSeesAliceCoop) {
         await aliceCoop.page.click('#mp-waitroom-ready');
         await bobCoop.page.click('#mp-waitroom-ready');
-        // Wait for the run to actually start on both — waitroom hides
-        // and race overlay appears.
-        await Promise.all([
-            aliceCoop.page.waitForSelector('#mp-waitroom.hidden', { timeout: 10000 }).catch(() => {}),
-            bobCoop.page.waitForSelector('#mp-waitroom.hidden', { timeout: 10000 }).catch(() => {}),
+        // Wait UP TO 15 s for BOTH waitrooms to hide. If one side
+        // hangs we want the diagnostic to tell us WHICH side, not
+        // just "one of them" — Promise.all + individual catches
+        // preserves per-peer error info.
+        const waitForWaitroomHidden = (page, who) =>
+            page.waitForSelector('#mp-waitroom.hidden', { timeout: 15000 })
+                .then(() => ({ who, ok: true }))
+                .catch(e => ({ who, ok: false, err: e.message }));
+        const closeResults = await Promise.all([
+            waitForWaitroomHidden(aliceCoop.page, 'ALICE'),
+            waitForWaitroomHidden(bobCoop.page,   'BOB'),
         ]);
-        const aliceRunning = await aliceCoop.page.evaluate(() =>
-            window.game && (window.game.state === 'playing' || window.game.state === 'paused'));
-        const bobRunning = await bobCoop.page.evaluate(() =>
-            window.game && (window.game.state === 'playing' || window.game.state === 'paused'));
-        ok('coop: ALICE run started after both READY', aliceRunning === true);
-        ok('coop: BOB   run started after both READY', bobRunning === true);
+        for (const r of closeResults) {
+            if (!r.ok) console.log(`  ${r.who} waitroom did NOT close: ${r.err}`);
+        }
+        const aliceClosed = closeResults.find(r => r.who === 'ALICE').ok;
+        const bobClosed   = closeResults.find(r => r.who === 'BOB').ok;
+        ok('coop: ALICE waitroom closed within 15 s', aliceClosed === true);
+        ok('coop: BOB   waitroom closed within 15 s', bobClosed === true);
+
+        // game.state should be 'playing' or 'paused' on both.
+        const stateOf = (page) => page.evaluate(() =>
+            window.game ? window.game.state : null);
+        const aliceState = await stateOf(aliceCoop.page);
+        const bobState   = await stateOf(bobCoop.page);
+        console.log('  coop final state: ALICE=', aliceState, 'BOB=', bobState);
+        ok('coop: ALICE run started after both READY',
+           aliceState === 'playing' || aliceState === 'paused');
+        ok('coop: BOB   run started after both READY',
+           bobState === 'playing' || bobState === 'paused');
+
+        // Both peers should land on the SAME world seed (coop is
+        // a SHARED room; race-mode behaviour already tested above).
+        if (aliceClosed && bobClosed) {
+            const seeds = await Promise.all([
+                aliceCoop.page.evaluate(() => window.game && window.game.seed),
+                bobCoop.page.evaluate(() => window.game && window.game.seed),
+            ]);
+            ok('coop: both peers share the same world seed',
+               typeof seeds[0] === 'number' && seeds[0] === seeds[1]);
+        }
     } else {
         skipMsg('coop READY → run start (waitroom never paired peers)');
     }

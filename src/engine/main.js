@@ -3689,8 +3689,17 @@ function init() {
                     : 'Click READY when you\'re set.';
         }
 
+        // Monotonic seq on every wr broadcast — important because the
+        // multi-strategy adapter dedupes incoming messages by
+        // (peer + JSON.stringify(msg)) within a short window. Without
+        // a unique seq, the 2 s re-announce loop emits IDENTICAL
+        // content every time and the dedupe silently swallows it,
+        // which is exactly how the waitroom got stuck with one peer
+        // ready and the other never learning about it.
+        let wrSeq = 0;
         function announce() {
-            try { _activeRoom.send({ kind: 'wr', p: nick, ready: meReady }); } catch (_) {}
+            wrSeq += 1;
+            try { _activeRoom.send({ kind: 'wr', p: nick, ready: meReady, seq: wrSeq, t: Date.now() }); } catch (_) {}
         }
 
         const offMsg = _activeRoom.onMessage((msg) => {

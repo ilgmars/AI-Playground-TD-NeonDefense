@@ -1005,27 +1005,32 @@ function mockGlobals(opts) {
     };
     global.WebSocket.prototype.close = function () { this.readyState = 3; };
 
-    global.RTCPeerConnection = function () {
-        this._dc = null;
-        const self = this;
-        setTimeout(() => {
-            if (opts.rtcOk === false) {
-                // No candidates → onicecandidate(null) without prior host => probe sees no-host-candidates
+    if (opts.rtcOk === false) {
+        // True no-webrtc: the constructor is undefined. The probe
+        // returns reason:'no-rtc' which the relaxed verdict logic
+        // treats as a hard fail.
+        global.RTCPeerConnection = undefined;
+    } else {
+        global.RTCPeerConnection = function () {
+            this._dc = null;
+            const self = this;
+            setTimeout(() => {
+                // Fire a host candidate, then a srflx candidate (or skip
+                // srflx when opts.stunOk === false), then end-of-gathering.
+                if (self.onicecandidate) self.onicecandidate({ candidate: { candidate: 'candidate:1 1 udp 2122260223 192.168.1.5 50000 typ host generation 0' }});
+                if (opts.stunOk !== false && self.onicecandidate)
+                    self.onicecandidate({ candidate: { candidate: 'candidate:2 1 udp 1685987327 198.51.100.7 50001 typ srflx raddr 192.168.1.5 rport 50000 generation 0' }});
                 if (self.onicecandidate) self.onicecandidate({ candidate: null });
-                return;
-            }
-            // Fire a host candidate, then a srflx candidate (or skip srflx
-            // when opts.stunOk === false), then end-of-gathering.
-            if (self.onicecandidate) self.onicecandidate({ candidate: { candidate: 'candidate:1 1 udp 2122260223 192.168.1.5 50000 typ host generation 0' }});
-            if (opts.stunOk !== false && self.onicecandidate)
-                self.onicecandidate({ candidate: { candidate: 'candidate:2 1 udp 1685987327 198.51.100.7 50001 typ srflx raddr 192.168.1.5 rport 50000 generation 0' }});
-            if (self.onicecandidate) self.onicecandidate({ candidate: null });
-        }, 0);
-    };
-    global.RTCPeerConnection.prototype.createDataChannel = function () { return {}; };
-    global.RTCPeerConnection.prototype.createOffer = function () { return Promise.resolve({ type: 'offer', sdp: '' }); };
-    global.RTCPeerConnection.prototype.setLocalDescription = function () { return Promise.resolve(); };
-    global.RTCPeerConnection.prototype.close = function () {};
+            }, 0);
+        };
+    }
+    // Only attach methods when the constructor is defined (rtcOk !== false).
+    if (global.RTCPeerConnection) {
+        global.RTCPeerConnection.prototype.createDataChannel = function () { return {}; };
+        global.RTCPeerConnection.prototype.createOffer = function () { return Promise.resolve({ type: 'offer', sdp: '' }); };
+        global.RTCPeerConnection.prototype.setLocalDescription = function () { return Promise.resolve(); };
+        global.RTCPeerConnection.prototype.close = function () {};
+    }
 
     return function restore() {
         global.fetch = origFetch;
