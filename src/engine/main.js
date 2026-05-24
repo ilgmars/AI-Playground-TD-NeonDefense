@@ -1506,16 +1506,21 @@ function init() {
         const state = bpTouch;
         bpTouch = null;
         if (!state.dragging) return;        // pure tap — let click handlers fire
-        // If the finger is actually OVER a held-panel button (rotate /
-        // stash / restore / discard) when it lifts, don't commit a
-        // placement — let the synthesized click fire on that button
-        // instead. Previously bpDropTargetCell's ~2-cell NEAR window
-        // could match a grid row directly above the held panel and
-        // swallow the gesture as a drop, eating the rotate button
-        // click ("rotate doesn't work on touch").
+        // If the finger is over the held panel when it lifts, don't
+        // commit a placement — the player almost certainly meant to
+        // tap a recovery button (rotate / stash / restore / discard).
+        // Check BOTH the element under the finger AND the panel's
+        // bounding rect, because the buttons are visibility:hidden
+        // when nothing is held and elementFromPoint can skip past
+        // them in some layouts.
+        const heldEl = document.getElementById('bp-held');
+        const heldRect = heldEl && heldEl.getBoundingClientRect();
+        const inHeldPanel = heldRect &&
+            e.clientX >= heldRect.left && e.clientX <= heldRect.right &&
+            e.clientY >= heldRect.top  && e.clientY <= heldRect.bottom;
         const underFinger = document.elementFromPoint(e.clientX, e.clientY);
-        const overHeldBtn = underFinger && underFinger.closest && underFinger.closest('#bp-held button');
-        if (overHeldBtn) {
+        const overHeldBtn = underFinger && underFinger.closest && underFinger.closest('#bp-held');
+        if (inHeldPanel || overHeldBtn) {
             // Don't preventDefault — we want the click on the button
             // to run normally.
             return;
