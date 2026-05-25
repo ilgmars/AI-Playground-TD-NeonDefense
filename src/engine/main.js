@@ -3006,8 +3006,7 @@ function init() {
     let _raceUnsub  = null;     // unsubscribe from onUpdate
     let _activeRoomCode = null;
     let _activeCoop = null;     // co-op controller (build/upgrade/sell sync)
-    let _activeVersus = null;   // versus controller (spike protocol)
-    let _activeMode = null;     // 'race' | 'coop' | 'versus'
+    let _activeMode = null;     // 'race' | 'coop'
     // Host election state. The peer in the room with the EARLIEST
     // wr-announce timestamp is the host; their ascension tier wins
     // for everyone in the room. Updated as wr packets arrive.
@@ -3203,13 +3202,6 @@ function init() {
                 modeSel.value = 'coop';
             }
         }
-        if (NeonMP.versus) {
-            const verOpt = modeSel.querySelector('option[value="versus"]');
-            if (verOpt) {
-                verOpt.removeAttribute('disabled');
-                verOpt.textContent = 'VERSUS — push enemy spikes to opponent';
-            }
-        }
     }
 
     // Called once after init() to honour the pre-boot hook. If
@@ -3248,31 +3240,6 @@ function init() {
                 showScreen('mp-race-overlay');
                 const roomBadge = document.getElementById('mp-race-room');
                 if (roomBadge) roomBadge.textContent = parsed.code + ' (co-op)';
-            } else if (cfg.mode === 'versus') {
-                // joinVersus now runs the A/B handshake and returns the
-                // resolved side. The world seed is the side-suffixed
-                // hash; Math.random is re-installed with that seed so
-                // boon / loot / OVERCLOCK rolls match the side.
-                // (startSpeed below is applied after restartGame.)
-                const resolved = await joinVersus(parsed.code, nick);
-                if (!resolved.ok) {
-                    setStatus(document.getElementById('mp-status'),
-                        resolved.reason || 'Versus room full.', '#fb7185');
-                    leaveActiveMultiplayer();
-                    showScreen('main-menu');
-                    return;
-                }
-                const sideSeed = NeonMP.protocol.roomCodeToSeed(parsed.code + resolved.side);
-                // Re-install seeded RNG with side-specific seed so the
-                // two peers see disjoint enemy / boon streams. Aegis
-                // dev mode is on (from pre-boot), so the swap is fine.
-                Math.random = NeonMP.prng.mulberry32(sideSeed);
-                restartGame(sideSeed);
-                bindVersusHooksToGame();
-                applyMultiplayerSpeed(cfg.startSpeed);
-                showScreen('mp-race-overlay');
-                const roomBadge = document.getElementById('mp-race-room');
-                if (roomBadge) roomBadge.textContent = parsed.code + ' (vs ' + resolved.side + ')';
             }
         } catch (err) {
             console.warn('[MP] resume failed:', err);
@@ -3344,86 +3311,6 @@ function init() {
     // collection and decide. Late joiners broadcast their claim too; if
     // we see a claim newer than the window after we've already started,
     // we ignore it (we're committed to our side at that point).
-    const VERSUS_HANDSHAKE_MS = 1500;
-    async function joinVersus(roomCode, nick) {
-        if (!NeonMP || !NeonMP.trystero || !NeonMP.versus) {
-            throw new Error('versus scripts missing');
-        }
-        leaveActiveMultiplayer();
-        const room = await NeonMP.trystero.joinRoom(roomCode, nick);
-        _activeRoom = room;
-        _activeRoomCode = roomCode;
-        _activeMode = 'versus';
-
-        const myJoinAt = Date.now();
-        // Map of peer → { ts } collected during the window. Includes us.
-        const claims = new Map();
-        claims.set(nick, { ts: myJoinAt });
-
-        const claimUnsub = room.onMessage((msg) => {
-            if (!msg || msg.kind !== 'vs-claim') return;
-            if (typeof msg.p !== 'string' || typeof msg.ts !== 'number') return;
-            const peer = msg.p.slice(0, 32);
-            const prev = claims.get(peer);
-            if (!prev || msg.ts < prev.ts) claims.set(peer, { ts: msg.ts });
-            // Reply with our own claim so the new joiner sees us.
-            // Throttled implicitly: each peer only emits one claim per
-            // join; replies are idempotent for the receiver.
-            try { room.send({ kind: 'vs-claim', p: nick, ts: myJoinAt }); } catch (_) {}
-        });
-
-        try { room.send({ kind: 'vs-claim', p: nick, ts: myJoinAt }); } catch (_) {}
-
-        // Wait for the handshake window to collect everyone's claims.
-        await new Promise(r => setTimeout(r, VERSUS_HANDSHAKE_MS));
-        // Sort by (ts asc, nick asc) — same comparator on every peer.
-        const sorted = Array.from(claims.entries())
-            .map(([peer, info]) => ({ peer, ts: info.ts }))
-            .sort((a, b) => (a.ts - b.ts) || (a.peer < b.peer ? -1 : a.peer > b.peer ? 1 : 0));
-        const myIdx = sorted.findIndex(c => c.peer === nick);
-        if (myIdx < 0 || myIdx > 1) {
-            // 3rd+ joiner — versus is 2-player; refuse politely.
-            try { claimUnsub(); } catch (_) {}
-            return { ok: false, reason: 'Versus rooms are 2-player; this one is full.' };
-        }
-        const side = myIdx === 0 ? 'A' : 'B';
-        try { claimUnsub(); } catch (_) {}
-
-        // Now wire the rest of the controllers — race for HUD, versus
-        // for spike protocol — only after the side is fixed so the
-        // controllers don't fire on stale state.
-        _activeRace = NeonMP.race.createRace({
-            peer: nick, transport: room,
-            getGame: () => (typeof game !== 'undefined' ? game : {}),
-        });
-        _raceUnsub = _activeRace.onUpdate(renderRaceOverlay);
-        _activeRace.start();
-
-        _activeVersus = NeonMP.versus.createVersus({
-            peer: nick, transport: room,
-            // 2-player only for now; target the opposite side's peer
-            // explicitly so 3+ peer rooms (rejected above) wouldn't
-            // accidentally see cross-fire.
-            target: sorted[1 - myIdx] ? sorted[1 - myIdx].peer : null,
-        });
-        _activeVersus.start();
-        window.__neonMPVersusSide = side;
-        return { ok: true, side };
-    }
-
-    // Bind versus hooks onto the live Game. Called after each
-    // restartGame() in a versus run because restartGame builds a fresh
-    // Game instance that doesn't carry forward the hooks.
-    function bindVersusHooksToGame() {
-        if (typeof game === 'undefined' || !_activeVersus) return;
-        game._onKill = (type) => {
-            try { _activeVersus.recordKill(type, game); } catch (_) {}
-        };
-        game._onWaveStart = (waveNum) => {
-            try { return _activeVersus.nextWaveSpike(); } catch (_) { return null; }
-        };
-    }
-
     function leaveActiveMultiplayer() {
         if (typeof _raceUnsub === 'function') {
             try { _raceUnsub(); } catch (_) {}
@@ -3431,7 +3318,6 @@ function init() {
         }
         if (_activeRace) { try { _activeRace.stop(); } catch (_) {} _activeRace = null; }
         if (_activeCoop) { try { _activeCoop.stop(); } catch (_) {} _activeCoop = null; }
-        if (_activeVersus) { try { _activeVersus.stop(); } catch (_) {} _activeVersus = null; }
         if (_activeRoom) { try { _activeRoom.leave(); } catch (_) {} _activeRoom = null; }
         _activeRoomCode = null;
         _activeMode = null;
