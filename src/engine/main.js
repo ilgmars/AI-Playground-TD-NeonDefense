@@ -2002,6 +2002,33 @@ function init() {
         if (paused && game.state !== 'paused') togglePause();
         else if (!paused && game.state === 'paused') togglePause();
     };
+    // Public hook for the coop transport to align the wave counter to
+    // the host's authoritative wave. We don't re-tick the simulation
+    // (that would require host-authoritative enemy state, a larger
+    // change); we just snap the counter so the UI stays consistent
+    // and wave-bonus logic fires at the same wave on every client.
+    window.__neonMPApplyWave = function (w) {
+        if (!game || !Number.isInteger(w) || w < 1) return;
+        if (game.wave !== w) {
+            game.wave = w;
+            game.uiDirty = true;
+        }
+    };
+    // Host-side: every wave change emits a 'wave' message. Hook into
+    // game.update via a polling watcher (no game.js intrusion).
+    let _lastBroadcastWave = 0;
+    function maybeBroadcastWave() {
+        if (_activeMode !== 'coop' || !_activeRoom || !game) return;
+        const myName = (typeof getPlayerName === 'function') ? getPlayerName() : '';
+        if (myName !== _mpHostNick) return;
+        if (game.wave === _lastBroadcastWave) return;
+        _lastBroadcastWave = game.wave;
+        try { _activeRoom.send({ kind: 'wave', w: game.wave }); } catch (_) {}
+    }
+    // Tick the watcher off the RAF loop owner. We don't have direct
+    // access here; piggy-back on the existing updateUI cadence by
+    // polling every 250 ms — wave changes are far slower than that.
+    setInterval(maybeBroadcastWave, 250);
 
     document.getElementById('autopilot-btn').addEventListener('click', () => {
         // Autopilot is disabled in multiplayer — having one player's AI
@@ -3611,6 +3638,15 @@ function init() {
             if (msg && msg.kind === 'pause' && typeof msg.paused === 'boolean') {
                 if (typeof window.__neonMPApplyPause === 'function') {
                     window.__neonMPApplyPause(msg.paused);
+                }
+            }
+            // Host-broadcast wave alignment — receivers snap their
+            // game.wave to match so the UI / wave-bonus logic stays
+            // consistent across peers even if the local sim drifted a
+            // wave behind.
+            if (msg && msg.kind === 'wave' && Number.isInteger(msg.w)) {
+                if (typeof window.__neonMPApplyWave === 'function') {
+                    window.__neonMPApplyWave(msg.w);
                 }
             }
         });
