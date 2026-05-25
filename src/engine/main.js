@@ -1969,6 +1969,15 @@ function init() {
     });
     document.getElementById('pause-btn').addEventListener('click', () => {
         togglePause();
+        // Co-op: only the HOST is allowed to pause. Their pause state
+        // propagates to everyone via a 'pause' message; non-hosts
+        // receive it and mirror locally without re-broadcasting.
+        if (_activeMode === 'coop' && _mpHostNick && _activeRoom) {
+            const myName = (typeof getPlayerName === 'function') ? getPlayerName() : '';
+            if (myName === _mpHostNick) {
+                try { _activeRoom.send({ kind: 'pause', paused: game.state === 'paused' }); } catch (_) {}
+            }
+        }
     });
 
     function togglePause() {
@@ -1984,6 +1993,12 @@ function init() {
             document.getElementById('pause-display').classList.remove('paused');
         }
     }
+    // Public hook for the coop transport to push remote pause/resume.
+    window.__neonMPApplyPause = function (paused) {
+        if (!game || (game.state !== 'playing' && game.state !== 'paused')) return;
+        if (paused && game.state !== 'paused') togglePause();
+        else if (!paused && game.state === 'paused') togglePause();
+    };
 
     document.getElementById('autopilot-btn').addEventListener('click', () => {
         // Autopilot is disabled in multiplayer — having one player's AI
@@ -3585,6 +3600,13 @@ function init() {
         room.onMessage((msg, fromId) => {
             if (msg && msg.kind === 'cursor' && msg.p && msg.p !== nick) {
                 onRemoteCursor(msg);
+            }
+            // Host-broadcast pause/resume — only the host sends these,
+            // every peer mirrors locally.
+            if (msg && msg.kind === 'pause' && typeof msg.paused === 'boolean') {
+                if (typeof window.__neonMPApplyPause === 'function') {
+                    window.__neonMPApplyPause(msg.paused);
+                }
             }
         });
 
