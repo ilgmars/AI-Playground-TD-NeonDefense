@@ -461,10 +461,22 @@ class Game {
                 this.particles.splice(i, 1);
             }
         }
+        // Particle / projectile caps. At wave 300+ the spawn rate
+        // dwarfs the natural eviction and the array grows unbounded,
+        // which is what makes the APK chug. 400 particles is plenty
+        // for visual fidelity; older ones are oldest-first dropped.
+        const PARTICLE_CAP = 400;
+        if (this.particles.length > PARTICLE_CAP) {
+            this.particles.splice(0, this.particles.length - PARTICLE_CAP);
+        }
+        const PROJECTILE_CAP = 400;
+        if (this.projectiles.length > PROJECTILE_CAP) {
+            this.projectiles.splice(0, this.projectiles.length - PROJECTILE_CAP);
+        }
 
         if (this.currentWaveDef) {
             if (this.enemiesSpawned < this.currentWaveDef.count) {
-                if (this.enemiesSpawned >= 10 && this.enemies.filter(e => e.active).length === 0) {
+                if (this.enemiesSpawned >= 10 && this._countActiveEnemies() === 0) {
                     this.enemiesSpawned = this.currentWaveDef.count;
                 } else if (this.spawnTimer > 0) {
                     this.spawnTimer--;
@@ -498,8 +510,7 @@ class Game {
                     this.spawnTimer = this.currentWaveDef.spawnRate;
                 }
             } else {
-                let aliveEnemies = this.enemies.filter(e => e.active);
-                if (aliveEnemies.length === 0) {
+                if (this._countActiveEnemies() === 0) {
                     this.currentWaveDef = null;
                     this.waveCooldown = ((this.wave + 1) % this.ascension.airWaveInterval === 0) ? WAVE_CONFIG.airWaveCooldown : WAVE_CONFIG.normalCooldown;
                     
@@ -806,6 +817,17 @@ class Game {
     _applyDamageBoon(f) {
         this.boonDamageMult *= f;
         for (const t of this.towers) this._scaleTowerDamage(t, f);
+    }
+    // Cheap active-count: a plain for-loop avoids the per-frame
+    // Array.prototype.filter allocation that used to dominate the
+    // late-wave update loop. Game.update calls this every tick, so
+    // 0 garbage is the goal.
+    _countActiveEnemies() {
+        let n = 0;
+        for (let i = 0; i < this.enemies.length; i++) {
+            if (this.enemies[i].active) n++;
+        }
+        return n;
     }
     _applyFireRateBoon(f) {
         this.boonFireRateMult *= f;
