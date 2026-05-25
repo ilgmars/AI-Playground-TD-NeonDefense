@@ -1041,8 +1041,20 @@ function renderBackpack() {
                 const def = BACKPACK_ITEMS[pItem.id];
                 cell.classList.add('filled');
                 if (def && def.rarity) cell.dataset.rarity = def.rarity;
-                cell.style.background = (BP_RARITY_COLOR[def && def.rarity] || '#64748b') + '33';
-                cell.style.borderColor = BP_RARITY_COLOR[def && def.rarity] || '#64748b';
+                const color = BP_RARITY_COLOR[def && def.rarity] || '#64748b';
+                cell.style.background = color + '33';
+                // Shape-aware borders: thick on the outline of the
+                // item, transparent on edges shared with another cell
+                // of the SAME item. Otherwise T / L / S items melt
+                // together in the grid and you can't see where one
+                // ends and the next begins.
+                const sameOwner = (nx, ny) => occ[nx + ',' + ny] === ownerIdx;
+                const thick = `2px solid ${color}`;
+                const thin  = `1px solid ${color}55`; // soft interior divider
+                cell.style.borderTop    = sameOwner(x, y - 1) ? thin : thick;
+                cell.style.borderRight  = sameOwner(x + 1, y) ? thin : thick;
+                cell.style.borderBottom = sameOwner(x, y + 1) ? thin : thick;
+                cell.style.borderLeft   = sameOwner(x - 1, y) ? thin : thick;
                 if (pItem.x === x && pItem.y === y) cell.textContent = (def ? def.name[0] : '?');
                 // Tooltip: name, rarity (titlecased), description.
                 if (def) {
