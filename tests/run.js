@@ -37,6 +37,7 @@ const SUITES = [
     { name: 'coop-pause-sync',    file: 'tests/coop-pause-sync.test.js' },
     { name: 'coop-wave-sync',     file: 'tests/coop-wave-sync.test.js' },
     { name: 'canvas-pinch-zoom',  file: 'tests/canvas-pinch-zoom.test.js' },
+    { name: 'coop-mechanics',     file: 'tests/coop-mechanics.test.js' },
     // Real two-client end-to-end over actual Trystero. Self-skips when
     // the environment can't reach trackers / WebRTC (set NEON_MP_FORCE=1
     // to make those skips into failures, e.g. for a release smoke).

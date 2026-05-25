@@ -3537,7 +3537,11 @@ function init() {
         });
 
         joinBtn.addEventListener('click', async () => {
-            const mode = modeSel.value;
+            // Force coop. Race was removed (2026-05-25). Any stale
+            // cached HTML that still shows a 'race' option is coerced
+            // here so the user can't accidentally launch a non-coop
+            // run that the rest of the code no longer handles.
+            const mode = 'coop';
             if (!lobby.isValidMode(mode)) {
                 setStatus(status, mode.toUpperCase() + ' is not a known mode.', '#fb7185');
                 return;
@@ -3559,58 +3563,13 @@ function init() {
             const rawSpeed = parseInt(speedSel && speedSel.value, 10);
             const startSpeed = [1, 2, 4, 8, 16].indexOf(rawSpeed) >= 0 ? rawSpeed : 1;
 
-            // Race mode = display-only, no PRNG re-seed needed. Coop and
-            // Versus replace Math.random with a room-seeded mulberry32
-            // which the Aegis sensor would flag mid-run — so for those
-            // two modes we stash the request in sessionStorage and
-            // reload so the pre-boot inline script can install the
-            // seeded RNG BEFORE aegis.js captures the snapshot.
-            if (mode === 'race') {
-                setStatus(status, 'Connecting to room ' + parsed.code + '…', 'var(--accent)');
-                joinBtn.disabled = true;
-                // Progressive status: surface every Trystero phase so a
-                // hang has a recognisable cause instead of a spinner.
-                const onStatus = (evt) => {
-                    if (evt.kind === 'cdn-load')
-                        setStatus(status, 'Loading Trystero from ' + (evt.url || 'CDN') + '…', 'var(--accent)');
-                    else if (evt.kind === 'cdn-fail')
-                        setStatus(status, 'CDN failed: ' + evt.error + ' — trying fallback…', '#fbbf24');
-                    else if (evt.kind === 'cdn-ok')
-                        setStatus(status, 'Library loaded. Joining room…', 'var(--accent)');
-                    else if (evt.kind === 'joined')
-                        setStatus(status, 'In room ' + evt.room + '. Waiting for peers…', '#4ade80');
-                    else if (evt.kind === 'peer-join')
-                        setStatus(status, 'Peer joined (' + evt.peerCount + ' connected).', '#4ade80');
-                };
-                try {
-                    await joinRace(parsed.code, nick, onStatus);
-                    setStatus(status, 'Connected. Starting run…', '#4ade80');
-                    hideScreen('mp-lobby');
-                    _exitSubScreenState();
-                    const seed = NeonMP.protocol.roomCodeToSeed(parsed.code);
-                    restartGame(seed);
-                    applyMultiplayerSpeed(startSpeed);
-                    showScreen('mp-race-overlay');
-                    const roomBadge = document.getElementById('mp-race-room');
-                    if (roomBadge) roomBadge.textContent = parsed.code;
-                } catch (err) {
-                    setStatus(status, 'Could not connect: ' + (err && err.message ? err.message : err),
-                              '#fb7185');
-                    leaveRace();
-                } finally {
-                    joinBtn.disabled = false;
-                }
-                return;
-            }
-
-            // Coop / Versus: persist intent and reload so the pre-boot
-            // hook can install the seeded RNG before aegis.js. main.js
-            // re-runs init() on reload and detects window.__neonMPPending
-            // to auto-resume the join (see resumeMultiplayerIfPending).
-            // The seed stored here is the lobby seed — same on every
-            // peer of the room. For coop both peers play that world.
-            // For versus the seed is replaced after the A/B handshake
-            // with the side-suffixed hash (in resumeMultiplayerIfPending).
+            // Coop is the only mode. Persist intent and reload so the
+            // pre-boot inline script can install the seeded RNG BEFORE
+            // aegis.js captures the snapshot. main.js re-runs init()
+            // on reload and detects window.__neonMPPending to
+            // auto-resume the join (see resumeMultiplayerIfPending).
+            // The seed stored here is the room-derived seed — same on
+            // every peer so both run the identical world.
             const seed = NeonMP.protocol.roomCodeToSeed(parsed.code);
             const cfg = { mode, roomCode: parsed.code, nick, seed, startSpeed };
             try {
@@ -3802,31 +3761,9 @@ function init() {
         }
     }
 
-    // joinRace: lazy-load Trystero, join the room, wire the race
-    // controller, subscribe the overlay renderer. Throws on transport
-    // failure; the lobby surface catches and shows the message.
-    async function joinRace(roomCode, nick, onStatus) {
-        if (!NeonMP || !NeonMP.trystero || !NeonMP.race) {
-            throw new Error('multiplayer scripts missing');
-        }
-        leaveActiveMultiplayer();         // ensure no stale controller from a previous join
-        const room = await NeonMP.trystero.joinRoom(roomCode, nick, { onStatus });
-        _activeRoom = room;
-        _activeRoomCode = roomCode;
-        _activeMode = 'race';
-
-        _activeRace = NeonMP.race.createRace({
-            peer: nick,
-            transport: room,
-            getGame: () => (typeof game !== 'undefined' ? game : {}),
-        });
-        _raceUnsub = _activeRace.onUpdate(renderRaceOverlay);
-        _activeRace.start();
-    }
-
-    // Back-compat alias used by older join paths and the LEAVE button —
-    // also clears coop / versus state if present.
-    function leaveRace() { leaveActiveMultiplayer(); }
+    // joinRace removed (2026-05-25) — race mode no longer exists as a
+    // run path. The race controller is still used INSIDE coop as a
+    // HUD leaderboard widget; see joinCoop for that wiring.
 
     // Force the lobby-selected speed onto the freshly-restarted game.
     // Called once per JOIN, AFTER restartGame() (which always resets

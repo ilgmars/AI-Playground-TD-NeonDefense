@@ -16,7 +16,7 @@
     const LASTROOM_KEY = 'neonMPLastRoom';
 
     // Modes the lobby currently knows about.
-    const MODES = ['race', 'coop'];
+    const MODES = ['coop'];
 
     // Build a room code from cryptographic randomness when available,
     // otherwise from Math.random + a salt of Date.now to make

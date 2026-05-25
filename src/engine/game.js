@@ -644,7 +644,11 @@ class Game {
                     reward = Math.floor(reward * (1 + (this.wave - 35) * 0.025));
                 }
                 reward = Math.max(1, Math.floor(reward * this.ascension.payoutMult * this.boonKillMult));
-                this.money += reward;
+                // Split-economy: a kill delivered by a REMOTE peer's
+                // tower goes to THEIR bank — not ours. Their sim
+                // independently credits its local money. We just skip
+                // the local credit here.
+                if (!e._noLocalCredit) this.money += reward;
                 // M3: Splitter — spawn 2 half-HP, 0.75x-speed children at death site (generation 1 only).
                 if (e.splitterGeneration === 1) {
                     for (let s = 0; s < 2; s++) {
@@ -673,13 +677,40 @@ class Game {
             }
         }
 
+        // Coop split-economy: attribute each kill to the firing tower
+        // so the wave-end credit block can refuse to credit local money
+        // for kills delivered by a REMOTE-owned tower. We diff the
+        // active set before/after every tower / projectile update; any
+        // enemy that flipped active=false in this step was killed by
+        // that owner.
         for (let t of this.towers) {
+            let before = null;
+            if (t._owner === 'remote') {
+                before = new Set();
+                for (const e of this.enemies) if (e.active) before.add(e);
+            }
             t.update(this.enemies, this.projectiles, this.particles);
+            if (before) {
+                for (const e of this.enemies) {
+                    if (!e.active && before.has(e)) e._noLocalCredit = true;
+                }
+            }
         }
 
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             let p = this.projectiles[i];
+            const srcRemote = !!(p.sourceTower && p.sourceTower._owner === 'remote');
+            let before = null;
+            if (srcRemote) {
+                before = new Set();
+                for (const e of this.enemies) if (e.active) before.add(e);
+            }
             p.update(this.enemies, this.particles, this.projectiles);
+            if (before) {
+                for (const e of this.enemies) {
+                    if (!e.active && before.has(e)) e._noLocalCredit = true;
+                }
+            }
             if (!p.active) {
                 this.projectiles.splice(i, 1);
             }

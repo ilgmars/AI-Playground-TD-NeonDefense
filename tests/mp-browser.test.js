@@ -97,57 +97,17 @@ const path = require('path');
 
     // Re-open lobby, type a known code, hijack joinRoom to skip Trystero,
     // and verify JOIN seeds the world from the code and shows the overlay.
-    await page.click('#menu-multiplayer-btn');
-    await page.waitForTimeout(100);
-    await page.evaluate(() => {
-        // Replace the Trystero loader with a mock that joins the same
-        // in-process hub the controller uses. End-to-end JOIN runs but
-        // doesn't touch the network.
-        const hub = NeonMP.transport.createMockHub();
-        NeonMP.trystero.joinRoom = async (code, nick) => {
-            const peer = hub.join(code, nick);
-            return Object.assign(peer, { peerCount: () => 1, onPeerJoin(){}, onPeerLeave(){} });
-        };
-    });
-    await page.fill('#mp-room-input', 'NEAN42');
-    await page.fill('#mp-nick-input', 'ALICE');
-    // Default mode is now coop (sessionStorage + reload). This test
-    // verifies the immediate race-JOIN path, so pick race explicitly.
-    await page.selectOption('#mp-mode-select', 'race');
-    await page.click('#mp-join-btn');
-    await page.waitForTimeout(500);
-    const joinState = await page.evaluate(() => ({
-        seed: window.game && window.game.seed,
-        expectedSeed: NeonMP.protocol.roomCodeToSeed('NEAN42'),
-        overlayVisible: !document.getElementById('mp-race-overlay').classList.contains('hidden'),
-        roomBadge: document.getElementById('mp-race-room').textContent,
-    }));
-    ok('JOIN seeded game from room code', joinState.seed === joinState.expectedSeed);
-    ok('JOIN shows race overlay',         joinState.overlayVisible === true);
-    ok('JOIN sets room badge',            joinState.roomBadge === 'NEAN42');
-
-    // After ≥1 heartbeat tick, the local player row should be visible.
-    await page.waitForTimeout(1100);
-    const rowCount = await page.$$eval('#mp-race-list .mp-race-row', els => els.length);
-    ok('race overlay renders local row', rowCount >= 1);
-
-    // Leave: overlay hides, race controller cleared.
-    await page.click('#mp-race-leave');
-    await page.waitForTimeout(150);
-    const afterLeave = await page.evaluate(() =>
-        document.getElementById('mp-race-overlay').classList.contains('hidden'));
-    ok('LEAVE hides race overlay', afterLeave === true);
+    // Race mode was removed (2026-05-25) — coop is the only run mode.
+    // The race CONTROLLER (Phase 5 above) is still used INSIDE coop
+    // for the leaderboard HUD, hence kept. But the immediate race
+    // JOIN path no longer exists, so the old JOIN end-to-end here is
+    // gone. We just verify coop is enabled and selected by default.
 
     // ── Coop scripts present + dropdown un-disabled ─────────────────
     const coopAvail = await page.evaluate(() => ({
         coopMod:   !!(NeonMP && NeonMP.coop && typeof NeonMP.coop.createCoop === 'function'),
     }));
     ok('NeonMP.coop loaded',   coopAvail.coopMod);
-    // Race overlay closed the lobby but the game is mid-run; navigate
-    // explicitly back to the main menu so the MULTIPLAYER button is
-    // visible/clickable.
-    await page.evaluate(() => navigateToMainMenu());
-    await page.waitForTimeout(100);
     await page.click('#menu-multiplayer-btn');
     await page.waitForTimeout(150);
     const dropdownState = await page.evaluate(() => {
@@ -158,6 +118,7 @@ const path = require('path');
     });
     ok('coop option un-disabled',   dropdownState.coop === true);
     ok('versus option no longer in lobby', dropdownState.versus === undefined);
+    ok('race option no longer in lobby',   dropdownState.race   === undefined);
 
     // ── Coop in-browser end-to-end ─────────────────────────────────
     const coopE2E = await page.evaluate(() => {
