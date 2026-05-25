@@ -138,6 +138,9 @@ const path = require('path');
         page.on('pageerror', e => errs.push(e.message));
         await page.goto('http://127.0.0.1:8810/index.html', { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(700);
+        // Pre-set the player name so start-btn doesn't block on the
+        // name prompt added in 37d884f.
+        await page.evaluate(() => { localStorage.setItem('neonPlayerName', 'TEST'); });
         page._errs = errs;
         page._ctx = ctx;
         return page;

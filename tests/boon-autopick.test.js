@@ -18,6 +18,7 @@ const path = require('path');
     page.on('pageerror', e => errs.push(e.message));
     await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(600);
+    await page.evaluate(() => { localStorage.setItem('neonPlayerName', 'TEST'); });
 
     let pass = 0, fail = 0;
     function ok(name, cond, extra) {

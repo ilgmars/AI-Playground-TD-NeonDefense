@@ -15,6 +15,8 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
   page.on('pageerror', e => errs.push(e.message));
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('http://127.0.0.1:8797/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(200);
+  await page.evaluate(() => { localStorage.setItem('neonPlayerName', 'TEST'); });
   await page.waitForTimeout(700);
 
   const emptyNoop = await page.evaluate(() => window.game ? window.game.boonDamageMult : null);

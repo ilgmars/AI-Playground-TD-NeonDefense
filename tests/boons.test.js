@@ -13,6 +13,8 @@ const path = require('path');
   page.on('pageerror', e => errs.push(e.message));
   await page.goto('http://127.0.0.1:8768/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(700);
+  // start-btn now gates on a cached name (commit 37d884f); pre-set it.
+  await page.evaluate(() => { localStorage.setItem('neonPlayerName', 'TEST'); });
 
   // Launch a run.
   await page.click('#menu-start-btn');

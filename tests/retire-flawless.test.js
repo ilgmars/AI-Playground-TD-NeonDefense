@@ -19,6 +19,7 @@ const path = require('path');
         const page = await ctx.newPage();
         await page.goto('http://127.0.0.1:8867/index.html', { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(500);
+        await page.evaluate(() => { localStorage.setItem('neonPlayerName', 'TEST'); });
         return { page, ctx };
     }
 

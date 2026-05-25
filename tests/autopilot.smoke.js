@@ -34,6 +34,7 @@ async function main() {
     const seedHash = SEED ? `#${SEED}` : '';
     await page.goto(`http://127.0.0.1:${PORT}/${seedHash}`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(500);
+    await page.evaluate(() => { localStorage.setItem('neonPlayerName', 'SMOKE'); });
 
     // Navigate to game directly — expose game to window
     await page.evaluate(() => {

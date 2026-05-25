@@ -31,6 +31,10 @@ const path = require('path');
 
     await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(600);
+    // Pre-set the player name so start-btn doesn't block on the prompt
+    // (gating added by 37d884f). The overlay-visibility test isn't
+    // about the name flow.
+    await page.evaluate(() => { localStorage.setItem('neonPlayerName', 'TESTER'); });
 
     // Element exists, has .hidden class, AND is actually invisible.
     const initial = await page.evaluate(() => {

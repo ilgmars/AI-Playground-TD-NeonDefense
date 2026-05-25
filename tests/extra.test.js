@@ -77,6 +77,7 @@ const path = require('path');
         page.on('pageerror', e => errs.push(e.message));
         await page.goto('http://127.0.0.1:8850/index.html', { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(700);
+        await page.evaluate(() => { localStorage.setItem('neonPlayerName', 'TEST'); });
         page._ctx = ctx; page._errs = errs;
         return page;
     }

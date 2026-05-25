@@ -41,6 +41,7 @@ const MAX_WAIT_MS = parseInt(args.maxMs || (8 * 60 * 1000));   // 8-min ceiling
 
     await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(500);
+    await page.evaluate(() => { localStorage.setItem('neonPlayerName', 'SMOKE'); });
 
     await page.click('#menu-start-btn');
     await page.waitForTimeout(200);

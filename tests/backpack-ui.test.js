@@ -18,6 +18,7 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('http://127.0.0.1:8790/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(700);
+  await page.evaluate(() => { localStorage.setItem('neonPlayerName', 'TEST'); });
 
   // Empty backpack must be a strict no-op at run start.
   const emptyMult = await page.evaluate(() => {
@@ -55,12 +56,21 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
   console.log('after UI place:', JSON.stringify(afterPlace));
 
   // Deterministic effect check: force a known item and start a run.
-  const effect = await page.evaluate(() => {
+  await page.evaluate(() => {
     save.backpack = { w:5, h:4, placed:[{ id:'plasma_cell', x:0, y:0, rot:0 }], stash:[] };
     NeonSave.write(save);
     document.getElementById('backpack-back-btn').click();
-    document.getElementById('menu-start-btn').click();
-    document.getElementById('start-btn').click();
+  });
+  await page.waitForTimeout(200);
+  await page.click('#menu-start-btn');
+  await page.waitForTimeout(250);
+  // start-btn is async now (awaits ensurePlayerName before restartGame).
+  // Click it and then wait for the game to actually transition.
+  await page.click('#start-btn');
+  await page.waitForFunction(() =>
+    window.game && (window.game.state === 'playing' || window.game.state === 'paused'),
+    null, { timeout: 4000 });
+  const effect = await page.evaluate(() => {
     const g = window.game;
     g.money = 99999;
     let built = null;
