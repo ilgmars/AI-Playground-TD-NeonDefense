@@ -3770,24 +3770,82 @@ function init() {
         // first/only peer).
         electHost();
 
-        // Re-announce when a new Trystero peer connects (WebRTC just
-        // completed handshake). This is the key fix for "waitroom never
-        // lists the other player": the initial announce() at entry was
-        // sent BEFORE the data channel was open, so it was dropped on
-        // the floor. onPeerJoin fires the moment the channel is
-        // actually usable. Best-effort — adapter may swallow errors
-        // and the periodic re-broadcast below is the backstop.
+        // Re-announce on every new Trystero peer connection — and again
+        // a few times right after, because the data channel can take
+        // 100-500 ms to actually carry the first message reliably on
+        // some networks. We send three spaced bursts on each peer-join.
         try {
-            _activeRoom.onPeerJoin && _activeRoom.onPeerJoin(() => announce());
+            _activeRoom.onPeerJoin && _activeRoom.onPeerJoin(() => {
+                announce();
+                setTimeout(announce, 200);
+                setTimeout(announce, 600);
+                setTimeout(announce, 1500);
+            });
         } catch (_) {}
 
-        // Periodic re-broadcast so peers that joined after our last
-        // send eventually learn about us. 2 s cadence is well within
-        // the player's "did anyone show up?" patience.
+        // Aggressive early burst: the waitroom screen has no RAF loop
+        // (the canvas isn't being painted), so background tabs get
+        // setInterval throttled to ~1 Hz under Chromium. To make sure
+        // the first peer pairing happens fast even with throttling,
+        // we burst-announce at 300 ms cadence for the first 8 seconds.
+        // After that the steady 2 s heartbeat takes over.
+        let burstCount = 0;
+        const BURST_LIMIT = 26;        // ~8 s at 300 ms
+        const burstTimer = setInterval(() => {
+            if (burstCount >= BURST_LIMIT) {
+                clearInterval(burstTimer);
+                return;
+            }
+            burstCount += 1;
+            announce();
+        }, 300);
+
+        // Steady 2 s heartbeat as a long-tail backstop.
         const heartbeatTimer = setInterval(announce, 2000);
 
-        // Initial announce.
+        // RAF tick keeps the tab marked active so timer throttling
+        // doesn't kick in on a parked waitroom. We also toggle a CSS
+        // variable per tick — a no-op visually, but it forces a paint
+        // task so headless chromium stops treating the page as idle.
+        // Without this, Playwright contexts sitting in the waitroom
+        // get setInterval clamped to ~1 Hz and peer-pairing never
+        // completes within the test timeout.
+        let rafAlive = true;
+        let rafCount = 0;
+        function rafTick() {
+            if (!rafAlive) return;
+            rafCount = (rafCount + 1) & 0xFFFF;
+            try {
+                // tiny style write — paint-bound but invisible
+                overlay.style.setProperty('--mp-wr-tick', rafCount);
+                // Re-broadcast every ~250 RAF ticks (~4 s on a 60 Hz
+                // display, more under throttling — but still firing).
+                if ((rafCount & 0xFF) === 0) announce();
+                requestAnimationFrame(rafTick);
+            } catch (_) {}
+        }
+        rafTick();
+
+        // Any user gesture or visibility change → flush state. This is
+        // the "clicking around helps it pair" behaviour, made
+        // deterministic. Pointer / keydown / focus / visibilitychange
+        // all kick an announce so resumed-from-throttled tabs catch
+        // up immediately.
+        const wakeAnnounce = () => announce();
+        const visChange = () => {
+            if (document.visibilityState === 'visible') announce();
+        };
+        document.addEventListener('pointerdown',   wakeAnnounce, { passive: true });
+        document.addEventListener('keydown',       wakeAnnounce, true);
+        document.addEventListener('visibilitychange', visChange);
+        window.addEventListener('focus',           wakeAnnounce);
+
+        // Initial announce — first to flush, plus a 50 ms follow-up so
+        // anyone whose onPeerJoin already fired on the other side
+        // before we hooked our listener still hears from us.
         announce();
+        setTimeout(announce, 50);
+        setTimeout(announce, 400);
         render();
 
         return new Promise(resolve => {
@@ -3796,6 +3854,12 @@ function init() {
                 if (done) return;
                 done = true;
                 clearInterval(heartbeatTimer);
+                clearInterval(burstTimer);
+                rafAlive = false;
+                document.removeEventListener('pointerdown', wakeAnnounce);
+                document.removeEventListener('keydown',     wakeAnnounce, true);
+                document.removeEventListener('visibilitychange', visChange);
+                window.removeEventListener('focus',         wakeAnnounce);
                 try { offMsg(); } catch (_) {}
                 readyBtn.removeEventListener('click', onReady);
                 leaveBtn.removeEventListener('click', onLeave);
