@@ -2463,8 +2463,62 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
 }
 .bp-chip:hover { background: rgba(192,132,252,0.18); color: var(--text-main); }
 .bp-chip-text { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; }
+.bp-chip-head { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; line-height: 1.1; }
 .bp-chip-name { font-weight: 700; line-height: 1.1; }
 .bp-chip-desc { font-size: 0.66rem; color: var(--text-muted); line-height: 1.2; max-width: 200px; }
+/* Pills: rarity letter + tag glyph on stash chips and held panel.
+   The aesthetic is small uppercase-letter badges with a thin border
+   that matches the rarity colour. Tag pills get a glyph + label. */
+.bp-pill {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 0 5px; border-radius: 3px;
+    border: 1px solid currentColor;
+    font-size: 0.58rem; letter-spacing: 1px; font-weight: 700;
+    line-height: 1.5;
+    text-transform: uppercase;
+}
+.bp-pill-tag {
+    color: var(--text-muted);
+    border-color: rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.04);
+}
+.bp-pill-tag.bp-tag-power { color: #fbbf24; }
+.bp-pill-tag.bp-tag-tech  { color: #38bdf8; }
+.bp-pill-tag.bp-tag-econ  { color: #4ade80; }
+.bp-pill-tag.bp-tag-core  { color: #fb7185; }
+/* Anchor-cell decorations on the placed grid */
+.bp-cell.bp-anchor {
+    position: relative;
+}
+.bp-cell .bp-name-letter {
+    font-weight: 800;
+    font-size: 1.05rem;
+    line-height: 1;
+}
+.bp-cell .bp-rarity-badge {
+    position: absolute;
+    top: 1px;
+    right: 2px;
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    line-height: 1;
+    pointer-events: none;
+}
+.bp-cell .bp-tag-row {
+    position: absolute;
+    bottom: 1px;
+    left: 2px;
+    display: flex;
+    gap: 1px;
+    font-size: 0.55rem;
+    line-height: 1;
+    pointer-events: none;
+}
+.bp-cell .bp-tag-icon.bp-tag-power { color: #fbbf24; }
+.bp-cell .bp-tag-icon.bp-tag-tech  { color: #38bdf8; }
+.bp-cell .bp-tag-icon.bp-tag-econ  { color: #4ade80; }
+.bp-cell .bp-tag-icon.bp-tag-core  { color: #fb7185; }
 #bp-held-desc { font-size: 0.72rem; color: var(--text-muted); flex: 1 1 100%; text-align: center; margin-top: -4px; }
 #bp-status { min-height: 1.2em; font-size: 0.82rem; color: #fbbf24; letter-spacing: 1px; margin-bottom: 10px; }
 

@@ -674,6 +674,26 @@ const BP_RARITY_COLOR = {
     epic:      '#f472b6',   // hot pink
     legendary: '#fbbf24',   // gold
 };
+// Single-letter rarity badge ('C', 'U', 'R', 'E', 'L') stamped on
+// stash chips and on the anchor cell of placed items so a glance
+// tells you the tier without reading the colour key.
+const BP_RARITY_LETTER = {
+    common: 'C', uncommon: 'U', rare: 'R', epic: 'E', legendary: 'L',
+};
+// Tag icons + tooltip names. Tag → glyph for the inline pill we draw
+// next to the item's name and (compact) on the placed anchor cell.
+const BP_TAG_ICON = {
+    power: '⚡',
+    tech:  '⚙',
+    econ:  '¢',
+    core:  '♥',
+};
+const BP_TAG_LABEL = {
+    power: 'Power',
+    tech:  'Tech',
+    econ:  'Econ',
+    core:  'Core',
+};
 // Held item while arranging: { source:'stash'|'placed', id, rot }.
 let bpHeld = null;
 let bpCellEls = {};   // "x,y" -> grid cell element, for non-destructive ghost
@@ -1055,13 +1075,54 @@ function renderBackpack() {
                 cell.style.borderRight  = sameOwner(x + 1, y) ? thin : thick;
                 cell.style.borderBottom = sameOwner(x, y + 1) ? thin : thick;
                 cell.style.borderLeft   = sameOwner(x - 1, y) ? thin : thick;
-                if (pItem.x === x && pItem.y === y) cell.textContent = (def ? def.name[0] : '?');
-                // Tooltip: name, rarity (titlecased), description.
+                // ANCHOR-CELL DECORATION ────────────────────────────
+                // The top-left cell of every placed item gets:
+                //   * the item's first letter (legible, big)
+                //   * a small rarity letter badge in the corner
+                //   * a tag-icon row above the name letter
+                // so rarity + type are obvious without reading the
+                // tooltip, even on a crowded grid.
+                if (pItem.x === x && pItem.y === y) {
+                    cell.classList.add('bp-anchor');
+                    if (def) {
+                        const rarBadge = document.createElement('span');
+                        rarBadge.className = 'bp-rarity-badge';
+                        rarBadge.dataset.rarity = def.rarity || 'common';
+                        rarBadge.textContent = BP_RARITY_LETTER[def.rarity] || '?';
+                        rarBadge.style.color = color;
+                        cell.appendChild(rarBadge);
+
+                        const tags = Array.isArray(def.tags) ? def.tags : [];
+                        if (tags.length > 0) {
+                            const tagRow = document.createElement('span');
+                            tagRow.className = 'bp-tag-row';
+                            for (const tg of tags) {
+                                const ic = document.createElement('span');
+                                ic.className = 'bp-tag-icon bp-tag-' + tg;
+                                ic.textContent = BP_TAG_ICON[tg] || '·';
+                                ic.title = BP_TAG_LABEL[tg] || tg;
+                                tagRow.appendChild(ic);
+                            }
+                            cell.appendChild(tagRow);
+                        }
+
+                        const letter = document.createElement('span');
+                        letter.className = 'bp-name-letter';
+                        letter.textContent = def.name[0];
+                        cell.appendChild(letter);
+                    } else {
+                        cell.textContent = '?';
+                    }
+                }
                 if (def) {
                     const rarityLabel = def.rarity
                         ? def.rarity.charAt(0).toUpperCase() + def.rarity.slice(1)
                         : 'Common';
-                    cell.title = `${def.name}\n${rarityLabel}\n${def.desc || ''}`;
+                    const tagsLabel = Array.isArray(def.tags) && def.tags.length
+                        ? def.tags.map(t => BP_TAG_LABEL[t] || t).join(', ')
+                        : '—';
+                    cell.title =
+                        `${def.name}\n${rarityLabel} · ${tagsLabel}\n${def.desc || ''}`;
                 }
                 cell.dataset.placedIdx = String(ownerIdx);     // needed by the touch-drag handler
                 cell.addEventListener('click', () => {
@@ -1105,20 +1166,44 @@ function renderBackpack() {
         const def = BACKPACK_ITEMS[id];
         const chip = document.createElement('button');
         chip.className = 'bp-chip';
-        chip.dataset.stashIdx = String(i);     // needed by the touch-drag handler
+        chip.dataset.stashIdx = String(i);
+        if (def && def.rarity) chip.dataset.rarity = def.rarity;
         chip.style.borderColor = BP_RARITY_COLOR[def && def.rarity] || '#64748b';
         const shape = document.createElement('div');
         shape.className = 'bp-mini';
         bpMiniShape(def, 0, shape);
         const text = document.createElement('div');
         text.className = 'bp-chip-text';
+        // Header row: name + rarity pill + tag pills. The pills give
+        // glanceable category info on every stash item; the old chip
+        // only had border colour and inconsistent first-letter cues.
+        const head = document.createElement('span');
+        head.className = 'bp-chip-head';
         const label = document.createElement('span');
         label.className = 'bp-chip-name';
         label.textContent = def ? def.name : id;
+        head.appendChild(label);
+        if (def && def.rarity) {
+            const rarPill = document.createElement('span');
+            rarPill.className = 'bp-pill bp-pill-rarity';
+            rarPill.dataset.rarity = def.rarity;
+            rarPill.textContent = def.rarity.toUpperCase();
+            rarPill.style.color = BP_RARITY_COLOR[def.rarity];
+            rarPill.style.borderColor = BP_RARITY_COLOR[def.rarity];
+            head.appendChild(rarPill);
+        }
+        if (def && Array.isArray(def.tags)) {
+            for (const tg of def.tags) {
+                const tagPill = document.createElement('span');
+                tagPill.className = 'bp-pill bp-pill-tag bp-tag-' + tg;
+                tagPill.textContent = (BP_TAG_ICON[tg] || '·') + ' ' + (BP_TAG_LABEL[tg] || tg);
+                head.appendChild(tagPill);
+            }
+        }
         const desc = document.createElement('span');
         desc.className = 'bp-chip-desc';
         desc.textContent = def && def.desc ? def.desc : '';
-        text.appendChild(label);
+        text.appendChild(head);
         text.appendChild(desc);
         chip.appendChild(shape);
         chip.appendChild(text);
@@ -1126,7 +1211,10 @@ function renderBackpack() {
             const rarityLabel = def.rarity
                 ? def.rarity.charAt(0).toUpperCase() + def.rarity.slice(1)
                 : 'Common';
-            chip.title = `${def.name}\n${rarityLabel}\n${def.desc || ''}`;
+            const tagsLabel = Array.isArray(def.tags) && def.tags.length
+                ? def.tags.map(t => BP_TAG_LABEL[t] || t).join(', ')
+                : '—';
+            chip.title = `${def.name}\n${rarityLabel} · ${tagsLabel}\n${def.desc || ''}`;
         }
         chip.addEventListener('click', () => bpPickStash(i));
         stashEl.appendChild(chip);
@@ -2604,15 +2692,43 @@ function init() {
         }
     }
 
+    // Remember which screen launched the scoreboard so BACK returns
+    // there (main-menu vs start-screen vs game-over). Without this,
+    // BACK always dropped the player to the main menu — confusing
+    // when they were mid-setup picking a tier and just wanted to
+    // glance at the board.
+    let _sbOrigin = 'main-menu';
     function openScoreboard() {
         _sbTier = (game && Number.isFinite(game.ascensionTier))
             ? game.ascensionTier : (selectedTier | 0);
         renderScoreboardTabs();
         renderScoreboardOverlay();
+        // Record current visible screen as the return target.
+        _sbOrigin = 'main-menu';
+        for (const id of ['start-screen', 'game-over']) {
+            const el = document.getElementById(id);
+            if (el && !el.classList.contains('hidden')) { _sbOrigin = id; break; }
+        }
+        // Mirror navigateToTechTree: push history + hide the screen
+        // we came from so the overlay isn't fighting for layout. The
+        // fact that the SCOREBOARD button "did nothing" for some
+        // players was the main-menu still being clickable through the
+        // overlay on smaller viewports.
+        _enterSubScreen();
+        hideScreen('main-menu');
+        hideScreen('start-screen');
+        hideScreen('game-over');
         showScreen('scoreboard-screen');
     }
-    function closeScoreboard() { hideScreen('scoreboard-screen'); }
+    function closeScoreboard() {
+        hideScreen('scoreboard-screen');
+        // Pop history so the device Back button stack stays in sync,
+        // then re-show whichever screen launched the scoreboard.
+        _exitSubScreenState();
+        showScreen(_sbOrigin);
+    }
     window.openScoreboard = openScoreboard;
+    window.closeScoreboard = closeScoreboard;
 
     const sbBackBtn = document.getElementById('sb-back-btn');
     if (sbBackBtn) sbBackBtn.addEventListener('click', closeScoreboard);

@@ -41,6 +41,9 @@ const SUITES = [
     { name: 'scoreboard-global',  file: 'tests/scoreboard-global.test.js' },
     { name: 'coop-fair-tier',     file: 'tests/coop-fair-tier.test.js' },
     { name: 'canvas-1f-pan',      file: 'tests/canvas-single-finger-pan.test.js' },
+    { name: 'bp-catalog',         file: 'tests/backpack-catalog.test.js' },
+    { name: 'bp-rarity-indicators', file: 'tests/bp-rarity-indicators.test.js' },
+    { name: 'scoreboard-clickthrough', file: 'tests/scoreboard-clickthrough.test.js' },
     // Real two-client end-to-end over actual Trystero. Self-skips when
     // the environment can't reach trackers / WebRTC (set NEON_MP_FORCE=1
     // to make those skips into failures, e.g. for a release smoke).
