@@ -27,6 +27,7 @@ const SUITES = [
     // Without the fix in transport-trystero.js, both peers got the
     // same Trystero ID and deduped each other as "self".
     { name: 'mp-peer-id',      file: 'tests/mp-peer-id.test.js' },
+    { name: 'sp-no-race-overlay', file: 'tests/sp-no-race-overlay.test.js' },
     // Real two-client end-to-end over actual Trystero. Self-skips when
     // the environment can't reach trackers / WebRTC (set NEON_MP_FORCE=1
     // to make those skips into failures, e.g. for a release smoke).

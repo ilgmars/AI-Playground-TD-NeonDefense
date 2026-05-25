@@ -3438,6 +3438,9 @@ function init() {
         _mpHostNick = null;
         _mpHostTier = null;
         window.__neonMPVersusSide = null;
+        // Stale-state guard: hide the race overlay and clear its list so
+        // a subsequent single-player run doesn't see a leftover panel.
+        hideScreen('mp-race-overlay');
         const list = document.getElementById('mp-race-list');
         if (list) list.innerHTML = '';
         // Drop remote cursors and clear the overlay so it doesn't show

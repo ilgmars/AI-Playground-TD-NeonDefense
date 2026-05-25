@@ -2530,6 +2530,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     color: var(--text-muted);
 }
 
+#mp-race-overlay.hidden { display: none; }
 #mp-race-overlay {
     position: absolute;
     top: 80px;
