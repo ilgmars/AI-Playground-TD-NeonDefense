@@ -5,9 +5,13 @@ name: Deploy Pages
 # previous Pages build stays live).
 #
 # Setup note: this workflow requires the repository's Pages source to
-# be switched to "GitHub Actions" in Settings → Pages. While the source
-# is still "Deploy from a branch", every push to main auto-deploys and
-# bypasses this gate.
+# be "GitHub Actions" (build_type=workflow). Set on 2026-05-25 via:
+#   gh api -X PUT repos/<owner>/<repo>/pages -f build_type=workflow
+# When the source is "Deploy from a branch" (build_type=legacy), every
+# push to main auto-deploys via GitHub's built-in pages-build-deployment
+# job and BYPASSES this gate — the deploy can succeed even if the
+# Test job below fails. Don't switch it back without re-thinking the
+# gate.
 #
 # History note: an earlier revision of this file checked out a separate
 # `multiplayer` branch into a /multiplayer/ subdirectory. The multiplayer
