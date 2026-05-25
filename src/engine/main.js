@@ -2266,9 +2266,14 @@ function init() {
         // race). Avoids the case where ALICE's +25 % money kit
         // outclasses BOB before the first wave spawns.
         const mpActive = !!_activeMode;
-        const tierToUse = (mpActive && _mpHostTier != null)
-            ? _mpHostTier
-            : selectedTier;
+        // Coop has its OWN ascension track, separate from SP. Until
+        // there's a real coop-progression mechanic, we hard-pin coop
+        // to tier 0 so a host with SP-cleared A11 doesn't drag a
+        // partner who only has A2 unlocked into an effects table the
+        // partner has never seen. `save.mpAscensionCleared` exists
+        // for future expansion. See COOP_FAIR_TIER constant below.
+        const COOP_FAIR_TIER = 0;
+        const tierToUse = mpActive ? COOP_FAIR_TIER : selectedTier;
         const loadoutToUse = mpActive
             ? {
                 heroId: 'hero.' + DEFAULT_HERO,
@@ -2913,6 +2918,22 @@ function init() {
     window.__neonResetZoom = resetZoom;
 
     let _pinch = null;  // {d0, cx0, cy0, scale0, tx0, ty0}
+    // Single-finger pan state — only kicks in when scale > 1, so taps
+    // at the base zoom still place towers normally. Activated after
+    // the finger has moved past PAN_THRESHOLD without lifting.
+    let _spanPan = null;
+    const PAN_THRESHOLD_PX = 12;
+    function clampPan() {
+        const rect = canvas.getBoundingClientRect();
+        const canvasW = rect.width / _zoom.scale;
+        const canvasH = rect.height / _zoom.scale;
+        const maxTx = canvasW * (_zoom.scale - 1);
+        const maxTy = canvasH * (_zoom.scale - 1);
+        if (_zoom.tx > 0) _zoom.tx = 0;
+        if (_zoom.ty > 0) _zoom.ty = 0;
+        if (_zoom.tx < -maxTx) _zoom.tx = -maxTx;
+        if (_zoom.ty < -maxTy) _zoom.ty = -maxTy;
+    }
     function touchCentroid(touches) {
         let x = 0, y = 0;
         for (let i = 0; i < touches.length; i++) {
@@ -2935,56 +2956,92 @@ function init() {
                 d0, cx0: c0.x, cy0: c0.y,
                 scale0: _zoom.scale, tx0: _zoom.tx, ty0: _zoom.ty,
             };
+            // 2-finger pinch supersedes any single-finger pan we
+            // might have just started.
+            _spanPan = null;
             e.preventDefault();
-            // Cancel any in-flight single-finger drag so the tower
-            // ghost doesn't ride along with the pinch.
             if (typeof clearTimeout === 'function' && window.__touchState_clearLP) {
                 window.__touchState_clearLP();
             }
+            return;
+        }
+        // Single-finger touchstart on the canvas. Don't commit to
+        // pan yet — wait until the user drags past PAN_THRESHOLD_PX.
+        // Until then, a quick tap fires the existing pointerdown
+        // tower-place / select logic. Pan is only meaningful while
+        // zoomed in (otherwise the canvas already fits the screen).
+        if (e.touches.length === 1 && _zoom.scale > 1) {
+            const t = e.touches[0];
+            _spanPan = {
+                startX: t.clientX, startY: t.clientY,
+                tx0: _zoom.tx, ty0: _zoom.ty,
+                active: false,
+            };
         }
     }, { passive: false });
 
     canvas.addEventListener('touchmove', (e) => {
-        if (!_pinch || e.touches.length < 2) return;
-        const d1 = touchDistance(e.touches[0], e.touches[1]);
-        const c1 = touchCentroid(e.touches);
-        if (d1 <= 0) return;
-        const ratio = d1 / _pinch.d0;
-        let newScale = _pinch.scale0 * ratio;
-        if (newScale < ZOOM_MIN) newScale = ZOOM_MIN;
-        if (newScale > ZOOM_MAX) newScale = ZOOM_MAX;
-        // Keep the original centroid pinned under the current centroid.
-        // tx_new = c1 - (c0 - tx0) * (newScale / scale0)
-        const k = newScale / _pinch.scale0;
-        _zoom.scale = newScale;
-        _zoom.tx = c1.x - (_pinch.cx0 - _pinch.tx0) * k;
-        _zoom.ty = c1.y - (_pinch.cy0 - _pinch.ty0) * k;
-        // Clamp pan so the canvas can't be dragged completely off-screen.
-        const rect = canvas.getBoundingClientRect();
-        const canvasW = rect.width / _zoom.scale;
-        const canvasH = rect.height / _zoom.scale;
-        const maxTx = canvasW * (_zoom.scale - 1);
-        const maxTy = canvasH * (_zoom.scale - 1);
-        if (_zoom.tx > 0) _zoom.tx = 0;
-        if (_zoom.ty > 0) _zoom.ty = 0;
-        if (_zoom.tx < -maxTx) _zoom.tx = -maxTx;
-        if (_zoom.ty < -maxTy) _zoom.ty = -maxTy;
-        applyZoom();
-        e.preventDefault();
+        if (_pinch && e.touches.length >= 2) {
+            const d1 = touchDistance(e.touches[0], e.touches[1]);
+            const c1 = touchCentroid(e.touches);
+            if (d1 <= 0) return;
+            const ratio = d1 / _pinch.d0;
+            let newScale = _pinch.scale0 * ratio;
+            if (newScale < ZOOM_MIN) newScale = ZOOM_MIN;
+            if (newScale > ZOOM_MAX) newScale = ZOOM_MAX;
+            const k = newScale / _pinch.scale0;
+            _zoom.scale = newScale;
+            _zoom.tx = c1.x - (_pinch.cx0 - _pinch.tx0) * k;
+            _zoom.ty = c1.y - (_pinch.cy0 - _pinch.ty0) * k;
+            clampPan();
+            applyZoom();
+            e.preventDefault();
+            return;
+        }
+        // Single-finger drag while zoomed in → pan the field. Activate
+        // only after the user has moved past PAN_THRESHOLD so a
+        // tap-with-jitter still registers as a tap (and places a
+        // tower / selects, per the existing pointerdown handler).
+        if (_spanPan && e.touches.length === 1 && _zoom.scale > 1) {
+            const t = e.touches[0];
+            const dx = t.clientX - _spanPan.startX;
+            const dy = t.clientY - _spanPan.startY;
+            if (!_spanPan.active && Math.hypot(dx, dy) >= PAN_THRESHOLD_PX) {
+                _spanPan.active = true;
+            }
+            if (_spanPan.active) {
+                _zoom.tx = _spanPan.tx0 + dx;
+                _zoom.ty = _spanPan.ty0 + dy;
+                clampPan();
+                applyZoom();
+                e.preventDefault();
+            }
+        }
     }, { passive: false });
 
     canvas.addEventListener('touchend', (e) => {
         if (e.touches.length < 2 && _pinch) {
             _pinch = null;
-            // Brief cooldown so the lingering single finger doesn't
-            // trigger pointerdown / tower placement.
             window.__neonPinchCooldownUntil = Date.now() + 250;
+        }
+        if (_spanPan && e.touches.length === 0) {
+            const wasActive = _spanPan.active;
+            _spanPan = null;
+            // If we actually panned, suppress the lingering tap so
+            // the finger lift doesn't place a tower at the wrong cell.
+            if (wasActive) {
+                window.__neonPinchCooldownUntil = Date.now() + 200;
+            }
         }
     });
     canvas.addEventListener('touchcancel', () => {
         if (_pinch) {
             _pinch = null;
             window.__neonPinchCooldownUntil = Date.now() + 250;
+        }
+        if (_spanPan) {
+            if (_spanPan.active) window.__neonPinchCooldownUntil = Date.now() + 200;
+            _spanPan = null;
         }
     });
 

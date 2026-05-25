@@ -66,6 +66,7 @@ const NeonSave = (function () {
             metaXP: 0,
             totalXPEarned: 0,
             ascensionCleared: 0,                               // highest tier where wave 30 was reached
+            mpAscensionCleared: 0,                             // coop has its own progression; reserved for future tier-picker
             unlockedNodes: ['hero.pioneer', 'kit.standard'],   // M2 pre-unlocked tree nodes
             towerMastery: mastery,                             // filled in M3
             highScores: highScores,                            // per-Ascension top-5 lists of { name, wave }
@@ -196,6 +197,7 @@ const NeonSave = (function () {
         if (typeof save.metaXP        !== 'number') save.metaXP = 0;
         if (typeof save.totalXPEarned !== 'number') save.totalXPEarned = save.metaXP;
         if (typeof save.ascensionCleared !== 'number') save.ascensionCleared = 0;
+        if (typeof save.mpAscensionCleared !== 'number') save.mpAscensionCleared = 0;
         if (!Array.isArray(save.unlockedNodes)) save.unlockedNodes = [];
         if (!save.unlockedNodes.includes('hero.pioneer')) save.unlockedNodes.push('hero.pioneer');
         if (!save.unlockedNodes.includes('kit.standard')) save.unlockedNodes.push('kit.standard');
