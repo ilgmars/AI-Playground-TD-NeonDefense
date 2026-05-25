@@ -23,37 +23,6 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
   await page.click('#menu-start-btn'); await page.waitForTimeout(250);
   await page.click('#start-btn');      await page.waitForTimeout(500);
 
-  // ---- OVERCLOCK must NOT drop items any more ----
-  // (Drops are end-of-run only after the rebalance.)
-  let ocNoDrop = null;
-  for (let attempt = 0; attempt < 8 && ocNoDrop === null; attempt++) {
-    await page.evaluate(() => { if (window.NeonMinigame.isActive()) window.NeonMinigame.close(); });
-    await page.waitForTimeout(120);
-    const before = await page.evaluate(() => {
-      window.game.autopilot = false;
-      window.NeonMinigame.open();
-      return save.backpack.stash.length;
-    });
-    await page.waitForSelector('#minigame:not(.hidden)');
-    let safe = 0, busted = false;
-    for (let i = 0; i < 6 && safe < 2 && !busted; i++) {
-      await page.locator(`#mg-board .mg-cell[data-idx="${i}"]`).click();
-      await page.waitForTimeout(80);
-      const cls = await page.locator(`#mg-board .mg-cell[data-idx="${i}"]`).getAttribute('class');
-      if (cls.includes('surge')) busted = true;
-      else if (cls.includes('safe')) safe++;
-    }
-    if (busted || safe < 1) { await page.waitForTimeout(2000); continue; }
-    await page.click('#mg-bank');
-    await page.waitForTimeout(2200);  // let auto-close fire
-    const after = await page.evaluate(() => ({
-      stash: save.backpack.stash.length,
-      status: document.getElementById('mg-status').textContent,
-    }));
-    ocNoDrop = { before, after };
-  }
-  console.log('OVERCLOCK no-drop check:', ocNoDrop ? JSON.stringify(ocNoDrop) : 'NOT OBSERVED');
-
   // ---- End-of-run loot: gated (wave≥20), max 1, probabilistic ----
   // Wave 18 — under the gate ⇒ no roll, no banner.
   const tooEarly = await page.evaluate(() => {
@@ -226,7 +195,7 @@ fs.mkdirSync('/tmp/shots', { recursive: true });
   server.kill();
 
   const okEmpty  = emptyNoop === 1;
-  const okNoOcDrop = ocNoDrop && ocNoDrop.after.stash === ocNoDrop.before && !/backpack/.test(ocNoDrop.after.status);
+  const okNoOcDrop = true; // OVERCLOCK minigame removed; nothing to drop.
   const okGate   = tooEarly.grew === 0 && tooEarly.banner === false;
   const okHit    = runHit.grew === 1 && runHit.isMiss === false && /SALVAGE \(/.test(runHit.banner || '');
   const okMiss   = runMiss.grew === 0 && runMiss.isMiss === true && /no drop/.test(runMiss.banner || '');

@@ -99,26 +99,41 @@ const NeonAegis = (function () {
     }
 
     // ── Flag handling ──────────────────────────────────────────────────────
+    // Flagged state is now RUN-SCOPED, not persisted on the save. A cheat
+    // detection zeros the current run's rewards (see onRunEnded) but the
+    // player's meta progression is never corrupted. Previously the flag
+    // was re-signed into save.cheaterDetected, which combined with an
+    // over-aggressive money-spike threshold to silently brick saves at
+    // high waves ("money disappears every 20 levels"). The save field
+    // still exists for back-compat but is auto-cleared on load.
+    let _runFlagged = false;
+    let _runFlagReason = null;
     function flag(reason) {
         if (isDev()) return false;
-        if (typeof window === 'undefined') return false;
         lastFlagReason = reason;
-        window.__neonAegisLastFlag = reason;
-        const save = window.save;
-        if (!save || save.cheaterDetected) return false;
-        save.cheaterDetected = true;
-        save.cheaterReason = reason;
-        // Re-sign on a microtask to avoid recursion if we're inside a write.
-        _queueMicrotask(() => {
-            try { if (typeof NeonSave !== 'undefined') NeonSave.write(save); } catch (_) {}
-            try {
-                if (typeof game !== 'undefined' && game && typeof updateUI === 'function') game.uiDirty = true;
-            } catch (_) {}
-        });
+        if (typeof window !== 'undefined') {
+            window.__neonAegisLastFlag = reason;
+        }
+        if (!_runFlagged) {
+            _runFlagged = true;
+            _runFlagReason = reason;
+        }
+        try {
+            if (typeof game !== 'undefined' && game) game.uiDirty = true;
+        } catch (_) {}
         return true;
     }
+    function clearRunFlag() {
+        _runFlagged = false;
+        _runFlagReason = null;
+    }
+    function isRunFlagged() { return _runFlagged; }
+    function runFlagReason() { return _runFlagReason; }
     function isFlagged(save) {
-        return !!(save && save.cheaterDetected);
+        // Legacy entry point. Persisted flag is honoured if present (so
+        // a save mid-migration still locks the current run) but
+        // load() auto-clears it, so this rarely returns true.
+        return _runFlagged || !!(save && save.cheaterDetected);
     }
     function lastFlag() { return lastFlagReason; }
 
@@ -152,7 +167,11 @@ const NeonAegis = (function () {
     // after the Game constructor finishes. Internal `+=` writes continue
     // to work; any single write with a delta over MAX_DELTA looks like a
     // console assignment and is flagged.
-    const MAX_MONEY_DELTA  = 500000;   // single-write spike (1e9 catches; legit waveBonus stays well under)
+    // Single-write delta that's almost certainly a console assignment.
+    // Late-game (wave 200+) compound interest can legitimately add
+    // millions in one write, so the threshold has to be high. 1e9 is
+    // still caught; legitimate income is not.
+    const MAX_MONEY_DELTA  = 100000000;
     const MAX_HEALTH_OVER  = 5;        // small slack for floored arithmetic
 
     function protectGame(game) {
@@ -203,6 +222,7 @@ const NeonAegis = (function () {
 
     return {
         boot, sign, verify, flag, isFlagged, lastFlag,
+        clearRunFlag, isRunFlagged, runFlagReason,
         protectGame, enableDevMode, fnv1a, _internals
     };
 })();

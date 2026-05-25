@@ -2101,7 +2101,10 @@ function init() {
             };
         game = new Game(canvas, useSeed, tierToUse, loadoutToUse);
         window.game = game;
-        if (typeof NeonAegis !== 'undefined') NeonAegis.protectGame(game);
+        if (typeof NeonAegis !== 'undefined') {
+            if (NeonAegis.clearRunFlag) NeonAegis.clearRunFlag();
+            NeonAegis.protectGame(game);
+        }
         game.start();
         updateSeedDisplay();
         updateModeDisplay();
@@ -2354,16 +2357,24 @@ function init() {
         // metaXP gain, mastery, maxWaveReached, loot. The render function
         // shows a red banner explaining the situation. RESET SAVE clears
         // the flag.
-        if (save.cheaterDetected) {
+        // Aegis flag is now RUN-SCOPED — the persistent save is never
+        // corrupted. The flag zeros this run's rewards, then clears so
+        // the next run starts fresh.
+        const runFlagged = (typeof NeonAegis !== 'undefined' && NeonAegis.isRunFlagged && NeonAegis.isRunFlagged())
+            || save.cheaterDetected; // legacy paths
+        if (runFlagged) {
+            const flagReason = (typeof NeonAegis !== 'undefined' && NeonAegis.runFlagReason && NeonAegis.runFlagReason())
+                || save.cheaterReason || 'anomaly';
             const zeroXP = { waveXP: 0, clearBonus: 0, firstBonus: 0, total: 0, retireBonus: 0 };
             if (typeof renderRunResultXP === 'function') {
                 renderRunResultXP({
                     wave, tier, xp: zeroXP, firstClear: false,
                     autoUnlockedNodeId: null, masteryResults: [],
                     retired, lootGranted: [], lootRoll: null,
-                    cheaterReason: save.cheaterReason || 'anomaly'
+                    cheaterReason: flagReason
                 });
             }
+            if (typeof NeonAegis !== 'undefined' && NeonAegis.clearRunFlag) NeonAegis.clearRunFlag();
             return;
         }
 
@@ -2837,36 +2848,10 @@ function init() {
         }
         game.draw();
 
-        // Bonus minigame hooks. Game.update() sets these flags at wave-start
-        // (alert) and wave-end (trigger) on every 15th-wave boundary; both are
-        // skipped when autopilot is enabled per spec.
-        if (game.pendingMinigameAlert) {
-            game.pendingMinigameAlert = false;
-            if (!game.autopilot) {
-                const toast = document.getElementById('minigame-toast');
-                if (toast) {
-                    toast.classList.remove('hidden');
-                    // Restart the fade animation if a previous toast is still on screen.
-                    toast.style.animation = 'none';
-                    void toast.offsetWidth;
-                    toast.style.animation = '';
-                    setTimeout(() => toast.classList.add('hidden'), 5000);
-                }
-            }
-        }
-        // Roguelike boon pick (every 10 waves). Drains before the minigame
-        // so when both land on the same wave (e.g. 30, 60) the boon chooser
-        // resolves first; the minigame flag is held until it's clear.
-        if (game.pendingBoon && window.NeonBoons && !window.NeonBoons.isActive()
-            && !(window.NeonMinigame && window.NeonMinigame.isActive())) {
+        // Roguelike boon pick — frequency now once per ascension tier.
+        if (game.pendingBoon && window.NeonBoons && !window.NeonBoons.isActive()) {
             game.pendingBoon = false;
             window.NeonBoons.open();   // auto-resolves silently under autopilot
-        }
-        if (game.pendingMinigame && !(window.NeonBoons && window.NeonBoons.isActive())) {
-            game.pendingMinigame = false;
-            if (!game.autopilot && window.NeonMinigame) {
-                window.NeonMinigame.open();
-            }
         }
 
         // M2: Airstrike targeting crosshair.

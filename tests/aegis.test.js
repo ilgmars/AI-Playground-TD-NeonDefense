@@ -97,13 +97,15 @@ const storedSig = localStorage.getItem('neonDefense.save.sig');
 ok('write stores a sig alongside save', typeof storedSig === 'string' && storedSig.length > 0);
 ok('stored sig verifies clean save',    NeonAegis.verify(storedJson, storedSig));
 
-// Tamper JSON without updating sig — on next load, cheaterDetected = true.
+// Save-tamper handling: the new contract is that load() does NOT corrupt
+// the save by setting a sticky cheaterDetected flag. The save heals
+// itself (re-signed). Cheat detection for the next run lives in the
+// run-scoped runtime flag, not on the save.
 const tamperedJson = storedJson.replace('"metaXP":555', '"metaXP":999999');
 localStorage.setItem(NeonSave.KEY, tamperedJson);
-// (Sig is still the old one.) Now load.
 const loaded = NeonSave.load();
-ok('localStorage tamper sets cheaterDetected', loaded.cheaterDetected === true);
-ok('cheater reason recorded', loaded.cheaterReason === 'save-tampered');
+ok('localStorage tamper does NOT brick save', loaded.cheaterDetected === false);
+ok('load re-signs the tampered save', NeonAegis.verify(localStorage.getItem(NeonSave.KEY), localStorage.getItem('neonDefense.save.sig')));
 
 console.log(`\nNODE LOGIC: ${pass} pass, ${fail} fail`);
 const nodeFail = fail;
@@ -145,69 +147,65 @@ const path = require('path');
         await page.click('#start-btn');      await page.waitForTimeout(500);
     }
 
+    // Helper: read the runtime run-scoped flag set by NeonAegis.flag().
+    const readRunFlag = (page) => page.evaluate(() => ({
+        flagged: NeonAegis.isRunFlagged(),
+        reason:  NeonAegis.runFlagReason(),
+        saveFlagged: !!save.cheaterDetected,    // must stay false now
+    }));
+
     // ── 1) Normal play: no false-positive ────────────────────────────────
     console.log('\nbrowser: normal play (no false-positive)');
     {
         const page = await freshPage();
         await startRun(page);
-        await page.waitForTimeout(2500);   // span at least two sentinel ticks
-        const flagged = await page.evaluate(() => !!save.cheaterDetected);
-        bok('normal play does not flag', flagged === false);
+        await page.waitForTimeout(2500);
+        const r = await readRunFlag(page);
+        bok('normal play does not flag',  r.flagged === false);
+        bok('save not corrupted by play', r.saveFlagged === false);
         bok('no JS errors during normal play', page._errs.length === 0);
         await page._ctx.close();
     }
 
-    // ── 2) Math.random override → flagged within sensor tick ─────────────
+    // ── 2) Math.random override → run flagged (save untouched) ───────────
     console.log('\nbrowser: Math.random override is flagged');
     {
         const page = await freshPage();
         await startRun(page);
         await page.evaluate(() => { Math.random = () => 0; });
-        await page.waitForTimeout(1700);   // > 1.2s sentinel interval
-        const r = await page.evaluate(() => ({
-            flagged: !!save.cheaterDetected,
-            reason:  save.cheaterReason,
-            restored: Math.random !== ((function(){ return 0; }).constructor) && Math.random.toString().length > 50,
-            // sentinel restores wrappedRandom — calling it should now work properly:
-            sample: Math.random() < 1,
-        }));
-        bok('rng override flags save',     r.flagged === true);
-        bok('reason is rng-override',      r.reason === 'rng-override');
-        bok('rng restored after detection', r.sample === true);
+        await page.waitForTimeout(1700);
+        const r = await readRunFlag(page);
+        bok('rng override flags run',  r.flagged === true);
+        bok('reason is rng-override',  r.reason === 'rng-override');
+        bok('save NOT corrupted',      r.saveFlagged === false);
         await page._ctx.close();
     }
 
-    // ── 3) Date.now override → flagged ───────────────────────────────────
+    // ── 3) Date.now override → run flagged ───────────────────────────────
     console.log('\nbrowser: Date.now override is flagged');
     {
         const page = await freshPage();
         await startRun(page);
         await page.evaluate(() => { Date.now = () => 0; });
         await page.waitForTimeout(1700);
-        const r = await page.evaluate(() => ({
-            flagged: !!save.cheaterDetected,
-            reason:  save.cheaterReason,
-        }));
-        bok('Date.now override flags', r.flagged === true);
-        bok('reason is time-override', r.reason === 'time-override');
+        const r = await readRunFlag(page);
+        bok('Date.now override flags run', r.flagged === true);
+        bok('reason is time-override',     r.reason === 'time-override');
+        bok('save NOT corrupted',          r.saveFlagged === false);
         await page._ctx.close();
     }
 
-    // ── 4) game.money = 1e9 → flagged immediately ────────────────────────
+    // ── 4) game.money = 1e9 → run flagged immediately ────────────────────
     console.log('\nbrowser: game.money spike is flagged');
     {
         const page = await freshPage();
         await startRun(page);
         await page.evaluate(() => { window.game.money = 1e9; });
-        // Setter fires synchronously; flag is queued on a microtask — give
-        // it a tick.
         await page.waitForTimeout(100);
-        const flagged = await page.evaluate(() => ({
-            flagged: !!save.cheaterDetected,
-            reason:  save.cheaterReason,
-        }));
-        bok('money spike flags', flagged.flagged === true);
-        bok('reason is money-spike', flagged.reason === 'money-spike');
+        const r = await readRunFlag(page);
+        bok('money spike flags run',  r.flagged === true);
+        bok('reason is money-spike',  r.reason === 'money-spike');
+        bok('save NOT corrupted',     r.saveFlagged === false);
         await page._ctx.close();
     }
 
@@ -216,12 +214,10 @@ const path = require('path');
     {
         const page = await freshPage();
         await startRun(page);
-        // 1000 is way under the 500K spike threshold — totally legitimate
-        // for a kill burst.
         await page.evaluate(() => { window.game.money += 1000; });
         await page.waitForTimeout(200);
-        const flagged = await page.evaluate(() => !!save.cheaterDetected);
-        bok('legit-bound money bump does not flag', flagged === false);
+        const r = await readRunFlag(page);
+        bok('legit-bound money bump does not flag', r.flagged === false);
         await page._ctx.close();
     }
 
@@ -232,22 +228,18 @@ const path = require('path');
         await startRun(page);
         await page.evaluate(() => { window.game.health = 9999; });
         await page.waitForTimeout(100);
-        const flagged = await page.evaluate(() => ({
-            flagged: !!save.cheaterDetected,
-            reason:  save.cheaterReason,
-        }));
-        bok('health overflow flags', flagged.flagged === true);
-        bok('reason is hp-overflow', flagged.reason === 'hp-overflow');
+        const r = await readRunFlag(page);
+        bok('health overflow flags run', r.flagged === true);
+        bok('reason is hp-overflow',     r.reason === 'hp-overflow');
+        bok('save NOT corrupted',        r.saveFlagged === false);
         await page._ctx.close();
     }
 
-    // ── 7) localStorage tamper → flagged on next load ────────────────────
-    console.log('\nbrowser: localStorage tamper flagged on reload');
+    // ── 7) localStorage tamper → save heals, no sticky cheater flag ──────
+    console.log('\nbrowser: localStorage tamper heals on reload (no save corruption)');
     {
         const page = await freshPage();
-        // Establish a clean signed save first.
         await page.evaluate(() => { save.metaXP = 100; NeonSave.write(save); });
-        // Tamper raw JSON without updating sig.
         await page.evaluate(() => {
             const json = localStorage.getItem(NeonSave.KEY);
             localStorage.setItem(NeonSave.KEY, json.replace('"metaXP":100', '"metaXP":999999'));
@@ -255,22 +247,19 @@ const path = require('path');
         await page.reload();
         await page.waitForTimeout(700);
         const r = await page.evaluate(() => ({
-            flagged: !!save.cheaterDetected,
-            reason:  save.cheaterReason,
+            saveFlagged: !!save.cheaterDetected,
             metaXP:  save.metaXP,
         }));
-        bok('tamper flagged on reload', r.flagged === true);
-        bok('reason is save-tampered',  r.reason === 'save-tampered');
-        bok('cheater metaXP preserved as-tampered (we do not zero it out, only block gains)', r.metaXP === 999999);
+        bok('save NOT marked cheater on reload (uncorrupted)', r.saveFlagged === false);
+        bok('save heal preserved the (tampered) numeric value', r.metaXP === 999999);
         await page._ctx.close();
     }
 
-    // ── 8) End-of-run consequences: zero XP, no loot, banner shown ───────
+    // ── 8) End-of-run consequences: zero XP, banner, save still clean ────
     console.log('\nbrowser: cheater end-of-run consequences');
     {
         const page = await freshPage();
         await startRun(page);
-        // Trigger a flag the easy way: money spike.
         await page.evaluate(() => { window.game.money = 1e9; });
         await page.waitForTimeout(150);
         const before = await page.evaluate(() => ({
@@ -281,52 +270,54 @@ const path = require('path');
         const after = await page.evaluate(() => ({
             metaXP: save.metaXP,
             stash:  save.backpack.stash.length,
+            saveFlagged: !!save.cheaterDetected,
             banner: (document.querySelector('.aegis-banner') || {}).textContent || null,
             xpTotal: (document.getElementById('xp-total') || {}).textContent || null,
         }));
-        bok('metaXP unchanged (no gains while cheater flag set)', after.metaXP === before.metaXP);
-        bok('no loot granted while flagged', after.stash === before.stash);
-        bok('AEGIS LOCK banner rendered', /AEGIS LOCK/.test(after.banner || ''));
-        bok('XP total field is 0 in banner', after.xpTotal === '0');
+        bok('metaXP unchanged (no gains for this cheated run)', after.metaXP === before.metaXP);
+        bok('no loot granted for this run',                    after.stash === before.stash);
+        bok('AEGIS LOCK banner rendered',                      /AEGIS LOCK/.test(after.banner || ''));
+        bok('XP total field is 0 in banner',                   after.xpTotal === '0');
+        bok('save remains uncorrupted after the cheat',        after.saveFlagged === false);
         await page._ctx.close();
     }
 
-    // ── 9) Flag is sticky across reloads ─────────────────────────────────
-    console.log('\nbrowser: cheater flag persists across reloads');
+    // ── 9) Flag does NOT survive reload (save uncorruption) ──────────────
+    console.log('\nbrowser: run flag does not persist across reload');
     {
         const page = await freshPage();
         await startRun(page);
         await page.evaluate(() => { window.game.money = 1e9; });
         await page.waitForTimeout(200);
-        // Force a write so the cheater flag is persisted.
         await page.evaluate(() => NeonSave.write(save));
         await page.reload();
         await page.waitForTimeout(700);
-        const r = await page.evaluate(() => !!save.cheaterDetected);
-        bok('flag survives reload', r === true);
+        const r = await page.evaluate(() => ({
+            runFlagged: NeonAegis.isRunFlagged(),
+            saveFlagged: !!save.cheaterDetected,
+        }));
+        bok('run flag cleared after reload',  r.runFlagged === false);
+        bok('save not sticky-cheater',        r.saveFlagged === false);
         await page._ctx.close();
     }
 
-    // ── 10) RESET SAVE clears the flag ───────────────────────────────────
-    console.log('\nbrowser: RESET SAVE clears the cheater flag');
+    // ── 10) RESET SAVE still works (clears progression entirely) ─────────
+    console.log('\nbrowser: RESET SAVE zeroes progression');
     {
         const page = await freshPage();
-        page.on('dialog', d => d.accept());   // auto-confirm the reset prompt
-        await page.evaluate(() => {
-            save.cheaterDetected = true; save.cheaterReason = 'test';
-            NeonSave.write(save);
-        });
+        page.on('dialog', d => d.accept());
+        await page.evaluate(() => { save.metaXP = 500; NeonSave.write(save); });
         await Promise.all([
-            page.waitForLoadState('load'),    // reload triggered by reset handler
+            page.waitForLoadState('load'),
             page.locator('#menu-reset-btn').click(),
         ]);
         await page.waitForTimeout(500);
         const r = await page.evaluate(() => ({
-            flagged: !!save.cheaterDetected,
             metaXP:  save.metaXP,
+            saveFlagged: !!save.cheaterDetected,
         }));
-        bok('RESET clears cheater flag', r.flagged === false);
-        bok('RESET zeroes metaXP',       r.metaXP === 0);
+        bok('RESET zeroes metaXP',           r.metaXP === 0);
+        bok('RESET leaves clean save state', r.saveFlagged === false);
         await page._ctx.close();
     }
 
@@ -335,15 +326,14 @@ const path = require('path');
     {
         const page = await freshPage({ devModeBeforeLoad: true });
         await startRun(page);
-        // Trigger ALL the sensor traps and expect NO flag.
         await page.evaluate(() => {
             Math.random = () => 0;
             window.game.money = 1e9;
             window.game.health = 9999;
         });
-        await page.waitForTimeout(1700);   // span a sentinel tick
-        const flagged = await page.evaluate(() => !!save.cheaterDetected);
-        bok('pre-load dev flag fully bypasses sensors', flagged === false);
+        await page.waitForTimeout(1700);
+        const r = await readRunFlag(page);
+        bok('pre-load dev flag fully bypasses sensors', r.flagged === false);
         await page._ctx.close();
     }
 
@@ -352,35 +342,13 @@ const path = require('path');
     {
         const page = await freshPage();
         await startRun(page);
-        // Player tries the obvious trick from the console.
         await page.evaluate(() => {
-            window.__neonAegisDev = true;        // set AFTER aegis IIFE ran
+            window.__neonAegisDev = true;
             Math.random = () => 0;
         });
         await page.waitForTimeout(1700);
-        const flagged = await page.evaluate(() => !!save.cheaterDetected);
-        bok('post-load dev flag does NOT bypass', flagged === true);
-        await page._ctx.close();
-    }
-
-    // ── 13) Saving with cheater flag persists the flag with valid sig ────
-    console.log('\nbrowser: sticky sig — clearing the flag locally rejects on load');
-    {
-        const page = await freshPage();
-        await page.evaluate(() => {
-            save.cheaterDetected = true; save.cheaterReason = 'rng-override';
-            NeonSave.write(save);   // signs the flagged save
-        });
-        // Player tries to clear the flag from console without re-signing.
-        await page.evaluate(() => {
-            const json = localStorage.getItem(NeonSave.KEY);
-            localStorage.setItem(NeonSave.KEY,
-                json.replace('"cheaterDetected":true', '"cheaterDetected":false'));
-        });
-        await page.reload();
-        await page.waitForTimeout(700);
-        const r = await page.evaluate(() => !!save.cheaterDetected);
-        bok('hand-cleared flag re-set by sig check', r === true);
+        const r = await readRunFlag(page);
+        bok('post-load dev flag does NOT bypass run-scoped detection', r.flagged === true);
         await page._ctx.close();
     }
 

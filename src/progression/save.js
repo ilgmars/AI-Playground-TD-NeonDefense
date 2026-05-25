@@ -150,16 +150,18 @@ const NeonSave = (function () {
                 if (parsed && typeof parsed === 'object' && parsed.version === SCHEMA_VERSION) {
                     const sigState = _verifyStoredSig(raw);
                     backfillV1Fields(parsed);
-                    if (sigState === 'mismatch' && !parsed.cheaterDetected) {
-                        // Hand-edited localStorage caught at next load.
-                        parsed.cheaterDetected = true;
-                        parsed.cheaterReason = 'save-tampered';
-                        // Persist the flag immediately (with a fresh sig) so
-                        // it survives subsequent loads.
+                    // Uncorrupt: prior versions bricked saves by setting
+                    // cheaterDetected=true and re-signing. We no longer
+                    // persist that flag, and we actively clear it on load
+                    // so existing players' saves heal themselves.
+                    if (parsed.cheaterDetected) {
+                        parsed.cheaterDetected = false;
+                        parsed.cheaterReason = null;
                         write(parsed);
-                    } else if (sigState === 'pre-aegis') {
-                        // Legacy save without a sig — sign it now so future
-                        // tampering is detected. Not a cheat.
+                    } else if (sigState === 'pre-aegis' || sigState === 'mismatch') {
+                        // Either legacy unsigned or hand-edited save. Either
+                        // way we re-sign and move on — cheat detection now
+                        // lives in the run scope, not on the save.
                         write(parsed);
                     }
                     return parsed;

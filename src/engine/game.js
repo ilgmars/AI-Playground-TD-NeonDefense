@@ -185,8 +185,6 @@ class Game {
         // M3: A10 — every 10th wave is a boss wave (one boss replaces normal spawns).
         this.isBossWave = this.ascension.spawnBoss && this.wave > 0 && this.wave % 10 === 0;
 
-        // Bonus minigame fires after every 15th wave; alert one wave earlier.
-        if ((this.wave + 1) % 15 === 0) this.pendingMinigameAlert = true;
 
         // M3: Research Node aura — boosts damage of all towers within auraRange
         // tiles of each Research Node by auraBonus. Recomputes each wave (stackable).
@@ -565,16 +563,27 @@ class Game {
                     // Boons (Compound Interest) + Nanorepair regen, applied
                     // after all wave income is banked.
                     if (this.boonInterest > 0) {
-                        this.money += Math.floor(this.money * this.boonInterest);
+                        // Cap interest payout per wave so a banked
+                        // fortune doesn't generate an unbounded delta —
+                        // both bad for balance and (historically) an
+                        // Aegis money-spike false-positive trigger.
+                        const interest = Math.min(50000, Math.floor(this.money * this.boonInterest));
+                        this.money += interest;
                     }
                     if (this.boonRegen > 0 && this.health < this.maxHealth) {
                         this.health = Math.min(this.maxHealth, this.health + this.boonRegen);
                     }
 
-                    // Trigger bonus minigame on milestone waves; main.js drives the UI.
-                    if (this.wave > 0 && this.wave % 15 === 0) this.pendingMinigame = true;
-                    // Roguelike boon pick every 10 waves (endless progression).
-                    if (this.wave > 0 && this.wave % 10 === 0) this.pendingBoon = true;
+                    // Roguelike boon pick — capped at one per ascension tier
+                    // per run (A0 = 1 boon, A5 = 6 boons), spaced at waves
+                    // 30, 80, 130, 180… This replaces the old "boon every
+                    // 10 waves forever" which compounded into runaway
+                    // economies past wave 200.
+                    const boonsTaken = (this.boons && this.boons.length) || 0;
+                    const boonCap = (this.ascensionTier | 0) + 1;
+                    if (this.wave >= 30 && (this.wave - 30) % 50 === 0 && boonsTaken < boonCap) {
+                        this.pendingBoon = true;
+                    }
                     
                     if ((this.wave + 1) % this.ascension.airWaveInterval === 0) {
                         SoundFX.siren();

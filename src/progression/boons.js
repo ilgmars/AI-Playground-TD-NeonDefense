@@ -1,7 +1,7 @@
-// Roguelike boon picker (endless). Every 10 waves Game sets
-// game.pendingBoon; main.js drains it and calls NeonBoons.open(). Pauses
-// the run while open and restores state on pick — same contract as
-// NeonMinigame so the two never fight over the game state machine.
+// Roguelike boon picker. Game sets game.pendingBoon at milestone waves
+// (capped at one per ascension tier per run); main.js drains it and
+// calls NeonBoons.open(). Pauses the run while open and restores state
+// on pick.
 const NeonBoons = (function () {
     let active = false;
     let prevState = null;

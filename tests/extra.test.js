@@ -140,27 +140,28 @@ const path = require('path');
             };
         });
         bok('chooseBoon increments boons list',                 after.boonsTaken === 1);
-        bok('chooseBoon raises boonDamageMult past 1',          after.boonMult > 1.17 && after.boonMult < 1.19);
-        bok('chooseBoon retroactively scales placed tower dmg', Math.abs(after.dmg - before.dmg * 1.18) < 1e-6);
+        // Overdrive boon is now +10% (rebalanced 2026-05-25).
+        bok('chooseBoon raises boonDamageMult past 1',          after.boonMult > 1.09 && after.boonMult < 1.11);
+        bok('chooseBoon retroactively scales placed tower dmg', Math.abs(after.dmg - before.dmg * 1.10) < 1e-6);
         await page._ctx.close();
     }
 
-    // ── 3) Aegis: Math.imul override is flagged ─────────────────────────
+    // ── 3) Aegis: Math.imul override is flagged (run-scoped) ────────────
     console.log('\nbrowser: Math.imul override is flagged');
     {
         const page = await fresh();
         await startRun(page);
         await page.evaluate(() => { Math.imul = function () { return 0; }; });
-        await page.waitForTimeout(1700);    // > sentinel tick
+        await page.waitForTimeout(1700);
         const r = await page.evaluate(() => ({
-            flagged: !!save.cheaterDetected, reason: save.cheaterReason,
+            flagged: NeonAegis.isRunFlagged(), reason: NeonAegis.runFlagReason(),
         }));
-        bok('Math.imul override flags', r.flagged === true);
-        bok('reason is imul-override',  r.reason === 'imul-override');
+        bok('Math.imul override flags run', r.flagged === true);
+        bok('reason is imul-override',      r.reason === 'imul-override');
         await page._ctx.close();
     }
 
-    // ── 4) Aegis: negative money spike is flagged ───────────────────────
+    // ── 4) Aegis: negative money spike is flagged (run-scoped) ──────────
     console.log('\nbrowser: negative money spike is flagged');
     {
         const page = await fresh();
@@ -168,9 +169,9 @@ const path = require('path');
         await page.evaluate(() => { window.game.money = -1e9; });
         await page.waitForTimeout(150);
         const r = await page.evaluate(() => ({
-            flagged: !!save.cheaterDetected, reason: save.cheaterReason,
+            flagged: NeonAegis.isRunFlagged(), reason: NeonAegis.runFlagReason(),
         }));
-        bok('money=-1e9 flags', r.flagged === true);
+        bok('money=-1e9 flags run',  r.flagged === true);
         bok('reason mentions money', /money/.test(r.reason || ''));
         await page._ctx.close();
     }

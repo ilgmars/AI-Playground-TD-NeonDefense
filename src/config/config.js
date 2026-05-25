@@ -468,25 +468,32 @@ const ASCENSION_AUTO_UNLOCKS = {
 // Game._applyDamageBoon / _applyFireRateBoon and the boon* multiplier
 // fields set in the constructor.
 // -------------------------------------------------------------------------
+// Boon magnitudes nerfed in the 2026-05-25 rebalance. The boon trigger
+// is also capped at (ascensionTier + 1) per run, so even at A5 a player
+// gets ~6 boons over a full run — power-creep stays bounded. Economy
+// boons (interest, payout) were the biggest offenders: compound
+// interest at 5%/wave applied to a million-credit bank produced
+// per-wave deltas that tripped Aegis's spike detector and corrupted
+// saves. Cut to a value that keeps them attractive without ballooning.
 const BOONS = [
-    { id: 'overdrive', name: 'Overdrive Matrix',   icon: '⚡', desc: '+18% tower damage (all current & future towers)',
-      apply: (g) => g._applyDamageBoon(1.18) },
-    { id: 'coils',     name: 'Resonant Coils',     icon: '🔁', desc: '+14% fire rate for every tower',
-      apply: (g) => g._applyFireRateBoon(0.877) },
-    { id: 'economy',   name: 'War Economy',        icon: '💰', desc: '+25% wave-completion payout',
-      apply: (g) => { g.boonPayoutMult *= 1.25; } },
-    { id: 'bounty',    name: 'Bounty Protocol',    icon: '🎯', desc: '+35% credits per kill',
-      apply: (g) => { g.boonKillMult *= 1.35; } },
-    { id: 'core',      name: 'Reinforced Core',    icon: '🛡️', desc: '+6 max integrity and repair 6 now',
-      apply: (g) => { g.maxHealth += 6; g.health = Math.min(g.maxHealth, g.health + 6); } },
-    { id: 'interest',  name: 'Compound Interest',  icon: '📈', desc: '+5% of banked credits added each wave',
-      apply: (g) => { g.boonInterest += 0.05; } },
-    { id: 'regen',     name: 'Nanorepair Swarm',   icon: '✚', desc: 'Repair to full now + regen 2 integrity / wave',
-      apply: (g) => { g.health = g.maxHealth; g.boonRegen += 2; } },
-    { id: 'arsenal',   name: 'Surplus Arsenal',    icon: '🏭', desc: '-20% tower build cost',
-      apply: (g) => { g.towerCostMult *= 0.8; } },
-    { id: 'engineer',  name: 'Field Engineering',  icon: '🔧', desc: '-20% upgrade cost',
-      apply: (g) => { g.upgradeCostMult *= 0.8; } }
+    { id: 'overdrive', name: 'Overdrive Matrix',   icon: '⚡', desc: '+10% tower damage (all current & future towers)',
+      apply: (g) => g._applyDamageBoon(1.10) },
+    { id: 'coils',     name: 'Resonant Coils',     icon: '🔁', desc: '+8% fire rate for every tower',
+      apply: (g) => g._applyFireRateBoon(0.926) },
+    { id: 'economy',   name: 'War Economy',        icon: '💰', desc: '+12% wave-completion payout',
+      apply: (g) => { g.boonPayoutMult *= 1.12; } },
+    { id: 'bounty',    name: 'Bounty Protocol',    icon: '🎯', desc: '+18% credits per kill',
+      apply: (g) => { g.boonKillMult *= 1.18; } },
+    { id: 'core',      name: 'Reinforced Core',    icon: '🛡️', desc: '+4 max integrity and repair 4 now',
+      apply: (g) => { g.maxHealth += 4; g.health = Math.min(g.maxHealth, g.health + 4); } },
+    { id: 'interest',  name: 'Compound Interest',  icon: '📈', desc: '+1.5% of banked credits added each wave (capped)',
+      apply: (g) => { g.boonInterest += 0.015; } },
+    { id: 'regen',     name: 'Nanorepair Swarm',   icon: '✚', desc: 'Repair to full now + regen 1 integrity / wave',
+      apply: (g) => { g.health = g.maxHealth; g.boonRegen += 1; } },
+    { id: 'arsenal',   name: 'Surplus Arsenal',    icon: '🏭', desc: '-12% tower build cost',
+      apply: (g) => { g.towerCostMult *= 0.88; } },
+    { id: 'engineer',  name: 'Field Engineering',  icon: '🔧', desc: '-12% upgrade cost',
+      apply: (g) => { g.upgradeCostMult *= 0.88; } }
 ];
 
 // Pick `n` distinct boons at random. randFn defaults to Math.random (which
