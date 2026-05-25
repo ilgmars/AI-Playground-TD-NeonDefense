@@ -161,18 +161,20 @@ const path = require('path');
         await page._ctx.close();
     }
 
-    // ── 4) Aegis: negative money spike is flagged (run-scoped) ──────────
-    console.log('\nbrowser: negative money spike is flagged');
+    // ── 4) Aegis: money writes are TOLERATED (state audit removed) ──────
+    // The state audit was producing false positives at endless wave
+    // 300-400+ where legitimate income spikes are huge. Money/health
+    // writes no longer trigger the run flag.
+    console.log('\nbrowser: money writes do not flag (state audit removed)');
     {
         const page = await fresh();
         await startRun(page);
         await page.evaluate(() => { window.game.money = -1e9; });
         await page.waitForTimeout(150);
         const r = await page.evaluate(() => ({
-            flagged: NeonAegis.isRunFlagged(), reason: NeonAegis.runFlagReason(),
+            flagged: NeonAegis.isRunFlagged(),
         }));
-        bok('money=-1e9 flags run',  r.flagged === true);
-        bok('reason mentions money', /money/.test(r.reason || ''));
+        bok('extreme money write does NOT flag', r.flagged === false);
         await page._ctx.close();
     }
 

@@ -195,43 +195,23 @@ const path = require('path');
         await page._ctx.close();
     }
 
-    // ── 4) game.money = 1e9 → run flagged immediately ────────────────────
-    console.log('\nbrowser: game.money spike is flagged');
+    // ── 4) game.money / game.health writes no longer flag ───────────────
+    // The state audit was removed (too many false positives at endless
+    // wave 300+; the RNG/time/imul sensors still catch real cheats).
+    console.log('\nbrowser: money/health writes are tolerated (no false positive)');
     {
         const page = await freshPage();
         await startRun(page);
-        await page.evaluate(() => { window.game.money = 1e9; });
-        await page.waitForTimeout(100);
+        await page.evaluate(() => {
+            window.game.money = 1e9;
+            window.game.health = 9999;
+            window.game.money += 1000;
+        });
+        await page.waitForTimeout(150);
         const r = await readRunFlag(page);
-        bok('money spike flags run',  r.flagged === true);
-        bok('reason is money-spike',  r.reason === 'money-spike');
-        bok('save NOT corrupted',     r.saveFlagged === false);
-        await page._ctx.close();
-    }
-
-    // ── 5) game.money small bump → does NOT flag ─────────────────────────
-    console.log('\nbrowser: small money increment does not flag');
-    {
-        const page = await freshPage();
-        await startRun(page);
-        await page.evaluate(() => { window.game.money += 1000; });
-        await page.waitForTimeout(200);
-        const r = await readRunFlag(page);
-        bok('legit-bound money bump does not flag', r.flagged === false);
-        await page._ctx.close();
-    }
-
-    // ── 6) game.health > maxHealth + slack → flagged ─────────────────────
-    console.log('\nbrowser: health overflow is flagged');
-    {
-        const page = await freshPage();
-        await startRun(page);
-        await page.evaluate(() => { window.game.health = 9999; });
-        await page.waitForTimeout(100);
-        const r = await readRunFlag(page);
-        bok('health overflow flags run', r.flagged === true);
-        bok('reason is hp-overflow',     r.reason === 'hp-overflow');
-        bok('save NOT corrupted',        r.saveFlagged === false);
+        bok('massive money write does NOT flag (state audit removed)', r.flagged === false);
+        bok('huge health value does NOT flag (state audit removed)',   r.flagged === false);
+        bok('save remains clean',                                       r.saveFlagged === false);
         await page._ctx.close();
     }
 
@@ -260,11 +240,15 @@ const path = require('path');
     {
         const page = await freshPage();
         await startRun(page);
-        await page.evaluate(() => { window.game.money = 1e9; });
-        await page.waitForTimeout(150);
+        // Trigger the run flag via the RNG sensor (state audit is no
+        // longer wired). The sentinel runs every ~1.2 s.
+        await page.evaluate(() => { Math.random = () => 0; });
+        await page.waitForTimeout(1700);
         const before = await page.evaluate(() => ({
             metaXP: save.metaXP, stash: save.backpack.stash.length,
+            flagged: NeonAegis.isRunFlagged(),
         }));
+        bok('run flag is set by RNG override',                 before.flagged === true);
         await page.evaluate(() => window.onRunEnded({ wave: 50, tier: 2, retired: false }));
         await page.waitForTimeout(150);
         const after = await page.evaluate(() => ({
@@ -287,8 +271,10 @@ const path = require('path');
     {
         const page = await freshPage();
         await startRun(page);
-        await page.evaluate(() => { window.game.money = 1e9; });
-        await page.waitForTimeout(200);
+        // RNG override sets the run flag (state audit no longer
+        // exists). Sentinel ticks every ~1.2 s.
+        await page.evaluate(() => { Math.random = () => 0; });
+        await page.waitForTimeout(1700);
         await page.evaluate(() => NeonSave.write(save));
         await page.reload();
         await page.waitForTimeout(700);

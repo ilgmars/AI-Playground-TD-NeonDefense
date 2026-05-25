@@ -162,51 +162,22 @@ const NeonAegis = (function () {
         } catch (_) { /* defensive: never throw from a sentinel */ }
     }
 
-    // ── State audit (Game.money / Game.health) ─────────────────────────────
-    // `Object.defineProperty` converts the field into an accessor right
-    // after the Game constructor finishes. Internal `+=` writes continue
-    // to work; any single write with a delta over MAX_DELTA looks like a
-    // console assignment and is flagged.
-    // Single-write delta that's almost certainly a console assignment.
-    // Late-game (wave 200+) compound interest can legitimately add
-    // millions in one write, so the threshold has to be high. 1e9 is
-    // still caught; legitimate income is not.
-    const MAX_MONEY_DELTA  = 100000000;
-    const MAX_HEALTH_OVER  = 5;        // small slack for floored arithmetic
-
+    // ── State audit (now a no-op) ──────────────────────────────────────────
+    //
+    // Earlier versions wrapped game.money and game.health in accessors that
+    // flagged "console-assignment" deltas. That check produced too many
+    // false positives — late-endless runs (waves 300-400+) can legitimately
+    // see enormous single-write money jumps (kill rewards × wave bonus ×
+    // boon stack) and the maxHealth/health relationship has edge cases
+    // around core boons + backpack items. With the run-scoped flag (we
+    // no longer corrupt the save), the trade-off is bad: a determined
+    // attacker can rewrite money via the console regardless, and the
+    // RNG/time/imul sentinels still catch the actually-meaningful
+    // tampering vectors. Keep the function as a stable extension point
+    // so call sites don't change, but do nothing inside.
     function protectGame(game) {
         if (!game || game.__aegisProtected) return;
         Object.defineProperty(game, '__aegisProtected', { value: true });
-
-        let _money = game.money;
-        Object.defineProperty(game, 'money', {
-            configurable: true, enumerable: true,
-            get() { return _money; },
-            set(v) {
-                if (!isDev() && typeof v === 'number') {
-                    // Upward spike (game.money = 1e9), downward spike
-                    // (game.money = -1e9 to wrap-around), or simply
-                    // setting money to a deeply-negative sentinel — all
-                    // are external tampering.
-                    if (Math.abs(v - _money) > MAX_MONEY_DELTA) flag('money-spike');
-                    else if (v < -1) flag('money-negative');
-                }
-                _money = v;
-            }
-        });
-
-        let _health = game.health;
-        Object.defineProperty(game, 'health', {
-            configurable: true, enumerable: true,
-            get() { return _health; },
-            set(v) {
-                _health = v;
-                if (!isDev() && typeof v === 'number' && typeof game.maxHealth === 'number'
-                    && v > game.maxHealth + MAX_HEALTH_OVER) {
-                    flag('hp-overflow');
-                }
-            }
-        });
     }
 
     // ── Bootstrap ──────────────────────────────────────────────────────────
