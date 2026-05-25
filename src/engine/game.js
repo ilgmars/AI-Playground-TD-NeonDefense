@@ -752,8 +752,17 @@ class Game {
         return Math.floor(base * this.ascension.potionCostMult * this.potionCostKitMult);
     }
 
-    buyPotion() {
+    buyPotion(opts) {
         let cost = this.getPotionCost();
+        const remote = opts && opts.source === 'remote';
+        // Split-economy: a remote peer healing themselves doesn't touch
+        // our money or our HP. We just record the potion happened so
+        // mastery / counters stay in sync.
+        if (remote) {
+            this.potionCount++;
+            this.uiDirty = true;
+            return true;
+        }
         if (this.money < cost) { SoundFX.error(); return false; }
         if (this.health >= this.maxHealth) { SoundFX.error(); return false; }
         this.money -= cost;
@@ -832,7 +841,7 @@ class Game {
     // local-click path.
     pickBoon(boonId) { return this.chooseBoon(boonId); }
 
-    buildTower(c, r, type) {
+    buildTower(c, r, type, opts) {
         if (!this.map.isBuildable(c, r)) return false;
 
         for (let t of this.towers) {
@@ -841,14 +850,19 @@ class Game {
 
         const effType = this.getEffectiveTowerType(type);
         let cost = this.getTowerBuildCost(effType);
+        // Co-op split-economy: a tower placed by a REMOTE peer appears
+        // on our field (same map, same monsters) but we don't pay for
+        // it — only the placer pays out of their own bank.
+        const remote = opts && opts.source === 'remote';
 
-        if (this.money >= cost) {
-            this.money -= cost;
+        if (remote || this.money >= cost) {
+            if (!remote) this.money -= cost;
             const built = new Tower(c, r, effType);
+            if (remote) built._owner = 'remote';
             this._applyBoonsToNewTower(built);
             this.towers.push(built);
             this.uiDirty = true;
-            SoundFX.build();
+            if (!remote) SoundFX.build();
             return true;
         }
         SoundFX.error();
@@ -891,30 +905,34 @@ class Game {
     // without depending on the local selection state (Aegis sees the
     // same per-tower deduction it would for a local click). Returns
     // true if the upgrade was bought, false on rejection.
-    upgradeTower(tower, slot) {
+    upgradeTower(tower, slot, opts) {
         if (!tower || typeof slot !== 'number') return false;
         if (this.towers.indexOf(tower) < 0) return false;
         const cost = Math.floor(tower.getUpgradeCost(slot) * this.upgradeCostMult);
-        if (this.money < cost) return false;
-        this.money -= cost;
+        const remote = opts && opts.source === 'remote';
+        if (!remote && this.money < cost) return false;
+        if (!remote) this.money -= cost;
         tower.upgrade(slot);
         this.addUpgradeEffect(tower.x, tower.y);
         this.uiDirty = true;
-        SoundFX.upgrade();
+        if (!remote) SoundFX.upgrade();
         return true;
     }
 
     // Multiplayer adapter — sells a specific tower. Mirrors the inline
     // logic in main.js sell-btn handler; co-op sells go through here so
     // the same money/HP audit fires for remote inputs.
-    sellTower(tower) {
+    sellTower(tower, opts) {
         if (!tower) return false;
         const idx = this.towers.indexOf(tower);
         if (idx < 0) return false;
         const sellValue = tower.getSellValue();
         this.towers.splice(idx, 1);
-        this.money += sellValue;
-        // Keep selection consistent if the sold tower was selected.
+        // Split-economy: only the seller pockets the refund. A remote
+        // peer demolishing their own tower removes it from our field
+        // but doesn't credit our bank.
+        const remote = opts && opts.source === 'remote';
+        if (!remote) this.money += sellValue;
         if (this.selectedTowers && this.selectedTowers.indexOf(tower) >= 0) {
             this.selectedTowers = this.selectedTowers.filter(t => t !== tower);
         }
