@@ -3704,9 +3704,10 @@ function init() {
                     (ready ? ' is-ready' : '') +
                     (isHost ? ' is-host' : '');
                 const safe = String(peer || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
-                const hostTag = isHost ? ' <span class="mp-waitroom-peer-host">★ HOST</span>' : '';
+                const hostTag = isHost ? '<span class="mp-waitroom-peer-host">★ HOST</span>' : '';
                 row.innerHTML =
-                    `<span class="mp-waitroom-peer-name">${safe}${hostTag}</span>` +
+                    `<span class="mp-waitroom-peer-name">${safe}</span>` +
+                    hostTag +
                     `<span class="mp-waitroom-peer-status">${ready ? 'READY' : 'waiting…'}</span>`;
                 peersEl.appendChild(row);
             }
