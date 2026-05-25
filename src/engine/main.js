@@ -2284,6 +2284,9 @@ function init() {
             };
         game = new Game(canvas, useSeed, tierToUse, loadoutToUse);
         window.game = game;
+        // Reset pinch zoom on every new run so the next game starts at
+        // 1× regardless of how the previous run left the canvas.
+        if (typeof window.__neonResetZoom === 'function') window.__neonResetZoom();
         if (typeof NeonAegis !== 'undefined') {
             if (NeonAegis.clearRunFlag) NeonAegis.clearRunFlag();
             NeonAegis.protectGame(game);
@@ -2862,6 +2865,106 @@ function init() {
         mousePos.y = pos.y;
     });
 
+    // ── Canvas pinch-zoom + 2-finger pan ────────────────────────────────
+    // Small-screen players couldn't read the field clearly. We apply a
+    // CSS `transform: translate(tx,ty) scale(s)` on the canvas only —
+    // the surrounding UI (build dock, top bar) stays unscaled. Because
+    // getCanvasPos uses getBoundingClientRect, taps in zoomed/panned
+    // state still hit the right tile without any code changes there.
+    //
+    // Single-finger touches pass through to the existing build/place
+    // logic. Only 2-finger touchmove triggers a zoom/pan.
+    const _zoom = { scale: 1, tx: 0, ty: 0 };
+    window.__neonZoom = _zoom;
+    const ZOOM_MIN = 1;       // never zoom out below natural size
+    const ZOOM_MAX = 4;
+    function applyZoom() {
+        canvas.style.transformOrigin = '0 0';
+        canvas.style.transform =
+            `translate(${_zoom.tx}px, ${_zoom.ty}px) scale(${_zoom.scale})`;
+    }
+    function resetZoom() {
+        _zoom.scale = 1; _zoom.tx = 0; _zoom.ty = 0;
+        applyZoom();
+    }
+    window.__neonResetZoom = resetZoom;
+
+    let _pinch = null;  // {d0, cx0, cy0, scale0, tx0, ty0}
+    function touchCentroid(touches) {
+        let x = 0, y = 0;
+        for (let i = 0; i < touches.length; i++) {
+            x += touches[i].clientX;
+            y += touches[i].clientY;
+        }
+        return { x: x / touches.length, y: y / touches.length };
+    }
+    function touchDistance(t0, t1) {
+        const dx = t0.clientX - t1.clientX;
+        const dy = t0.clientY - t1.clientY;
+        return Math.hypot(dx, dy);
+    }
+
+    canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+            const d0 = touchDistance(e.touches[0], e.touches[1]);
+            const c0 = touchCentroid(e.touches);
+            _pinch = {
+                d0, cx0: c0.x, cy0: c0.y,
+                scale0: _zoom.scale, tx0: _zoom.tx, ty0: _zoom.ty,
+            };
+            e.preventDefault();
+            // Cancel any in-flight single-finger drag so the tower
+            // ghost doesn't ride along with the pinch.
+            if (typeof clearTimeout === 'function' && window.__touchState_clearLP) {
+                window.__touchState_clearLP();
+            }
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+        if (!_pinch || e.touches.length < 2) return;
+        const d1 = touchDistance(e.touches[0], e.touches[1]);
+        const c1 = touchCentroid(e.touches);
+        if (d1 <= 0) return;
+        const ratio = d1 / _pinch.d0;
+        let newScale = _pinch.scale0 * ratio;
+        if (newScale < ZOOM_MIN) newScale = ZOOM_MIN;
+        if (newScale > ZOOM_MAX) newScale = ZOOM_MAX;
+        // Keep the original centroid pinned under the current centroid.
+        // tx_new = c1 - (c0 - tx0) * (newScale / scale0)
+        const k = newScale / _pinch.scale0;
+        _zoom.scale = newScale;
+        _zoom.tx = c1.x - (_pinch.cx0 - _pinch.tx0) * k;
+        _zoom.ty = c1.y - (_pinch.cy0 - _pinch.ty0) * k;
+        // Clamp pan so the canvas can't be dragged completely off-screen.
+        const rect = canvas.getBoundingClientRect();
+        const canvasW = rect.width / _zoom.scale;
+        const canvasH = rect.height / _zoom.scale;
+        const maxTx = canvasW * (_zoom.scale - 1);
+        const maxTy = canvasH * (_zoom.scale - 1);
+        if (_zoom.tx > 0) _zoom.tx = 0;
+        if (_zoom.ty > 0) _zoom.ty = 0;
+        if (_zoom.tx < -maxTx) _zoom.tx = -maxTx;
+        if (_zoom.ty < -maxTy) _zoom.ty = -maxTy;
+        applyZoom();
+        e.preventDefault();
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', (e) => {
+        if (e.touches.length < 2 && _pinch) {
+            _pinch = null;
+            // Brief cooldown so the lingering single finger doesn't
+            // trigger pointerdown / tower placement.
+            window.__neonPinchCooldownUntil = Date.now() + 250;
+        }
+    });
+    canvas.addEventListener('touchcancel', () => {
+        if (_pinch) {
+            _pinch = null;
+            window.__neonPinchCooldownUntil = Date.now() + 250;
+        }
+    });
+
     // --- Mobile touch handling: tap + drag-threshold + long-press tooltip ---
     // Replaces the old unconditional-drag-on-touchstart logic, which broke
     // horizontal scrolling of the tower dock and had no tooltip on touch.
@@ -3117,6 +3220,13 @@ function init() {
 
     canvas.addEventListener('pointerdown', (e) => {
         if (game.state !== 'playing' && game.state !== 'paused') return;
+        // Suppress single-tap behaviour while a pinch is happening or
+        // immediately after one ends — otherwise the first finger of a
+        // pinch can place a tower or close menus before the second
+        // finger arrives and the gesture is recognised.
+        if (_pinch || (window.__neonPinchCooldownUntil && Date.now() < window.__neonPinchCooldownUntil)) {
+            return;
+        }
 
         // Close menus when clicking on canvas
         document.getElementById('upgrade-menu').classList.add('hidden');
