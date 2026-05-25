@@ -1766,7 +1766,92 @@ function init() {
         selectedAbility = e.target.value;
     });
 
-    document.getElementById('start-btn').addEventListener('click', () => {
+    // ── Player name: required before a run can start, so RST/retire
+    //    can auto-save a high score without the player remembering to
+    //    click "submit". Names allow A-Z 0-9 + space + dash, 1..16 chars.
+    function getPlayerName() {
+        try {
+            const raw = localStorage.getItem('neonPlayerName') || '';
+            return raw.toUpperCase().replace(/[^A-Z0-9 \-]/g, '').slice(0, 16).trim();
+        } catch (_) { return ''; }
+    }
+    function setPlayerName(name) {
+        const clean = String(name || '').toUpperCase().replace(/[^A-Z0-9 \-]/g, '').slice(0, 16).trim();
+        if (!clean) return null;
+        try { localStorage.setItem('neonPlayerName', clean); } catch (_) {}
+        return clean;
+    }
+    // Prompts the player for a name if none is cached. Returns a
+    // Promise<string|null>. Used to gate the start-run flow.
+    function ensurePlayerName() {
+        return new Promise(resolve => {
+            const existing = getPlayerName();
+            if (existing) { resolve(existing); return; }
+            // Use the browser prompt for simplicity. Could be promoted
+            // to a proper overlay later — the requirement is just that
+            // we always have a name before the run starts.
+            try {
+                let nm = '';
+                while (!nm) {
+                    nm = window.prompt(
+                        'Enter your name (A-Z 0-9 -, up to 16 chars) — used on the scoreboard:',
+                        '');
+                    if (nm === null) { resolve(null); return; }
+                    nm = setPlayerName(nm);
+                    if (!nm) {
+                        // try again — empty / invalid input
+                    }
+                }
+                resolve(nm);
+            } catch (_) { resolve(null); }
+        });
+    }
+
+    // Auto-save a high score using the cached name. Idempotent per
+    // (tier, wave, name) triple within one run — calling it from both
+    // RST and the game-over flow won't add duplicates.
+    let _lastAutoSaveKey = null;
+    function autoSaveScore(wave, tier, retired) {
+        if (!Number.isFinite(wave) || wave <= 0) return false;
+        const name = getPlayerName();
+        if (!name) return false;
+        const key = name + '|' + tier + '|' + wave + '|' + (retired ? '1' : '0');
+        if (key === _lastAutoSaveKey) return false;
+        _lastAutoSaveKey = key;
+        const cheated = !!(
+            (typeof NeonAegis !== 'undefined' && NeonAegis.isRunFlagged && NeonAegis.isRunFlagged()) ||
+            (typeof NeonAegis !== 'undefined' && NeonAegis.lastFlag && NeonAegis.lastFlag()) ||
+            window.__neonAegisLastFlag
+        );
+        const usedAutopilot = !!(typeof game !== 'undefined' && game && game._autopilotEverUsed);
+        const list = save.highScores['a' + tier] || [];
+        list.push({ name, wave, retired: !!retired, cheated, autopilot: usedAutopilot });
+        list.sort((a, b) => b.wave - a.wave);
+        save.highScores['a' + tier] = list.slice(0, 5);
+        NeonSave.write(save);
+        if (window.NeonMP && window.NeonMP.global && window.NeonMP.global.publish) {
+            try {
+                window.NeonMP.global.publish({
+                    name, wave, tier, cheated, retired: !!retired,
+                    autopilot: usedAutopilot,
+                });
+            } catch (_) {}
+        }
+        return true;
+    }
+    // Expose for the RST handler + tests.
+    window.autoSaveScore = autoSaveScore;
+    window.getPlayerName = getPlayerName;
+    window.setPlayerName = setPlayerName;
+    function clearAutoSaveKey() { _lastAutoSaveKey = null; }
+
+    document.getElementById('start-btn').addEventListener('click', async () => {
+        // Gate the run on having a name. The player can cancel out of
+        // the prompt — in that case we just don't start the run.
+        const name = await ensurePlayerName();
+        if (!name) return;
+        clearAutoSaveKey();
+
         // M2: Persist chosen loadout for next run.
         save.lastLoadout = {
             heroId: selectedHero,
@@ -1881,6 +1966,10 @@ function init() {
             return;
         }
         game.autopilot = !game.autopilot;
+        // Sticky run-scoped flag — once a player uses autopilot in a
+        // run, the resulting score is permanently tagged. Tagging is
+        // for leaderboard transparency, not punishment.
+        if (game.autopilot) game._autopilotEverUsed = true;
         const display = document.getElementById('autopilot-display');
         if (game.autopilot) {
             display.textContent = 'ON';
@@ -2007,6 +2096,10 @@ function init() {
         });
     });
     document.getElementById('retire-confirm-yes').addEventListener('click', () => {
+        // Persist the high-score entry up front so a player who closes
+        // the victory overlay without clicking "submit" still keeps
+        // their result on the local board.
+        try { autoSaveScore(game.wave, game.ascensionTier, true); } catch (_) {}
         document.getElementById('retire-confirm').classList.add('hidden');
         renderAscensionSelector('victory');
         game.victory();
@@ -2148,8 +2241,17 @@ function init() {
     }
 
     document.getElementById('confirm-yes').addEventListener('click', () => {
+        // Save the in-progress run's score BEFORE restarting — otherwise
+        // RST would silently throw away the result. Uses the cached
+        // player name (set at start-btn time).
+        try {
+            if (game && (game.state === 'playing' || game.state === 'paused')) {
+                autoSaveScore(game.wave, game.ascensionTier, false);
+            }
+        } catch (_) {}
         const seedVal = document.getElementById('restart-seed-input').value.trim();
         const parsed = seedVal !== '' ? parseInt(seedVal) : null;
+        clearAutoSaveKey();
         restartGame(!isNaN(parsed) && parsed !== null ? parsed : null);
     });
     document.getElementById('game-over-restart').addEventListener('click', () => {
@@ -2358,6 +2460,10 @@ function init() {
     // Exposes the XP breakdown to renderRunResultXP for the overlay.
     window.onRunEnded = function (result) {
         const { wave, tier, retired, hpEverLost } = result;
+        // Auto-save the score immediately. Uses the cached name set at
+        // start-btn time. Idempotent — RST/retire callers also trigger
+        // this and the dedupe key prevents double entries.
+        try { autoSaveScore(wave, tier, retired); } catch (_) {}
         // Flawless retire: the +50% bonus only fires if no enemy ever
         // reached the base this run. Take damage even once and the
         // retire still ends the run normally, but without the kicker.
