@@ -39,7 +39,7 @@ const path = require('path');
 
     // ── 2) Empty state when no scores ───────────────────────────────
     const emptyTxt = await page.locator('#sb-list').innerText();
-    ok('empty state rendered', /NO DATA/.test(emptyTxt));
+    ok('empty state rendered', /NO RUNS|NO DATA|SYNCING/.test(emptyTxt));
 
     await page.evaluate(() => document.getElementById('sb-back-btn').click());
     await page.waitForTimeout(150);

@@ -2758,6 +2758,26 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     margin-left: auto;
     margin-right: auto;
 }
+.sb-filter-row {
+    display: flex;
+    gap: 18px;
+    justify-content: center;
+    margin: 6px 0 10px;
+    flex-wrap: wrap;
+}
+.sb-filter-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+}
+.sb-filter-toggle input[type=checkbox] {
+    accent-color: #a3e635;
+    width: 14px; height: 14px;
+}
 
 .scoreboard-cheats-toggle {
     display: flex;

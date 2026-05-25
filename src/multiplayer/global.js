@@ -246,8 +246,20 @@
         }
         function clear() { board.clear(); notify(); }
 
+        // Force-fire the periodic broadcast NOW (bypasses the 60-s
+        // interval). Used by the regression test that simulates the
+        // background sync without a 60-second wall-clock wait.
+        // Returns the number of entries sent (0 if no room or empty).
+        function broadcastNow() {
+            if (!room || board.size === 0) return 0;
+            const entries = Array.from(board.values()).slice(0, 50);
+            try { room.send({ kind: APP_NS, entries }); } catch (_) {}
+            return entries.length;
+        }
+
         return {
             start, attach, stop, publish, snapshot, onUpdate, clear,
+            broadcastNow,
             _validateEntry: validateEntry,
             _mergeEntry: mergeEntry,
         };

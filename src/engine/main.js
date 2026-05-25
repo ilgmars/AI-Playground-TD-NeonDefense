@@ -2498,18 +2498,36 @@ function init() {
     // top-5 they can't break into.
     const SB_TABS_EL = document.getElementById('sb-tabs');
     const SB_LIST_EL = document.getElementById('sb-list');
-    let _sbSource = 'local';
     let _sbTier = 0;
+    // Filter toggles. Default: hide cheated runs; show autopilot runs
+    // (just tagged). Both persist in localStorage so the player's
+    // chosen view sticks across sessions.
+    let _sbHideAuto = false;
+    let _sbHideCheated = true;
+    try {
+        if (localStorage.getItem('neonSbHideAuto') === '1') _sbHideAuto = true;
+        if (localStorage.getItem('neonSbHideCheated') === '0') _sbHideCheated = false;
+    } catch (_) {}
 
+    // Global-only scoreboard. Pulls from NeonMP.global which auto-syncs
+    // over MQTT in the background (every 60s, with a 5s rebroadcast
+    // throttle per peer). If the global module isn't loaded yet OR
+    // the snapshot is empty (e.g. fresh tab before the first sync),
+    // we fall back to the local save's history so the player isn't
+    // staring at "WAITING FOR PEERS…" for their own runs.
     function _sbScoresForTier(tier) {
-        if (_sbSource === 'global'
-            && window.NeonMP && NeonMP.global && NeonMP.global.snapshot) {
-            return NeonMP.global.snapshot()
-                .filter(e => (e.tier | 0) === (tier | 0))
-                .sort((a, b) => b.wave - a.wave);
-        }
-        return (save.highScores['a' + tier] || []).slice()
-            .sort((a, b) => b.wave - a.wave);
+        const remote = (window.NeonMP && NeonMP.global && NeonMP.global.snapshot)
+            ? NeonMP.global.snapshot().filter(e => (e.tier | 0) === (tier | 0))
+            : [];
+        const localList = (save.highScores['a' + tier] || []).slice();
+        // Merge: remote wins on (name, wave) collision because it
+        // carries the live timestamp. Local-only entries (haven't
+        // been published yet) still show up so the player sees their
+        // own runs immediately.
+        const byKey = new Map();
+        for (const e of localList) byKey.set(e.name + '|' + e.wave, e);
+        for (const e of remote)    byKey.set(e.name + '|' + e.wave, e);
+        return Array.from(byKey.values()).sort((a, b) => b.wave - a.wave);
     }
 
     function _renderSbRow(idx, s, isMe) {
@@ -2529,13 +2547,15 @@ function init() {
         if (!SB_LIST_EL) return;
         const meName = (typeof getPlayerName === 'function') ? getPlayerName() : '';
         const all = _sbScoresForTier(_sbTier);
-        const visible = _showCheats ? all : all.filter(s => !s.cheated);
+        const visible = all.filter(s => {
+            if (_sbHideCheated && s.cheated) return false;
+            if (_sbHideAuto    && s.autopilot) return false;
+            return true;
+        });
         SB_LIST_EL.innerHTML = '';
         if (visible.length === 0) {
             SB_LIST_EL.innerHTML =
-                `<div style="text-align:center; color:#64748b; font-size:0.9rem;">${
-                    _sbSource === 'global' ? 'WAITING FOR PEERS…' : 'NO DATA YET'
-                }</div>`;
+                '<div style="text-align:center; color:#64748b; font-size:0.9rem;">NO RUNS YET — SYNCING…</div>';
             return;
         }
         // Find OUR best rank in the (already sorted-desc) list.
@@ -2591,19 +2611,23 @@ function init() {
 
     const sbBackBtn = document.getElementById('sb-back-btn');
     if (sbBackBtn) sbBackBtn.addEventListener('click', closeScoreboard);
-    const sbLocal = document.getElementById('sb-source-local');
-    const sbGlobal = document.getElementById('sb-source-global');
-    if (sbLocal && sbGlobal) {
-        sbLocal.addEventListener('click', () => {
-            _sbSource = 'local';
-            sbLocal.classList.add('selected');
-            sbGlobal.classList.remove('selected');
+    // Filter toggles. Persist on change so the player's preference
+    // sticks across sessions.
+    const sbHideAuto = document.getElementById('sb-hide-autopilot');
+    const sbHideCheat = document.getElementById('sb-hide-cheated');
+    if (sbHideAuto) {
+        sbHideAuto.checked = _sbHideAuto;
+        sbHideAuto.addEventListener('change', () => {
+            _sbHideAuto = !!sbHideAuto.checked;
+            try { localStorage.setItem('neonSbHideAuto', _sbHideAuto ? '1' : '0'); } catch (_) {}
             renderScoreboardOverlay();
         });
-        sbGlobal.addEventListener('click', () => {
-            _sbSource = 'global';
-            sbLocal.classList.remove('selected');
-            sbGlobal.classList.add('selected');
+    }
+    if (sbHideCheat) {
+        sbHideCheat.checked = _sbHideCheated;
+        sbHideCheat.addEventListener('change', () => {
+            _sbHideCheated = !!sbHideCheat.checked;
+            try { localStorage.setItem('neonSbHideCheated', _sbHideCheated ? '1' : '0'); } catch (_) {}
             renderScoreboardOverlay();
         });
     }
@@ -2612,12 +2636,11 @@ function init() {
     const setupScoresBtn = document.getElementById('setup-scores-btn');
     if (setupScoresBtn) setupScoresBtn.addEventListener('click', openScoreboard);
 
-    // Refresh scoreboard overlay when the global board updates so the
-    // GLOBAL view picks up new entries without the player re-opening.
+    // Refresh scoreboard overlay when the global board updates so new
+    // entries appear without the player closing and re-opening.
     if (window.NeonMP && NeonMP.global && NeonMP.global.singleton) {
         try {
             NeonMP.global.singleton().onUpdate(() => {
-                if (_sbSource !== 'global') return;
                 if (document.getElementById('scoreboard-screen').classList.contains('hidden')) return;
                 renderScoreboardOverlay();
             });
