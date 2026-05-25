@@ -31,6 +31,7 @@ const SUITES = [
     { name: 'bp-shape-border',    file: 'tests/bp-shape-border.test.js' },
     { name: 'boon-autopick',      file: 'tests/boon-autopick.test.js' },
     { name: 'auto-save-score',    file: 'tests/auto-save-score.test.js' },
+    { name: 'mp-speed-lock',      file: 'tests/mp-speed-lock.test.js' },
     // Real two-client end-to-end over actual Trystero. Self-skips when
     // the environment can't reach trackers / WebRTC (set NEON_MP_FORCE=1
     // to make those skips into failures, e.g. for a release smoke).

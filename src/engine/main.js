@@ -1892,12 +1892,32 @@ function init() {
         }
     }
 
+    // Test hook: lets the regression suite poke the MP-active flag
+    // without having to actually join a Trystero room. Only honoured
+    // when the page has the dev-mode flag set (so production users
+    // can't bypass the lock via console).
+    window.__neonMPSetMode = function (mode) {
+        if (!window.__neonAegisDev) return false;
+        _activeMode = mode || null;
+        return true;
+    };
+
     document.getElementById('speed-btn').addEventListener('click', () => {
         // Multiplayer hard-caps speed at 16× and disables the 256× easter
-        // egg. Per-room speed is whatever the player picked in the lobby
-        // (each peer can pick independently — race / versus are local
-        // sims; co-op players should coordinate their pick verbally).
+        // egg. In coop the speed is host-set in the lobby and LOCKED for
+        // every peer — clicking the SPEED tile is a no-op so a non-host
+        // can't desync the run by cycling.
         const mpActive = !!_activeMode;
+        if (mpActive) {
+            // Subtle visual ping so the click doesn't feel dead.
+            const display = document.getElementById('speed-display');
+            if (display) {
+                display.style.transition = 'opacity 80ms';
+                display.style.opacity = '0.4';
+                setTimeout(() => { display.style.opacity = '1'; }, 120);
+            }
+            return;
+        }
 
         if (!mpActive) {
             speedClickCount++;
@@ -3130,6 +3150,7 @@ function init() {
     // for everyone in the room. Updated as wr packets arrive.
     let _mpHostNick = null;
     let _mpHostTier = null;     // host's selectedTier; null = use local
+    let _mpHostSpeed = null;    // host's startSpeed; null = use local
 
     function setStatus(el, text, color) {
         el.textContent = text;
@@ -3347,14 +3368,18 @@ function init() {
                 // the run — players coordinate via READY before the
                 // map appears. openCoopWaitroom resolves once everyone
                 // is ready (or returns null if the player leaves).
-                const ready = await openCoopWaitroom(parsed.code, nick);
+                const ready = await openCoopWaitroom(parsed.code, nick, cfg.startSpeed);
                 if (!ready) {
                     leaveActiveMultiplayer();
                     showScreen('main-menu');
                     return;
                 }
                 restartGame(cfg.seed);
-                applyMultiplayerSpeed(cfg.startSpeed);
+                // Host's startSpeed wins for everyone (set in the
+                // waitroom via wr broadcasts); falls back to the local
+                // pick if we never heard one.
+                applyMultiplayerSpeed(
+                    (_mpHostSpeed != null) ? _mpHostSpeed : cfg.startSpeed);
                 showScreen('mp-race-overlay');
                 const roomBadge = document.getElementById('mp-race-room');
                 if (roomBadge) roomBadge.textContent = parsed.code + ' (co-op)';
@@ -3441,6 +3466,7 @@ function init() {
         _activeMode = null;
         _mpHostNick = null;
         _mpHostTier = null;
+        _mpHostSpeed = null;
         window.__neonMPVersusSide = null;
         // Stale-state guard: hide the race overlay and clear its list so
         // a subsequent single-player run doesn't see a leftover panel.
@@ -3666,7 +3692,7 @@ function init() {
     // ready} heartbeats so each side renders a live roster. The
     // returned promise resolves true once every known peer (including
     // us) is ready, or false if the player hit LEAVE.
-    function openCoopWaitroom(roomCode, nick) {
+    function openCoopWaitroom(roomCode, nick, myStartSpeed) {
         const overlay = document.getElementById('mp-waitroom');
         const peersEl = document.getElementById('mp-waitroom-peers');
         const codeEl  = document.getElementById('mp-waitroom-code');
@@ -3728,8 +3754,9 @@ function init() {
         // joinedAt ties (clock skew), the lexicographically smallest
         // nick wins — same comparator on every client → no split.
         const joinedAt = Date.now();
-        const peerInfo = new Map(); // peer → { ready, joinedAt, tier }
-        peerInfo.set(nick, { ready: false, joinedAt, tier: selectedTier });
+        const myStartSpeedInt = Number.isFinite(myStartSpeed) ? (myStartSpeed | 0) : null;
+        const peerInfo = new Map(); // peer → { ready, joinedAt, tier, speed }
+        peerInfo.set(nick, { ready: false, joinedAt, tier: selectedTier, speed: myStartSpeedInt });
 
         let wrSeq = 0;
         function announce() {
@@ -3739,6 +3766,7 @@ function init() {
                     kind: 'wr', p: nick, ready: meReady,
                     seq: wrSeq, t: Date.now(),
                     joinedAt, tier: selectedTier,
+                    speed: myStartSpeedInt,
                 });
             } catch (_) {}
         }
@@ -3750,9 +3778,10 @@ function init() {
                     (a[1].joinedAt - b[1].joinedAt) ||
                     (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
             const hostNick = sorted[0] && sorted[0][0];
-            const hostTier = sorted[0] && sorted[0][1].tier;
-            _mpHostNick = hostNick;
-            _mpHostTier = (hostTier == null) ? null : (hostTier | 0);
+            const hostInfo = sorted[0] && sorted[0][1];
+            _mpHostNick  = hostNick;
+            _mpHostTier  = (hostInfo && hostInfo.tier != null) ? (hostInfo.tier | 0) : null;
+            _mpHostSpeed = (hostInfo && hostInfo.speed != null) ? (hostInfo.speed | 0) : null;
         }
 
         const offMsg = _activeRoom.onMessage((msg) => {
@@ -3764,6 +3793,7 @@ function init() {
             info.ready = !!msg.ready;
             if (typeof msg.joinedAt === 'number') info.joinedAt = msg.joinedAt;
             if (Number.isInteger(msg.tier)) info.tier = msg.tier;
+            if (Number.isInteger(msg.speed)) info.speed = msg.speed;
             peerInfo.set(peer, info);
             electHost();
             // Reply with our own state so the new peer sees us, even if
