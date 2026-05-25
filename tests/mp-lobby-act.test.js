@@ -199,6 +199,10 @@ const path = require('path');
     await alice.ctx.close();
     await bob.ctx.close();
 
+    // Settle: HiveMQ / Nostr brokers can rate-limit reconnects from
+    // the same IP. Give them a moment before opening the coop pair.
+    await new Promise(r => setTimeout(r, 4000));
+
     // ── 7. CO-OP waitroom act test ────────────────────────────────────
     // Coop mode uses a sessionStorage + reload handshake so the
     // pre-boot RNG can install before aegis.js runs. The flow:
@@ -224,35 +228,32 @@ const path = require('path');
         });
         const page = await ctx.newPage();
         const errs = [];
+        const dbg = [];
         page.on('pageerror', e => errs.push(e.message));
         page.on('console', m => {
-            if (m.type() !== 'error') return;
             const t = m.text();
-            if (/mqtt|trystero|websocket|mosquitto|hivemq|emqx/i.test(t)) return;
-            errs.push('console: ' + t);
+            if (m.type() === 'error') {
+                if (/mqtt|trystero|websocket|mosquitto|hivemq|emqx/i.test(t)) return;
+                errs.push('console: ' + t);
+            } else if (/\[MP\]|peer-join|joined|wr/i.test(t)) {
+                dbg.push(`[${m.type()}] ${t}`);
+            }
         });
         await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(600);
         await page.click('#menu-multiplayer-btn');
         await page.waitForTimeout(150);
-        // Explicitly select coop in case the default selection logic
-        // hasn't fired by the time we get here.
         await page.selectOption('#mp-mode-select', 'coop');
         await page.fill('#mp-nick-input', nick);
         await page.fill('#mp-room-input', coopRoom);
-        // Coop JOIN persists sessionStorage and reloads. We catch the
-        // navigation so we can keep working with the same page.
         await Promise.all([
             page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
             page.click('#mp-join-btn'),
-        ]).catch(() => { /* in some flows reload is instant; ignore */ });
-        // After reload, init runs, resumeMultiplayerIfPending detects
-        // sessionStorage, calls joinCoop + openCoopWaitroom. Wait for
-        // the waitroom overlay to appear.
+        ]).catch(() => {});
         try {
             await page.waitForSelector('#mp-waitroom:not(.hidden)', { timeout: 20000 });
-        } catch (_) { /* surface in the assertions below */ }
-        return { ctx, page, errs };
+        } catch (_) {}
+        return { ctx, page, errs, dbg };
     }
 
     console.log('  spawning ALICE (coop)...');

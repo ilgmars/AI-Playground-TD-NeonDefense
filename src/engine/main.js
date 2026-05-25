@@ -3783,25 +3783,39 @@ function init() {
             });
         } catch (_) {}
 
-        // Aggressive early burst: the waitroom screen has no RAF loop
-        // (the canvas isn't being painted), so background tabs get
-        // setInterval throttled to ~1 Hz under Chromium. To make sure
-        // the first peer pairing happens fast even with throttling,
-        // we burst-announce at 300 ms cadence for the first 8 seconds.
-        // After that the steady 2 s heartbeat takes over.
-        let burstCount = 0;
-        const BURST_LIMIT = 26;        // ~8 s at 300 ms
-        const burstTimer = setInterval(() => {
-            if (burstCount >= BURST_LIMIT) {
-                clearInterval(burstTimer);
-                return;
-            }
-            burstCount += 1;
-            announce();
-        }, 300);
+        // High-frequency announce loop. The reason it has to be this
+        // aggressive: players reported "pressing READY/UNREADY/READY
+        // makes the partner appear" — each click was hitting announce()
+        // directly, so the channel works fine, but the 2 s heartbeat
+        // was missing too many windows. We now ping every 250 ms for
+        // the entire waitroom lifetime. Bandwidth is negligible
+        // (~80 bytes/ping × 4 Hz = 320 B/s) and the waitroom is short.
+        const heartbeatTimer = setInterval(announce, 250);
 
-        // Steady 2 s heartbeat as a long-tail backstop.
-        const heartbeatTimer = setInterval(announce, 2000);
+        // Use MessageChannel as a never-throttled ticker. setInterval
+        // gets clamped to ~1 Hz in background tabs; MessageChannel
+        // postMessage is exempt from throttling on Chromium and fires
+        // even when the tab is hidden. This catches the "user opened
+        // the waitroom, switched tabs, came back" pattern.
+        let mcAlive = true;
+        let mcCount = 0;
+        let mcStarted = 0;
+        try {
+            const mc = new MessageChannel();
+            mc.port1.onmessage = () => {
+                if (!mcAlive) return;
+                mcCount += 1;
+                // Fire announce every ~8 message-channel ticks (~tens of
+                // ms) for the first 20s, then back off so we don't
+                // saturate.
+                if (mcStarted === 0) mcStarted = Date.now();
+                const elapsed = Date.now() - mcStarted;
+                const stride = elapsed < 20000 ? 8 : 64;
+                if ((mcCount % stride) === 0) announce();
+                if (mcAlive && elapsed < 60000) mc.port2.postMessage(0);
+            };
+            mc.port2.postMessage(0);
+        } catch (_) { /* defensive */ }
 
         // RAF tick keeps the tab marked active so timer throttling
         // doesn't kick in on a parked waitroom. We also toggle a CSS
@@ -3854,8 +3868,8 @@ function init() {
                 if (done) return;
                 done = true;
                 clearInterval(heartbeatTimer);
-                clearInterval(burstTimer);
                 rafAlive = false;
+                mcAlive = false;
                 document.removeEventListener('pointerdown', wakeAnnounce);
                 document.removeEventListener('keydown',     wakeAnnounce, true);
                 document.removeEventListener('visibilitychange', visChange);
