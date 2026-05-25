@@ -1759,7 +1759,10 @@ function init() {
     setTimeout(() => {
         try {
             if (window.NeonMP && NeonMP.global && NeonMP.global.singleton) {
-                NeonMP.global.singleton().start();
+                // start() returns a Promise — swallow rejection so a
+                // sandbox without broker access doesn't fire an
+                // unhandled-rejection that pollutes pageerror listeners.
+                Promise.resolve(NeonMP.global.singleton().start()).catch(() => {});
             }
         } catch (_) { /* best-effort */ }
     }, 2000);
@@ -2432,7 +2435,9 @@ function init() {
         // for it. Quiet failure if Trystero is blocked (the renderer
         // shows "GLOBAL OFFLINE" instead of throwing).
         if (window.NeonMP && NeonMP.global) {
-            try { NeonMP.global.singleton().start(); } catch (_) {}
+            try {
+                Promise.resolve(NeonMP.global.singleton().start()).catch(() => {});
+            } catch (_) {}
         }
     });
 
