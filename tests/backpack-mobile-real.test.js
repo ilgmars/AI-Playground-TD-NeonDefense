@@ -70,7 +70,16 @@ const MODES = [
         const page = await ctx.newPage();
         const errs = [];
         page.on('pageerror', e => errs.push(e.message));
-        page.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
+        page.on('console', m => {
+            if (m.type() !== 'error') return;
+            const t = m.text();
+            // Filter networking noise from the global-scoreboard
+            // auto-start. CI sandboxes often can't reach Nostr / MQTT
+            // relays; the 403 / WS-handshake-failed lines are normal
+            // and not a JS error.
+            if (/mqtt|websocket|nostr|hivemq|emqx|relay\.verified-nostr|sandbox/i.test(t)) return;
+            errs.push('console: ' + t);
+        });
         await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(700);
         return { page, ctx, errs };
