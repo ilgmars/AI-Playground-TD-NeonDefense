@@ -785,6 +785,17 @@ ok('global trims + sanitises name', cleaned && cleaned.name === 'PR3-X');
 ok('global accepts up to 16 chars',
    globalMod.validateEntry({ name: 'ALPHABETALPHABETALPHA', wave: 1, tier: 0 }).name.length === 16);
 
+// New: autopilot + retired flags preserved through validateEntry so the
+// scoreboard UI can tag them on the global board.
+{
+    const e = globalMod.validateEntry({ name: 'BOT', wave: 50, tier: 0, autopilot: true, retired: true });
+    ok('global preserves autopilot flag', e.autopilot === true);
+    ok('global preserves retired flag',   e.retired === true);
+    const e2 = globalMod.validateEntry({ name: 'OK', wave: 50, tier: 0 });
+    ok('global defaults autopilot=false', e2.autopilot === false);
+    ok('global defaults retired=false',   e2.retired === false);
+}
+
 // E2E: two boards via a shared mock hub. A publishes → B receives.
 // Uses the synchronous .attach() entrypoint so the test stays linear
 // (no async/await needed at module level).

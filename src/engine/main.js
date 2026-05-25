@@ -1751,6 +1751,19 @@ function init() {
     // start the run with the room code's hash as the world seed.
     setupMultiplayerLobby();
 
+    // Background global-scoreboard sync. Started lazily after a short
+    // delay so the page is fully interactive before we open the MQTT
+    // connection. Silent failure — local scoreboard still works if
+    // the broker is unreachable. Periodic re-broadcast (every 60s)
+    // is handled inside global.js.
+    setTimeout(() => {
+        try {
+            if (window.NeonMP && NeonMP.global && NeonMP.global.singleton) {
+                NeonMP.global.singleton().start();
+            }
+        } catch (_) { /* best-effort */ }
+    }, 2000);
+
     // M2: Run Setup BACK button goes to Main Menu.
     document.getElementById('setup-back-btn').addEventListener('click', uiGoBack);
     document.getElementById('tree-back-btn').addEventListener('click',  uiGoBack);
@@ -2548,6 +2561,18 @@ function init() {
     if (menuScoresBtn) menuScoresBtn.addEventListener('click', openScoreboard);
     const setupScoresBtn = document.getElementById('setup-scores-btn');
     if (setupScoresBtn) setupScoresBtn.addEventListener('click', openScoreboard);
+
+    // Refresh scoreboard overlay when the global board updates so the
+    // GLOBAL view picks up new entries without the player re-opening.
+    if (window.NeonMP && NeonMP.global && NeonMP.global.singleton) {
+        try {
+            NeonMP.global.singleton().onUpdate(() => {
+                if (_sbSource !== 'global') return;
+                if (document.getElementById('scoreboard-screen').classList.contains('hidden')) return;
+                renderScoreboardOverlay();
+            });
+        } catch (_) {}
+    }
 
     // Pre-fill the player name input from the persisted localStorage
     // value so the player doesn't retype it every run.

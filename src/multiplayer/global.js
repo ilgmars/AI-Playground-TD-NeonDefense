@@ -60,7 +60,10 @@
         // (they could obviously lie) — the UI hides cheated entries by
         // default so a self-honest player can opt into seeing them.
         const cheated = raw.cheated === true;
-        return { name, wave: raw.wave, tier, t, cheated };
+        // autopilot / retired: cosmetic tags. Also publisher-claimed.
+        const autopilot = raw.autopilot === true;
+        const retired   = raw.retired   === true;
+        return { name, wave: raw.wave, tier, t, cheated, autopilot, retired };
     }
 
     function createGlobalBoard(opts) {
@@ -84,6 +87,7 @@
             _wireRoom();
             return room;
         }
+        let rebroadcastTimer = null;
         async function start() {
             // Connect to the global room. Done lazily so the page doesn't
             // open WebSocket connections on first paint. Returns the
@@ -103,6 +107,35 @@
                 return null;
             }
             _wireRoom();
+            // Background sync: every 60s rebroadcast our full local
+            // board so any peer that joined after our last publish
+            // gets caught up. Newcomers seeing OUR entries also see
+            // anyone we've merged from a third peer — so the room
+            // converges to a complete picture over time.
+            try {
+                rebroadcastTimer = setInterval(() => {
+                    if (!room || board.size === 0) return;
+                    try {
+                        room.send({
+                            kind: APP_NS,
+                            entries: Array.from(board.values()).slice(0, 50),
+                        });
+                    } catch (_) {}
+                }, 60000);
+            } catch (_) {}
+            // Initial broadcast (after a short delay so onPeerJoin
+            // listeners and the data channel are settled).
+            try {
+                setTimeout(() => {
+                    if (!room || board.size === 0) return;
+                    try {
+                        room.send({
+                            kind: APP_NS,
+                            entries: Array.from(board.values()).slice(0, 50),
+                        });
+                    } catch (_) {}
+                }, 2500);
+            } catch (_) {}
             return room;
         }
         function _wireRoom() {
@@ -201,6 +234,10 @@
             }
         }
         function stop() {
+            if (rebroadcastTimer) {
+                clearInterval(rebroadcastTimer);
+                rebroadcastTimer = null;
+            }
             if (room) {
                 try { room.leave(); } catch (_) {}
                 room = null;
