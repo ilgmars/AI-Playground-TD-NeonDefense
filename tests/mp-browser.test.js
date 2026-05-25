@@ -141,10 +141,8 @@ const path = require('path');
     // ── Coop scripts present + dropdown un-disabled ─────────────────
     const coopAvail = await page.evaluate(() => ({
         coopMod:   !!(NeonMP && NeonMP.coop && typeof NeonMP.coop.createCoop === 'function'),
-        versusMod: !!(NeonMP && NeonMP.versus && typeof NeonMP.versus.createVersus === 'function'),
     }));
     ok('NeonMP.coop loaded',   coopAvail.coopMod);
-    ok('NeonMP.versus loaded', coopAvail.versusMod);
     // Race overlay closed the lobby but the game is mid-run; navigate
     // explicitly back to the main menu so the MULTIPLAYER button is
     // visible/clickable.
@@ -159,7 +157,7 @@ const path = require('path');
         return out;
     });
     ok('coop option un-disabled',   dropdownState.coop === true);
-    ok('versus option un-disabled', dropdownState.versus === true);
+    ok('versus option no longer in lobby', dropdownState.versus === undefined);
 
     // ── Coop in-browser end-to-end ─────────────────────────────────
     const coopE2E = await page.evaluate(() => {

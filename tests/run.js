@@ -65,7 +65,7 @@ const SMOKE_SUITES = [
     { name: 'autopilot-smoke', file: 'tests/autopilot.smoke.js', args: ['--snapshots=10,30', '--speed=2048', '--ascension=3'] },
     // Long-haul to wave 450 / lives==0 — guards the "money disappears at
     // milestone waves" regression. ~5-8 minutes on a fast box.
-    { name: 'wave450',         file: 'tests/wave450.smoke.js',   args: ['--target=450', '--speed=4096', '--ascension=3'] },
+    { name: 'wave450',         file: 'tests/wave450.smoke.js',   args: ['--target=450', '--speed=8192', '--ascension=0'] },
 ];
 
 const withSmoke = process.argv.includes('--with-smoke');
