@@ -301,9 +301,15 @@ const path = require('path');
         // just "one of them" — Promise.all + individual catches
         // preserves per-peer error info.
         const waitForWaitroomHidden = (page, who) =>
-            page.waitForSelector('#mp-waitroom.hidden', { timeout: 15000 })
-                .then(() => ({ who, ok: true }))
-                .catch(e => ({ who, ok: false, err: e.message }));
+            page.waitForFunction(
+                () => {
+                    const el = document.getElementById('mp-waitroom');
+                    return el && el.classList.contains('hidden');
+                },
+                null,
+                { timeout: 15000 }
+            ).then(() => ({ who, ok: true }))
+             .catch(e => ({ who, ok: false, err: e.message }));
         const closeResults = await Promise.all([
             waitForWaitroomHidden(aliceCoop.page, 'ALICE'),
             waitForWaitroomHidden(bobCoop.page,   'BOB'),

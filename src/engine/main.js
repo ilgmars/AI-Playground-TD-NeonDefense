@@ -3783,60 +3783,18 @@ function init() {
             });
         } catch (_) {}
 
-        // High-frequency announce loop. The reason it has to be this
-        // aggressive: players reported "pressing READY/UNREADY/READY
-        // makes the partner appear" — each click was hitting announce()
-        // directly, so the channel works fine, but the 2 s heartbeat
-        // was missing too many windows. We now ping every 250 ms for
-        // the entire waitroom lifetime. Bandwidth is negligible
-        // (~80 bytes/ping × 4 Hz = 320 B/s) and the waitroom is short.
-        const heartbeatTimer = setInterval(announce, 250);
+        // Steady heartbeat. With Trystero pairing now reliable (peers
+        // get unique IDs — see transport-trystero.js), 1 Hz is plenty.
+        // Higher cadence saturates the event loop during the burst
+        // window without adding pairing speed.
+        const heartbeatTimer = setInterval(announce, 1000);
 
-        // Use MessageChannel as a never-throttled ticker. setInterval
-        // gets clamped to ~1 Hz in background tabs; MessageChannel
-        // postMessage is exempt from throttling on Chromium and fires
-        // even when the tab is hidden. This catches the "user opened
-        // the waitroom, switched tabs, came back" pattern.
-        let mcAlive = true;
-        let mcCount = 0;
-        let mcStarted = 0;
-        try {
-            const mc = new MessageChannel();
-            mc.port1.onmessage = () => {
-                if (!mcAlive) return;
-                mcCount += 1;
-                // Fire announce every ~8 message-channel ticks (~tens of
-                // ms) for the first 20s, then back off so we don't
-                // saturate.
-                if (mcStarted === 0) mcStarted = Date.now();
-                const elapsed = Date.now() - mcStarted;
-                const stride = elapsed < 20000 ? 8 : 64;
-                if ((mcCount % stride) === 0) announce();
-                if (mcAlive && elapsed < 60000) mc.port2.postMessage(0);
-            };
-            mc.port2.postMessage(0);
-        } catch (_) { /* defensive */ }
-
-        // RAF tick keeps the tab marked active so timer throttling
-        // doesn't kick in on a parked waitroom. We also toggle a CSS
-        // variable per tick — a no-op visually, but it forces a paint
-        // task so headless chromium stops treating the page as idle.
-        // Without this, Playwright contexts sitting in the waitroom
-        // get setInterval clamped to ~1 Hz and peer-pairing never
-        // completes within the test timeout.
+        // Light RAF loop keeps the tab marked active so the 1 Hz
+        // heartbeat doesn't get throttled to a stop on a parked page.
         let rafAlive = true;
-        let rafCount = 0;
         function rafTick() {
             if (!rafAlive) return;
-            rafCount = (rafCount + 1) & 0xFFFF;
-            try {
-                // tiny style write — paint-bound but invisible
-                overlay.style.setProperty('--mp-wr-tick', rafCount);
-                // Re-broadcast every ~250 RAF ticks (~4 s on a 60 Hz
-                // display, more under throttling — but still firing).
-                if ((rafCount & 0xFF) === 0) announce();
-                requestAnimationFrame(rafTick);
-            } catch (_) {}
+            try { requestAnimationFrame(rafTick); } catch (_) {}
         }
         rafTick();
 
@@ -3869,7 +3827,6 @@ function init() {
                 done = true;
                 clearInterval(heartbeatTimer);
                 rafAlive = false;
-                mcAlive = false;
                 document.removeEventListener('pointerdown', wakeAnnounce);
                 document.removeEventListener('keydown',     wakeAnnounce, true);
                 document.removeEventListener('visibilitychange', visChange);
@@ -3884,10 +3841,23 @@ function init() {
             function onReady() {
                 meReady = !meReady;
                 peers.set(nick, meReady);
+                // Burst the READY state several times so the OTHER peer
+                // definitely receives it. Without this, if we're the
+                // second to ready, tryStart() fires finish() in the same
+                // turn and tears down the heartbeat — the partner may
+                // miss the single "ready" announce on a flaky channel
+                // and get stuck waiting in the room. (Race condition
+                // surfaced once Trystero pairing got fast enough.)
                 announce();
+                setTimeout(announce, 80);
+                setTimeout(announce, 220);
+                setTimeout(announce, 500);
                 readyBtn.textContent = meReady ? 'UN-READY' : 'READY';
                 render();
-                tryStart();
+                // Delay tryStart a beat so the partner's tryStart can
+                // also fire on the burst above before either of us
+                // pulls the plug on the room.
+                setTimeout(tryStart, 800);
             }
             function onLeave() { finish(false); }
             function onCopy() {

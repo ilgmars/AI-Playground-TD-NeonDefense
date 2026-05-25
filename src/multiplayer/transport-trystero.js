@@ -255,6 +255,24 @@
             status({ kind: 'ice-config', count: iceServers.length });
         }
 
+        // The MP pre-boot script (index.html) reseeds Math.random with a
+        // deterministic mulberry32 keyed off the room code so every peer
+        // sees the same enemy / boon stream. Trystero ALSO uses
+        // Math.random to generate its internal peer ID. If we leave the
+        // shared seed in place, both peers compute identical IDs and
+        // Trystero dedupes them as "self" — the room never pairs. We
+        // restore the native random just for the strategy/joinRoom
+        // calls, then swap back. Aegis is in dev mode (set by the
+        // pre-boot) so the swap doesn't trip the rng sensor.
+        const native = (typeof window !== 'undefined' && window.__neonNativeRandom) || null;
+        const seeded = (typeof Math !== 'undefined') ? Math.random : null;
+        if (native && seeded) {
+            try { Math.random = native; } catch (_) {}
+        }
+        function restoreSeededRandom() {
+            if (seeded) try { Math.random = seeded; } catch (_) {}
+        }
+
         // Try each requested strategy in parallel. Resolve the
         // settlement (mix of fulfilled / rejected) and keep every
         // room that joined.
@@ -277,6 +295,8 @@
             return { strategy, room };
         });
         const settled = await Promise.allSettled(attempts);
+        // Re-install the seeded RNG now that Trystero has its unique IDs.
+        restoreSeededRandom();
         const rooms = [];
         const errors = [];
         for (const r of settled) {
