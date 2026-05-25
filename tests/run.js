@@ -29,6 +29,7 @@ const SUITES = [
     { name: 'mp-peer-id',      file: 'tests/mp-peer-id.test.js' },
     { name: 'sp-no-race-overlay', file: 'tests/sp-no-race-overlay.test.js' },
     { name: 'bp-shape-border',    file: 'tests/bp-shape-border.test.js' },
+    { name: 'boon-autopick',      file: 'tests/boon-autopick.test.js' },
     // Real two-client end-to-end over actual Trystero. Self-skips when
     // the environment can't reach trackers / WebRTC (set NEON_MP_FORCE=1
     // to make those skips into failures, e.g. for a release smoke).

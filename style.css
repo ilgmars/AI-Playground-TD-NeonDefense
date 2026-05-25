@@ -1625,6 +1625,20 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     color: var(--text-muted);
     line-height: 1.4;
 }
+.boon-autopick-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 18px;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+}
+.boon-autopick-row input[type=checkbox] {
+    accent-color: #a3e635;
+    width: 16px; height: 16px;
+}
 @media (max-width: 768px), (max-height: 500px) {
     /* Clear the floating top bar so the title isn't tucked behind it. */
     #boon-overlay,

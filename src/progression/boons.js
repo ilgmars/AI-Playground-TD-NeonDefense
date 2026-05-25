@@ -63,8 +63,9 @@ const NeonBoons = (function () {
     }
 
     // Returns true if a chooser was shown. When the autopilot is driving
-    // (or no human is watching) we auto-take the first rolled boon so
-    // endless/headless runs keep progressing without blocking.
+    // (or the player ticked "auto-pick remaining"), we auto-take the
+    // first rolled boon so endless/headless runs keep progressing
+    // without blocking.
     function open() {
         if (active) return false;
         const g = window.game;
@@ -73,7 +74,7 @@ const NeonBoons = (function () {
         const choices = g.getBoonChoices();
         if (!choices || !choices.length) return false;
 
-        if (g.autopilot) {
+        if (g.autopilot || g.boonAutoPick) {
             g.chooseBoon(choices[0].id);
             return false;
         }
@@ -85,6 +86,14 @@ const NeonBoons = (function () {
         const sub = document.getElementById('boon-subtitle');
         if (sub) sub.textContent = `Wave ${g.wave} cleared — choose a permanent upgrade`;
         render(choices);
+        // Wire the per-run "auto-pick remaining" toggle. The checkbox
+        // lives in the chooser overlay; toggling it sets a run-scoped
+        // flag that NeonBoons.open() reads next time.
+        const auto = document.getElementById('boon-autopick');
+        if (auto) {
+            auto.checked = !!g.boonAutoPick;
+            auto.onchange = () => { g.boonAutoPick = !!auto.checked; };
+        }
         const overlay = document.getElementById('boon-overlay');
         if (overlay) overlay.classList.remove('hidden');
         return true;
