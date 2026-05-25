@@ -2699,6 +2699,66 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     background: rgba(255, 255, 255, 0.06);
 }
 
+/* Scoreboard +/-3 view rows */
+.sb-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.95rem;
+    color: var(--text-main);
+}
+.sb-row .sb-rank {
+    color: var(--text-muted);
+    min-width: 38px;
+    font-weight: 700;
+}
+.sb-row .sb-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.sb-row .sb-wave {
+    color: var(--accent);
+    font-weight: 700;
+}
+.sb-row.is-me {
+    background: rgba(163, 230, 53, 0.12);
+    border-left: 3px solid #a3e635;
+    padding-left: 7px;
+}
+.sb-row.is-me .sb-rank { color: #a3e635; }
+.score-autopilot-tag {
+    margin-left: 6px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(56, 189, 248, 0.18);
+    color: #38bdf8;
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+}
+.score-retired-tag {
+    margin-left: 6px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(163, 230, 53, 0.18);
+    color: #a3e635;
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+}
+.score-source-row {
+    display: flex;
+    margin: 12px 0 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    overflow: hidden;
+    width: max-content;
+    margin-left: auto;
+    margin-right: auto;
+}
+
 .scoreboard-cheats-toggle {
     display: flex;
     align-items: center;

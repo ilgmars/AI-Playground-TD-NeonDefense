@@ -33,6 +33,7 @@ const SUITES = [
     { name: 'auto-save-score',    file: 'tests/auto-save-score.test.js' },
     { name: 'mp-speed-lock',      file: 'tests/mp-speed-lock.test.js' },
     { name: 'coop-split-economy', file: 'tests/coop-split-economy.test.js' },
+    { name: 'scoreboard-window',  file: 'tests/scoreboard-window.test.js' },
     // Real two-client end-to-end over actual Trystero. Self-skips when
     // the environment can't reach trackers / WebRTC (set NEON_MP_FORCE=1
     // to make those skips into failures, e.g. for a release smoke).

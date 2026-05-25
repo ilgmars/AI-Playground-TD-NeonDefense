@@ -2428,6 +2428,127 @@ function init() {
 
     renderScoreTabs();
 
+    // ── Dedicated scoreboard overlay (main menu + setup screen) ──────
+    // The game-over scores list shows the top 5; this overlay shows the
+    // SAME data but rendered as "your row ±3" so a long-running player
+    // sees their current standing relative to neighbours rather than a
+    // top-5 they can't break into.
+    const SB_TABS_EL = document.getElementById('sb-tabs');
+    const SB_LIST_EL = document.getElementById('sb-list');
+    let _sbSource = 'local';
+    let _sbTier = 0;
+
+    function _sbScoresForTier(tier) {
+        if (_sbSource === 'global'
+            && window.NeonMP && NeonMP.global && NeonMP.global.snapshot) {
+            return NeonMP.global.snapshot()
+                .filter(e => (e.tier | 0) === (tier | 0))
+                .sort((a, b) => b.wave - a.wave);
+        }
+        return (save.highScores['a' + tier] || []).slice()
+            .sort((a, b) => b.wave - a.wave);
+    }
+
+    function _renderSbRow(idx, s, isMe) {
+        const div = document.createElement('div');
+        div.className = 'sb-row' + (isMe ? ' is-me' : '');
+        const cheatTag = s.cheated ? '<span class="score-cheated-tag" title="Aegis flagged this run">CHEATED</span>' : '';
+        const autoTag  = s.autopilot ? '<span class="score-autopilot-tag" title="Autopilot was used in this run">AUTO</span>' : '';
+        const retired  = s.retired ? '<span class="score-retired-tag">RETIRED</span>' : '';
+        div.innerHTML =
+            `<span class="sb-rank">#${idx + 1}</span>` +
+            `<span class="sb-name">${_esc(s.name)}${retired}${autoTag}${cheatTag}</span>` +
+            `<span class="sb-wave">W${s.wave}</span>`;
+        return div;
+    }
+
+    function renderScoreboardOverlay() {
+        if (!SB_LIST_EL) return;
+        const meName = (typeof getPlayerName === 'function') ? getPlayerName() : '';
+        const all = _sbScoresForTier(_sbTier);
+        const visible = _showCheats ? all : all.filter(s => !s.cheated);
+        SB_LIST_EL.innerHTML = '';
+        if (visible.length === 0) {
+            SB_LIST_EL.innerHTML =
+                `<div style="text-align:center; color:#64748b; font-size:0.9rem;">${
+                    _sbSource === 'global' ? 'WAITING FOR PEERS…' : 'NO DATA YET'
+                }</div>`;
+            return;
+        }
+        // Find OUR best rank in the (already sorted-desc) list.
+        let myRank = -1;
+        for (let i = 0; i < visible.length; i++) {
+            if (visible[i].name === meName) { myRank = i; break; }
+        }
+        // Window: 3 above + me + 3 below. If we're not in the list,
+        // just show top 7 (so the player can still see what they're
+        // chasing).
+        let start, end;
+        if (myRank < 0) { start = 0; end = Math.min(visible.length, 7); }
+        else {
+            start = Math.max(0, myRank - 3);
+            end   = Math.min(visible.length, myRank + 4);
+            // If we're near the top, extend downward so we always show 7.
+            const span = end - start;
+            if (span < 7) end = Math.min(visible.length, start + 7);
+        }
+        for (let i = start; i < end; i++) {
+            const isMe = (i === myRank);
+            SB_LIST_EL.appendChild(_renderSbRow(i, visible[i], isMe));
+        }
+    }
+
+    function renderScoreboardTabs() {
+        if (!SB_TABS_EL) return;
+        SB_TABS_EL.innerHTML = '';
+        const maxVisible = (save.ascensionCleared | 0) + 1;
+        for (let t = 0; t <= maxVisible; t++) {
+            const btn = document.createElement('button');
+            btn.className = 'score-tab';
+            btn.textContent = 'A' + t;
+            if (t === _sbTier) btn.classList.add('selected');
+            btn.addEventListener('click', () => {
+                _sbTier = t;
+                renderScoreboardTabs();
+                renderScoreboardOverlay();
+            });
+            SB_TABS_EL.appendChild(btn);
+        }
+    }
+
+    function openScoreboard() {
+        _sbTier = (game && Number.isFinite(game.ascensionTier))
+            ? game.ascensionTier : (selectedTier | 0);
+        renderScoreboardTabs();
+        renderScoreboardOverlay();
+        showScreen('scoreboard-screen');
+    }
+    function closeScoreboard() { hideScreen('scoreboard-screen'); }
+    window.openScoreboard = openScoreboard;
+
+    const sbBackBtn = document.getElementById('sb-back-btn');
+    if (sbBackBtn) sbBackBtn.addEventListener('click', closeScoreboard);
+    const sbLocal = document.getElementById('sb-source-local');
+    const sbGlobal = document.getElementById('sb-source-global');
+    if (sbLocal && sbGlobal) {
+        sbLocal.addEventListener('click', () => {
+            _sbSource = 'local';
+            sbLocal.classList.add('selected');
+            sbGlobal.classList.remove('selected');
+            renderScoreboardOverlay();
+        });
+        sbGlobal.addEventListener('click', () => {
+            _sbSource = 'global';
+            sbLocal.classList.remove('selected');
+            sbGlobal.classList.add('selected');
+            renderScoreboardOverlay();
+        });
+    }
+    const menuScoresBtn = document.getElementById('menu-scores-btn');
+    if (menuScoresBtn) menuScoresBtn.addEventListener('click', openScoreboard);
+    const setupScoresBtn = document.getElementById('setup-scores-btn');
+    if (setupScoresBtn) setupScoresBtn.addEventListener('click', openScoreboard);
+
     // Pre-fill the player name input from the persisted localStorage
     // value so the player doesn't retype it every run.
     try {
