@@ -505,6 +505,7 @@ const MODES = [
         ok('SELL auto-disarms after 3 s idle',     after.armed === 'false');
         ok('SELL idle: item NOT sold',             after.held === true);
         ok('SELL idle: label reverted',            !/CONFIRM/i.test(after.label));
+        if (errs.length > 0) errs.forEach(e => console.log('  SELL idle err:', e));
         ok('SELL idle: no JS errors',              errs.length === 0);
         await ctx.close();
     }
