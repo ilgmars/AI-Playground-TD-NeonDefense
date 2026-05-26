@@ -306,6 +306,13 @@ function navigateToMainMenu() {
         bpReturnHeldToStash();
         if (typeof bpPersist === 'function') bpPersist();
     }
+    // Tear down any active MP session — race controller, coop
+    // controller, room subscription, and race overlay. Skipping
+    // this leaves _activeMode set and the race heartbeat repaints
+    // the overlay over any later single-player run.
+    try {
+        if (typeof window.__neonLeaveMP === 'function') window.__neonLeaveMP();
+    } catch (_) {}
     hideScreen('start-screen');
     hideScreen('game-over');
     hideScreen('restart-confirm');
@@ -316,6 +323,7 @@ function navigateToMainMenu() {
     hideScreen('save-code-modal');
     hideScreen('mp-lobby');
     hideScreen('mp-waitroom');
+    hideScreen('mp-race-overlay');   // double-belt+suspenders
     showScreen('main-menu');
     _exitSubScreenState();
     // Halt the in-progress run so update() bails — the menu owns the canvas now.
@@ -2495,11 +2503,18 @@ function init() {
     }
 
     function _gameOverScoresForTier(tier) {
+        // Same three-source merge as _sbScoresForTier — see comment
+        // there. Cached entries fill in for peers who are offline
+        // right now but were online at some point.
         const remote = (window.NeonMP && NeonMP.global && NeonMP.global.snapshot)
             ? NeonMP.global.snapshot().filter(e => (e.tier | 0) === (tier | 0))
             : [];
+        const cached = (save && save.globalCache && Array.isArray(save.globalCache['a' + tier]))
+            ? save.globalCache['a' + tier]
+            : [];
         const localList = (save.highScores['a' + tier] || []).slice();
         const byKey = new Map();
+        for (const e of cached)    byKey.set(e.name + '|' + e.wave, e);
         for (const e of localList) byKey.set(e.name + '|' + e.wave, e);
         for (const e of remote)    byKey.set(e.name + '|' + e.wave, e);
         return Array.from(byKey.values()).sort((a, b) => b.wave - a.wave);
@@ -2546,14 +2561,59 @@ function init() {
     }
 
     // Subscribe to global board updates so live entries refresh while
-    // the gameover screen is open.
+    // the gameover screen is open. Also persists the merged snapshot
+    // into save.globalCache so a reloaded device keeps relaying
+    // other players' scores even if those players go offline. This is
+    // what the user means by "scores keep propagating": each device
+    // is a relay node, not just a leaf.
     if (window.NeonMP && NeonMP.global) {
         try {
-            NeonMP.global.singleton().onUpdate(() => {
-                if (_scoreSource === 'global') renderScores(visibleScoreTier);
+            NeonMP.global.singleton().onUpdate((snap) => {
+                renderScores(visibleScoreTier);
+                try { _persistGlobalSnapshot(snap); } catch (_) {}
             });
         } catch (_) {}
     }
+    // Per-tier mirror of the global board. Saved to localStorage on
+    // every update. Capped per tier so a busy room doesn't grow the
+    // save unbounded.
+    const _GLOBAL_CACHE_PER_TIER = 50;
+    let _persistGlobalThrottle = 0;
+    function _persistGlobalSnapshot(snap) {
+        if (!save) return;
+        if (!save.globalCache || typeof save.globalCache !== 'object') save.globalCache = {};
+        // Throttle persistence — onUpdate fires often during a burst.
+        const now = Date.now();
+        if (now - _persistGlobalThrottle < 500) return;
+        _persistGlobalThrottle = now;
+        const byTier = new Map();
+        for (const e of snap) {
+            const t = e.tier | 0;
+            if (!byTier.has(t)) byTier.set(t, []);
+            byTier.get(t).push(e);
+        }
+        for (const [t, entries] of byTier) {
+            entries.sort((a, b) => b.wave - a.wave);
+            save.globalCache['a' + t] = entries.slice(0, _GLOBAL_CACHE_PER_TIER);
+        }
+        try { NeonSave.write(save); } catch (_) {}
+    }
+    // On boot, push our cached snapshot back into the live board so
+    // we immediately know what we knew last session — and rebroadcast
+    // it during the 60-s sweep so other peers learn too.
+    setTimeout(() => {
+        try {
+            if (!window.NeonMP || !NeonMP.global || !save || !save.globalCache) return;
+            const board = NeonMP.global.singleton();
+            for (const k of Object.keys(save.globalCache)) {
+                const arr = save.globalCache[k];
+                if (!Array.isArray(arr)) continue;
+                for (const entry of arr) {
+                    try { board._mergeEntry && board._mergeEntry(entry); } catch (_) {}
+                }
+            }
+        } catch (_) {}
+    }, 1200);
 
     function setScoreTab(tier) {
         visibleScoreTier = tier;
@@ -2590,15 +2650,25 @@ function init() {
     // we fall back to the local save's history so the player isn't
     // staring at "WAITING FOR PEERS…" for their own runs.
     function _sbScoresForTier(tier) {
+        // Three sources merged into one view:
+        //   1. live remote snapshot (NeonMP.global.snapshot)
+        //   2. cached remote from the last session (save.globalCache)
+        //   3. local personal runs (save.highScores)
+        // Live wins on (name, wave) collision; cached fills in any
+        // entries the live board hasn't refreshed yet (e.g. peers
+        // currently offline); local makes sure the player sees their
+        // own runs even before the next publish.
         const remote = (window.NeonMP && NeonMP.global && NeonMP.global.snapshot)
             ? NeonMP.global.snapshot().filter(e => (e.tier | 0) === (tier | 0))
             : [];
+        const cached = (save && save.globalCache && Array.isArray(save.globalCache['a' + tier]))
+            ? save.globalCache['a' + tier]
+            : [];
         const localList = (save.highScores['a' + tier] || []).slice();
-        // Merge: remote wins on (name, wave) collision because it
-        // carries the live timestamp. Local-only entries (haven't
-        // been published yet) still show up so the player sees their
-        // own runs immediately.
         const byKey = new Map();
+        // Order matters: weakest source first, strongest last (Map.set
+        // overwrites).
+        for (const e of cached)    byKey.set(e.name + '|' + e.wave, e);
         for (const e of localList) byKey.set(e.name + '|' + e.wave, e);
         for (const e of remote)    byKey.set(e.name + '|' + e.wave, e);
         return Array.from(byKey.values()).sort((a, b) => b.wave - a.wave);
@@ -2848,7 +2918,15 @@ function init() {
             return;
         }
 
-        const firstClear = wave >= 30 && tier > save.ascensionCleared;
+        // "First clear at this tier" — fires when wave >= 30 AND the
+        // player hasn't already cleared THIS exact tier. Was `tier >
+        // save.ascensionCleared` which meant clearing tier N only
+        // bumped the counter if you were on a HIGHER tier than your
+        // record. So clearing tier 0 (the very first achievement)
+        // never bumped to 1, leaving the player permanently at the
+        // tier-0 default. Changed to `>=` so each tier you've ever
+        // cleared advances the counter at least once.
+        const firstClear = wave >= 30 && tier >= save.ascensionCleared;
 
         const xp = NeonSave.calculateRunXP(wave, tier, firstClear);
         const retireBonus = flawlessRetire ? Math.floor(xp.total * 0.5) : 0;
@@ -2859,7 +2937,14 @@ function init() {
 
         let autoUnlockedNodeId = null;
         if (firstClear) {
-            save.ascensionCleared = tier;
+            // Bump to at least tier+1 so the next-tier button is
+            // unlocked. ascensionCleared = MAX(existing, tier+1)
+            // captures both "first time clearing tier N" and "the
+            // player jumped straight to a higher tier".
+            save.ascensionCleared = Math.max(save.ascensionCleared, tier + 1);
+            // Auto-advance the selector so the next run defaults to
+            // the newly-unlocked tier, not the one we just cleared.
+            try { if (typeof selectedTier !== 'undefined') selectedTier = save.ascensionCleared; } catch (_) {}
             autoUnlockedNodeId = NeonTree.autoUnlockOnAscension(save, tier);
         }
         NeonSave.write(save);
@@ -3015,6 +3100,18 @@ function init() {
     const ZOOM_MIN = 1;       // never zoom out below natural size
     const ZOOM_MAX = 4;
     function applyZoom() {
+        // When the zoom is at base (1×, no pan) we drop the transform
+        // entirely. Leaving `transform: translate(0,0) scale(1)` on
+        // the canvas creates a compositing layer that, on some mobile
+        // browsers, renders a 1-px hairline at the canvas edge
+        // because of sub-pixel rounding between the parent's
+        // flex-center layout and the GPU-composed canvas — the "weird
+        // line in the middle of the screen" players reported.
+        if (_zoom.scale === 1 && _zoom.tx === 0 && _zoom.ty === 0) {
+            canvas.style.transform = '';
+            canvas.style.transformOrigin = '';
+            return;
+        }
         canvas.style.transformOrigin = '0 0';
         canvas.style.transform =
             `translate(${_zoom.tx}px, ${_zoom.ty}px) scale(${_zoom.scale})`;
@@ -3927,6 +4024,10 @@ function init() {
         }
         if (_activeRace) { try { _activeRace.stop(); } catch (_) {} _activeRace = null; }
         if (_activeCoop) { try { _activeCoop.stop(); } catch (_) {} _activeCoop = null; }
+        // Force the race-overlay hidden too — _activeRace heartbeats
+        // toggle visibility while running but stop() doesn't clear
+        // the .hidden class on its own.
+        try { hideScreen('mp-race-overlay'); } catch (_) {}
         if (_activeRoom) { try { _activeRoom.leave(); } catch (_) {} _activeRoom = null; }
         _activeRoomCode = null;
         _activeMode = null;
@@ -3952,6 +4053,13 @@ function init() {
     // joinRace removed (2026-05-25) — race mode no longer exists as a
     // run path. The race controller is still used INSIDE coop as a
     // HUD leaderboard widget; see joinCoop for that wiring.
+
+    // Expose to the top-level navigateToMainMenu helper so leaving
+    // back to the main menu always tears down MP state. Without
+    // this, an SP run started AFTER an unclosed MP session would
+    // see the race overlay drift back in (the race controller's
+    // heartbeat keeps painting it as long as _activeMode is set).
+    window.__neonLeaveMP = leaveActiveMultiplayer;
 
     // Force the lobby-selected speed onto the freshly-restarted game.
     // Called once per JOIN, AFTER restartGame() (which always resets

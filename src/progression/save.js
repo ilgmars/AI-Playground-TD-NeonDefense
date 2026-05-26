@@ -70,6 +70,7 @@ const NeonSave = (function () {
             unlockedNodes: ['hero.pioneer', 'kit.standard'],   // M2 pre-unlocked tree nodes
             towerMastery: mastery,                             // filled in M3
             highScores: highScores,                            // per-Ascension top-5 lists of { name, wave }
+            globalCache: {},                                   // per-tier mirror of NeonMP.global entries — persisted so a reloaded device keeps relaying other players' scores even if they go offline
             lastLoadout: {
                 heroId: 'hero.pioneer',
                 kitId: 'kit.standard',
@@ -198,6 +199,7 @@ const NeonSave = (function () {
         if (typeof save.totalXPEarned !== 'number') save.totalXPEarned = save.metaXP;
         if (typeof save.ascensionCleared !== 'number') save.ascensionCleared = 0;
         if (typeof save.mpAscensionCleared !== 'number') save.mpAscensionCleared = 0;
+        if (!save.globalCache || typeof save.globalCache !== 'object') save.globalCache = {};
         if (!Array.isArray(save.unlockedNodes)) save.unlockedNodes = [];
         if (!save.unlockedNodes.includes('hero.pioneer')) save.unlockedNodes.push('hero.pioneer');
         if (!save.unlockedNodes.includes('kit.standard')) save.unlockedNodes.push('kit.standard');
