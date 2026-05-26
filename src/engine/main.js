@@ -2464,105 +2464,86 @@ function init() {
         }
     }
 
-    // Scoreboard source — 'local' (this device's localStorage) or
-    // 'global' (received via the public MP global-leaderboard room).
-    // The toggle defaults to local so existing players see their own
-    // history first; clicking GLOBAL flips the source and forces a
-    // re-render.
-    let _scoreSource = 'local';
+    // Game-over scoreboard is now GLOBAL-ONLY. Same renderer + same
+    // pair of filters (autopilot + cheated) the dedicated scoreboard
+    // overlay uses. Local entries still surface because the renderer
+    // merges them in if they haven't been published to NEON23 yet
+    // (mirror of _sbScoresForTier). Defaults match the HTML
+    // checkbox states: cheated HIDDEN, autopilot SHOWN.
     let _showCheats = false;
+    let _hideAutopilot = false;
     const _esc = s => String(s || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+    try {
+        if (localStorage.getItem('neonSbHideCheated') === '0') _showCheats = true;
+        else if (localStorage.getItem('neonSbHideCheated') === '1') _showCheats = false;
+        if (localStorage.getItem('neonSbHideAuto') === '1') _hideAutopilot = true;
+    } catch (_) {}
 
-    function _renderScoreRow(idx, s, waveColor) {
+    function _renderScoreRow(idx, s) {
         const div = document.createElement('div');
         div.style.display = 'flex';
         div.style.justifyContent = 'space-between';
         div.style.padding = '4px 0';
         div.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
         const cheatedClass = s.cheated ? ' class="score-cheated"' : '';
-        const tag = s.cheated ? '<span class="score-cheated-tag" title="Aegis flagged this run">CHEATED</span>' : '';
+        const cheatTag = s.cheated ? '<span class="score-cheated-tag" title="Aegis flagged this run">CHEATED</span>' : '';
+        const autoTag  = s.autopilot ? '<span class="score-autopilot-tag" title="Autopilot was used">AUTO</span>' : '';
         div.innerHTML =
-            `<span${cheatedClass} style="color:#fff;">#${idx+1} ${_esc(s.name)}${tag}</span>` +
-            `<span${cheatedClass} style="color:${waveColor};">WAVE ${s.wave}</span>`;
+            `<span${cheatedClass} style="color:#fff;">#${idx+1} ${_esc(s.name)}${cheatTag}${autoTag}</span>` +
+            `<span${cheatedClass} style="color:#22d3ee;">WAVE ${s.wave}</span>`;
         return div;
     }
-    function _filterCheats(arr) {
-        return _showCheats ? arr : arr.filter(s => !s.cheated);
-    }
 
-    function _renderLocalScores(tier) {
-        const scores = _filterCheats((save.highScores['a' + tier] || []).slice())
-            .sort((a, b) => b.wave - a.wave);
-        scoresList.innerHTML = '';
-        if (scores.length === 0) {
-            scoresList.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.9rem;">NO DATA YET</div>';
-            return;
-        }
-        scores.slice(0, 5).forEach((s, i) => {
-            scoresList.appendChild(_renderScoreRow(i, s, '#a3e635'));
-        });
-    }
-
-    function _renderGlobalScores(tier) {
-        scoresList.innerHTML = '';
-        if (!window.NeonMP || !NeonMP.global) {
-            scoresList.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.9rem;">GLOBAL OFFLINE</div>';
-            return;
-        }
-        const snap = _filterCheats(
-            NeonMP.global.snapshot().filter(e => (e.tier | 0) === (tier | 0))
-        ).slice(0, 5);
-        if (snap.length === 0) {
-            scoresList.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.9rem;">WAITING FOR PEERS…</div>';
-            return;
-        }
-        snap.forEach((s, i) => {
-            scoresList.appendChild(_renderScoreRow(i, s, '#22d3ee'));
-        });
+    function _gameOverScoresForTier(tier) {
+        const remote = (window.NeonMP && NeonMP.global && NeonMP.global.snapshot)
+            ? NeonMP.global.snapshot().filter(e => (e.tier | 0) === (tier | 0))
+            : [];
+        const localList = (save.highScores['a' + tier] || []).slice();
+        const byKey = new Map();
+        for (const e of localList) byKey.set(e.name + '|' + e.wave, e);
+        for (const e of remote)    byKey.set(e.name + '|' + e.wave, e);
+        return Array.from(byKey.values()).sort((a, b) => b.wave - a.wave);
     }
 
     function renderScores(tier) {
-        if (_scoreSource === 'global') _renderGlobalScores(tier);
-        else                            _renderLocalScores(tier);
+        scoresList.innerHTML = '';
+        const all = _gameOverScoresForTier(tier);
+        const visible = all.filter(s => {
+            if (!_showCheats && s.cheated) return false;
+            if (_hideAutopilot && s.autopilot) return false;
+            return true;
+        });
+        if (visible.length === 0) {
+            const isOnline = !!(window.NeonMP && NeonMP.global);
+            scoresList.innerHTML = `<div style="text-align:center; color:#64748b; font-size:0.9rem;">${
+                isOnline ? 'NO RUNS YET — SYNCING…' : 'GLOBAL OFFLINE'
+            }</div>`;
+            return;
+        }
+        visible.slice(0, 5).forEach((s, i) => scoresList.appendChild(_renderScoreRow(i, s)));
     }
 
-    function setScoreSource(src) {
-        _scoreSource = (src === 'global') ? 'global' : 'local';
-        const localBtn  = document.getElementById('score-source-local');
-        const globalBtn = document.getElementById('score-source-global');
-        if (localBtn)  { localBtn.classList.toggle('selected', _scoreSource === 'local');   localBtn.setAttribute('aria-selected', _scoreSource === 'local'); }
-        if (globalBtn) { globalBtn.classList.toggle('selected', _scoreSource === 'global'); globalBtn.setAttribute('aria-selected', _scoreSource === 'global'); }
-        renderScores(visibleScoreTier);
-    }
-
-    // Cheated-run toggle persists in localStorage so the player's choice
-    // sticks across reloads. Default is OFF (cheaters hidden).
-    try {
-        const persisted = localStorage.getItem('neonShowCheats');
-        if (persisted === '1') _showCheats = true;
-    } catch (_) {}
-    const cheatsToggle = document.getElementById('score-show-cheats');
-    if (cheatsToggle) {
-        cheatsToggle.checked = _showCheats;
-        cheatsToggle.addEventListener('change', e => {
-            _showCheats = !!e.target.checked;
-            try { localStorage.setItem('neonShowCheats', _showCheats ? '1' : '0'); } catch (_) {}
+    // Filter toggles in the game-over scoreboard. Share the same
+    // localStorage keys as the dedicated scoreboard overlay so a pref
+    // change in one place stays applied in the other.
+    const goHideAuto = document.getElementById('go-hide-autopilot');
+    const goHideCheat = document.getElementById('go-hide-cheated');
+    if (goHideAuto) {
+        goHideAuto.checked = _hideAutopilot;
+        goHideAuto.addEventListener('change', () => {
+            _hideAutopilot = !!goHideAuto.checked;
+            try { localStorage.setItem('neonSbHideAuto', _hideAutopilot ? '1' : '0'); } catch (_) {}
             renderScores(visibleScoreTier);
         });
     }
-
-    document.getElementById('score-source-local').addEventListener('click', () => setScoreSource('local'));
-    document.getElementById('score-source-global').addEventListener('click', () => {
-        setScoreSource('global');
-        // Lazy: start the global board the first time the player asks
-        // for it. Quiet failure if Trystero is blocked (the renderer
-        // shows "GLOBAL OFFLINE" instead of throwing).
-        if (window.NeonMP && NeonMP.global) {
-            try {
-                Promise.resolve(NeonMP.global.singleton().start()).catch(() => {});
-            } catch (_) {}
-        }
-    });
+    if (goHideCheat) {
+        goHideCheat.checked = !_showCheats;
+        goHideCheat.addEventListener('change', () => {
+            _showCheats = !goHideCheat.checked;
+            try { localStorage.setItem('neonSbHideCheated', _showCheats ? '0' : '1'); } catch (_) {}
+            renderScores(visibleScoreTier);
+        });
+    }
 
     // Subscribe to global board updates so live entries refresh while
     // the gameover screen is open.
@@ -2701,6 +2682,17 @@ function init() {
     function openScoreboard() {
         _sbTier = (game && Number.isFinite(game.ascensionTier))
             ? game.ascensionTier : (selectedTier | 0);
+        // Nudge the global sync: open the global room if it isn't
+        // already up, and force a broadcast so peers send us their
+        // boards right now rather than wait for the next 60-s tick.
+        if (window.NeonMP && NeonMP.global) {
+            try {
+                const board = NeonMP.global.singleton();
+                Promise.resolve(board.start()).then(() => {
+                    try { board.broadcastNow(); } catch (_) {}
+                }).catch(() => {});
+            } catch (_) {}
+        }
         renderScoreboardTabs();
         renderScoreboardOverlay();
         // Record current visible screen as the return target.

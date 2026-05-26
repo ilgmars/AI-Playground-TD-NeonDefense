@@ -88,6 +88,18 @@
             return room;
         }
         let rebroadcastTimer = null;
+        let lastBroadcastAt = 0;
+        // Sends our local board to the room. Used by the 60-s
+        // background timer, the peer-join trigger, the visibility-
+        // wake hook, and the manual broadcastNow() entry point.
+        // Returns entries sent (0 if no room or empty).
+        function _sendBoard() {
+            if (!room || board.size === 0) return 0;
+            const entries = Array.from(board.values()).slice(0, 50);
+            try { room.send({ kind: APP_NS, entries }); } catch (_) {}
+            lastBroadcastAt = now();
+            return entries.length;
+        }
         async function start() {
             // Connect to the global room. Done lazily so the page doesn't
             // open WebSocket connections on first paint. Returns the
@@ -107,34 +119,40 @@
                 return null;
             }
             _wireRoom();
-            // Background sync: every 60s rebroadcast our full local
+            // Background sync: every 60 s rebroadcast our full local
             // board so any peer that joined after our last publish
-            // gets caught up. Newcomers seeing OUR entries also see
-            // anyone we've merged from a third peer — so the room
-            // converges to a complete picture over time.
+            // gets caught up.
+            try { rebroadcastTimer = setInterval(_sendBoard, 60000); } catch (_) {}
+            // Initial broadcast after a short delay (let onPeerJoin
+            // listeners and the data channel settle on both sides).
+            try { setTimeout(_sendBoard, 2500); } catch (_) {}
+
+            // Peer-join trigger — when a new device joins NEON23, we
+            // immediately broadcast our board so the newcomer doesn't
+            // have to wait up to 60 s for the next periodic. Trystero
+            // surfaces this via room.onPeerJoin (the wrapper Trystero
+            // adapter forwards it).
             try {
-                rebroadcastTimer = setInterval(() => {
-                    if (!room || board.size === 0) return;
-                    try {
-                        room.send({
-                            kind: APP_NS,
-                            entries: Array.from(board.values()).slice(0, 50),
-                        });
-                    } catch (_) {}
-                }, 60000);
+                if (room && typeof room.onPeerJoin === 'function') {
+                    room.onPeerJoin(() => {
+                        // small delay so the data channel is fully up.
+                        setTimeout(_sendBoard, 800);
+                    });
+                }
             } catch (_) {}
-            // Initial broadcast (after a short delay so onPeerJoin
-            // listeners and the data channel are settled).
+
+            // Visibility-wake. setInterval gets throttled — or stops —
+            // when the tab is hidden. When the player tabs back in,
+            // fire an immediate broadcast so they see the latest
+            // state instead of waiting for the next 60-s tick.
             try {
-                setTimeout(() => {
-                    if (!room || board.size === 0) return;
-                    try {
-                        room.send({
-                            kind: APP_NS,
-                            entries: Array.from(board.values()).slice(0, 50),
-                        });
-                    } catch (_) {}
-                }, 2500);
+                if (typeof document !== 'undefined' && document.addEventListener) {
+                    document.addEventListener('visibilitychange', () => {
+                        if (document.visibilityState === 'visible') {
+                            if (now() - lastBroadcastAt > 5000) _sendBoard();
+                        }
+                    });
+                }
             } catch (_) {}
             return room;
         }
@@ -246,20 +264,15 @@
         }
         function clear() { board.clear(); notify(); }
 
-        // Force-fire the periodic broadcast NOW (bypasses the 60-s
-        // interval). Used by the regression test that simulates the
-        // background sync without a 60-second wall-clock wait.
-        // Returns the number of entries sent (0 if no room or empty).
-        function broadcastNow() {
-            if (!room || board.size === 0) return 0;
-            const entries = Array.from(board.values()).slice(0, 50);
-            try { room.send({ kind: APP_NS, entries }); } catch (_) {}
-            return entries.length;
-        }
+        // Force-fire the broadcast NOW (bypasses the 60-s interval).
+        // Used by the regression suite, the scoreboard overlay's
+        // refresh-on-open, and any explicit sync nudge.
+        function broadcastNow() { return _sendBoard(); }
+        function getLastBroadcastAt() { return lastBroadcastAt; }
 
         return {
             start, attach, stop, publish, snapshot, onUpdate, clear,
-            broadcastNow,
+            broadcastNow, getLastBroadcastAt,
             _validateEntry: validateEntry,
             _mergeEntry: mergeEntry,
         };
