@@ -51,6 +51,7 @@ const SUITES = [
     { name: 'sp-mp-isolation',    file: 'tests/sp-mp-isolation.test.js' },
     { name: 'mp-boot-fallback',   file: 'tests/mp-boot-fallback.test.js' },
     { name: 'coop-start-handshake', file: 'tests/coop-start-handshake.test.js' },
+    { name: 'turn-filter',        file: 'tests/turn-filter.test.js' },
     // Real two-client end-to-end over actual Trystero. Self-skips when
     // the environment can't reach trackers / WebRTC (set NEON_MP_FORCE=1
     // to make those skips into failures, e.g. for a release smoke).

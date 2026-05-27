@@ -248,11 +248,43 @@
             ? opts.strategies
             : (opts.strategies ? [opts.strategies] : ['mqtt', 'nostr']);
 
-        const iceServers = readIceServers();
+        // TURN-server usage costs real money (metered.live bills per
+        // relayed byte). Most rooms don't need TURN — STUN alone
+        // resolves ~80 % of NATs. We only pay for TURN when the
+        // caller asks for it explicitly (opts.useTurn = true), which
+        // joinCoop sets because gameplay requires a successful P2P
+        // link. The global-scoreboard room (NEON23) leaves
+        // useTurn=false so a busy room with many peers doesn't pile
+        // up TURN connections for fanout that the broker fallback
+        // already covers.
+        const rawIce = readIceServers();
+        const iceServers = rawIce && !opts.useTurn
+            ? rawIce.filter(s => {
+                const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
+                return urls.every(u => typeof u === 'string' && !/^turns?:/i.test(u));
+              }).filter(s => {
+                const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
+                return urls.length > 0;
+              })
+            : rawIce;
         const baseCfg = { appId: APP_ID };
-        if (iceServers) {
-            baseCfg.rtcConfig = { iceServers };
-            status({ kind: 'ice-config', count: iceServers.length });
+        if (iceServers && iceServers.length) {
+            baseCfg.rtcConfig = {
+                iceServers,
+                // 0 = don't pre-warm any candidates; gather on demand.
+                // Saves a redundant STUN/TURN round-trip per joinRoom
+                // and avoids opening TURN allocations we may never use.
+                iceCandidatePoolSize: 0,
+                // 'all' = let the browser pick whatever works (host,
+                // srflx, relay). NEVER force 'relay' — that would
+                // route every byte through TURN.
+                iceTransportPolicy: 'all',
+            };
+            const turnCount = iceServers.filter(s => {
+                const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
+                return urls.some(u => /^turns?:/i.test(u));
+            }).length;
+            status({ kind: 'ice-config', count: iceServers.length, turn: turnCount, useTurn: !!opts.useTurn });
         }
 
         // The MP pre-boot script (index.html) reseeds Math.random with a

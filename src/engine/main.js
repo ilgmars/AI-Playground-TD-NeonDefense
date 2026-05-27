@@ -3966,7 +3966,10 @@ function init() {
             throw new Error('co-op scripts missing');
         }
         leaveActiveMultiplayer();
-        const room = await NeonMP.trystero.joinRoom(roomCode, nick);
+        // Coop is the only flow that needs reliable P2P (gameplay
+        // state has to actually flow between the two devices). Pay
+        // for TURN here.
+        const room = await NeonMP.trystero.joinRoom(roomCode, nick, { useTurn: true });
         _activeRoom = room;
         _activeRoomCode = roomCode;
         _activeMode = 'coop';
