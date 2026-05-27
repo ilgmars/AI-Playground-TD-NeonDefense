@@ -40,30 +40,56 @@
     const TTL_MS = 1000 * 60 * 60 * 24; // 24 h
 
     // Validate a wire entry. Reject anything that looks malformed.
+    // ACCEPTS BOTH legacy long-form ({name, wave, tier, t, cheated,
+    // autopilot, retired}) AND the compact wire format produced by
+    // packEntry below ({n, w, r, t, f}). Returns the canonical
+    // long-form shape so consumers don't have to care.
     function validateEntry(raw) {
         if (!raw || typeof raw !== 'object') return null;
-        if (typeof raw.name !== 'string') return null;
-        const name = raw.name
+        // Compact form detection: if `n` is a string and `name` isn't.
+        const isCompact = typeof raw.n === 'string' && typeof raw.name !== 'string';
+        const rawName = isCompact ? raw.n : raw.name;
+        const rawWave = isCompact ? raw.w : raw.wave;
+        const rawTier = isCompact ? raw.r : raw.tier;
+        const rawT    = raw.t;
+        if (typeof rawName !== 'string') return null;
+        const name = rawName
             .toUpperCase()
             .replace(/[^A-Z0-9 \-]/g, '')
             .trim()
             .slice(0, 16);
         if (name.length === 0) return null;
-        if (!Number.isInteger(raw.wave)) return null;
-        if (raw.wave < 1 || raw.wave > 9999) return null;
-        if (raw.tier != null && !Number.isInteger(raw.tier)) return null;
-        const tier = Number.isInteger(raw.tier) ? raw.tier : 0;
-        if (tier < 0 || tier > 999) return null;     // out-of-range tier is malformed, not clamped
-        const t = Number.isInteger(raw.t) ? raw.t : Date.now();
-        // cheated: marked true when the local Aegis sensor flagged the
-        // run as tampered. We preserve the publisher's claim verbatim
-        // (they could obviously lie) — the UI hides cheated entries by
-        // default so a self-honest player can opt into seeing them.
-        const cheated = raw.cheated === true;
-        // autopilot / retired: cosmetic tags. Also publisher-claimed.
-        const autopilot = raw.autopilot === true;
-        const retired   = raw.retired   === true;
-        return { name, wave: raw.wave, tier, t, cheated, autopilot, retired };
+        if (!Number.isInteger(rawWave)) return null;
+        if (rawWave < 1 || rawWave > 9999) return null;
+        if (rawTier != null && !Number.isInteger(rawTier)) return null;
+        const tier = Number.isInteger(rawTier) ? rawTier : 0;
+        if (tier < 0 || tier > 999) return null;
+        const t = Number.isInteger(rawT) ? rawT : Date.now();
+        let cheated, autopilot, retired;
+        if (isCompact) {
+            // Flags bitmask: bit 0 = cheated, bit 1 = autopilot,
+            // bit 2 = retired. Saves ~30 bytes per entry vs three
+            // explicit "field":false JSON pairs.
+            const f = Number.isInteger(raw.f) ? raw.f : 0;
+            cheated   = (f & 1) !== 0;
+            autopilot = (f & 2) !== 0;
+            retired   = (f & 4) !== 0;
+        } else {
+            cheated   = raw.cheated   === true;
+            autopilot = raw.autopilot === true;
+            retired   = raw.retired   === true;
+        }
+        return { name, wave: rawWave, tier, t, cheated, autopilot, retired };
+    }
+
+    // Pack a canonical entry into the compact wire format.
+    // Cuts per-entry size roughly in half. Default-false flags are
+    // OMITTED entirely (no `f` field if all three are false).
+    function packEntry(e) {
+        const out = { n: e.name, w: e.wave, r: e.tier, t: e.t };
+        const f = (e.cheated ? 1 : 0) | (e.autopilot ? 2 : 0) | (e.retired ? 4 : 0);
+        if (f) out.f = f;
+        return out;
     }
 
     function createGlobalBoard(opts) {
@@ -95,7 +121,11 @@
         // Returns entries sent (0 if no room or empty).
         function _sendBoard() {
             if (!room || board.size === 0) return 0;
-            const entries = Array.from(board.values()).slice(0, 50);
+            // Send entries in compact form — ~50% smaller than the
+            // canonical long-form. validateEntry on the receiver
+            // accepts both shapes for back-compat with peers running
+            // an older build.
+            const entries = Array.from(board.values()).slice(0, 50).map(packEntry);
             try { room.send({ kind: APP_NS, entries }); } catch (_) {}
             lastBroadcastAt = now();
             return entries.length;
@@ -227,7 +257,7 @@
                 try {
                     room.send({
                         kind: APP_NS,
-                        entries: Array.from(board.values()).slice(0, 50),
+                        entries: Array.from(board.values()).slice(0, 50).map(packEntry),
                     });
                 } catch (_) { /* swallow */ }
             }
@@ -281,6 +311,7 @@
     const api = {
         createGlobalBoard,
         validateEntry,
+        packEntry,                 // exposed for tests + future relayers
         GLOBAL_ROOM,
         MAX_ENTRIES,
         TTL_MS,
