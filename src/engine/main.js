@@ -2105,10 +2105,23 @@ function init() {
     // and wave-bonus logic fires at the same wave on every client.
     window.__neonMPApplyWave = function (w) {
         if (!game || !Number.isInteger(w) || w < 1) return;
-        if (game.wave !== w) {
-            game.wave = w;
-            game.uiDirty = true;
-        }
+        if (game.wave === w) return;
+        // Only sync FORWARD. If our wave is ahead of host's snap,
+        // don't regress — host's broadcast is just stale.
+        if (w <= game.wave) return;
+        // Snap the counter AND restart the wave so non-host enemies
+        // actually match host enemies. The earlier version only set
+        // game.wave, leaving stale enemies from the wrong wave still
+        // walking the path — visible as "waves desynced" to players.
+        game.wave = w;
+        game.uiDirty = true;
+        try {
+            // Clear any leftover enemies + projectiles from the old
+            // wave so the new spawn pattern doesn't double-stack.
+            if (Array.isArray(game.enemies))     game.enemies.length = 0;
+            if (Array.isArray(game.projectiles)) game.projectiles.length = 0;
+            if (typeof game.startWave === 'function') game.startWave();
+        } catch (_) {}
     };
     // Host-side: every wave change emits a 'wave' message. Hook into
     // game.update via a polling watcher (no game.js intrusion).
@@ -3856,14 +3869,23 @@ function init() {
             // The seed stored here is the room-derived seed — same on
             // every peer so both run the identical world.
             const seed = NeonMP.protocol.roomCodeToSeed(parsed.code);
-            const cfg = { mode, roomCode: parsed.code, nick, seed, startSpeed };
+            const cfg = { mode, roomCode: parsed.code, nick, seed, startSpeed, ts: Date.now() };
             try {
+                // Write to BOTH stores. Some Capacitor / Cordova WebView
+                // builds wipe sessionStorage on location.reload() (they
+                // treat reload as a fresh "session"), which dropped the
+                // JOIN intent and bounced the player back to the main
+                // menu. localStorage is reload-safe. The reload-side
+                // hook tries sessionStorage first and falls back to
+                // localStorage with a 30-s freshness gate so we don't
+                // re-trigger an old JOIN on the next cold launch.
                 sessionStorage.setItem('neonMP', JSON.stringify(cfg));
+                try { localStorage.setItem('neonMP', JSON.stringify(cfg)); } catch (_) {}
                 setStatus(status, 'Re-launching with deterministic RNG…', 'var(--accent)');
                 joinBtn.disabled = true;
-                // Reload triggers neonMPBoot (in index.html <body>) which
-                // sets __neonAegisDev + seeded Math.random before any
-                // game scripts run.
+                // Reload triggers neonMPBoot (in index.html <body>)
+                // which sets __neonAegisDev + seeded Math.random before
+                // any game scripts run.
                 setTimeout(() => location.reload(), 250);
             } catch (e) {
                 setStatus(status, 'Could not start: ' + (e && e.message ? e.message : e), '#fb7185');
@@ -3896,9 +3918,11 @@ function init() {
     async function resumeMultiplayerIfPending() {
         const cfg = window.__neonMPPending;
         if (!cfg || typeof cfg !== 'object') return;
-        // Single-shot: clear the flag and storage so a manual reload
-        // doesn't keep re-joining.
+        // Single-shot: clear BOTH stores (sessionStorage on web,
+        // localStorage on Capacitor APK) so a manual reload doesn't
+        // keep re-joining.
         try { sessionStorage.removeItem('neonMP'); } catch (_) {}
+        try { localStorage.removeItem('neonMP'); } catch (_) {}
         window.__neonMPPending = null;
         if (!NeonMP || !NeonMP.lobby) return;
         const lobby = NeonMP.lobby;
@@ -4322,6 +4346,12 @@ function init() {
                 });
             } catch (_) {}
         }
+        // Forward-declared handles the message listener uses to fire
+        // start/finish without having to live inside the Promise
+        // closure scope where finish/tryStart are actually declared.
+        // The Promise body assigns these as its first action.
+        let _finish    = () => {};
+        let _tryStart  = () => {};
 
         function electHost() {
             // Lowest joinedAt wins; nick lex order breaks ties.
@@ -4337,7 +4367,21 @@ function init() {
         }
 
         const offMsg = _activeRoom.onMessage((msg) => {
-            if (!msg || msg.kind !== 'wr') return;
+            if (!msg) return;
+            // Explicit "start" gate from the other peer. If we missed
+            // their final READY announce but they think we're both
+            // ready and have already moved to the run, this snap is
+            // what gets us out of the waitroom. See tryStart() for
+            // the sender side.
+            if (msg.kind === 'go') {
+                // Mark all known peers as ready for the local-view
+                // tryStart that follows — defensive in case our
+                // peers map is missing the partner's ready bit.
+                for (const k of peers.keys()) peers.set(k, true);
+                _finish(true);
+                return;
+            }
+            if (msg.kind !== 'wr') return;
             if (typeof msg.p !== 'string' || msg.p === nick) return;
             const peer = msg.p.slice(0, 32);
             peers.set(peer, !!msg.ready);
@@ -4348,11 +4392,9 @@ function init() {
             if (Number.isInteger(msg.speed)) info.speed = msg.speed;
             peerInfo.set(peer, info);
             electHost();
-            // Reply with our own state so the new peer sees us, even if
-            // they joined AFTER our initial announce.
             announce();
             render();
-            tryStart();
+            _tryStart();
         });
 
         // Local-only host election on entry (in case we're the
@@ -4411,6 +4453,12 @@ function init() {
 
         return new Promise(resolve => {
             let done = false;
+            // Bind the forward-declared handles so the onMessage
+            // listener (defined above this Promise) can drive
+            // tryStart / finish without scope tricks.
+            _tryStart = () => tryStart();
+            _finish   = (r) => finish(r);
+
             function finish(result) {
                 if (done) return;
                 done = true;
@@ -4460,6 +4508,20 @@ function init() {
             function tryStart() {
                 const sorted = Array.from(peers.entries());
                 if (sorted.length >= 2 && sorted.every(([, r]) => r)) {
+                    // Broadcast an explicit "start" gate so the OTHER
+                    // peer can't get stuck in the waitroom if their
+                    // local "all ready" detection missed our READY
+                    // announce (rare on flaky channels). The receiver
+                    // path also fires finish(true) the moment it
+                    // sees a start packet — see the 'go' handler in
+                    // the wr onMessage listener above.
+                    try {
+                        _activeRoom.send({ kind: 'go', t: Date.now() });
+                        // Send 3 redundant copies spaced over ~500ms
+                        // so packet loss can't strand the partner.
+                        setTimeout(() => { try { _activeRoom.send({ kind: 'go', t: Date.now() }); } catch (_) {} }, 120);
+                        setTimeout(() => { try { _activeRoom.send({ kind: 'go', t: Date.now() }); } catch (_) {} }, 350);
+                    } catch (_) {}
                     finish(true);
                 }
             }
