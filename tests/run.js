@@ -53,6 +53,8 @@ const SUITES = [
     { name: 'coop-start-handshake', file: 'tests/coop-start-handshake.test.js' },
     { name: 'turn-filter',        file: 'tests/turn-filter.test.js' },
     { name: 'global-wire-compression', file: 'tests/global-wire-compression.test.js' },
+    { name: 'mqtt-direct',        file: 'tests/mqtt-direct.test.js' },
+    { name: 'global-prefers-mqtt', file: 'tests/global-prefers-mqtt.test.js' },
     // Real two-client end-to-end over actual Trystero. Self-skips when
     // the environment can't reach trackers / WebRTC (set NEON_MP_FORCE=1
     // to make those skips into failures, e.g. for a release smoke).

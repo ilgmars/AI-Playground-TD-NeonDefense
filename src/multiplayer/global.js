@@ -131,15 +131,30 @@
             return entries.length;
         }
         async function start() {
-            // Connect to the global room. Done lazily so the page doesn't
-            // open WebSocket connections on first paint. Returns the
-            // connected room (or null if Trystero fails — fall back to
-            // local-only mode without crashing).
+            // Connect to the global room. PRIMARY path is the direct
+            // MQTT adapter — pub/sub through the broker, no WebRTC,
+            // no TURN bandwidth. Falls back to Trystero (which still
+            // signals over MQTT but tunnels payload over WebRTC) only
+            // if mqtt-direct fails to load or connect, which can
+            // happen if the mqtt.js CDN is blocked.
             if (room) return room;
+            const mqttDirect = (typeof window !== 'undefined' && window.NeonMP && window.NeonMP.mqttDirect) || null;
             try {
                 if (txFactory) {
                     const r = txFactory(GLOBAL_ROOM, 'self');
                     room = (r && typeof r.then === 'function') ? await r : r;
+                } else if (mqttDirect) {
+                    try {
+                        room = await mqttDirect.joinRoom(GLOBAL_ROOM);
+                    } catch (e) {
+                        // mqtt.js CDN blocked or broker unreachable —
+                        // fall back to Trystero.
+                        if (typeof window !== 'undefined' && window.NeonMP && window.NeonMP.trystero) {
+                            room = await window.NeonMP.trystero.joinRoom(GLOBAL_ROOM, 'self');
+                        } else {
+                            return null;
+                        }
+                    }
                 } else if (typeof window !== 'undefined' && window.NeonMP && window.NeonMP.trystero) {
                     room = await window.NeonMP.trystero.joinRoom(GLOBAL_ROOM, 'self');
                 } else {
