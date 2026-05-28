@@ -98,7 +98,7 @@ const path = require('path');
         window.game.wave = 5;
         window.game.money = 100;
         window.game.health = 20;
-        window.game.towers = [];   // empty
+        window.game.towers = [];   // empty (length-only matters for the digest)
     });
     // Simulate a digest from the partner who is at wave 7, $50, 19 hp,
     // 3 towers built.
@@ -122,7 +122,11 @@ const path = require('path');
     await page.evaluate(() => {
         window.game.wave = 7;
         window.game.money = 50;
-        window.game.towers = [{}, {}, {}, {}];   // 4 towers vs remote 3
+        // Inert tower stubs — the draw/update loop calls these on
+        // every frame so we need valid (no-op) methods to avoid
+        // crashing the run while the test is mutating .towers.
+        const stub = () => ({ update(){}, draw(){}, x: 0, y: 0, type: 'basic' });
+        window.game.towers = [stub(), stub(), stub(), stub()];
         window.__neonMPApplySync(
             { kind: 'sync', w: 7, m: 50, h: 19, tc: 3, ec: 12, t: Date.now() },
             'BOB'
@@ -133,7 +137,8 @@ const path = require('path');
         drift2 && drift2.severity === 'towers');
 
     await page.evaluate(() => {
-        window.game.towers = [{}, {}, {}];
+        const stub = () => ({ update(){}, draw(){}, x: 0, y: 0, type: 'basic' });
+        window.game.towers = [stub(), stub(), stub()];
         window.__neonMPApplySync(
             { kind: 'sync', w: 7, m: 50, h: 19, tc: 3, ec: 12, t: Date.now() },
             'BOB'
