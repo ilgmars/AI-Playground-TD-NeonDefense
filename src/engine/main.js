@@ -137,6 +137,24 @@ function renderAscensionSelector(context) {
             }
             preview.textContent = names.join(' · ');
         }
+        // QoL: qol.ascpreview reveals the *next* tier's modifier before
+        // you've actually cleared the current one. Without this node the
+        // next-tier modifier is hidden until first clear — owning the
+        // node trades 500 XP for early intel. Append, don't replace, so
+        // the current-tier names still read first.
+        if (typeof NeonSave !== 'undefined' && NeonSave.hasUnlocked &&
+            NeonSave.hasUnlocked(save, 'qol.ascpreview') && clamped === unlockedMax) {
+            const nextTier = clamped + 1;
+            let nextName;
+            if (nextTier <= ASCENSION_NAMED_MAX_TIER) {
+                nextName = getAscensionTierSpec(nextTier).name;
+            } else {
+                const overshoot = nextTier - ASCENSION_NAMED_MAX_TIER;
+                const hpPct = Math.round((Math.pow(ASCENSION_ENDLESS_STEP.hpMult, overshoot) - 1) * 100);
+                nextName = `Endless ×${overshoot} (+${hpPct}% HP)`;
+            }
+            preview.textContent += `  ·  next: ${nextName}`;
+        }
     }
 }
 
@@ -520,6 +538,18 @@ function renderTowerMastery() {
         fireRate: { label: 'Fire Rate', value: r => `+${ratePct(r)}%` },
         efficiency: { label: 'Upgrade Cost', value: r => `-${r * 2}%` }
     };
+    // Per-tower perk allowlist. Towers whose fireRate is already at the
+    // engine cap (Laser: fireRate=1) or that never shoot (Relay / Research
+    // Node: fireRate=0) should NOT display the Fire Rate perk because the
+    // XP spent on it would do nothing. See Tower ctor in entities.js where
+    // rateFactor multiplies fireRate then floors at 1.
+    const perksForTower = (towerType) => {
+        if (towerType === 'laser') return ['damage', 'efficiency'];
+        if (towerType === 'income' || towerType === 'income_research')
+            return ['damage', 'efficiency'];
+        return ['damage', 'fireRate', 'efficiency'];
+    };
+    if (typeof window !== 'undefined') window.__neonPerksForTower = perksForTower;
 
     for (const type of NeonSave.TOWER_TYPES) {
         // Resolve which entry (base vs unlocked variant) this row is currently
@@ -609,10 +639,10 @@ function renderTowerMastery() {
 
         const perks = document.createElement('div');
         perks.className = 'mastery-perks';
-        const activePerkMeta = type === 'income' ? incomePerkMeta : perkMeta;
+        const activePerkMeta = (type === 'income' || activeKey === 'income_research') ? incomePerkMeta : perkMeta;
         // Endless perks have an infinite limit — show "Lv N" instead of "N/∞".
         const fmtLv = (lim, rk) => Number.isFinite(lim) ? `${rk}/${lim}` : `Lv ${rk}`;
-        for (const perk of ['damage', 'fireRate', 'efficiency']) {
+        for (const perk of perksForTower(activeKey)) {
             const rank = mast.perks[perk] || 0;
             const limit = NeonSave.MASTERY_PERK_LIMITS[perk];
             const cost = NeonSave.getMasteryPerkCost(save, activeKey, perk);
@@ -3055,6 +3085,43 @@ function init() {
             renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, masteryResults, retired, lootGranted, lootRoll });
         }
     };
+
+    // ── Mobile-safe run termination ──────────────────────────────────
+    // Mobile browsers (especially iOS Safari and Android Chrome) freeze
+    // and then kill backgrounded tabs aggressively. If the player paused,
+    // closed the browser, and reopened it, the page reloads from scratch
+    // and the run vanishes — no XP awarded. We catch `pagehide` (fires
+    // when the page is being torn down for real, including bfcache evict
+    // on mobile) and treat it as an implicit retire so XP is awarded and
+    // the score lands in the leaderboard. Multiplayer runs are NEVER
+    // auto-terminated this way: MP scoring is host-coordinated and a
+    // unilateral end on one peer would corrupt the other's view.
+    let _runEndedOnHide = false;
+    const _maybeEndRunOnHide = () => {
+        if (_runEndedOnHide) return;
+        if (!game || (game.state !== 'playing' && game.state !== 'paused')) return;
+        if (window.__neonMPFairPlay === true) return;          // coop/race in progress
+        _runEndedOnHide = true;
+        try {
+            window.onRunEnded({
+                wave: game.wave | 0,
+                tier: game.ascensionTier | 0,
+                retired: true,
+                hpEverLost: true,    // no flawless bonus on implicit end
+            });
+        } catch (_) {}
+    };
+    window.addEventListener('pagehide', _maybeEndRunOnHide);
+    // visibilitychange → hidden is the earlier signal on iOS Safari,
+    // where `pagehide` sometimes doesn't fire when the user swipes the
+    // tab away. Fire on both; the _runEndedOnHide latch dedupes.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') _maybeEndRunOnHide();
+    });
+    // Test hook for the regression suite — lets a headless playwright
+    // verify the handler is wired without having to actually destroy
+    // the page mid-run.
+    if (typeof window !== 'undefined') window.__neonEndRunOnHide = _maybeEndRunOnHide;
 
     document.getElementById('confirm-no').addEventListener('click', () => {
         document.getElementById('restart-confirm').classList.add('hidden');

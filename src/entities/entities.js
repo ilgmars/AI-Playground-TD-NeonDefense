@@ -336,11 +336,17 @@ class Tower {
                 this.cooldown = this.fireRate;
             }
 
+            // Cap how far a hover rocket will reach for a target. Without
+            // this cap, `r.range += 0.5` grows unbounded across idle waves
+            // and the rocket eventually fires at an enemy half a screen
+            // away — the "disappears into the air" complaint. 1.5x the
+            // tower's nominal range keeps targeting visually plausible.
+            const seekerCap = this.range * 1.5;
             for (let i = this.hoverRockets.length - 1; i >= 0; i--) {
                 let r = this.hoverRockets[i];
                 r.angle += (this.type === 'silo_orbital') ? 0.007 : 0.02;
-                r.range += 0.5;
-                
+                if (r.range < seekerCap) r.range += 0.5;
+
                 let rx = this.x + TILE_SIZE/2 + Math.cos(r.angle) * r.dist;
                 let ry = this.y + TILE_SIZE/2 + Math.sin(r.angle) * r.dist;
                 
