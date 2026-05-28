@@ -161,14 +161,11 @@ const path = require('path');
     // consumed a different number of times on each page (e.g. mqtt-
     // direct lazy-loads + uses native random for peer IDs but other
     // modules can consume seeded values during init).
-    const rngState = async (page) => page.evaluate(() => {
-        // Reconstruct mulberry32(seed) from the pending join cfg.
-        // Both peers used the same room code → same seed → same
-        // first value of a fresh stream.
-        const cfg = (function () {
-            try { return JSON.parse(sessionStorage.getItem('neonMP') || 'null'); }
-            catch (_) { return null; }
-        })();
+    // Pass the test's room code into page.evaluate so we can derive
+    // the seed from NeonMP.protocol.roomCodeToSeed (the same source
+    // the pre-boot used). sessionStorage 'neonMP' is consumed by
+    // resumeMultiplayerIfPending so reading it here would be empty.
+    const rngState = async (page) => page.evaluate((roomCode) => {
         function mulberry32(seed) {
             let a = (seed | 0) >>> 0;
             return function () {
@@ -179,14 +176,17 @@ const path = require('path');
                 return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
             };
         }
-        const firstFromSeed = cfg && typeof cfg.seed === 'number' ? mulberry32(cfg.seed)() : null;
+        const seed = (window.NeonMP && window.NeonMP.protocol)
+            ? window.NeonMP.protocol.roomCodeToSeed(roomCode)
+            : null;
+        const firstFromSeed = typeof seed === 'number' ? mulberry32(seed)() : null;
         return {
             hasNative: typeof window.__neonNativeRandom === 'function',
             nativeSame: window.__neonNativeRandom === Math.random,
-            seed: cfg && cfg.seed,
+            seed,
             firstFromSeed,
         };
-    });
+    }, room);
     const aliceRng = await rngState(alice.page);
     const bobRng   = await rngState(bob.page);
     bok('ALICE: __neonNativeRandom saved',         aliceRng.hasNative === true);
