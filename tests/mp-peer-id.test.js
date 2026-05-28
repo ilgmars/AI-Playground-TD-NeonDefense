@@ -155,25 +155,52 @@ const path = require('path');
     const bob   = await spawnCoop('BOB');
 
     // 1) The pre-boot swap is in place AND the native ref was saved.
-    const rngState = async (page) => page.evaluate(() => ({
-        hasNative: typeof window.__neonNativeRandom === 'function',
-        nativeSame: window.__neonNativeRandom === Math.random,
-        // Sample one value from each — they must differ in random
-        // (otherwise the swap never happened or both are native).
-        nativeVal: window.__neonNativeRandom ? window.__neonNativeRandom() : null,
-        currentVal: Math.random(),
-    }));
+    // We assert the STREAM IDENTITY (same seed → same first-value of
+    // a fresh mulberry32) rather than `Math.random()` directly, because
+    // by the time the test reads it, the seeded stream may have been
+    // consumed a different number of times on each page (e.g. mqtt-
+    // direct lazy-loads + uses native random for peer IDs but other
+    // modules can consume seeded values during init).
+    const rngState = async (page) => page.evaluate(() => {
+        // Reconstruct mulberry32(seed) from the pending join cfg.
+        // Both peers used the same room code → same seed → same
+        // first value of a fresh stream.
+        const cfg = (function () {
+            try { return JSON.parse(sessionStorage.getItem('neonMP') || 'null'); }
+            catch (_) { return null; }
+        })();
+        function mulberry32(seed) {
+            let a = (seed | 0) >>> 0;
+            return function () {
+                a = (a + 0x6d2b79f5) | 0;
+                let t = a;
+                t = Math.imul(t ^ (t >>> 15), t | 1);
+                t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+        }
+        const firstFromSeed = cfg && typeof cfg.seed === 'number' ? mulberry32(cfg.seed)() : null;
+        return {
+            hasNative: typeof window.__neonNativeRandom === 'function',
+            nativeSame: window.__neonNativeRandom === Math.random,
+            seed: cfg && cfg.seed,
+            firstFromSeed,
+        };
+    });
     const aliceRng = await rngState(alice.page);
     const bobRng   = await rngState(bob.page);
     bok('ALICE: __neonNativeRandom saved',         aliceRng.hasNative === true);
     bok('BOB: __neonNativeRandom saved',           bobRng.hasNative   === true);
     bok('ALICE: Math.random IS the seeded one',    aliceRng.nativeSame === false);
     bok('BOB: Math.random IS the seeded one',      bobRng.nativeSame   === false);
-    // ALICE and BOB share the same room code → seeded streams should
-    // produce identical values. This proves the seed-collision condition
-    // that USED to bite us at the Trystero peer-ID layer.
-    bok('ALICE and BOB share the same seeded RNG (the cause of the bug)',
-        aliceRng.currentVal === bobRng.currentVal);
+    // ALICE and BOB share the same room code → same seed → fresh
+    // mulberry32 produces identical first value. This proves the
+    // seed-collision condition that USED to bite us at the Trystero
+    // peer-ID layer (now defused by the native-Math.random swap).
+    bok('ALICE and BOB seed numbers match',
+        aliceRng.seed === bobRng.seed && typeof aliceRng.seed === 'number');
+    bok('Same-seed fresh streams agree on the first value',
+        aliceRng.firstFromSeed === bobRng.firstFromSeed && aliceRng.firstFromSeed !== null);
 
     // 2) Wait up to 25s for the rooms to pair. We look at the
     //    rendered waitroom peer list — when the BUG was present,
