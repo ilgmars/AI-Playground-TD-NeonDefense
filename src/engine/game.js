@@ -97,6 +97,9 @@ class Game {
     // strict no-op there and the difficulty curve is untouched. Effects are
     // modest and the grid is small, so total power stays bounded.
     applyBackpack() {
+        // Coop fair-play: skip backpack effects in MP so a veteran
+        // with a full grid doesn't outclass a newbie's empty grid.
+        if (typeof window !== 'undefined' && window.__neonMPFairPlay === true) return;
         const save = window.save;
         if (!save || !save.backpack || !window.NeonBackpack || typeof BACKPACK_ITEMS === 'undefined') return;
         const s = window.NeonBackpack.computeStats(save.backpack, BACKPACK_ITEMS);
@@ -829,7 +832,8 @@ class Game {
         const cfg = TOWERS[effType];
         const baseType = cfg.baseType || effType;
         let masteryCostMult = 1;
-        if (baseType === 'income') {
+        const fairPlay = typeof window !== 'undefined' && window.__neonMPFairPlay === true;
+        if (baseType === 'income' && !fairPlay) {
             const mastery = window.save && window.save.towerMastery && window.save.towerMastery.income;
             const rank = mastery && mastery.perks ? (mastery.perks.fireRate || 0) : 0;
             masteryCostMult = Math.max(0.75, 1 - rank * 0.015);

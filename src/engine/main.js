@@ -2068,14 +2068,15 @@ function init() {
     });
     document.getElementById('pause-btn').addEventListener('click', () => {
         togglePause();
-        // Co-op: only the HOST is allowed to pause. Their pause state
-        // propagates to everyone via a 'pause' message; non-hosts
-        // receive it and mirror locally without re-broadcasting.
-        if (_activeMode === 'coop' && _mpHostNick && _activeRoom) {
-            const myName = (typeof getPlayerName === 'function') ? getPlayerName() : '';
-            if (myName === _mpHostNick) {
-                try { _activeRoom.send({ kind: 'pause', paused: game.state === 'paused' }); } catch (_) {}
-            }
+        // Co-op: ANY peer can pause; their state propagates to the
+        // partner. Previously this was gated on `getPlayerName() ===
+        // _mpHostNick`, but that comparison frequently failed (the
+        // pre-saved player name was the unsanitised string while
+        // _mpHostNick was the sanitised one), so the broadcast never
+        // fired and the partner kept playing. Drop the gate — the
+        // receiver path uses __neonMPApplyPause which is idempotent.
+        if (_activeMode === 'coop' && _activeRoom) {
+            try { _activeRoom.send({ kind: 'pause', paused: game.state === 'paused' }); } catch (_) {}
         }
     });
 
@@ -2092,6 +2093,56 @@ function init() {
             document.getElementById('pause-display').classList.remove('paused');
         }
     }
+    // Coop desync diagnostics. Each peer periodically broadcasts a
+    // small state digest (wave, money, hp, tower count). The other
+    // peer compares against its local state and surfaces a drift
+    // report via window.__neonMPLastDrift so the UI / debug overlay
+    // can show "WAVES OUT OF SYNC" etc. We don't auto-correct (that
+    // requires authoritative state); the report is diagnostic.
+    let _mpLastSyncSent = 0;
+    function maybeSendSync() {
+        if (_activeMode !== 'coop' || !_activeRoom || !game) return;
+        if (game.state !== 'playing' && game.state !== 'paused') return;
+        const now = Date.now();
+        if (now - _mpLastSyncSent < 5000) return;
+        _mpLastSyncSent = now;
+        try {
+            _activeRoom.send({
+                kind: 'sync',
+                w:  game.wave | 0,
+                m:  game.money | 0,
+                h:  game.health | 0,
+                tc: (game.towers || []).length | 0,
+                ec: (game.enemies || []).filter(e => e && e.active).length | 0,
+                t:  now,
+            });
+        } catch (_) {}
+    }
+    setInterval(maybeSendSync, 1000);
+    // Receiver: compare digest vs local, stash a drift report.
+    window.__neonMPLastDrift = null;
+    window.__neonMPApplySync = function (snap, fromId) {
+        if (!game || !snap) return;
+        const localTc = (game.towers || []).length | 0;
+        const drift = {
+            peer: fromId || '?',
+            t: Date.now(),
+            wave:    { local: game.wave | 0,  remote: snap.w | 0, diff: (snap.w | 0) - (game.wave | 0) },
+            money:   { local: game.money | 0, remote: snap.m | 0, diff: (snap.m | 0) - (game.money | 0) },
+            health:  { local: game.health | 0, remote: snap.h | 0, diff: (snap.h | 0) - (game.health | 0) },
+            towers:  { local: localTc,         remote: snap.tc | 0, diff: (snap.tc | 0) - localTc },
+            enemies: { local: (game.enemies || []).filter(e => e && e.active).length | 0,
+                       remote: snap.ec | 0 },
+        };
+        // Coarse health: wave-mismatch is the loudest signal; tower-
+        // count drift means inputs aren't reaching one side.
+        drift.severity =
+            (drift.wave.diff !== 0)   ? 'wave' :
+            (drift.towers.diff !== 0) ? 'towers' :
+            'ok';
+        window.__neonMPLastDrift = drift;
+    };
+
     // Public hook for the coop transport to push remote pause/resume.
     window.__neonMPApplyPause = function (paused) {
         if (!game || (game.state !== 'playing' && game.state !== 'paused')) return;
@@ -2375,6 +2426,16 @@ function init() {
         // race). Avoids the case where ALICE's +25 % money kit
         // outclasses BOB before the first wave spawns.
         const mpActive = !!_activeMode;
+        // FAIR-PLAY FLAG. Set BEFORE constructing Game so the tower
+        // constructor reads it and skips mastery-perk bonuses. Also
+        // gates applyBackpack and tower-cost mastery discount. Each
+        // peer in a coop room thus places identical towers, has
+        // identical economy, and the only variable left is player
+        // skill. Cleared when the run ends (see leaveActiveMultiplayer
+        // and restartGame in SP).
+        if (typeof window !== 'undefined') {
+            window.__neonMPFairPlay = mpActive;
+        }
         // Coop has its OWN ascension track, separate from SP. Until
         // there's a real coop-progression mechanic, we hard-pin coop
         // to tier 0 so a host with SP-cleared A11 doesn't drag a
@@ -4030,6 +4091,13 @@ function init() {
                     window.__neonMPApplyWave(msg.w);
                 }
             }
+            // Periodic state digest from the partner — populate the
+            // window.__neonMPLastDrift report for diagnostics.
+            if (msg && msg.kind === 'sync') {
+                if (typeof window.__neonMPApplySync === 'function') {
+                    window.__neonMPApplySync(msg, fromId);
+                }
+            }
         });
 
         // Send our own cursor at ~10 Hz from the canvas mousemove.
@@ -4058,6 +4126,9 @@ function init() {
         if (_activeRoom) { try { _activeRoom.leave(); } catch (_) {} _activeRoom = null; }
         _activeRoomCode = null;
         _activeMode = null;
+        // Clear the fair-play flag so the next SP run gets its
+        // mastery perks + backpack bonuses back.
+        try { if (typeof window !== 'undefined') window.__neonMPFairPlay = false; } catch (_) {}
         _mpHostNick = null;
         _mpHostTier = null;
         _mpHostSpeed = null;

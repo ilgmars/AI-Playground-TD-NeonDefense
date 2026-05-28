@@ -256,7 +256,14 @@ class Tower {
         // Variants own their own mastery track (e.g. 'basic_cryo' is separate
         // from 'basic'). Read perks for the EXACT type built — a fresh variant
         // entry that doesn't exist yet falls back to all-zeros below.
-        const mastery = window.save && window.save.towerMastery && window.save.towerMastery[type];
+        //
+        // Coop fair-play: when window.__neonMPFairPlay is true (set by
+        // restartGame for MP runs), ignore mastery perks entirely so a
+        // veteran and a newbie place towers with identical stats. The
+        // veteran's progression still lives in save.towerMastery — it
+        // just doesn't bleed into the coop sim.
+        const fairPlay = typeof window !== 'undefined' && window.__neonMPFairPlay === true;
+        const mastery = (!fairPlay) && window.save && window.save.towerMastery && window.save.towerMastery[type];
         this.masteryPerks = (mastery && mastery.perks) ? mastery.perks : { damage: 0, fireRate: 0, efficiency: 0 };
         const damageRank = this.masteryPerks.damage || 0;
         const fireRateRank = this.masteryPerks.fireRate || 0;
