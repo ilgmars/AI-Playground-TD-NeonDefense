@@ -14,3 +14,5 @@ src/multiplayer/turn-config.js
 # Generated HiveMQ Cloud relay URL (URL-embedded basic auth). Same
 # generator script writes this from .credentials / NEON_TURN_CONFIG.
 src/multiplayer/mqtt-config.js
+# Local APK builds land here (canonical copy = the Games release asset)
+NeonDefense.apk

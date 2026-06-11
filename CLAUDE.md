@@ -8,8 +8,8 @@ Vanilla-JS browser tower defense. No framework, no build step. Open [index.html]
 index.html                       UI shell: top bar, canvas, build menu, overlays
 style.css                        Neon theme, panels, tower icons, responsive layout
 README.md, CLAUDE.md             Docs (this file)
-ANDROID.md                       APK build guide (WebView wrapper)
-NeonDefense.apk                  Canonical distribution APK (rebuilt by CI)
+ANDROID.md                       APK build guide (WebView wrapper); the shipped APK
+                                 is the Games release asset, not tracked in git
 
 src/
   config/

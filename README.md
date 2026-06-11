@@ -66,9 +66,9 @@ requests and pushes to `main` also run a standalone test job
 ```sh
 npm install
 npx playwright install chromium    # one-time, for browser flows
-npm test                           # runs all 13 suites (~115s)
+npm test                           # full suite, fail-fast (~7 min)
 npm run test:logic                 # node-only fast subset (<1s)
-npm run test:smoke                 # adds the autopilot smoke (~3 min)
+npm run test:smoke                 # adds the long autopilot smokes
 npm run test:perf                  # microbenchmarks + appends to perf-history.json
 ```
 
@@ -88,16 +88,16 @@ The runner ([`tests/run.js`](tests/run.js)) is sequential
 and fail-fast — the first broken suite stops the run and dumps its
 stdout / stderr so the CI logs explain what regressed.
 
-## Multiplayer (designed, not yet built)
+## Multiplayer
 
-A serverless "play together" mode is on the roadmap. The full design
-lives under [`multiplayer/`](multiplayer/) — including how peers
-discover each other without us running infrastructure
-([signalling.md](multiplayer/signalling.md)), the deterministic
-lockstep sync model
-([sync.md](multiplayer/sync.md)), how it interacts with Aegis
-([anti-cheat.md](multiplayer/anti-cheat.md)), and the Race / Co-op /
-Versus mode specs ([game-modes.md](multiplayer/game-modes.md)).
+Serverless, peer-to-peer, no accounts. **Co-op** is the playable mode:
+share a 6-char room code, both peers run the same seeded world, the
+host drives wave starts and enemy-state sync, and builds/upgrades
+stream between peers as signed inputs. A **global scoreboard** syncs
+in the background over MQTT (with a broker-retained snapshot, so you
+see other players' scores even when they're offline). Design notes
+live under [`multiplayer/`](multiplayer/); the original race and
+versus modes described there were cut from the shipping game.
 
 ## Anti-tamper (Aegis)
 

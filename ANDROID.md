@@ -6,9 +6,9 @@ Neon Defense ships as an Android APK — a thin `WebView` wrapper around the sam
 
 - [android/app/src/main/java/com/neondefense/game/MainActivity.java](android/app/src/main/java/com/neondefense/game/MainActivity.java) — an `AppCompatActivity` that hosts a `WebView` loading `file:///android_asset/www/index.html`.
 - [android/app/src/main/assets/www/](android/app/src/main/assets/www/) — a **mirror** of the web files at the repo root (`index.html`, `style.css`, `src/`). These get packaged into the APK.
-- Gradle output: `android/app/build/outputs/apk/debug/app-debug.apk`. The canonical distribution copy lives at [NeonDefense.apk](NeonDefense.apk) in the repo root.
+- Gradle output: `android/app/build/outputs/apk/debug/app-debug.apk`. The canonical distribution copy is the **`Games` release asset** (<https://github.com/ilgmars/AI-Playground-TD-NeonDefense/releases>) — CI ([build-apk.yml](.github/workflows/build-apk.yml)) rebuilds, signs, audits, and re-uploads it on every green push to `main`. No APK is tracked in git; a locally-built `NeonDefense.apk` at the repo root is gitignored.
 
-Because `assets/www/` is a copy and not a symlink, **every change to `index.html`, `style.css`, or anything under `src/` must be re-copied into `android/app/src/main/assets/www/` before rebuilding.** Miss this step and the APK ships stale assets.
+Because `assets/www/` is a copy and not a symlink, **every change to `index.html`, `style.css`, or anything under `src/` must be re-copied into `android/app/src/main/assets/www/` before a LOCAL rebuild.** (CI does this sync automatically at build time, so the committed mirror being stale never affects released APKs — it only bites local Gradle builds.)
 
 ## Prerequisites (Windows)
 

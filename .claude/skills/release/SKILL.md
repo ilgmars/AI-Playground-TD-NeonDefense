@@ -20,7 +20,7 @@ There is no build step. Pushing to `main` triggers three workflows, all gated on
 
 - The APK is a WebView wrapper ([ANDROID.md](../../../ANDROID.md)). CI **re-syncs** `android/app/src/main/assets/www/` from the repo root at build time, so the committed mirror being stale does not affect released APKs.
 - Manual `assets/www` syncing is only needed for **local** Gradle builds (see ANDROID.md, including the JDK 17 requirement).
-- The repo-root [NeonDefense.apk](../../../NeonDefense.apk) is the canonical distribution copy; CI uploads each build's APK + SHA-256 as artifacts/release assets.
+- The canonical distribution APK is the **`Games` release asset** — CI re-uploads it (plus SHA-256) on every green main push. No APK is tracked in git; the gitignored repo-root `NeonDefense.apk` is only a local-build landing spot.
 
 ## Verifying a deploy
 
