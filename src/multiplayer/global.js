@@ -1,6 +1,9 @@
-// Global leaderboard — a public Trystero room everyone joins, even
-// in single-player. Each peer publishes its best run on game-over;
-// the receiver merges, deduplicates by (name, tier, wave) sorted by
+// Global leaderboard — a public room everyone joins, even in
+// single-player. PRIMARY transport is mqtt-direct (pub/sub through
+// the broker, plus a broker-RETAINED board snapshot so scores from
+// offline peers still reach new joiners); Trystero/WebRTC is the
+// fallback. Each peer publishes its best run on game-over; the
+// receiver merges, deduplicates by (name, tier, wave) sorted by
 // last-seen-at, and exposes the rolling list to the UI.
 //
 // This is a SEPARATE transport channel from race / coop / versus
@@ -126,7 +129,18 @@
             // accepts both shapes for back-compat with peers running
             // an older build.
             const entries = Array.from(board.values()).slice(0, 50).map(packEntry);
-            try { room.send({ kind: APP_NS, entries }); } catch (_) {}
+            const packet = { kind: APP_NS, entries };
+            try { room.send(packet); } catch (_) {}
+            // Also refresh the broker-side RETAINED snapshot (mqtt-direct
+            // only; no-op on Trystero). This is what makes the board
+            // survive gaps in presence: a peer who joins later still
+            // receives the last snapshot even though its publisher is
+            // gone. Safe because our board already merged any retained
+            // state we received on join — we always publish a superset
+            // of what we've seen.
+            try {
+                if (typeof room.sendRetained === 'function') room.sendRetained(packet);
+            } catch (_) {}
             lastBroadcastAt = now();
             return entries.length;
         }
@@ -268,14 +282,9 @@
                 return { ok: false, reason: 'throttled' };
             }
             lastPublishAt = t;
-            if (room) {
-                try {
-                    room.send({
-                        kind: APP_NS,
-                        entries: Array.from(board.values()).slice(0, 50).map(packEntry),
-                    });
-                } catch (_) { /* swallow */ }
-            }
+            // Full-board broadcast — live send plus retained snapshot
+            // refresh, same path as the periodic tick.
+            _sendBoard();
             return { ok: true };
         }
 

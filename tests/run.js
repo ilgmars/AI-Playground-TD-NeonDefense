@@ -54,6 +54,7 @@ const SUITES = [
     { name: 'turn-filter',        file: 'tests/turn-filter.test.js' },
     { name: 'global-wire-compression', file: 'tests/global-wire-compression.test.js' },
     { name: 'mqtt-direct',        file: 'tests/mqtt-direct.test.js' },
+    { name: 'global-retained',    file: 'tests/global-retained.test.js' },
     { name: 'global-prefers-mqtt', file: 'tests/global-prefers-mqtt.test.js' },
     { name: 'coop-fairplay-stats', file: 'tests/coop-fairplay-stats.test.js' },
     { name: 'coop-sync-e2e',      file: 'tests/coop-sync-e2e.test.js' },
