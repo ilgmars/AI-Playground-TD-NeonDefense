@@ -8,12 +8,16 @@ Vanilla-JS browser tower defense. No framework, no build step. Open [index.html]
 index.html                       UI shell: top bar, canvas, build menu, overlays
 style.css                        Neon theme, panels, tower icons, responsive layout
 README.md, CLAUDE.md             Docs (this file)
+ANDROID.md                       APK build guide (WebView wrapper)
+NeonDefense.apk                  Canonical distribution APK (rebuilt by CI)
 
 src/
   config/
     config.js                    Single source of truth for balance:
                                  TOWERS, ENEMIES, WAVE_CONFIG, POTION_CONFIG,
                                  AUTOPILOT_CONFIG, TOWER_UPGRADES
+  security/
+    aegis.js                     Anti-tamper: signed saves, native-fn sensors, state audit
   audio/
     audio.js                     Web Audio — chiptune BGM + procedural SFX
   render/
@@ -21,17 +25,37 @@ src/
   engine/
     map.js                       GameMap + mulberry32 PRNG (20×15 grid, random-walk path)
     game.js                      Game class — wave/economy/spawn, draw orchestration, UI sync
-    main.js                      Bootstrap, RAF loop, input, DOM wiring, localStorage scoreboard
+    main.js                      Bootstrap, RAF loop, input, DOM wiring, all panel rendering
   entities/
     entities.js                  Tower, Enemy, Projectile, Explosion, TrailParticle, LightningBolt
   ai/
     autopilot.js                 Autopilot class — rule-based tower/upgrade/potion decisions
+  progression/
+    save.js                      NeonSave — persistent meta save (XP, mastery, signed via aegis)
+    tree.js                      Tech-tree purchase / eligibility / auto-unlock
+    abilities.js                 In-run ability instances + charges
+    backpack.js                  Spatial-grid inventory — pure logic, node-requireable
+    boons.js                     Roguelike boon picker at milestone waves
+  multiplayer/
+    protocol.js, transport.js,   Wire format, transport abstraction, Trystero/WebRTC and
+    transport-trystero.js,       MQTT-direct backends, per-peer anti-cheat gate (guard.js),
+    mqtt-direct.js, guard.js     room-seeded PRNG (prng.js)
+    coop.js, lockstep.js         Co-op: shared deterministic sim, input streaming
+    race.js                      Race: own world per peer, display heartbeats only
+    global.js                    Global leaderboard over a public MQTT room
+    lobby.js, connectivity.js    Lobby flow, broker reachability probing
+    turn-config.js               GITIGNORED — TURN creds; tools/install-turn-config.sh writes it
 
+multiplayer/                     Design docs: sync, signalling, anti-cheat, game modes
+tests/                           ~55 standalone node suites + tests/run.js runner (see skills)
+tools/                           bump-cache.sh, install-hooks.sh, install-turn-config.sh,
+                                 auto-tune/ (parallel autopilot strategy search)
+.github/workflows/               test.yml, pages.yml (Pages deploy), build-apk.yml — all gate on npm test
 docs/
   ai/                            Historical AI prompts / build logs (not runtime)
 ```
 
-**Load order matters** — there's no module system. `config.js` must load before `entities.js` (Tower/Enemy read `TOWERS`/`ENEMIES`), and `autopilot.js` must load before `game.js` (Game lazily instantiates `Autopilot`). See the `<script>` block in [index.html](index.html).
+**Load order matters** — there's no module system. See the `<script>` block in [index.html](index.html): config → aegis → audio/render/map/entities/autopilot → progression (save, tree, abilities, backpack) → game.js → boons → multiplayer stack → main.js last. `config.js` must precede `entities.js` (Tower/Enemy read `TOWERS`/`ENEMIES`); `aegis.js` must load right after config (it snapshots pristine natives before anything else can patch them); `main.js` wires everything and must stay last.
 
 ## Game architecture
 
@@ -63,15 +87,18 @@ Autopilot strategy knobs live in `AUTOPILOT_CONFIG`; the class only implements t
 ## Persistence
 
 - **Seed** (map.js) stored in `location.hash`, copyable via the SEED button. Reproducible runs.
-- **Scoreboard** in `localStorage['neonDefenseScores']` — top 5, 3-char names ([main.js:219-249](main.js#L219-L249)).
-- **No save/resume** mid-run.
+- **Meta save** in `localStorage['neonDefense.save']` via `NeonSave` ([src/progression/save.js](src/progression/save.js)) — meta-XP, tech tree, mastery, backpack, scoreboards. Every write is **signed by Aegis**; hand-editing localStorage flags the save as cheated. Legacy `neonDefenseScores*` keys are migrated on load.
+- **Global scoreboard** syncs over a public MQTT room ([src/multiplayer/global.js](src/multiplayer/global.js)), cached locally.
+- **No save/resume** mid-run (multiplayer JOIN auto-resume after an APK reload exists, but the run itself restarts).
 
 ## Known shape / gotchas
 
 - **Air spawn rate** (`35 - floor(wave/8)`) and the wave difficulty piecewise formula still live in `Game.startWave()` — centralize if you start tuning them heavily.
 - **DOM lookups in hot paths**: `document.getElementById` called 50+ times across files instead of cached once.
 - **Shadow/glow on every draw call** — fine at 60 FPS for now, will bite at higher entity counts.
-- **No module system, no bundler, no tests.** Balance changes are validated by playing.
+- **No module system, no bundler.** Tests DO exist now (~55 suites, `npm test`) — balance changes are validated headlessly via the autopilot/wave450 smokes, not by hand-playing.
+- **main.js is 4800+ lines** — it has absorbed all panel/menu/overlay rendering (tech tree, backpack UI, lobby, scoreboards) on top of bootstrap and input. Largest refactor target in the codebase.
+- The committed `android/app/src/main/assets/www/` mirror is usually stale; CI re-syncs it at APK build time, so it only matters for local Gradle builds.
 - **Mobile viewport disables zoom** (`user-scalable=no`) but touch drag exists — not obviously discoverable.
 
 ## Cache busting (GitHub Pages deploys)
@@ -97,8 +124,9 @@ localStorage is independent of HTTP cache.
 
 ## Working conventions
 
-- Edit JS files directly; reload the browser to test. No install/build command.
-- When changing balance, play at least through wave 28+ (that's where recent regressions have landed — see commit history).
+- Edit JS files directly; reload the browser to test. No build step. One-time setup after a fresh clone: `npm ci`, `npx playwright install chromium`, `./tools/install-hooks.sh`, `./tools/install-turn-config.sh`.
+- **Run `npm test` before committing** — it's the gate for Pages deploy and APK build in CI. See the `run-tests`, `tune-balance`, and `release` skills in [.claude/skills/](.claude/skills/) for the full workflows.
+- When changing balance, validate through wave 28+ via the autopilot smoke (`node tests/autopilot.smoke.js --snapshots=10,30 --speed=2048 --ascension=3`) — that's where recent regressions have landed.
 - **Balance changes go in [src/config/config.js](src/config/config.js) first.** Tower stats, enemy stats, wave timing, autopilot strategy, and upgrade trees all live there as single-source-of-truth objects. Only touch `entities.js` / `game.js` / `autopilot.js` if the change is logic, not numbers.
 - Keep seed compatibility in mind: any change to `GameMap.generateMap()` RNG call order invalidates every shared seed.
 
