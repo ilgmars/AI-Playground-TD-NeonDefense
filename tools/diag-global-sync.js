@@ -32,6 +32,9 @@ const path = require('path');
         // Instrument BEFORE the 2 s lazy global start fires: wrap both
         // joinRoom paths to record which transport wins and stash the room.
         await page.evaluate(() => {
+            // Localhost pages skip the auto global-sync start (hermetic
+            // tests) — this diagnostic explicitly wants the LIVE room.
+            window.__neonForceGlobalSync = true;
             window.__diag = { mqttTried: 0, mqttErr: null, trysteroTried: 0, trysteroErr: null, strategy: null };
             const wrap = (obj, key, label) => {
                 if (!obj || typeof obj[key] !== 'function') return;

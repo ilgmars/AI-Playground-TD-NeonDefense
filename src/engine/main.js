@@ -1884,6 +1884,9 @@ function init() {
     // is handled inside global.js.
     setTimeout(() => {
         try {
+            // NOTE: on localhost (Playwright suites) start() refuses to
+            // join the live room — the hermetic-test gate lives in
+            // global.js so it covers every caller, not just this one.
             if (window.NeonMP && NeonMP.global && NeonMP.global.singleton) {
                 // start() returns a Promise — swallow rejection so a
                 // sandbox without broker access doesn't fire an

@@ -189,6 +189,23 @@
             // if mqtt-direct fails to load or connect, which can
             // happen if the mqtt.js CDN is blocked.
             if (room) return room;
+            // Hermetic-test gate. Pages served from localhost (the
+            // Playwright suites) must NEVER implicitly join the live
+            // room: the broker-retained snapshot would inject real
+            // players' scores into rank assertions, and — worse — the
+            // tests' own fake entries (BOT, TOP0…, ME) would publish
+            // into the snapshot real players see. This sits here, not
+            // at one call site, because start() is reachable from the
+            // boot timer AND the scoreboard-open refresh (and future
+            // callers). Explicit transports (transportFactory) and
+            // window.__neonForceGlobalSync (diag tool, local dev)
+            // bypass it.
+            if (!txFactory
+                    && typeof location !== 'undefined'
+                    && (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+                    && !(typeof window !== 'undefined' && window.__neonForceGlobalSync)) {
+                return null;
+            }
             const mqttDirect = (typeof window !== 'undefined' && window.NeonMP && window.NeonMP.mqttDirect) || null;
             try {
                 if (txFactory) {
