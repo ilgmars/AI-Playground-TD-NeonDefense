@@ -2149,6 +2149,42 @@ function init() {
         } catch (_) {}
     }
     setInterval(maybeSendSync, 1000);
+    // Host → clients: compact enemy digest (see __neonMPApplyEnemyState
+    // for the receiving side and the wire format). 3-s cadence while a
+    // wave is live; nothing is sent between waves or by non-hosts.
+    let _mpLastEstateSent = 0;
+    function maybeSendEnemyState() {
+        if (_activeMode !== 'coop' || !_activeRoom || !game || !_mpIsHost) return;
+        if (game.state !== 'playing') return;
+        const now = Date.now();
+        if (now - _mpLastEstateSent < 3000) return;
+        const alive = [];
+        for (const e of (game.enemies || [])) {
+            if (!e || !e.active || e._spawnIdx == null) continue;
+            const maxHp = e.maxHp || 1;
+            alive.push([e._spawnIdx, Math.max(1, Math.min(255, Math.round(255 * (e.hp || 0) / maxHp)))]);
+        }
+        const spawned = game.enemiesSpawned | 0;
+        // An EMPTY digest still matters once spawning started — it
+        // tells the client "host cleared everything you're fighting".
+        if (alive.length === 0 && spawned === 0) return;
+        _mpLastEstateSent = now;
+        try {
+            _activeRoom.send({ kind: 'es', w: game.wave | 0, n: spawned, e: alive });
+        } catch (_) {}
+    }
+    setInterval(maybeSendEnemyState, 1000);
+    // Host-loss watchdog. A non-host whose partner disappeared would
+    // otherwise wait at waveCooldown 0 forever (waves are host-driven).
+    // If nothing host-authored ('wave' / 'es' / 'sync' / 'pause')
+    // arrives for 20 s, release the hold so the run continues solo.
+    let _mpLastHostMsgAt = 0;
+    setInterval(() => {
+        if (_activeMode !== 'coop' || _mpIsHost || !game || !game._mpHoldWaves) return;
+        if (_mpLastHostMsgAt && Date.now() - _mpLastHostMsgAt > 20000) {
+            game._mpHoldWaves = false;
+        }
+    }, 2000);
     // Receiver: compare digest vs local, stash a drift report.
     window.__neonMPLastDrift = null;
     window.__neonMPApplySync = function (snap, fromId) {
@@ -2184,16 +2220,14 @@ function init() {
     // (that would require host-authoritative enemy state, a larger
     // change); we just snap the counter so the UI stays consistent
     // and wave-bonus logic fires at the same wave on every client.
-    window.__neonMPApplyWave = function (w) {
+    window.__neonMPApplyWave = function (w, hp) {
         if (!game || !Number.isInteger(w) || w < 1) return;
         if (game.wave === w) return;
-        // Only sync FORWARD. If our wave is ahead of host's snap,
-        // don't regress — host's broadcast is just stale.
-        if (w <= game.wave) return;
-        // Snap the counter AND restart the wave so non-host enemies
-        // actually match host enemies. The earlier version only set
-        // game.wave, leaving stale enemies from the wrong wave still
-        // walking the path — visible as "waves desynced" to players.
+        // The host is authoritative in BOTH directions. The old
+        // forward-only gate assumed a client could legitimately run
+        // ahead; with _mpHoldWaves the client never self-advances, and
+        // if state still disagrees (reload, missed packet) the host's
+        // view wins.
         game.wave = w;
         game.uiDirty = true;
         try {
@@ -2201,19 +2235,65 @@ function init() {
             // wave so the new spawn pattern doesn't double-stack.
             if (Array.isArray(game.enemies))     game.enemies.length = 0;
             if (Array.isArray(game.projectiles)) game.projectiles.length = 0;
+            // Spawn with the HOST's HP multiplier, not our own — see
+            // the _mpForcedHpMult consumer in Game.startWave.
+            if (Number.isFinite(hp) && hp > 0) game._mpForcedHpMult = hp;
             if (typeof game.startWave === 'function') game.startWave();
         } catch (_) {}
+    };
+    // Host's periodic enemy digest → snap local monsters to match.
+    // Matching is by _spawnIdx (deterministic spawn order within a
+    // wave). Entries: e = [[spawnIdx, hpByte 1-255], ...] for every
+    // enemy still alive on the host; n = how many the host has
+    // spawned so far. Anything we hold with idx < n that the host no
+    // longer lists is dead on the host → kill it locally WITHOUT
+    // loot (split economy: the kill credit already landed on the
+    // host's bank). ~6 bytes/enemy every few seconds — cheap enough
+    // for metered connections.
+    window.__neonMPApplyEnemyState = function (snap) {
+        if (!game || !snap || !Array.isArray(snap.e)) return;
+        if ((snap.w | 0) !== (game.wave | 0)) return;   // stale wave digest
+        const hostAlive = new Map();
+        for (const pair of snap.e) {
+            if (Array.isArray(pair) && Number.isInteger(pair[0])) {
+                hostAlive.set(pair[0], Math.max(1, Math.min(255, pair[1] | 0)));
+            }
+        }
+        const spawned = snap.n | 0;
+        let changed = false;
+        for (const e of (game.enemies || [])) {
+            if (!e || !e.active || e._spawnIdx == null) continue;
+            const ratio = hostAlive.get(e._spawnIdx);
+            if (ratio != null) {
+                const target = Math.max(1, Math.round((e.maxHp || 1) * ratio / 255));
+                if (e.hp !== target) { e.hp = target; changed = true; }
+            } else if (e._spawnIdx < spawned) {
+                // Host already killed this one.
+                e._noLocalCredit = true;
+                e.hp = 0;
+                e.active = false;
+                changed = true;
+            }
+        }
+        if (changed) game.uiDirty = true;
     };
     // Host-side: every wave change emits a 'wave' message. Hook into
     // game.update via a polling watcher (no game.js intrusion).
     let _lastBroadcastWave = 0;
     function maybeBroadcastWave() {
         if (_activeMode !== 'coop' || !_activeRoom || !game) return;
-        const myName = (typeof getPlayerName === 'function') ? getPlayerName() : '';
-        if (myName !== _mpHostNick) return;
+        if (!_mpIsHost) return;
         if (game.wave === _lastBroadcastWave) return;
         _lastBroadcastWave = game.wave;
-        try { _activeRoom.send({ kind: 'wave', w: game.wave }); } catch (_) {}
+        // hp = the host's finalHpMult for this wave (game.js records it
+        // in startWave). The client forces it so monster HP matches
+        // even when the peers' tower spending diverged.
+        try {
+            _activeRoom.send({
+                kind: 'wave', w: game.wave,
+                hp: (Number.isFinite(game.lastHpMult) ? game.lastHpMult : null),
+            });
+        } catch (_) {}
     }
     // Tick the watcher off the RAF loop owner. We don't have direct
     // access here; piggy-back on the existing updateUI cadence by
@@ -2702,18 +2782,48 @@ function init() {
         }
         try { NeonSave.write(save); } catch (_) {}
     }
-    // On boot, push our cached snapshot back into the live board so
-    // we immediately know what we knew last session — and rebroadcast
-    // it during the 60-s sweep so other peers learn too.
+    // On boot, push what this device already knows into the live board:
+    //   1. save.globalCache — other players' entries we relayed before.
+    //   2. save.highScores — OUR OWN historical runs, including ones
+    //      recorded before the global board existed (or while offline).
+    //      Without this, a player's old personal bests never reach the
+    //      global board at all.
+    // Bandwidth: merging is local. The board broadcasts these only if
+    // the room's retained snapshot turns out not to know them already
+    // (novelty gate in global.js), so a fully-synced device sends
+    // nothing.
     setTimeout(() => {
         try {
-            if (!window.NeonMP || !NeonMP.global || !save || !save.globalCache) return;
+            if (!window.NeonMP || !NeonMP.global || !save) return;
             const board = NeonMP.global.singleton();
-            for (const k of Object.keys(save.globalCache)) {
-                const arr = save.globalCache[k];
-                if (!Array.isArray(arr)) continue;
-                for (const entry of arr) {
-                    try { board._mergeEntry && board._mergeEntry(entry); } catch (_) {}
+            const mergeRaw = (raw) => {
+                try {
+                    const v = board._validateEntry ? board._validateEntry(raw) : null;
+                    if (v && board._mergeEntry) board._mergeEntry(v);
+                } catch (_) {}
+            };
+            if (save.globalCache && typeof save.globalCache === 'object') {
+                for (const k of Object.keys(save.globalCache)) {
+                    const arr = save.globalCache[k];
+                    if (!Array.isArray(arr)) continue;
+                    for (const entry of arr) mergeRaw(entry);
+                }
+            }
+            if (save.highScores && typeof save.highScores === 'object') {
+                for (const k of Object.keys(save.highScores)) {
+                    const arr = save.highScores[k];
+                    if (!Array.isArray(arr)) continue;
+                    const tier = parseInt(String(k).replace(/^a/, ''), 10);
+                    if (!Number.isInteger(tier)) continue;
+                    for (const entry of arr) {
+                        if (!entry || typeof entry !== 'object') continue;
+                        mergeRaw({
+                            name: entry.name, wave: entry.wave, tier,
+                            cheated: !!entry.cheated,
+                            autopilot: !!entry.autopilot,
+                            retired: !!entry.retired,
+                        });
+                    }
                 }
             }
         } catch (_) {}
@@ -3880,6 +3990,12 @@ function init() {
     let _mpHostNick = null;
     let _mpHostTier = null;     // host's selectedTier; null = use local
     let _mpHostSpeed = null;    // host's startSpeed; null = use local
+    // Computed ONCE when the waitroom resolves, from the same
+    // sanitised nick the election ran on. Never compare
+    // getPlayerName() against _mpHostNick at runtime — the saved
+    // player name is unsanitised and that comparison silently fails
+    // (it's the bug that used to keep pause from propagating).
+    let _mpIsHost = false;
 
     function setStatus(el, text, color) {
         el.textContent = text;
@@ -4073,7 +4189,19 @@ function init() {
                     showScreen('main-menu');
                     return;
                 }
+                // Host role settles when the waitroom resolves —
+                // compare against the SAME sanitised nick the election
+                // ran on (never getPlayerName(), see _mpIsHost decl).
+                _mpIsHost = (_mpHostNick != null && _mpHostNick === nick);
                 restartGame(cfg.seed);
+                // Non-host never self-advances waves; it follows the
+                // host's 'wave' broadcasts (game.js holds at
+                // waveCooldown 0 while this flag is set).
+                if (typeof game !== 'undefined' && game) {
+                    game._mpHoldWaves = !_mpIsHost;
+                }
+                _lastBroadcastWave = 0;
+                _mpLastHostMsgAt = Date.now();
                 // Host's startSpeed wins for everyone (set in the
                 // waitroom via wr broadcasts); falls back to the local
                 // pick if we never heard one.
@@ -4154,8 +4282,16 @@ function init() {
             // consistent across peers even if the local sim drifted a
             // wave behind.
             if (msg && msg.kind === 'wave' && Number.isInteger(msg.w)) {
+                _mpLastHostMsgAt = Date.now();   // host-authored — feeds the watchdog
                 if (typeof window.__neonMPApplyWave === 'function') {
-                    window.__neonMPApplyWave(msg.w);
+                    window.__neonMPApplyWave(msg.w, msg.hp);
+                }
+            }
+            // Host's periodic enemy digest — snap monster HP / deaths.
+            if (msg && msg.kind === 'es') {
+                _mpLastHostMsgAt = Date.now();
+                if (typeof window.__neonMPApplyEnemyState === 'function') {
+                    window.__neonMPApplyEnemyState(msg);
                 }
             }
             // Periodic state digest from the partner — populate the
@@ -4171,14 +4307,6 @@ function init() {
         attachCursorBroadcast();
     }
 
-    // Versus A/B handshake — first two peers (lowest joinedAt, ties
-    // broken by nick) get 'A' and 'B'. Returns:
-    //   { ok: true, side: 'A' | 'B' } — slot assigned, game can start.
-    //   { ok: false, reason: 'room full' } — third+ peer, abort.
-    // Handshake window: HANDSHAKE_MS after our claim is sent we close
-    // collection and decide. Late joiners broadcast their claim too; if
-    // we see a claim newer than the window after we've already started,
-    // we ignore it (we're committed to our side at that point).
     function leaveActiveMultiplayer() {
         if (typeof _raceUnsub === 'function') {
             try { _raceUnsub(); } catch (_) {}
@@ -4199,7 +4327,8 @@ function init() {
         _mpHostNick = null;
         _mpHostTier = null;
         _mpHostSpeed = null;
-        window.__neonMPVersusSide = null;
+        _mpIsHost = false;
+        if (typeof game !== 'undefined' && game) game._mpHoldWaves = false;
         // Stale-state guard: hide the race overlay and clear its list so
         // a subsequent single-player run doesn't see a leftover panel.
         hideScreen('mp-race-overlay');

@@ -178,13 +178,6 @@ class Game {
     }
 
     startWave() {
-        // Multiplayer hook (versus mode): drain the spike queue BEFORE
-        // the wave is built, so the controller can return how many
-        // extra enemies (and of which types) the wave should include.
-        // Returns { amount, mix } or null. No-op in single-player.
-        const spikeInjection = this._onWaveStart
-            ? (() => { try { return this._onWaveStart(this.wave); } catch (_) { return null; } })()
-            : null;
         // M3: A10 — every 10th wave is a boss wave (one boss replaces normal spawns).
         this.isBossWave = this.ascension.spawnBoss && this.wave > 0 && this.wave % 10 === 0;
 
@@ -308,6 +301,19 @@ class Game {
         // Ascension HP multiplier (cumulative from A1 +15% upward)
         finalHpMult *= this.ascension.hpMult;
 
+        // Co-op: enemy HP scales with LOCAL tower spending, so two
+        // peers whose inputs landed in slightly different order would
+        // spawn different-HP monsters for the same wave. The host's
+        // wave broadcast carries its finalHpMult; the client stashes
+        // it in _mpForcedHpMult (see __neonMPApplyWave in main.js) and
+        // we consume it here so both worlds spawn identical enemies.
+        if (this._mpForcedHpMult != null && Number.isFinite(this._mpForcedHpMult)) {
+            finalHpMult = this._mpForcedHpMult;
+            this._mpForcedHpMult = null;
+        }
+        // Always recorded — the host reads it for the broadcast.
+        this.lastHpMult = finalHpMult;
+
         if (this.wave > 0 && this.wave % this.ascension.airWaveInterval === 0) {
             // Air waves: challenging but fair with extreme endgame scaling
             let airCount;
@@ -388,16 +394,6 @@ class Game {
             spawnRate: Math.max(12, def.spawnRate - loops * 2),
             hpMult: def.hpMult * finalHpMult
         };
-
-        // Versus spike injection — bump the wave count by the queued
-        // total. Mix isn't fine-grained here (the wave still spawns
-        // homogeneous enemies of def.type), but the AMOUNT is honoured.
-        // Bounded so a fat spike can't push a wave past the 300 cap.
-        if (spikeInjection && spikeInjection.amount > 0) {
-            const bonus = Math.max(0, Math.min(60, spikeInjection.amount | 0));
-            this.currentWaveDef.count = Math.min(300, this.currentWaveDef.count + bonus);
-            this.lastSpikeBonus = bonus;
-        }
 
         this.enemiesSpawned = 0;
         this.spawnTimer = 60;
@@ -492,6 +488,9 @@ class Game {
                     boss.reward = Math.floor((boss.reward || 0) * 10);
                     boss.radius = Math.max(boss.radius, 20);
                     boss.isBoss = true;
+                    // Cross-peer identity for the co-op HP digest —
+                    // spawn order is deterministic within a wave.
+                    boss._spawnIdx = 0;
                     this.enemies.push(boss);
                     this.enemiesSpawned = this.currentWaveDef.count;
                 } else {
@@ -508,6 +507,11 @@ class Game {
                     if (this.ascension.spawnSplitter && Math.random() < 0.3) {
                         newEnemy.splitterGeneration = 1;
                     }
+                    // Cross-peer identity for the co-op HP digest —
+                    // spawn order is deterministic within a wave.
+                    // (Splitter children get none and are skipped by
+                    // the digest; their spawn depends on kill timing.)
+                    newEnemy._spawnIdx = this.enemiesSpawned;
                     this.enemies.push(newEnemy);
                     this.enemiesSpawned++;
                     this.spawnTimer = this.currentWaveDef.spawnRate;
@@ -614,10 +618,21 @@ class Game {
                 }
                 
                 if (this.waveCooldown === 0) {
-                    this.wave++;
-                    this.startWave();
-                    this.airWarning = false;
-                    this.uiDirty = true; 
+                    // Co-op non-host: never self-advance. The host
+                    // announces each wave (with its authoritative HP
+                    // multiplier) and __neonMPApplyWave drives
+                    // startWave on this side. Holding here (cooldown
+                    // pinned at 0) is what stops a faster device from
+                    // racing waves ahead of its partner — the #1
+                    // "co-op acts like race" desync source.
+                    if (this._mpHoldWaves) {
+                        this.airWarning = false;
+                    } else {
+                        this.wave++;
+                        this.startWave();
+                        this.airWarning = false;
+                        this.uiDirty = true;
+                    }
                 }
             }
         }
@@ -634,12 +649,6 @@ class Game {
                     this.gameOver();
                 }
             } else if (!e.active) {
-                // Multiplayer hook (versus mode): notify the controller
-                // about the kill so it can fill the local spike meter.
-                // No-op in single-player / race / co-op.
-                if (this._onKill) {
-                    try { this._onKill(e.type, this); } catch (_) {}
-                }
                 // Base reward with late-game scaling
                 let reward = e.reward;
                 if (this.wave > 35) {

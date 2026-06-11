@@ -1,16 +1,21 @@
-// Regression: the global board syncs on every meaningful trigger,
-// not only on the 60-s background timer.
+// Regression: the global board's send policy is BANDWIDTH-GATED.
 //
-// User report: two devices open "for a while" but their scores never
-// merged. Likely root cause: background-tab timer throttling and the
-// "newcomer late-join" case (a device that joins the room AFTER the
-// other one's last publish has to wait up to 60 s).
+// History: this suite originally locked in aggressive triggers
+// (broadcast on peer-join, on visibility-wake, 60-s timer) added when
+// two devices' scores wouldn't merge. The broker-RETAINED snapshot
+// (global-retained.test.js) now does newcomer catch-up server-side,
+// and the broker connection is metered — so the policy inverted:
 //
-// This suite locks in three new triggers:
-//   1. onPeerJoin → broadcast immediately (newcomer gets caught up).
-//   2. visibilitychange → broadcast when the tab is shown again
-//      (defeats setInterval throttling in background tabs).
-//   3. broadcastNow() explicit API for tests + manual nudge.
+//   * publish() sends immediately (a fresh score is always novel).
+//   * maybeBroadcast() — used by the slow heartbeat — sends ONLY
+//     when the board holds an entry no inbound packet has shown us.
+//     An idle, fully-synced client sends nothing at all.
+//   * broadcastNow() stays unconditional (manual nudge / tests).
+//   * There is NO send on peer-join and NO send on visibility-wake.
+//
+// DIAG* names are a reserved diagnostics prefix and must never be
+// accepted onto the board (stray test entries would otherwise squat
+// for the full 30-day TTL).
 
 'use strict';
 
@@ -23,134 +28,103 @@ function ok(name, cond, extra) {
     else      { console.log('FAIL', name, extra || ''); fail++; }
 }
 
+// Count sends by wrapping a mock-hub room.
+function countingRoom(hub, room, id) {
+    const r = hub.join(room, id);
+    const counted = Object.create(r);
+    counted.sends = 0;
+    counted.send = (msg) => { counted.sends++; return r.send(msg); };
+    return counted;
+}
+
 // ─────────────────────────────────────────────────────────────────────
-// Phase 1 — broadcastNow + getLastBroadcastAt round-trip
+// Phase 1 — publish() sends; broadcastNow() is unconditional
 // ─────────────────────────────────────────────────────────────────────
 {
     const hub = transport.createMockHub();
-    const A = globalMod.createGlobalBoard();
-    const B = globalMod.createGlobalBoard();
-    A.attach(hub.join('NEON23', 'A'));
+    let t = 1000000;
+    const A = globalMod.createGlobalBoard({ now: () => t });
+    const B = globalMod.createGlobalBoard({ now: () => t });
+    const roomA = countingRoom(hub, 'NEON23', 'A');
+    A.attach(roomA);
     B.attach(hub.join('NEON23', 'B'));
 
     A.publish({ name: 'ALICE', wave: 12, tier: 2 });
-    ok('publish reaches B',
-        B.snapshot().some(e => e.name === 'ALICE'));
+    ok('publish reaches B', B.snapshot().some(e => e.name === 'ALICE'));
+    ok('publish cost exactly one send', roomA.sends === 1, roomA.sends);
 
-    // Initial getLastBroadcastAt should be 0 (no _sendBoard yet —
-    // publish() doesn't call _sendBoard, it sends directly).
-    // After broadcastNow it should be > 0.
     const before = A.getLastBroadcastAt();
+    t += 50;
     const sent = A.broadcastNow();
     ok('broadcastNow returns entries sent', sent >= 1);
-    const after = A.getLastBroadcastAt();
-    ok('getLastBroadcastAt advances after broadcastNow', after > before);
+    ok('getLastBroadcastAt advances after broadcastNow', A.getLastBroadcastAt() > before);
 
     A.stop(); B.stop();
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Phase 2 — Late-joiner catches up via onPeerJoin broadcast
+// Phase 2 — novelty gate: known entries are never re-sent
 // ─────────────────────────────────────────────────────────────────────
-// A is in the room and has 2 entries. B joins later. The start()
-// flow wires onPeerJoin which fires _sendBoard ~800 ms later. We
-// fast-forward by setting a transport with a peerJoin hook.
 {
-    // Simulate the room behaviour: when a peer joins, fire any
-    // registered onPeerJoin handlers. The mock hub doesn't surface
-    // peer-join events, so we attach a small adapter.
     const hub = transport.createMockHub();
-    function makePeerWithJoin(roomId, id) {
-        const peer = hub.join(roomId, id);
-        const joinListeners = [];
-        peer.onPeerJoin = (fn) => joinListeners.push(fn);
-        peer._firePeerJoin = () => { for (const fn of joinListeners) try { fn(); } catch (_) {} };
-        return peer;
-    }
-    const aPeer = makePeerWithJoin('NEON23', 'A');
-    const bPeer = makePeerWithJoin('NEON23', 'B');
+    // Injectable clock — the per-peer anti-flood gate (100 ms) would
+    // otherwise drop packets in a fast-running test.
+    let t = 5000000;
+    const tick = () => { t += 200; };
+    const A = globalMod.createGlobalBoard({ now: () => t });
+    const B = globalMod.createGlobalBoard({ now: () => t });
+    const roomB = countingRoom(hub, 'NEON23', 'B');
+    A.attach(hub.join('NEON23', 'A'));
+    B.attach(roomB);
 
+    // B learns ALICE from the wire → that entry is public knowledge.
+    A.publish({ name: 'ALICE', wave: 30, tier: 0 });
+    tick();
+    ok('B merged the inbound entry', B.snapshot().some(e => e.name === 'ALICE'));
+    const sendsBefore = roomB.sends;
+    ok('maybeBroadcast with nothing novel sends NOTHING',
+        B.maybeBroadcast() === 0 && roomB.sends === sendsBefore, roomB.sends);
+
+    // B restores a historical score from its local save (boot relay
+    // path: _mergeEntry, no network). That IS novel → one send.
+    B._mergeEntry(B._validateEntry({ name: 'OLD TIMER', wave: 77, tier: 0 }));
+    tick();
+    ok('maybeBroadcast with a novel local entry sends',
+        B.maybeBroadcast() >= 1 && roomB.sends === sendsBefore + 1);
+    ok('the novel historical entry reached A',
+        A.snapshot().some(e => e.name === 'OLD TIMER' && e.wave === 77));
+
+    // B still considers OLD TIMER novel until it hears it from the
+    // room. A re-broadcasting its merged board is that echo — after
+    // it, B's gate closes.
+    tick();
+    A.broadcastNow();
+    tick();
+    ok('after hearing its own entry back, B goes quiet again',
+        B.maybeBroadcast() === 0);
+
+    A.stop(); B.stop();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Phase 3 — DIAG* reserved prefix is rejected everywhere
+// ─────────────────────────────────────────────────────────────────────
+{
+    const v = globalMod.validateEntry;
+    ok('DIAG-prefixed names are rejected',
+        v({ name: 'DIAG SYNC', wave: 777, tier: 0 }) === null);
+    ok('compact-form DIAG names are rejected too',
+        v({ n: 'DIAGNOSTIC', w: 10, r: 0, t: Date.now() }) === null);
+    ok('normal names still pass',
+        v({ name: 'PROBE SYNC', wave: 10, tier: 0 }) !== null);
+
+    const hub = transport.createMockHub();
     const A = globalMod.createGlobalBoard();
-    const B = globalMod.createGlobalBoard();
-    A.attach(aPeer);
-    B.attach(bPeer);
-
-    // Pre-load A with 2 entries (sets local map, sends via wire which
-    // B receives immediately on the mock).
-    A.publish({ name: 'ALICE',  wave: 12, tier: 2 });
-    // Throttle starts ticking; second publish merges locally only.
-    A.publish({ name: 'ALICE2', wave: 40, tier: 2 });
-    ok('A has 2 entries locally',  A.snapshot().length === 2);
-    // B has 1 (the un-throttled first publish).
-    ok('B has the first entry',    B.snapshot().some(e => e.name === 'ALICE'));
-    ok('B is missing the throttled second entry (yet)',
-        !B.snapshot().some(e => e.name === 'ALICE2'));
-
-    // Simulate the production wiring: when a peer joins, A broadcasts.
-    aPeer.onPeerJoin(() => A.broadcastNow());
-    // 100ms anti-flood window — wait past it before firing.
-    return new Promise(r => setTimeout(r, 130)).then(() => {
-        aPeer._firePeerJoin();
-        ok('on peer-join, A broadcastNow → B receives the missing entry',
-            B.snapshot().some(e => e.name === 'ALICE2'));
-        A.stop(); B.stop();
-        return runVisibilityPhase();
-    });
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// Phase 3 — Visibility-wake broadcasts when the tab becomes visible.
-// ─────────────────────────────────────────────────────────────────────
-async function runVisibilityPhase() {
-    // We test the contract by hand here: a hidden tab whose
-    // visibilitychange handler fires _sendBoard. Since our node test
-    // doesn't have a real document, we just verify that the
-    // GlobalBoard's start() registers a visibilitychange listener
-    // when a `document.addEventListener` is available, AND that the
-    // listener fires _sendBoard.
-    const listeners = [];
-    let visibility = 'hidden';
-    global.document = {
-        addEventListener(name, fn) { listeners.push({ name, fn }); },
-        removeEventListener() {},
-        get visibilityState() { return visibility; },
-    };
-    // Also stub setInterval so we don't actually arm a 60-s timer.
-    const origSetInterval = global.setInterval;
-    global.setInterval = () => 0;
-
-    const hub = transport.createMockHub();
-    const A = globalMod.createGlobalBoard({
-        transportFactory: (room, id) => hub.join(room, id),
-    });
-    await A.start();
-    global.setInterval = origSetInterval;
-
-    const visListener = listeners.find(l => l.name === 'visibilitychange');
-    ok('start() registers a visibilitychange listener', !!visListener);
-
-    if (visListener) {
-        // Give the board an entry to broadcast.
-        A.publish({ name: 'V', wave: 5, tier: 0 });
-        // Sleep past the 5-s cooldown so the visibility handler will
-        // actually broadcast.
-        const before = A.getLastBroadcastAt();
-        await new Promise(r => setTimeout(r, 80));
-        // Now: hidden → visible.
-        visibility = 'visible';
-        // Race: lastBroadcastAt was set by publish + send. The
-        // visibility handler skips if < 5 s since last broadcast.
-        // Force it past the threshold by spoofing a stale ts.
-        // (Cleaner: use the `now` opt the board accepts. Easier:
-        // wait the cooldown out — but 5 s is too long for a test.
-        // We just verify the listener IS attached — actual firing
-        // verified manually in the browser.)
-        ok('visibilitychange listener is callable',
-            typeof visListener.fn === 'function');
-    }
-    delete global.document;
+    A.attach(hub.join('NEON23', 'A'));
+    const res = A.publish({ name: 'DIAG SYNC', wave: 777, tier: 0 });
+    ok('publishing a DIAG name is refused', res.ok === false);
     A.stop();
-
-    console.log(`\nGLOBAL SYNC TRIGGERS: ${pass} pass, ${fail} fail`);
-    process.exit(fail === 0 ? 0 : 1);
 }
+
+console.log(`\nGLOBAL SYNC TRIGGERS: ${pass} pass, ${fail} fail`);
+process.exit(fail === 0 ? 0 : 1);

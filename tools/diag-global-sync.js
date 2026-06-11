@@ -69,10 +69,25 @@ const path = require('path');
         console.log(`page ${i === 0 ? 'A' : 'B'} peerCount:`, pc);
     }
 
+    // Live-sync phases run on a THROWAWAY room, never the production
+    // NEON23 board — test entries on the real board linger for the
+    // full TTL (30 days) and pollute what players see. The transport
+    // check above already exercised the real NEON23 join (joining
+    // publishes nothing).
+    const DIAG_ROOM = 'DIAGRM';
+    for (const page of pages) {
+        await page.evaluate(async (room) => {
+            window.__diagBoard = NeonMP.global.createGlobalBoard({
+                transportFactory: () => NeonMP.mqttDirect.joinRoom(room),
+            });
+            await window.__diagBoard.start();
+        }, DIAG_ROOM);
+    }
+
     // Page A publishes a distinctive score.
     const stamp = Date.now();
     const pub = await pages[0].evaluate((t) =>
-        window.NeonMP.global.publish({ name: 'DIAG SYNC', wave: 777, tier: 0, t }), stamp);
+        window.__diagBoard.publish({ name: 'PROBE SYNC', wave: 777, tier: 0, t }), stamp);
     console.log('A publish result:', JSON.stringify(pub));
 
     // Poll B for up to 20 s.
@@ -80,27 +95,26 @@ const path = require('path');
     for (let i = 0; i < 20 && !found; i++) {
         await new Promise(r => setTimeout(r, 1000));
         found = await pages[1].evaluate(() =>
-            (window.NeonMP.global.snapshot() || []).find(e => e.name === 'DIAG SYNC') || null);
+            (window.__diagBoard.snapshot() || []).find(e => e.name === 'PROBE SYNC') || null);
     }
-    console.log('B sees DIAG SYNC:', JSON.stringify(found));
+    console.log('B sees PROBE SYNC:', JSON.stringify(found));
 
     // Also try the reverse direction with broadcastNow (bypasses throttle).
     await pages[1].evaluate((t) =>
-        window.NeonMP.global.publish({ name: 'DIAG REVERSE', wave: 555, tier: 0, t }), stamp);
+        window.__diagBoard.publish({ name: 'PROBE REVERSE', wave: 555, tier: 0, t }), stamp);
     let found2 = null;
     for (let i = 0; i < 15 && !found2; i++) {
         await new Promise(r => setTimeout(r, 1000));
         found2 = await pages[0].evaluate(() =>
-            (window.NeonMP.global.snapshot() || []).find(e => e.name === 'DIAG REVERSE') || null);
+            (window.__diagBoard.snapshot() || []).find(e => e.name === 'PROBE REVERSE') || null);
     }
-    console.log('A sees DIAG REVERSE:', JSON.stringify(found2));
+    console.log('A sees PROBE REVERSE:', JSON.stringify(found2));
 
     // ── Phase 3: NON-OVERLAPPING sessions via the retained snapshot ──
     // Player C publishes and CLOSES THE TAB. Player D opens the game
     // afterwards and must still see C's score. Uses a throwaway room
     // so the production NEON23 retained snapshot isn't polluted with
     // test entries.
-    const DIAG_ROOM = 'DIAGRM';
     const ctxC = await browser.newContext();
     const pageC = await ctxC.newPage();
     await pageC.goto(`http://localhost:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });

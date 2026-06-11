@@ -1,7 +1,18 @@
-// Regression: in coop the host broadcasts wave alignment so a
-// non-host whose local sim has drifted snaps to the host's wave on
-// the next 'wave' message. Tested via the
-// window.__neonMPApplyWave hook (mirror what arrives over the room).
+// Regression: co-op wave sync is HOST-AUTHORITATIVE.
+//
+// The host broadcasts every wave start as {kind:'wave', w, hp} where
+// hp is ITS finalHpMult for the wave. The non-host:
+//   * never self-advances waves (game._mpHoldWaves pins the sim at
+//     waveCooldown 0 until the host's broadcast arrives) — this is
+//     what stops a faster device racing ahead, the #1 source of the
+//     "co-op acts like race" desync;
+//   * snaps to the host's wave in BOTH directions (the old
+//     forward-only rule let an already-drifted client stay ahead
+//     forever);
+//   * spawns with the host's hp multiplier, not its own (enemy HP
+//     scales with local tower spending, which can differ);
+//   * applies the host's periodic enemy digest ('es') — HP snaps,
+//     host-dead enemies die locally without loot credit.
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -31,9 +42,10 @@ const path = require('path');
     await page.click('#menu-start-btn'); await page.waitForTimeout(200);
     await page.click('#start-btn');     await page.waitForTimeout(700);
 
-    const hookExists = await page.evaluate(() =>
-        typeof window.__neonMPApplyWave === 'function');
-    ok('window.__neonMPApplyWave is exposed', hookExists === true);
+    const hooksExist = await page.evaluate(() =>
+        typeof window.__neonMPApplyWave === 'function' &&
+        typeof window.__neonMPApplyEnemyState === 'function');
+    ok('__neonMPApplyWave + __neonMPApplyEnemyState exposed', hooksExist === true);
 
     // 1) Apply a host wave that is AHEAD of ours.
     await page.evaluate(() => window.__neonMPApplyWave(7));
@@ -41,14 +53,14 @@ const path = require('path');
     const wAfter = await page.evaluate(() => window.game.wave);
     ok('wave snaps forward to host value', wAfter === 7);
 
-    // 2) Apply a host wave that is BEHIND — we do NOT regress.
-    // Forward-only sync prevents a stale host message from
-    // dragging the non-host BACK to an earlier wave (which would
-    // duplicate spawns and credit kills twice).
+    // 2) Apply a host wave that is BEHIND — the host is authoritative
+    // in BOTH directions now (the client can't legitimately be ahead
+    // since _mpHoldWaves stops self-advance; if state disagrees, the
+    // host's view wins).
     await page.evaluate(() => window.__neonMPApplyWave(3));
     await page.waitForTimeout(80);
     const wBack = await page.evaluate(() => window.game.wave);
-    ok('wave does NOT regress below current (forward-only sync)', wBack === 7);
+    ok('wave snaps BACKWARD to host value too (host-authoritative)', wBack === 3);
 
     // 3) Invalid input is ignored.
     await page.evaluate(() => {
@@ -58,24 +70,74 @@ const path = require('path');
         window.__neonMPApplyWave(null);
     });
     const wStable = await page.evaluate(() => window.game.wave);
-    ok('invalid wave inputs ignored', wStable === 7);
+    ok('invalid wave inputs ignored', wStable === 3);
 
-    // 4) When wave advances forward, enemies + projectiles get
-    // CLEARED so the non-host doesn't carry over stale state from
-    // the prior wave.
-    const advanced = await page.evaluate(() => {
+    // 4) Wave snap clears leftover enemies/projectiles and honours the
+    // host's hp multiplier.
+    const hpForced = await page.evaluate(() => {
         window.game.enemies.push({ active: true, hp: 99 });   // fake leftover
         window.game.projectiles.push({ active: true });
-        window.__neonMPApplyWave(10);
-        return { enemies: window.game.enemies.length, projectiles: window.game.projectiles.length };
+        window.__neonMPApplyWave(10, 5.5);
+        return window.game.lastHpMult;
     });
-    // After startWave runs, new enemies are spawned later via spawnTimer
-    // so the counts immediately after may be 0 (cleared) or some startup
-    // amount; what we care about is that the stale entries are gone and
-    // game.wave moved forward.
     const wAdv = await page.evaluate(() => window.game.wave);
-    ok('wave advanced to 10 with leftover state cleared',
-        wAdv === 10);
+    ok('wave advanced to 10 with leftover state cleared', wAdv === 10);
+    ok('host hp multiplier forced into startWave (lastHpMult = 5.5)',
+        hpForced === 5.5, hpForced);
+
+    // 5) _mpHoldWaves pins the sim: cooldown reaches 0 but the wave
+    // does NOT advance while held; releasing the hold lets it advance.
+    const holdRes = await page.evaluate(() => {
+        const g = window.game;
+        g.state = 'playing';
+        g._mpHoldWaves = true;
+        g.currentWaveDef = null;
+        g.enemies.length = 0;
+        g.waveCooldown = 2;
+        const before = g.wave;
+        for (let i = 0; i < 10; i++) g.update();
+        const heldWave = g.wave;
+        const heldCooldown = g.waveCooldown;
+        g._mpHoldWaves = false;
+        g.waveCooldown = 1;
+        g.update();
+        return { before, heldWave, heldCooldown, releasedWave: g.wave };
+    });
+    ok('held client does NOT self-advance at cooldown 0',
+        holdRes.heldWave === holdRes.before && holdRes.heldCooldown === 0,
+        JSON.stringify(holdRes));
+    ok('releasing the hold lets the wave advance again',
+        holdRes.releasedWave === holdRes.before + 1, JSON.stringify(holdRes));
+
+    // 6) Enemy digest: HP snaps by _spawnIdx; host-dead enemies die
+    // locally without loot credit; stale-wave digests are ignored.
+    const digest = await page.evaluate(() => {
+        const g = window.game;
+        g.enemies.length = 0;
+        g.enemies.push(
+            { active: true, _spawnIdx: 0, hp: 100, maxHp: 100 },
+            { active: true, _spawnIdx: 1, hp: 100, maxHp: 100 },
+            { active: true, hp: 50, maxHp: 50 }   // splitter child — no idx, untouched
+        );
+        g.enemiesSpawned = 2;
+        // Stale digest (wrong wave) must be a no-op.
+        window.__neonMPApplyEnemyState({ w: g.wave + 5, n: 2, e: [[0, 10]] });
+        const staleHp = g.enemies[0].hp;
+        // Live digest: idx0 at ~half HP on the host, idx1 dead on host.
+        window.__neonMPApplyEnemyState({ w: g.wave, n: 2, e: [[0, 128]] });
+        return {
+            staleHp,
+            snappedHp: g.enemies[0].hp,
+            deadActive: g.enemies[1].active,
+            deadNoCredit: g.enemies[1]._noLocalCredit === true,
+            childHp: g.enemies[2].hp,
+        };
+    });
+    ok('stale-wave digest ignored', digest.staleHp === 100, JSON.stringify(digest));
+    ok('digest snaps HP by spawn index', digest.snappedHp === Math.round(100 * 128 / 255), digest.snappedHp);
+    ok('host-dead enemy killed locally without loot credit',
+        digest.deadActive === false && digest.deadNoCredit === true, JSON.stringify(digest));
+    ok('idx-less enemies (splitter children) untouched', digest.childHp === 50);
 
     ok('no JS errors', errs.length === 0, errs.join(' / '));
 

@@ -116,8 +116,14 @@ const path = require('path');
         return (async () => {
             await board.start();
             global.setInterval = origSetInterval;
-            ok('periodic broadcast cadence = 60 s (once per minute)',
-                observedInterval === 60000);
+            // Bandwidth: the heartbeat slowed from 60 s to 10 min and
+            // became novelty-gated (see global-sync-triggers.test.js)
+            // once the broker-retained snapshot took over newcomer
+            // catch-up. Assert the configured cadence so an accidental
+            // return to chatty sync fails loudly.
+            ok('periodic broadcast cadence matches HEARTBEAT_MS (10 min, novelty-gated)',
+                observedInterval === globalMod.HEARTBEAT_MS && globalMod.HEARTBEAT_MS === 600000,
+                observedInterval);
             board.stop();
             return runBrowserPhase();
         })();

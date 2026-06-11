@@ -37,10 +37,19 @@
     // plenty for a "I beat my high score" notification; anything faster
     // is treated as spam.
     const PUBLISH_THROTTLE_MS = 5000;
+    // Slow background heartbeat. Only fires a send when we hold NOVEL
+    // entries (something no inbound packet has shown us) — an idle
+    // client that knows nothing new sends nothing, ever. Newcomer
+    // catch-up is the broker-retained snapshot's job, not ours.
+    const HEARTBEAT_MS = 10 * 60 * 1000;
     // Cap remote roster size so a flood of fake names can't OOM us.
     const MAX_ENTRIES = 200;
-    // Drop entries older than this on every render.
-    const TTL_MS = 1000 * 60 * 60 * 24; // 24 h
+    // Drop entries older than this on every render. A month: the
+    // player base is small, so a 24 h window left the board looking
+    // empty most of the time. Size stays bounded regardless — the
+    // roster caps at MAX_ENTRIES (oldest evicted) and broadcasts /
+    // retained snapshots carry at most the top 50 entries.
+    const TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 
     // Validate a wire entry. Reject anything that looks malformed.
     // ACCEPTS BOTH legacy long-form ({name, wave, tier, t, cheated,
@@ -62,6 +71,12 @@
             .trim()
             .slice(0, 16);
         if (name.length === 0) return null;
+        // Reserved diagnostics prefix. tools/diag-global-sync.js once
+        // published DIAG* entries to the live room; with a 30-day TTL
+        // those would squat on the board for a month. Rejecting the
+        // prefix on receive retires them everywhere without having to
+        // rewrite the broker's retained state.
+        if (name.lastIndexOf('DIAG', 0) === 0) return null;
         if (!Number.isInteger(rawWave)) return null;
         if (rawWave < 1 || rawWave > 9999) return null;
         if (rawTier != null && !Number.isInteger(rawTier)) return null;
@@ -118,11 +133,33 @@
         }
         let rebroadcastTimer = null;
         let lastBroadcastAt = 0;
-        // Sends our local board to the room. Used by the 60-s
-        // background timer, the peer-join trigger, the visibility-
-        // wake hook, and the manual broadcastNow() entry point.
+        // Highest wave we've SEEN ARRIVE from the room, per name|tier
+        // key. Anything in our board that beats this is "novel" — the
+        // room hasn't shown it to us, so it's worth spending bandwidth
+        // on. Everything else is already out there (we learned it from
+        // an inbound packet or the retained snapshot).
+        const inboundHas = new Map();
+        function _haveNovel() {
+            for (const [key, e] of board) {
+                const seen = inboundHas.get(key);
+                if (seen === undefined || e.wave > seen) return true;
+            }
+            return false;
+        }
+        // Heartbeat body — broadcast only when there's something novel.
+        // Exposed as maybeBroadcast() for tests.
+        function _maybeBroadcast() { return _haveNovel() ? _sendBoard() : 0; }
+        // Sends our local board to the room. Used by the slow
+        // heartbeat (novelty-gated), publish(), and the manual
+        // broadcastNow() entry point.
         // Returns entries sent (0 if no room or empty).
         function _sendBoard() {
+            // Sweep BEFORE broadcasting. snapshot() sweeps on render,
+            // but the 60-s periodic tick reads the board directly — an
+            // idle background tab would otherwise keep relaying (and
+            // re-retaining) entries past their TTL forever, which gets
+            // worse the longer the TTL is.
+            sweepTTL();
             if (!room || board.size === 0) return 0;
             // Send entries in compact form — ~50% smaller than the
             // canonical long-form. validateEntry on the receiver
@@ -178,41 +215,22 @@
                 return null;
             }
             _wireRoom();
-            // Background sync: every 60 s rebroadcast our full local
-            // board so any peer that joined after our last publish
-            // gets caught up.
-            try { rebroadcastTimer = setInterval(_sendBoard, 60000); } catch (_) {}
-            // Initial broadcast after a short delay (let onPeerJoin
-            // listeners and the data channel settle on both sides).
-            try { setTimeout(_sendBoard, 2500); } catch (_) {}
-
-            // Peer-join trigger — when a new device joins NEON23, we
-            // immediately broadcast our board so the newcomer doesn't
-            // have to wait up to 60 s for the next periodic. Trystero
-            // surfaces this via room.onPeerJoin (the wrapper Trystero
-            // adapter forwards it).
-            try {
-                if (room && typeof room.onPeerJoin === 'function') {
-                    room.onPeerJoin(() => {
-                        // small delay so the data channel is fully up.
-                        setTimeout(_sendBoard, 800);
-                    });
-                }
-            } catch (_) {}
-
-            // Visibility-wake. setInterval gets throttled — or stops —
-            // when the tab is hidden. When the player tabs back in,
-            // fire an immediate broadcast so they see the latest
-            // state instead of waiting for the next 60-s tick.
-            try {
-                if (typeof document !== 'undefined' && document.addEventListener) {
-                    document.addEventListener('visibilitychange', () => {
-                        if (document.visibilityState === 'visible') {
-                            if (now() - lastBroadcastAt > 5000) _sendBoard();
-                        }
-                    });
-                }
-            } catch (_) {}
+            // Bandwidth posture (the broker connection is metered):
+            // the broker-RETAINED snapshot catches up newcomers and
+            // waking tabs by itself — retained messages are re-sent on
+            // every subscribe/reconnect — so the old active triggers
+            // (broadcast on peer-join, on visibility-wake, fast 60-s
+            // timer) are gone. We send only when we hold NOVEL entries:
+            //   * once shortly after start, if our localStorage cache
+            //     has entries the retained snapshot didn't (the 6-s
+            //     delay lets the retained snapshot arrive and merge
+            //     first, so a known board costs zero sends), and
+            //   * on a slow heartbeat, same novelty gate — an idle
+            //     client sends nothing at all.
+            // publish() still sends immediately — a fresh score is
+            // novel by definition.
+            try { rebroadcastTimer = setInterval(_maybeBroadcast, HEARTBEAT_MS); } catch (_) {}
+            try { setTimeout(_maybeBroadcast, 6000); } catch (_) {}
             return room;
         }
         function _wireRoom() {
@@ -231,6 +249,12 @@
                 for (const raw of msg.entries.slice(0, 50)) {
                     const v = validateEntry(raw);
                     if (!v) continue;
+                    // Record what the room has shown us — these entries
+                    // are public knowledge, so rebroadcasting them is
+                    // wasted bandwidth (see _haveNovel).
+                    const key = v.name + '|a' + v.tier;
+                    const seen = inboundHas.get(key);
+                    if (seen === undefined || v.wave > seen) inboundHas.set(key, v.wave);
                     if (mergeEntry(v)) added++;
                 }
                 if (added > 0) notify();
@@ -327,6 +351,7 @@
         return {
             start, attach, stop, publish, snapshot, onUpdate, clear,
             broadcastNow, getLastBroadcastAt,
+            maybeBroadcast: _maybeBroadcast,
             _validateEntry: validateEntry,
             _mergeEntry: mergeEntry,
         };
@@ -340,6 +365,7 @@
         MAX_ENTRIES,
         TTL_MS,
         PUBLISH_THROTTLE_MS,
+        HEARTBEAT_MS,
     };
     // Singleton accessor — every page wants one shared board.
     let _singleton = null;
