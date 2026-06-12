@@ -766,7 +766,24 @@ class Game {
         // still tracks the fingers.
         const c = this._mapLayerT || { a: A, ox: OX, oy: OY };
         const k = A / c.a;
-        this.ctx.setTransform(k, 0, 0, k, OX - k * c.ox, OY - k * c.oy);
+        const bx = OX - k * c.ox;
+        const by = OY - k * c.oy;
+        // Coverage check: the warped layer occupies [bx, bx + k·W] ×
+        // [by, by + k·H] in device space. Panning or zooming OUT moves
+        // regions into view that the stale raster never contained —
+        // blitting it would leave unrendered patches trailing the
+        // finger. For those frames, draw the map directly (full
+        // vector, slightly more work, always complete); the cache
+        // re-rasterizes the moment the gesture ends.
+        const covers =
+            bx <= 0 && by <= 0 &&
+            bx + k * this._mapLayer.width  >= this.canvas.width &&
+            by + k * this._mapLayer.height >= this.canvas.height;
+        if (!covers) {
+            this.map.draw(this.ctx);
+            return;
+        }
+        this.ctx.setTransform(k, 0, 0, k, bx, by);
         this.ctx.drawImage(this._mapLayer, 0, 0);
         this.ctx.setTransform(A, 0, 0, A, OX, OY);
     }

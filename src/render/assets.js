@@ -12,6 +12,70 @@ function clearGlow(ctx) {
     ctx.shadowBlur = 0;
 }
 
+// ── Sprite cache ─────────────────────────────────────────────────────
+// shadowBlur is a per-draw-call Gaussian blur — the single most
+// expensive Canvas2D operation, and we were paying it for EVERY tower,
+// enemy and projectile EVERY frame. Bodies are static per (type,
+// state), so we rasterize each one once (glow included) into a small
+// offscreen canvas at the live device scale and blit it per frame.
+// Dynamic content (health bars, status rings, rotation, level stars)
+// stays live vector on top.
+//
+// Crispness invariant: sprites are rasterized at RENDER_SCALE × zoom
+// device pixels and blitted at exactly logical-size/scale, i.e. 1:1
+// device pixels — the same vector-crisp guarantee as direct drawing.
+// The whole cache flushes when that scale changes (resize / zoom
+// settle); during an active pinch gesture the stale-scale sprites keep
+// being used (smoothly rescaled by the world transform, like the map
+// layer) and re-rasterize crisp on the first frame after release.
+const _spriteCache = new Map();
+let _spriteCacheScale = 0;
+function _spriteLiveScale() {
+    const z = (typeof window !== 'undefined' && window.__neonZoom) ? window.__neonZoom.scale : 1;
+    return (window.RENDER_SCALE || 1) * z;
+}
+function getSprite(key, logicalW, logicalH, painter) {
+    if (typeof document === 'undefined' || !document.createElement) return null;
+    const gesture = (typeof window !== 'undefined') && window.__neonZoomGesture === true;
+    const live = _spriteLiveScale();
+    if (_spriteCacheScale !== live && !(gesture && _spriteCacheScale !== 0)) {
+        _spriteCache.clear();
+        _spriteCacheScale = live;
+    }
+    let s = _spriteCache.get(key);
+    if (!s) {
+        const scale = _spriteCacheScale || live;
+        const c = document.createElement('canvas');
+        c.width  = Math.max(1, Math.ceil(logicalW * scale));
+        c.height = Math.max(1, Math.ceil(logicalH * scale));
+        const sctx = c.getContext('2d');
+        sctx.scale(scale, scale);
+        sctx.translate(logicalW / 2, logicalH / 2);   // painter draws around (0,0)
+        painter(sctx);
+        s = { canvas: c, w: logicalW, h: logicalH };
+        _spriteCache.set(key, s);
+    }
+    return s;
+}
+// Test/diagnostic hook — cache size for churn assertions.
+if (typeof window !== 'undefined') {
+    window.__neonSpriteCacheSize = () => _spriteCache.size;
+}
+// Blit a cached sprite centred on (x, y) in logical units, optionally
+// rotated. When the live scale matches the raster scale this lands on
+// 1:1 device pixels.
+function blitSprite(ctx, s, x, y, angle) {
+    if (angle) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+        ctx.drawImage(s.canvas, -s.w / 2, -s.h / 2, s.w, s.h);
+        ctx.restore();
+    } else {
+        ctx.drawImage(s.canvas, x - s.w / 2, y - s.h / 2, s.w, s.h);
+    }
+}
+
 function drawGridTile(ctx, x, y, size) {
     ctx.fillStyle = '#0f172a'; // dark background
     ctx.fillRect(x, y, size, size);
@@ -78,17 +142,12 @@ function drawSpawnerTile(ctx, x, y, size) {
 
 // Entity drawing
 
-function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burning = false, shielded = false, splitter = false, isBoss = false) {
-    ctx.save();
-    ctx.translate(x, y);
-    
-    // Neon glow
-    let color = type === 'fast' ? '#fde047' : type === 'tank' ? '#f87171' : type === 'air' ? '#60a5fa' : '#a7f3d0';
-    if (isSlowed) color = '#38bdf8'; // Override glow to light blue when frozen
-    
+// Body painter — everything static per (type, radius, color), glow
+// included. Draws around (0,0); used both by the sprite raster and
+// the no-DOM fallback.
+function _paintEnemyBody(ctx, type, radius, color) {
     setGlow(ctx, color, 10);
 
-    // Body
     ctx.fillStyle = '#0f172a';
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
@@ -101,7 +160,7 @@ function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burni
         ctx.fill();
         setGlow(ctx, color, 10);
         ctx.fillStyle = '#0f172a';
-        
+
         ctx.beginPath();
         ctx.moveTo(0, -radius*1.5);
         ctx.lineTo(radius, 0);
@@ -124,20 +183,42 @@ function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burni
         ctx.beginPath();
         ctx.arc(0, 0, radius, 0, Math.PI*2);
     }
-    
+
     if (type !== 'tank') {
         ctx.fill();
         ctx.stroke();
     }
-    
-    clearGlow(ctx);
 
-    // Health bar
+    clearGlow(ctx);
+}
+
+function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burning = false, shielded = false, splitter = false, isBoss = false) {
+    // Neon glow
+    let color = type === 'fast' ? '#fde047' : type === 'tank' ? '#f87171' : type === 'air' ? '#60a5fa' : '#a7f3d0';
+    if (isSlowed) color = '#38bdf8'; // Override glow to light blue when frozen
+
+    // Static body+glow via the sprite cache; one drawImage instead of
+    // a shadowBlur'd path per enemy per frame. Box is sized to cover
+    // the air silhouette (±1.5r) + ground shadow (y≈20) + glow bleed.
+    const side = radius * 3 + 44;
+    const sprite = getSprite('e|' + type + '|' + color + '|' + radius, side, side,
+        (sctx) => _paintEnemyBody(sctx, type, radius, color));
+    if (sprite) {
+        blitSprite(ctx, sprite, x, y);
+    } else {
+        ctx.save();
+        ctx.translate(x, y);
+        _paintEnemyBody(ctx, type, radius, color);
+        ctx.restore();
+    }
+
+    // Health bar — dynamic, stays live (two rects, no glow).
+    ctx.save();
+    ctx.translate(x, y);
     ctx.fillStyle = '#ef4444';
     ctx.fillRect(-radius, -radius - 8, radius*2, 4);
     ctx.fillStyle = '#22c55e';
     ctx.fillRect(-radius, -radius - 8, radius*2 * healthRatio, 4);
-
     ctx.restore();
 
     // M3: Flamethrower burn overlay — orange translucent aura.
@@ -201,18 +282,7 @@ const TOWER_VARIANT_RENDER = {
     income_research: { base: 'income',   accent: '#34d399' },  // research green
 };
 
-function drawTower(ctx, x, y, type, size, angle, level = 1) {
-    // Resolve variant → base type so the existing per-shape renderers
-    // (basic / sniper / …) light up for variants too. Without this,
-    // anything ending in _cryo / _scatter / _flame / etc. fell through
-    // every branch and rendered as just the empty base ring.
-    const variant = TOWER_VARIANT_RENDER[type];
-    const renderType = variant ? variant.base : type;
-
-    ctx.save();
-    ctx.translate(x + size/2, y + size/2);
-
-    // Base
+function _paintTowerBase(ctx, size) {
     ctx.fillStyle = '#1e293b';
     ctx.strokeStyle = 'rgba(255,255,255,0.1)';
     ctx.lineWidth = 2;
@@ -220,16 +290,16 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
     ctx.arc(0, 0, size/2 - 4, 0, Math.PI*2);
     ctx.fill();
     ctx.stroke();
+}
 
-    // Turret rotation
-    ctx.rotate(angle);
-
-    const baseColor = renderType === 'sniper' ? '#f472b6' : renderType === 'rapid' ? '#a3e635' : renderType === 'laser' ? '#8b5cf6' : renderType === 'rocket' ? '#f97316' : renderType === 'electric' ? '#0ea5e9' : renderType === 'flak' ? '#60a5fa' : renderType === 'silo' ? '#ef4444' : renderType === 'income' ? '#fbbf24' : '#38bdf8';
-    const color = variant ? variant.accent : baseColor;
-
+// Turret painter — type-specific silhouette with glow, drawn around
+// (0,0) UNROTATED (rotation is applied at blit time, where it's a
+// cheap bitmap rotate instead of a re-blurred path).
+function _paintTurret(ctx, renderType, color, size) {
     setGlow(ctx, color, 8);
     ctx.fillStyle = '#0f172a';
     ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
 
     if (renderType === 'basic') {
         // Round body, one barrel
@@ -280,8 +350,7 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
         ctx.fillRect(0, -size/6, size/2, size/8); 
         ctx.fillRect(0, size/16, size/2, size/8);
     } else if (renderType === 'electric') {
-        ctx.rotate(-angle); // Make it static, no rotation
-        
+        // Static type — drawTower blits it with angle 0.
         ctx.beginPath();
         ctx.arc(0, 0, size/3, 0, Math.PI*2);
         ctx.stroke();
@@ -318,7 +387,7 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
             ctx.fill();
         }
     } else if (renderType === 'income') {
-        ctx.rotate(-angle); // static, no rotation
+        // Static type — drawTower blits it with angle 0.
         // Diamond shape
         ctx.beginPath();
         ctx.moveTo(0, -size/2.5);
@@ -335,8 +404,43 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
         clearGlow(ctx);
         ctx.fillText('¢', 0, 1);
     }
-    
-    ctx.restore();
+
+    clearGlow(ctx);
+}
+
+function drawTower(ctx, x, y, type, size, angle, level = 1) {
+    // Resolve variant → base type so the existing per-shape renderers
+    // (basic / sniper / …) light up for variants too. Without this,
+    // anything ending in _cryo / _scatter / _flame / etc. fell through
+    // every branch and rendered as just the empty base ring.
+    const variant = TOWER_VARIANT_RENDER[type];
+    const renderType = variant ? variant.base : type;
+    const baseColor = renderType === 'sniper' ? '#f472b6' : renderType === 'rapid' ? '#a3e635' : renderType === 'laser' ? '#8b5cf6' : renderType === 'rocket' ? '#f97316' : renderType === 'electric' ? '#0ea5e9' : renderType === 'flak' ? '#60a5fa' : renderType === 'silo' ? '#ef4444' : renderType === 'income' ? '#fbbf24' : '#38bdf8';
+    const color = variant ? variant.accent : baseColor;
+    const cx = x + size / 2, cy = y + size / 2;
+    // electric / income don't track targets — their sprite is blitted
+    // unrotated (the old code rotated then counter-rotated).
+    const turretAngle = (renderType === 'electric' || renderType === 'income') ? 0 : angle;
+
+    // Base plate (shared by every tower) + per-type turret, both from
+    // the sprite cache. Turret box pads for the longest barrel
+    // (sniper: size/2 + 8) plus glow bleed.
+    const basePlate = getSprite('twr-base|' + size, size + 8, size + 8,
+        (sctx) => _paintTowerBase(sctx, size));
+    const turret = getSprite('twr|' + type + '|' + size, size + 40, size + 40,
+        (sctx) => _paintTurret(sctx, renderType, color, size));
+    if (basePlate && turret) {
+        blitSprite(ctx, basePlate, cx, cy);
+        blitSprite(ctx, turret, cx, cy, turretAngle);
+    } else {
+        // No-DOM fallback: paint directly (node test stubs).
+        ctx.save();
+        ctx.translate(cx, cy);
+        _paintTowerBase(ctx, size);
+        if (turretAngle) ctx.rotate(turretAngle);
+        _paintTurret(ctx, renderType, color, size);
+        ctx.restore();
+    }
 
     const baseType = variant ? variant.base : type;
     const mastery = window.save && window.save.towerMastery && window.save.towerMastery[baseType];
@@ -363,14 +467,7 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
     }
 }
 
-function drawProjectile(ctx, x, y, type, angle = 0) {
-    let color = type === 'sniper' ? '#f472b6' : type === 'rapid' ? '#a3e635' : type === 'rocket' ? '#f97316' : type === 'flak' ? '#60a5fa' : type === 'laser-pulse' ? '#d8b4fe' : '#38bdf8';
-    let size = type === 'sniper' ? 4 : type === 'rapid' ? 2 : type === 'rocket' ? 5 : type === 'flak' ? 3 : type === 'laser-pulse' ? 6 : 3;
-    
-    ctx.save();
-    ctx.translate(x, y);
-    if (type === 'rocket') ctx.rotate(angle);
-    
+function _paintProjectile(ctx, type, color, size) {
     setGlow(ctx, color, 10);
     ctx.fillStyle = color;
 
@@ -403,6 +500,27 @@ function drawProjectile(ctx, x, y, type, angle = 0) {
         ctx.arc(0, 0, size, 0, Math.PI*2);
         ctx.fill();
     }
-    
-    ctx.restore();
+
+    clearGlow(ctx);
+}
+
+function drawProjectile(ctx, x, y, type, angle = 0) {
+    const color = type === 'sniper' ? '#f472b6' : type === 'rapid' ? '#a3e635' : type === 'rocket' ? '#f97316' : type === 'flak' ? '#60a5fa' : type === 'laser-pulse' ? '#d8b4fe' : '#38bdf8';
+    const size = type === 'sniper' ? 4 : type === 'rapid' ? 2 : type === 'rocket' ? 5 : type === 'flak' ? 3 : type === 'laser-pulse' ? 6 : 3;
+
+    // Tiny glow-heavy shapes at potentially hundreds per frame — the
+    // textbook sprite-cache case. Rocket tail extends ~2.2× size
+    // backwards; box pads for that plus glow bleed.
+    const side = size * 6 + 24;
+    const sprite = getSprite('p|' + type, side, side,
+        (sctx) => _paintProjectile(sctx, type, color, size));
+    if (sprite) {
+        blitSprite(ctx, sprite, x, y, type === 'rocket' ? angle : 0);
+    } else {
+        ctx.save();
+        ctx.translate(x, y);
+        if (type === 'rocket') ctx.rotate(angle);
+        _paintProjectile(ctx, type, color, size);
+        ctx.restore();
+    }
 }

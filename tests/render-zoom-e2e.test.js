@@ -174,6 +174,63 @@ const path = require('path');
     ok('a zoom change re-rasterizes the map exactly once',
         cache.zoomCalls === 1, JSON.stringify(cache));
 
+    // ── 4) Mid-gesture pan must never show unrendered patches ──────────
+    // User report: holding + dragging while zoomed exposed blank areas.
+    // Cause: the stale map raster only covers the OLD viewport; warping
+    // it leaves holes where new world scrolls in. The fix falls back to
+    // direct vector drawing for frames the stale layer can't cover.
+    const gesture = await page.evaluate(() => {
+        const g = window.game;
+        const Z = window.__neonZoom;
+        // Settle at zoom 2 panned to the far corner, cache rasterizes.
+        Z.scale = 2; Z.tx = -300; Z.ty = -200;
+        window.__neonZoomGesture = false;
+        g.draw();
+        // Now drag back toward origin DURING a gesture — this scrolls
+        // world regions into view that the cached raster never held.
+        window.__neonZoomGesture = true;
+        Z.tx = -20; Z.ty = -10;
+        g.draw();
+        // Sample a grid of points across the full viewport; every one
+        // must be painted (alpha 255 — the map tiles every pixel).
+        let holes = 0;
+        const W = g.canvas.width, H = g.canvas.height;
+        for (const fx of [0.05, 0.3, 0.6, 0.95]) {
+            for (const fy of [0.05, 0.4, 0.95]) {
+                const px = g.ctx.getImageData(Math.floor(W * fx), Math.floor(H * fy), 1, 1).data;
+                if (px[3] !== 255) holes++;
+            }
+        }
+        window.__neonZoomGesture = false;
+        Z.scale = 1; Z.tx = 0; Z.ty = 0;
+        g._mapLayerKey = null;
+        g.draw();
+        return { holes };
+    });
+    ok('mid-gesture pan leaves no unrendered patches', gesture.holes === 0,
+        JSON.stringify(gesture));
+
+    // ── 5) Entity sprite cache: populated, bounded, scale-keyed ────────
+    const sprites = await page.evaluate(() => {
+        const g = window.game;
+        // A handful of representative entities.
+        g.towers.push(new Tower(2, 2, 'basic'), new Tower(3, 2, 'sniper'), new Tower(4, 2, 'silo'));
+        const P = g.map.path;
+        for (const t of ['normal', 'fast', 'tank', 'air']) {
+            const e = new Enemy(P, t, 1);
+            e.x = P[1].x * window.TILE_SIZE; e.y = P[1].y * window.TILE_SIZE;
+            g.enemies.push(e);
+        }
+        g.draw();
+        const count1 = window.__neonSpriteCacheSize();
+        for (let i = 0; i < 20; i++) g.draw();
+        const count2 = window.__neonSpriteCacheSize();
+        return { count1, count2 };
+    });
+    ok('entity sprites cached after first draw', sprites.count1 > 0, JSON.stringify(sprites));
+    ok('sprite cache is stable across frames (no churn/growth)',
+        sprites.count2 === sprites.count1, JSON.stringify(sprites));
+
     ok('no JS errors', errs.length === 0, errs.join(' / '));
 
     await browser.close();
