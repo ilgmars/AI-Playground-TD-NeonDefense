@@ -89,6 +89,7 @@ const SUITES = [
     { name: 'silo-seeker-cap',        file: 'tests/silo-seeker-cap.test.js' },
     { name: 'reset-save-confirm',     file: 'tests/reset-save-confirm.test.js' },
     { name: 'field-orientation',      file: 'tests/field-orientation.test.js' },
+    { name: 'cutter-enemy',           file: 'tests/cutter-enemy.test.js' },
     { name: 'mobile-pagehide-xp',     file: 'tests/mobile-pagehide-xp.test.js' },
     { name: 'ascpreview-node',        file: 'tests/ascpreview-node.test.js' },
     { name: 'backpack-ui',     file: 'tests/backpack-ui.test.js' },

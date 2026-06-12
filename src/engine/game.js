@@ -494,7 +494,18 @@ class Game {
                     this.enemies.push(boss);
                     this.enemiesSpawned = this.currentWaveDef.count;
                 } else {
-                    const newEnemy = new Enemy(this.map.path, this.currentWaveDef.type, this.currentWaveDef.hpMult);
+                    // Shortcut-cutter substitution — index-based (NOT
+                    // random) so both coop peers spawn identical waves.
+                    let spawnType = this.currentWaveDef.type;
+                    if (spawnType === 'tank' && this.wave >= WAVE_CONFIG.cutterFromWave &&
+                            this.enemiesSpawned % WAVE_CONFIG.cutterEveryNth === 1) {
+                        spawnType = 'cutter';
+                    } else if (spawnType === 'normal' && this.wave >= WAVE_CONFIG.cutterNormalFromWave &&
+                            this.enemiesSpawned % WAVE_CONFIG.cutterNormalEveryNth === 3) {
+                        spawnType = 'cutter';
+                    }
+                    if (spawnType === 'cutter') this.map.computeShortcuts();
+                    const newEnemy = new Enemy(this.map.path, spawnType, this.currentWaveDef.hpMult);
                     if (this.freezeTimer > 0) {
                         newEnemy.frozen = true;
                         newEnemy.frozenFrames = this.freezeTimer;

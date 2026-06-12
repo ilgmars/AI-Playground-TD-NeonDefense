@@ -140,7 +140,19 @@ class Enemy {
             return;
         }
 
-        let target = this.path[this.pathIndex];
+        // Cutter: at a shortcut entry, leave the road and crawl the
+        // straight line across the grass to the exit waypoint —
+        // slowly (CUTTER_CRAWL_MULT), trading exposure for skipped
+        // road. Deterministic (no RNG): shortcut pairs are precomputed
+        // per map (GameMap.computeShortcuts, stashed on path._shortcuts)
+        // and entry is keyed purely on pathIndex.
+        if (this.type === 'cutter' && !this._crawl && this.path._shortcuts) {
+            for (const s of this.path._shortcuts) {
+                if (s.from === this.pathIndex) { this._crawl = s; break; }
+            }
+        }
+
+        let target = this._crawl ? this.path[this._crawl.to] : this.path[this.pathIndex];
         let targetX = target.c * TILE_SIZE + TILE_SIZE / 2;
         let targetY = target.r * TILE_SIZE + TILE_SIZE / 2;
 
@@ -149,13 +161,19 @@ class Enemy {
         let dist = Math.hypot(dx, dy);
 
         let currentSpeed = this.speed * this.currentSlow;
+        if (this._crawl) currentSpeed *= 0.45;     // off-road crawl pace
         // M3: Only reset slow to 1 if there's no active cryo/slow duration — otherwise cryo holds.
         if (!this.slowExpireFrame || this.slowExpireFrame === 0) this.currentSlow = 1;
 
         if (dist < currentSpeed) {
             this.x = targetX;
             this.y = targetY;
-            this.pathIndex++;
+            if (this._crawl) {
+                this.pathIndex = this._crawl.to + 1;   // rejoin past the exit tile
+                this._crawl = null;
+            } else {
+                this.pathIndex++;
+            }
             if (this.pathIndex >= this.path.length) {
                 this.active = false;
                 this.reachedEnd = true;

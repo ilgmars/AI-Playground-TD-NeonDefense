@@ -199,7 +199,12 @@ const ENEMIES = {
     normal: { hp: 20, speed: 1,   reward: 5,  radius: 12, defense: 0    },
     fast:   { hp: 10, speed: 1.8, reward: 3,  radius: 10, defense: 0    },
     tank:   { hp: 60, speed: 0.6, reward: 10, radius: 15, defense: 0.20 },
-    air:    { hp: 25, speed: 0.6, reward: 8,  radius: 14, defense: 0.08 }
+    air:    { hp: 25, speed: 0.6, reward: 8,  radius: 14, defense: 0.08 },
+    // Shortcut-cutter: mostly follows the road, but at precomputed
+    // U-bends it crawls straight across the grass at 0.45× speed,
+    // skipping the detour (GameMap.computeShortcuts + Enemy._crawl).
+    // Tanky enough to survive the exposed crossing; pays a premium.
+    cutter: { hp: 45, speed: 0.85, reward: 12, radius: 13, defense: 0.12 }
 };
 
 // -------------------------------------------------------------------------
@@ -215,7 +220,15 @@ const WAVE_CONFIG = {
     airPathFollowChance: 0.2,
     // Wave-end payout: base + perWave * waveNumber.
     endOfWavePayoutBase: 26,      // Better economy for early game
-    endOfWavePayoutPerWave: 6     // Better scaling
+    endOfWavePayoutPerWave: 6,    // Better scaling
+    // Shortcut-cutter introduction. From cutterFromWave, every Nth
+    // spawn of a TANK wave is a cutter (index-based — deterministic
+    // for MP); from cutterNormalFromWave the same applies to NORMAL
+    // waves at a sparser cadence.
+    cutterFromWave: 15,
+    cutterEveryNth: 3,
+    cutterNormalFromWave: 25,
+    cutterNormalEveryNth: 6
 };
 
 // -------------------------------------------------------------------------

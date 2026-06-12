@@ -211,13 +211,26 @@ function _paintEnemyBody(ctx, type, radius, color) {
         // Square
         ctx.fillRect(-radius, -radius, radius*2, radius*2);
         ctx.strokeRect(-radius, -radius, radius*2, radius*2);
+    } else if (type === 'cutter') {
+        // Diamond with a tread bar — the off-road shortcut crawler.
+        ctx.beginPath();
+        ctx.moveTo(radius, 0);
+        ctx.lineTo(0, radius);
+        ctx.lineTo(-radius, 0);
+        ctx.lineTo(0, -radius);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.fillRect(-radius * 0.6, -2, radius * 1.2, 4);
     } else {
         // Circle
         ctx.beginPath();
         ctx.arc(0, 0, radius, 0, Math.PI*2);
     }
 
-    if (type !== 'tank') {
+    // tank and cutter fill/stroke inside their own branches.
+    if (type !== 'tank' && type !== 'cutter') {
         ctx.fill();
         ctx.stroke();
     }
@@ -227,7 +240,7 @@ function _paintEnemyBody(ctx, type, radius, color) {
 
 function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burning = false, shielded = false, splitter = false, isBoss = false) {
     // Neon glow
-    let color = type === 'fast' ? '#fde047' : type === 'tank' ? '#f87171' : type === 'air' ? '#60a5fa' : '#a7f3d0';
+    let color = type === 'fast' ? '#fde047' : type === 'tank' ? '#f87171' : type === 'air' ? '#60a5fa' : type === 'cutter' ? '#fb923c' : '#a7f3d0';
     if (isSlowed) color = '#38bdf8'; // Override glow to light blue when frozen
 
     // Static body+glow via the sprite cache; one drawImage instead of

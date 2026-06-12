@@ -84,6 +84,51 @@ class GameMap {
         }
     }
 
+    // Shortcut candidates for the 'cutter' enemy: non-overlapping
+    // (from, to) path-index pairs where ≥ MIN_SAVED tiles of road can
+    // be replaced by ≤ MAX_CROSS tiles of straight-line OPEN GRASS —
+    // the classic U-bend. Deterministic (pure grid geometry, no RNG),
+    // computed lazily once per map and stashed on path._shortcuts so
+    // enemies can read it without a map reference.
+    computeShortcuts() {
+        if (this._shortcuts) return this._shortcuts;
+        const MIN_SAVED = 10;
+        const MAX_CROSS = 3.6;
+        const out = [];
+        let i = 0;
+        while (i < this.path.length - MIN_SAVED) {
+            let found = null;
+            // Longest skip first — cutters take the best cut available.
+            for (let j = this.path.length - 1; j >= i + MIN_SAVED; j--) {
+                const a = this.path[i], b = this.path[j];
+                if (Math.hypot(b.c - a.c, b.r - a.r) > MAX_CROSS) continue;
+                if (!this._lineIsGrass(a, b)) continue;
+                found = { from: i, to: j };
+                break;
+            }
+            if (found) { out.push(found); i = found.to; }
+            else i++;
+        }
+        this._shortcuts = out;
+        this.path._shortcuts = out;
+        return out;
+    }
+
+    // Every tile the straight segment between two path tiles crosses
+    // (sampled at quarter-tile steps) must be open grass (grid 0).
+    _lineIsGrass(a, b) {
+        const steps = Math.max(2, Math.ceil(Math.hypot(b.c - a.c, b.r - a.r) * 4));
+        for (let s = 1; s < steps; s++) {
+            const t = s / steps;
+            const c = Math.round(a.c + (b.c - a.c) * t);
+            const r = Math.round(a.r + (b.r - a.r) * t);
+            if ((c === a.c && r === a.r) || (c === b.c && r === b.r)) continue;
+            if (!this.grid[r] || this.grid[r][c] === undefined) return false;
+            if (this.grid[r][c] !== 0) return false;
+        }
+        return true;
+    }
+
     draw(ctx) {
         for (let r = 0; r < ROWS; r++) {
             for (let c = 0; c < COLS; c++) {
