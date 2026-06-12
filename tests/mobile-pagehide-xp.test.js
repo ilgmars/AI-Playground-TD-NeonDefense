@@ -120,6 +120,46 @@ const path = require('path');
     ok('gameover state: hook is a no-op', goBefore === goAfter,
         `before=${goBefore} after=${goAfter}`);
 
+    // 6) CRASH RECOVERY — pagehide/visibilitychange are best-effort;
+    // Android can kill the page with NO event ("closed browser,
+    // reopened: no XP"). A checkpoint (save.pendingRun) written during
+    // the run must be reconciled into XP + a score entry at next boot.
+    const ckptExpected = await page.evaluate(() => {
+        // Simulate the mid-run checkpoint exactly as the 5-s writer
+        // stores it, with a properly SIGNED save (hand-written
+        // localStorage would trip Aegis).
+        save.pendingRun = { wave: 23, tier: 0, ap: false, t: Date.now() };
+        NeonSave.write(save);
+        localStorage.setItem('neonPlayerName', 'CKP');
+        return { metaXP: save.metaXP, xp: NeonSave.calculateRunXP(23, 0, false).total };
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });   // "process killed"
+    await page.waitForTimeout(900);
+    const recovered = await page.evaluate(() => ({
+        metaXP: save.metaXP,
+        pendingCleared: save.pendingRun === undefined,
+        scoreEntry: (save.highScores.a0 || []).some(e => e.wave === 23),
+        noteShown: !!document.getElementById('recovered-run-note'),
+    }));
+    ok('boot reconciler awards the interrupted run\'s XP',
+        recovered.metaXP === ckptExpected.metaXP + ckptExpected.xp,
+        `before=${ckptExpected.metaXP} +${ckptExpected.xp} after=${recovered.metaXP}`);
+    ok('checkpoint cleared after recovery (no double-award)', recovered.pendingCleared);
+    ok('interrupted run landed on the local scoreboard', recovered.scoreEntry);
+    ok('player is told about the recovery (main-menu note)', recovered.noteShown);
+
+    // 7) Clean end clears the checkpoint — no recovery on next boot.
+    await page.click('#menu-start-btn'); await page.waitForTimeout(150);
+    await page.click('#start-btn');     await page.waitForTimeout(500);
+    const cleanEnd = await page.evaluate(() => {
+        save.pendingRun = { wave: 9, tier: 0, ap: false, t: Date.now() };
+        NeonSave.write(save);
+        window.game.wave = 9;
+        window.onRunEnded({ wave: 9, tier: 0, retired: false, hpEverLost: true });
+        return { pendingCleared: save.pendingRun === undefined };
+    });
+    ok('onRunEnded clears the checkpoint', cleanEnd.pendingCleared);
+
     ok('no JS errors', errs.length === 0, errs.join(' / '));
 
     await browser.close();

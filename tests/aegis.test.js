@@ -294,7 +294,9 @@ const path = require('path');
     console.log('\nbrowser: RESET SAVE zeroes progression');
     {
         const page = await freshPage();
-        page.on('dialog', d => d.accept());
+        // RESET SAVE now demands the typed phrase (see
+        // reset-save-confirm.test.js) — supply it to the prompt.
+        page.on('dialog', d => d.accept('delete all progress'));
         await page.evaluate(() => { save.metaXP = 500; NeonSave.write(save); });
         await Promise.all([
             page.waitForLoadState('load'),

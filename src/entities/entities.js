@@ -336,16 +336,22 @@ class Tower {
                 this.cooldown = this.fireRate;
             }
 
-            // Cap how far a hover rocket will reach for a target. Without
-            // this cap, `r.range += 0.5` grows unbounded across idle waves
-            // and the rocket eventually fires at an enemy half a screen
-            // away — the "disappears into the air" complaint. 1.5x the
-            // tower's nominal range keeps targeting visually plausible.
-            const seekerCap = this.range * 1.5;
+            // Seeker range grows the longer a rocket hovers, capped so
+            // it stays visually plausible (uncapped growth was the old
+            // "fires at an enemy half a screen away" bug).
+            //   Base silo:  fast growth to 1.5× — rockets are ammo,
+            //               they should engage promptly.
+            //   Orbital:    SLOW growth to 2.0× — its identity is the
+            //               long hover, so banking rockets longer
+            //               meaningfully widens their strike radius
+            //               (~35 s of hover to reach the cap).
+            const isOrbitalSilo = this.type === 'silo_orbital';
+            const seekerCap = this.range * (isOrbitalSilo ? 2.0 : 1.5);
+            const seekerGrowth = isOrbitalSilo ? 0.06 : 0.5;
             for (let i = this.hoverRockets.length - 1; i >= 0; i--) {
                 let r = this.hoverRockets[i];
-                r.angle += (this.type === 'silo_orbital') ? 0.007 : 0.02;
-                if (r.range < seekerCap) r.range += 0.5;
+                r.angle += isOrbitalSilo ? 0.007 : 0.02;
+                if (r.range < seekerCap) r.range += seekerGrowth;
 
                 let rx = this.x + TILE_SIZE/2 + Math.cos(r.angle) * r.dist;
                 let ry = this.y + TILE_SIZE/2 + Math.sin(r.angle) * r.dist;
@@ -368,6 +374,22 @@ class Tower {
                 }
             }
             return;
+        }
+
+        // Idle-scan throttle. Targeting is O(enemies) PER TOWER and ran
+        // every frame for every tower — profiled as the dominant
+        // long-game CPU cost (frame time tracks tower count, ~17× from
+        // wave 20→300; multiplied by gameSpeed on mobile = "APK laggy
+        // after 300 waves"). While the cooldown is ticking, the scan
+        // only feeds cosmetic barrel tracking — so run it every 5th
+        // frame (deterministically staggered by tile so towers don't
+        // spike in lockstep). Firing frames (cooldown ≤ 1) and the
+        // continuous-beam laser still scan every frame, so combat
+        // behaviour is bit-identical.
+        if (this.type !== 'laser' && this.cooldown > 1) {
+            this._scanTick = ((this._scanTick === undefined
+                ? (this.c * 7 + this.r * 13) : this._scanTick) + 1) % 5;
+            if (this._scanTick !== 0) return;
         }
 
         let target = null;
@@ -695,9 +717,29 @@ class Projectile {
         }
     }
 
+    // Swap a (dead) target for the nearest live enemy within reach.
+    // Used when a sibling rocket already killed our target — homing
+    // continues to the new mark instead of the rocket vanishing.
+    retargetNearest(enemies) {
+        const RETARGET_RADIUS = 300;
+        let best = null, bestD = RETARGET_RADIUS;
+        for (const e of enemies || []) {
+            if (!e || !e.active) continue;
+            const d = Math.hypot(e.x - this.x, e.y - this.y);
+            if (d < bestD) { bestD = d; best = e; }
+        }
+        if (best) {
+            this.target = best;
+            this.savedTx = best.x;
+            this.savedTy = best.y;
+        }
+        // No candidate → keep flying to savedTx/savedTy and explode
+        // there (the dead-target homing path handles it).
+    }
+
     update(enemies, particles, projectiles) {
         if (!this.active) return;
-        
+
         if (this.x < -200 || this.x > 2000 || this.y < -200 || this.y > 1500) {
             this.active = false;
             return;
@@ -799,7 +841,12 @@ class Projectile {
             this.trailTimer++;
             if (this.trailTimer >= 2) {
                 this.trailTimer = 0;
-                particles.push(new TrailParticle(this.x - Math.cos(this.angle)*5, this.y - Math.sin(this.angle)*5));
+                // Particle budget: a 40-rocket barrage at late waves
+                // pushed 130+ live trail particles (profiled) — past
+                // 150 the visual is saturated anyway, so stop adding.
+                if (particles.length < 150) {
+                    particles.push(new TrailParticle(this.x - Math.cos(this.angle)*5, this.y - Math.sin(this.angle)*5));
+                }
             }
             
             let triggerDist = this.target.active ? this.currentSpeed + 5 : 45;
@@ -822,14 +869,19 @@ class Projectile {
         if (this.splash > 0) {
             SoundFX.explosion();
             particles.push(new Explosion(this.x, this.y, this.splash));
-            // Cancel other rockets FROM THE SAME SILO targeting the same enemy —
-            // but leave rockets from other silos independent so two silos don't
-            // cancel each other's shots when they target the same enemy.
+            // Other rockets FROM THE SAME SILO chasing the same enemy
+            // RETARGET to the nearest live enemy instead of being
+            // silently deactivated. The old `p.active = false` was the
+            // "rockets disappear into the air" report: a 3-rocket
+            // salvo's first hit made the rest blink out mid-flight
+            // with no explosion. If no other enemy is around, the
+            // rocket keeps flying to its last-known coords and
+            // explodes there (splash still lands).
             if (this.type === 'rocket' && projectiles && !this.isClusterChild) {
                 for (let p of projectiles) {
                     if (p !== this && p.active && p.type === 'rocket' &&
                         p.target === this.target && p.sourceTower === this.sourceTower) {
-                        p.active = false;
+                        p.retargetNearest(enemies);
                     }
                 }
             }

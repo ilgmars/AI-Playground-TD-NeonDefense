@@ -1832,13 +1832,25 @@ function init() {
         navigateToRunSetup();
     });
     document.getElementById('menu-reset-btn').addEventListener('click', () => {
-        if (confirm('Reset save? This deletes XP, unlocks, and high scores. Cannot be undone.')) {
-            // Also wipe the Aegis signature so the fresh save starts clean.
-            localStorage.removeItem('neonDefense.save');
-            localStorage.removeItem('neonDefense.save.sig');
-            location.reload();
+        // Typed-phrase confirmation — a yes/no confirm() was one
+        // mis-tap away from deleting hundreds of hours of progression.
+        // The player must type the exact phrase to proceed.
+        const PHRASE = 'delete all progress';
+        const typed = prompt(
+            'This permanently deletes ALL XP, unlocks, items and high scores.\n\n' +
+            `Type "${PHRASE}" to confirm:`);
+        if (typed === null) return;                          // cancelled
+        if (typed.trim().toLowerCase() !== PHRASE) {
+            alert('Phrase did not match — nothing was deleted.');
+            return;
         }
+        // Also wipe the Aegis signature so the fresh save starts clean.
+        localStorage.removeItem('neonDefense.save');
+        localStorage.removeItem('neonDefense.save.sig');
+        location.reload();
     });
+    // Test hook: drives the same flow without a real prompt().
+    window.__neonResetSavePhrase = 'delete all progress';
 
     // Save / Load code modal — portable string backup of the whole save.
     const scStatus = () => document.getElementById('save-code-status');
@@ -3161,6 +3173,11 @@ function init() {
     // Exposes the XP breakdown to renderRunResultXP for the overlay.
     window.onRunEnded = function (result) {
         const { wave, tier, retired, hpEverLost } = result;
+        // The run ended through the front door — drop the crash-recovery
+        // checkpoint so the boot reconciler doesn't double-award.
+        try {
+            if (save && save.pendingRun) { delete save.pendingRun; NeonSave.write(save); }
+        } catch (_) {}
         // Auto-save the score immediately. Uses the cached name set at
         // start-btn time. Idempotent — RST/retire callers also trigger
         // this and the dedupe key prevents double entries.
@@ -3297,6 +3314,82 @@ function init() {
     // verify the handler is wired without having to actually destroy
     // the page mid-run.
     if (typeof window !== 'undefined') window.__neonEndRunOnHide = _maybeEndRunOnHide;
+
+    // ── Crash-recovery checkpoint ────────────────────────────────────
+    // pagehide/visibilitychange are best-effort: Android (and the APK
+    // WebView) can kill a backgrounded page with NO event at all —
+    // that's the "paused, closed the browser, reopened: main menu and
+    // no XP" report. So every SP run also checkpoints {wave, tier} to
+    // the save whenever the wave advances; onRunEnded clears it, and
+    // the boot reconciler below awards XP for any checkpoint that
+    // survived (= the process died mid-run).
+    setInterval(() => {
+        try {
+            if (!game || game.state !== 'playing') return;
+            if (_activeMode || window.__neonMPFairPlay === true) return;   // SP only
+            if (!save) return;
+            const w = game.wave | 0;
+            if (w < 1) return;
+            if (save.pendingRun && save.pendingRun.wave === w) return;     // unchanged
+            save.pendingRun = {
+                wave: w,
+                tier: game.ascensionTier | 0,
+                ap: !!game._autopilotEverUsed,
+                t: Date.now(),
+            };
+            NeonSave.write(save);
+        } catch (_) {}
+    }, 5000);
+    // Boot reconciler: a surviving checkpoint means the last run died
+    // without onRunEnded (process killed). Award the wave XP + score
+    // now. No loot or mastery — those need the dead run's tower state,
+    // which is gone; XP and the leaderboard entry are what the player
+    // actually missed.
+    (function recoverInterruptedRun() {
+        try {
+            const p = save && save.pendingRun;
+            if (!p || !Number.isInteger(p.wave) || p.wave < 1) return;
+            delete save.pendingRun;
+            const wave = p.wave | 0, tier = p.tier | 0;
+            const firstClear = wave >= 30 && tier >= save.ascensionCleared;
+            const xp = NeonSave.calculateRunXP(wave, tier, firstClear);
+            save.metaXP        += xp.total;
+            save.totalXPEarned += xp.total;
+            if (firstClear) {
+                save.ascensionCleared = Math.max(save.ascensionCleared, tier + 1);
+                try { NeonTree.autoUnlockOnAscension(save, tier); } catch (_) {}
+            }
+            save.maxWaveReached = Math.max(save.maxWaveReached || 0, wave);
+            // Leaderboard entry for the interrupted run (not retired,
+            // no flawless bonus — we can't verify either).
+            const name = getPlayerName();
+            if (name) {
+                const list = save.highScores['a' + tier] || [];
+                list.push({ name, wave, retired: false, cheated: false, autopilot: !!p.ap });
+                list.sort((a, b) => b.wave - a.wave);
+                save.highScores['a' + tier] = list.slice(0, 5);
+                if (window.NeonMP && window.NeonMP.global && window.NeonMP.global.publish) {
+                    try {
+                        window.NeonMP.global.publish({ name, wave, tier, autopilot: !!p.ap });
+                    } catch (_) {}
+                }
+            }
+            NeonSave.write(save);
+            try { updateMainMenuState(); } catch (_) {}
+            // Tell the player their progress survived.
+            const menu = document.getElementById('main-menu');
+            if (menu) {
+                const note = document.createElement('div');
+                note.id = 'recovered-run-note';
+                note.style.cssText = 'margin:8px auto;padding:6px 12px;max-width:340px;' +
+                    'border:1px solid #34d399;border-radius:6px;color:#34d399;' +
+                    'font-size:0.8rem;text-align:center;';
+                note.textContent = `Interrupted run recovered — wave ${wave} (A${tier}), +${xp.total} XP banked.`;
+                menu.insertBefore(note, menu.firstChild ? menu.firstChild.nextSibling : null);
+                setTimeout(() => { try { note.remove(); } catch (_) {} }, 30000);
+            }
+        } catch (_) { /* recovery is best-effort */ }
+    })();
 
     document.getElementById('confirm-no').addEventListener('click', () => {
         document.getElementById('restart-confirm').classList.add('hidden');

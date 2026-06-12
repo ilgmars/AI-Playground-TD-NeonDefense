@@ -18,12 +18,15 @@ function ok(name, c, extra) {
     else   { console.log('FAIL', name, extra || ''); fail++; }
 }
 
-// Mirror src/entities/entities.js: seekerCap = this.range * 1.5; while
-// updating, only grow r.range when r.range < seekerCap.
-function tick(rocket, towerRange, frames) {
-    const seekerCap = towerRange * 1.5;
+// Mirror src/entities/entities.js: base silo grows 0.5/frame to a
+// 1.5× cap (rockets are ammo — engage promptly); orbital grows
+// 0.06/frame to a 2.0× cap, so its strike radius meaningfully scales
+// with HOW LONG the rockets have been hovering (~35 s to cap).
+function tick(rocket, towerRange, frames, isOrbital = false) {
+    const seekerCap = towerRange * (isOrbital ? 2.0 : 1.5);
+    const growth = isOrbital ? 0.06 : 0.5;
     for (let i = 0; i < frames; i++) {
-        if (rocket.range < seekerCap) rocket.range += 0.5;
+        if (rocket.range < seekerCap) rocket.range += growth;
     }
 }
 
@@ -34,11 +37,17 @@ tick(r1, 110, 10000);
 ok('silo seeker capped at 1.5x range', r1.range <= 110 * 1.5 + 0.0001, `range=${r1.range}`);
 ok('silo seeker reaches cap',          Math.abs(r1.range - 165) < 1, `range=${r1.range}`);
 
-// Orbital (range 120) — wider cap.
-const r2 = { range: 100 };
-tick(r2, 120, 10000);
-ok('orbital seeker capped at 1.5x range', r2.range <= 120 * 1.5 + 0.0001, `range=${r2.range}`);
-ok('orbital seeker reaches cap',          Math.abs(r2.range - 180) < 1, `range=${r2.range}`);
+// Orbital (range 120) — slow growth, 2.0× cap: hover time matters.
+const r2 = { range: 120 };
+tick(r2, 120, 100000, true);
+ok('orbital seeker capped at 2.0x range', r2.range <= 120 * 2.0 + 0.0601, `range=${r2.range}`);
+ok('orbital seeker reaches cap eventually', r2.range >= 240, `range=${r2.range}`);
+// Hover-time scaling: after 10 s (600 frames) the orbital seeker is
+// still well below cap — long hovers are rewarded with more reach.
+const r2b = { range: 120 };
+tick(r2b, 120, 600, true);
+ok('orbital seeker grows SLOWLY (10 s ≈ +36, far from cap)',
+    Math.abs(r2b.range - 156) < 1 && r2b.range < 240, `range=${r2b.range}`);
 
 // Below-cap rocket still grows by 0.5 per frame.
 const r3 = { range: 50 };
@@ -60,6 +69,59 @@ if (siloLine) {
     ok('silo damage >= 140 (was 120)',   damage  >= 140);
     ok('silo splash >= 55 (was 40)',     splash  >= 55);
     ok('silo fireRate unchanged at 80',  fireRate === 80);
+}
+
+// ── Sibling rockets must RETARGET, not vanish ──────────────────────
+// Regression for the second half of the "rockets disappear into the
+// air" report: when one rocket of a salvo killed the shared target,
+// explode() used to set p.active = false on every sibling — they
+// blinked out mid-flight with no explosion. Siblings now retarget to
+// the nearest live enemy, or keep flying to last-known coords.
+// Loads the REAL Projectile class from entities.js in a vm sandbox.
+const vm = require('vm');
+const entSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'entities', 'entities.js'), 'utf8');
+const sandbox = {
+    window: {}, TOWERS: {}, ENEMIES: {}, TOWER_UPGRADES: {},
+    TILE_SIZE: 40, ROWS: 15, COLS: 20,
+    SoundFX: { explosion() {}, hit() {}, build() {} },
+    Math, Set, console,
+};
+vm.createContext(sandbox);
+vm.runInContext(entSrc + '\n;globalThis.__T = { Projectile };', sandbox);
+const Projectile = sandbox.__T.Projectile;
+
+{
+    const tower = { id: 'silo-1', damageDealt: 0 };
+    const sharedTarget = { x: 100, y: 100, active: true, radius: 10, hp: 1, maxHp: 1,
+        takeDamage(d) { this.hp -= d; return d; } };
+    const bystander = { x: 160, y: 130, active: true, radius: 10, hp: 500, maxHp: 500,
+        takeDamage(d) { this.hp -= d; return d; } };
+    const r1 = new Projectile(98, 98, sharedTarget, 50, 'rocket', 1, 30, tower);
+    const r2 = new Projectile(80, 90, sharedTarget, 50, 'rocket', 1, 30, tower);
+    const projectiles = [r1, r2];
+    sharedTarget.active = false;                  // r1's hit killed it
+    r1.explode([bystander], [], projectiles);
+    ok('sibling rocket survives the salvo leader exploding', r2.active === true);
+    ok('sibling rocket retargets the nearest live enemy', r2.target === bystander);
+
+    // No live enemies in range → sibling keeps last-known coords and
+    // stays active (it will fly there and explode on arrival).
+    const t2 = { x: 300, y: 300, active: true, radius: 10, hp: 1, maxHp: 1,
+        takeDamage(d) { this.hp -= d; return d; } };
+    const r3 = new Projectile(295, 295, t2, 50, 'rocket', 1, 30, tower);
+    const r4 = new Projectile(290, 290, t2, 50, 'rocket', 1, 30, tower);
+    t2.active = false;
+    r3.explode([], [], [r3, r4]);
+    ok('with no enemies left, sibling stays active (flies to last-known coords)',
+        r4.active === true && r4.savedTx === 300 && r4.savedTy === 300,
+        JSON.stringify({ active: r4.active, tx: r4.savedTx, ty: r4.savedTy }));
+
+    // The dead-target homing path must eventually explode it, not drop it.
+    let exploded = false;
+    r4.explode = () => { exploded = true; r4.active = false; };
+    for (let i = 0; i < 300 && r4.active; i++) r4.update([], [], []);
+    ok('orphan rocket explodes at last-known coords instead of vanishing',
+        exploded === true);
 }
 
 console.log(`\nSILO SEEKER CAP: ${pass} pass, ${fail} fail`);
