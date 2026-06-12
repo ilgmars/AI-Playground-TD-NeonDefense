@@ -718,6 +718,25 @@ class Game {
                     reward = Math.floor(reward * (1 + (this.wave - 35) * 0.025));
                 }
                 reward = Math.max(1, Math.floor(reward * this.ascension.payoutMult * this.boonKillMult));
+                // Bounty mastery perk: kills attributed to a tower type
+                // (Enemy.takeDamage records the last hitter) pay extra
+                // credits — diminishing to +40%. Variants credit their
+                // base type's mastery. Disabled under MP fair-play,
+                // like every other mastery perk.
+                if (e._lastHitBy && typeof window !== 'undefined' && window.save &&
+                        window.save.towerMastery && window.__neonMPFairPlay !== true) {
+                    let bt = e._lastHitBy;
+                    if (typeof TOWER_VARIANTS === 'object' && !window.save.towerMastery[bt]) {
+                        for (const [b, v] of Object.entries(TOWER_VARIANTS)) {
+                            if (v === bt) { bt = b; break; }
+                        }
+                    }
+                    const m = window.save.towerMastery[bt];
+                    const rank = m && m.perks ? (m.perks.bounty || 0) : 0;
+                    if (rank > 0) {
+                        reward = Math.floor(reward * (1 + 0.4 * (1 - Math.pow(0.97, rank))));
+                    }
+                }
                 // Split-economy: a kill delivered by a REMOTE peer's
                 // tower goes to THEIR bank — not ours. Their sim
                 // independently credits its local money. We just skip

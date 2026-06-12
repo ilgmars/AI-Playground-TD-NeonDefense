@@ -1469,6 +1469,37 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     box-shadow: 0 0 10px rgba(56, 189, 248, 0.35) inset;
 }
 
+/* UPGRADES tab strip — TECH TREE / MASTERY LAB combined menu. Same
+   visual language as the scoreboard tabs, sized up for a primary nav. */
+.upg-tabs {
+    display: flex;
+    gap: 6px;
+    margin: 4px 0 12px;
+    justify-content: center;
+}
+.upg-tab {
+    padding: 7px 18px;
+    font-size: 0.8rem;
+    letter-spacing: 2px;
+    border: 1px solid var(--text-muted);
+    color: var(--text-muted);
+    background: transparent;
+    border-radius: 4px;
+    box-shadow: none;
+    opacity: 0.55;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+}
+.upg-tab:hover { opacity: 0.9; }
+.upg-tab.selected {
+    background: rgba(56, 189, 248, 0.18);
+    color: var(--accent);
+    border-color: var(--accent);
+    opacity: 1;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.35) inset;
+}
+
 #tower-tooltip {
     position: fixed;
     z-index: 1000;

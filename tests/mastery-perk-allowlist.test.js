@@ -45,7 +45,11 @@ const path = require('path');
     // ── 1) Logic helper exposed for tests ────────────────────────────
     // The render call below installs the helper on window. Open the
     // Lab once so renderTowerMastery runs.
-    await page.click('#menu-mastery-btn').catch(() => {});
+    // Mastery Lab lives inside the combined UPGRADES menu now:
+    // open UPGRADES (tree tab), then switch to the MASTERY tab.
+    await page.click('#menu-tree-btn');
+    await page.waitForTimeout(150);
+    await page.click('.upg-tab[data-upg-tab="mastery"]');
     await page.waitForTimeout(300);
 
     const helper = await page.evaluate(() => {
@@ -64,14 +68,17 @@ const path = require('path');
     ok('window.__neonPerksForTower exposed', !!helper);
     ok('laser: no fireRate perk',
         helper && !helper.laser.includes('fireRate'));
-    ok('laser: still has damage + efficiency',
-        helper && helper.laser.includes('damage') && helper.laser.includes('efficiency'));
+    ok('laser: has damage + bounty (perk rework)',
+        helper && helper.laser.includes('damage') && helper.laser.includes('bounty'));
     ok('income: no fireRate perk',
         helper && !helper.income.includes('fireRate'));
+    ok('income: keeps efficiency (its meaningful perk), no bounty (no kills)',
+        helper && helper.income.includes('efficiency') && !helper.income.includes('bounty'));
     ok('income_research: no fireRate perk',
         helper && !helper.income_research.includes('fireRate'));
-    ok('basic (Blaster): all three perks',
-        helper && helper.basic.length === 3 && helper.basic.includes('fireRate'));
+    ok('basic (Blaster): damage + fireRate + bounty (no efficiency — reworked)',
+        helper && helper.basic.length === 3 && helper.basic.includes('fireRate') &&
+        helper.basic.includes('bounty') && !helper.basic.includes('efficiency'));
     ok('sniper: all three perks',
         helper && helper.sniper.length === 3);
     ok('silo: all three perks (silo fires)',

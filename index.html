@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Neon Defense</title>
-    <link rel="stylesheet" href="style.css?v=20260612171058">
+    <link rel="stylesheet" href="style.css?v=20260612172913">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
 </head>
 
@@ -319,8 +319,9 @@
                     <p>Protect the core from the rogue geometry.</p>
                     <div class="menu-buttons">
                         <button id="menu-start-btn" class="menu-primary">START RUN</button>
-                        <button id="menu-tree-btn">TECH TREE <span class="menu-balance" id="menu-xp-balance">0 XP</span></button>
-                        <button id="menu-mastery-btn">MASTERY LAB</button>
+                        <!-- One entry for both progression screens; the
+                             overlay carries TECH TREE / MASTERY LAB tabs. -->
+                        <button id="menu-tree-btn">UPGRADES <span class="menu-balance" id="menu-xp-balance">0 XP</span></button>
                         <button id="menu-backpack-btn">BACKPACK</button>
                         <button id="menu-dailyseed-btn" class="hidden">DAILY CHALLENGE</button>
                         <button id="menu-scores-btn">SCOREBOARD</button>
@@ -467,7 +468,14 @@
                 </div>
 
                 <div id="tech-tree" class="overlay hidden">
-                    <h2>TECH TREE</h2>
+                    <h2>UPGRADES</h2>
+                    <!-- Shared tab strip: TECH TREE and MASTERY LAB are one
+                         menu; the strip appears on both overlays and
+                         switches between them in place. -->
+                    <div class="upg-tabs">
+                        <button class="upg-tab selected" data-upg-tab="tree">TECH TREE</button>
+                        <button class="upg-tab" data-upg-tab="mastery">MASTERY LAB</button>
+                    </div>
                     <div class="tree-balance-row">
                         Meta-XP Balance: <span id="tree-xp-balance">0</span>
                     </div>
@@ -489,7 +497,11 @@
                 </div>
 
                 <div id="tower-mastery" class="overlay hidden">
-                    <h2>MASTERY LAB</h2>
+                    <h2>UPGRADES</h2>
+                    <div class="upg-tabs">
+                        <button class="upg-tab" data-upg-tab="tree">TECH TREE</button>
+                        <button class="upg-tab selected" data-upg-tab="mastery">MASTERY LAB</button>
+                    </div>
                     <p style="font-size: 0.8rem; color: var(--text-muted); letter-spacing: 1px;">
                         Track lifetime tower XP and spend each tower's XP on permanent stat ranks.
                         <strong style="color:var(--accent);">Damage &amp; Fire Rate are endless</strong> (diminishing, ever-rising cost) — a bottomless XP sink.
@@ -638,42 +650,42 @@
         <button id="place-confirm-no" aria-label="Cancel placement">✗</button>
     </div>
 
-    <script src="src/config/config.js?v=20260612171058"></script>
-    <script src="src/security/aegis.js?v=20260612171058"></script>
-    <script src="src/audio/audio.js?v=20260612171058"></script>
-    <script src="src/render/assets.js?v=20260612171058"></script>
-    <script src="src/engine/map.js?v=20260612171058"></script>
-    <script src="src/entities/entities.js?v=20260612171058"></script>
-    <script src="src/ai/autopilot.js?v=20260612171058"></script>
-    <script src="src/progression/save.js?v=20260612171058"></script>
-    <script src="src/progression/tree.js?v=20260612171058"></script>
-    <script src="src/progression/abilities.js?v=20260612171058"></script>
-    <script src="src/progression/backpack.js?v=20260612171058"></script>
-    <script src="src/engine/game.js?v=20260612171058"></script>
-    <script src="src/progression/boons.js?v=20260612171058"></script>
+    <script src="src/config/config.js?v=20260612172913"></script>
+    <script src="src/security/aegis.js?v=20260612172913"></script>
+    <script src="src/audio/audio.js?v=20260612172913"></script>
+    <script src="src/render/assets.js?v=20260612172913"></script>
+    <script src="src/engine/map.js?v=20260612172913"></script>
+    <script src="src/entities/entities.js?v=20260612172913"></script>
+    <script src="src/ai/autopilot.js?v=20260612172913"></script>
+    <script src="src/progression/save.js?v=20260612172913"></script>
+    <script src="src/progression/tree.js?v=20260612172913"></script>
+    <script src="src/progression/abilities.js?v=20260612172913"></script>
+    <script src="src/progression/backpack.js?v=20260612172913"></script>
+    <script src="src/engine/game.js?v=20260612172913"></script>
+    <script src="src/progression/boons.js?v=20260612172913"></script>
     <!-- Multiplayer (lazy: Trystero loads only when the player opens the lobby) -->
-    <script src="src/multiplayer/protocol.js?v=20260612171058"></script>
-    <script src="src/multiplayer/transport.js?v=20260612171058"></script>
-    <script src="src/multiplayer/actions.js?v=20260612171058"></script>
-    <script src="src/multiplayer/guard.js?v=20260612171058"></script>
-    <script src="src/multiplayer/race.js?v=20260612171058"></script>
-    <script src="src/multiplayer/lockstep.js?v=20260612171058"></script>
-    <script src="src/multiplayer/prng.js?v=20260612171058"></script>
-    <script src="src/multiplayer/coop.js?v=20260612171058"></script>
-    <script src="src/multiplayer/global.js?v=20260612171058"></script>
-    <script src="src/multiplayer/lobby.js?v=20260612171058"></script>
-    <script src="src/multiplayer/connectivity.js?v=20260612171058"></script>
+    <script src="src/multiplayer/protocol.js?v=20260612172913"></script>
+    <script src="src/multiplayer/transport.js?v=20260612172913"></script>
+    <script src="src/multiplayer/actions.js?v=20260612172913"></script>
+    <script src="src/multiplayer/guard.js?v=20260612172913"></script>
+    <script src="src/multiplayer/race.js?v=20260612172913"></script>
+    <script src="src/multiplayer/lockstep.js?v=20260612172913"></script>
+    <script src="src/multiplayer/prng.js?v=20260612172913"></script>
+    <script src="src/multiplayer/coop.js?v=20260612172913"></script>
+    <script src="src/multiplayer/global.js?v=20260612172913"></script>
+    <script src="src/multiplayer/lobby.js?v=20260612172913"></script>
+    <script src="src/multiplayer/connectivity.js?v=20260612172913"></script>
     <!-- turn-config.js + mqtt-config.js are git-ignored; generated
          per-deploy by tools/install-turn-config.sh from .credentials
          or the NEON_TURN_CONFIG GitHub Secret. Loaded BEFORE the
          adapter so the globals are set when joinRoom() reads them.
            turn-config.js  → window.__neonTurnConfig.iceServers
            mqtt-config.js  → window.__neonMqttRelayUrls -->
-    <script src="src/multiplayer/turn-config.js?v=20260612171058"></script>
-    <script src="src/multiplayer/mqtt-config.js?v=20260612171058"></script>
-    <script src="src/multiplayer/transport-trystero.js?v=20260612171058"></script>
-    <script src="src/multiplayer/mqtt-direct.js?v=20260612171058"></script>
-    <script src="src/engine/main.js?v=20260612171058"></script>
+    <script src="src/multiplayer/turn-config.js?v=20260612172913"></script>
+    <script src="src/multiplayer/mqtt-config.js?v=20260612172913"></script>
+    <script src="src/multiplayer/transport-trystero.js?v=20260612172913"></script>
+    <script src="src/multiplayer/mqtt-direct.js?v=20260612172913"></script>
+    <script src="src/engine/main.js?v=20260612172913"></script>
 </body>
 
 </html>

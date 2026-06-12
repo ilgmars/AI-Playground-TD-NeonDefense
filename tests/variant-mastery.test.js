@@ -64,7 +64,11 @@ const path = require('path');
     NeonSave.write(s); location.reload();
   });
   await page.waitForTimeout(800);
-  await page.click('#menu-mastery-btn');
+  // Mastery Lab lives inside the combined UPGRADES menu now:
+  // open UPGRADES (tree tab), then switch to the MASTERY tab.
+  await page.click('#menu-tree-btn');
+  await page.waitForTimeout(150);
+  await page.click('.upg-tab[data-upg-tab="mastery"]');
   await page.waitForSelector('#tower-mastery:not(.hidden)');
 
   // The 1st row (basic) should default to VARIANT (Cryo Blaster).

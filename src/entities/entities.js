@@ -77,7 +77,7 @@ class Enemy {
             this.burnFrames--;
             if (this.burnFrames % 10 === 0) {
                 const d = this.burnDamage || 1;
-                const dealt = this.takeDamage(d);
+                const dealt = this.takeDamage(d, this.burnSource);
                 if (this.burnSource) this.burnSource.damageDealt += dealt;
                 if (this.hp <= 0) this.active = false;
             }
@@ -250,9 +250,13 @@ class Enemy {
         }
     }
 
-    takeDamage(dmg) {
+    takeDamage(dmg, source) {
         const eff = Math.max(1, dmg * (1 - this.defense));
         this.hp -= eff;
+        // Kill attribution for the Bounty mastery perk: remember which
+        // TOWER TYPE last hurt this enemy; the kill-reward block in
+        // game.update pays that type's bounty bonus.
+        if (source && source.type) this._lastHitBy = source.type;
         return eff;
     }
 }
@@ -518,7 +522,7 @@ class Tower {
                 const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
                 let dmg = effectiveDamage;
                 if (target.isAir) dmg *= 0.4;
-                const laserDealt = target.takeDamage(dmg);
+                const laserDealt = target.takeDamage(dmg, this);
                 this.damageDealt += laserDealt;
                 if (this.slowEffect && this.slowEffect > 0) {
                     target.currentSlow = Math.max(0.1, 1 - this.slowEffect);
@@ -544,7 +548,7 @@ class Tower {
                         if (currentTarget.shielded && !currentTarget.shieldBroken) {
                             currentTarget.shieldBroken = true;
                         } else {
-                            const teslaDealt = currentTarget.takeDamage(dmg);
+                            const teslaDealt = currentTarget.takeDamage(dmg, this);
                             this.damageDealt += teslaDealt;
                             if (currentTarget.hp <= 0) {
                                 currentTarget.active = false;
@@ -608,7 +612,7 @@ class Tower {
                         while (diff > Math.PI) diff -= Math.PI * 2;
                         while (diff < -Math.PI) diff += Math.PI * 2;
                         if (Math.abs(diff) <= coneAngle / 2) {
-                            const flameDealt = e.takeDamage(effectiveDamage);
+                            const flameDealt = e.takeDamage(effectiveDamage, this);
                             this.damageDealt += flameDealt;
                             if (e.hp <= 0) e.active = false;
                             // Start/refresh burn DoT
@@ -828,7 +832,7 @@ class Projectile {
                             e.slowExpireFrame = this.sourceTower.slowDuration || 60;
                         }
                     } else {
-                        const dumbDealt = e.takeDamage(dmg);
+                        const dumbDealt = e.takeDamage(dmg, this.sourceTower);
                         if (this.sourceTower) this.sourceTower.damageDealt += dumbDealt;
                         if (this.sourceTower && this.sourceTower.slowEffect) {
                             const newSlow = 1 - this.sourceTower.slowEffect;
@@ -956,7 +960,7 @@ class Projectile {
                             e.stunFrames = this.sourceTower.stunDuration;
                         }
                     } else {
-                        const splashDealt = e.takeDamage(dmg);
+                        const splashDealt = e.takeDamage(dmg, this.sourceTower);
                         if (this.sourceTower) this.sourceTower.damageDealt += splashDealt;
                         if (this.sourceTower && this.sourceTower.slowEffect) {
                             const newSlow = 1 - this.sourceTower.slowEffect;
@@ -1045,7 +1049,7 @@ class Projectile {
                         this.target.slowExpireFrame = this.sourceTower.slowDuration || 60;
                     }
                 } else {
-                    const directDealt = this.target.takeDamage(dmg);
+                    const directDealt = this.target.takeDamage(dmg, this.sourceTower);
                     if (this.sourceTower) this.sourceTower.damageDealt += directDealt;
                     if (this.sourceTower && this.sourceTower.slowEffect) {
                         const newSlow = 1 - this.sourceTower.slowEffect;

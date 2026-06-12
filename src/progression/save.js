@@ -10,16 +10,20 @@ const NeonSave = (function () {
 
     // Tower types used by the current game. Kept in sync with TOWERS keys in config.js.
     const TOWER_TYPES = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'flak', 'electric', 'silo', 'income'];
-    const MASTERY_PERK_DEFAULTS = { damage: 0, fireRate: 0, efficiency: 0 };
-    // Damage & Fire Rate are ENDLESS (no cap) so per-tower mastery XP always
-    // has a sink. Efficiency stays capped — it's a cost *reducer*, letting it
-    // run to infinity would zero out upgrade costs and break economy balance.
-    const MASTERY_PERK_LIMITS = { damage: Infinity, fireRate: Infinity, efficiency: 5 };
-    const MASTERY_PERK_BASE_COST = { damage: 250, fireRate: 250, efficiency: 400 };
+    const MASTERY_PERK_DEFAULTS = { damage: 0, fireRate: 0, efficiency: 0, bounty: 0 };
+    // Damage / Fire Rate / Bounty are ENDLESS (diminishing effect, geometric
+    // cost) so per-tower mastery XP always has a sink. Bounty replaced the
+    // old shooter Efficiency perk (a −10%-capped upgrade discount nobody
+    // felt): kills by this tower type pay extra credits — a perk you can
+    // watch working every wave. Efficiency lives on for INCOME towers only
+    // (their upgrades are the economy engine, so the discount matters
+    // there), with a doubled cap.
+    const MASTERY_PERK_LIMITS = { damage: Infinity, fireRate: Infinity, efficiency: 10, bounty: Infinity };
+    const MASTERY_PERK_BASE_COST = { damage: 250, fireRate: 250, efficiency: 400, bounty: 300 };
     // Endless perks grow geometrically (cost = base * growth^rank); the
     // capped one keeps the old linear step. Geometric growth makes the sink
     // bottomless while early ranks stay close to the old linear feel.
-    const MASTERY_PERK_COST_GROWTH = { damage: 1.16, fireRate: 1.16 };
+    const MASTERY_PERK_COST_GROWTH = { damage: 1.16, fireRate: 1.16, bounty: 1.16 };
     const MASTERY_PERK_COST_STEP = { efficiency: 200 };
 
     // Backpack — spatial-grid inventory. Persistence + the
@@ -222,6 +226,14 @@ const NeonSave = (function () {
             for (const perk of Object.keys(MASTERY_PERK_DEFAULTS)) {
                 const rank = save.towerMastery[type].perks[perk];
                 save.towerMastery[type].perks[perk] = Math.max(0, Math.min(MASTERY_PERK_LIMITS[perk], Number.isFinite(rank) ? Math.floor(rank) : 0));
+            }
+            // Perk rework migration: shooters' old Efficiency ranks
+            // become Bounty ranks 1:1 (the perk slot they replaced) —
+            // players keep their invested value. Income towers keep
+            // Efficiency (it's their meaningful perk).
+            if (type !== 'income' && save.towerMastery[type].perks.efficiency > 0) {
+                save.towerMastery[type].perks.bounty += save.towerMastery[type].perks.efficiency;
+                save.towerMastery[type].perks.efficiency = 0;
             }
         }
         if (save.lastLoadout === undefined || save.lastLoadout === null) {

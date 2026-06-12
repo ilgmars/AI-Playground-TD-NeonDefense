@@ -451,13 +451,9 @@ function buildTreeNodeEl(node, tierKey, tierOpen) {
 // setup they were last using.
 let mastSelection = {};
 
-function navigateToTowerMastery() {
-    _enterSubScreen();
-    hideScreen('main-menu');
-    hideScreen('start-screen');
-    hideScreen('game-over');
-    hideScreen('tech-tree');
-    showScreen('tower-mastery');
+// Seed each row's base/variant toggle from the last loadout — shared
+// by navigateToTowerMastery and the UPGRADES tab switch.
+function seedMastSelection() {
     mastSelection = {};
     const loadout = (save.lastLoadout && save.lastLoadout.towerLoadout) || {};
     for (const base of NeonSave.TOWER_TYPES) {
@@ -467,6 +463,16 @@ function navigateToTowerMastery() {
         const chosen = loadout[base];
         mastSelection[base] = (chosen && chosen === variantId && variantUnlocked) ? 'variant' : 'base';
     }
+}
+
+function navigateToTowerMastery() {
+    _enterSubScreen();
+    hideScreen('main-menu');
+    hideScreen('start-screen');
+    hideScreen('game-over');
+    hideScreen('tech-tree');
+    showScreen('tower-mastery');
+    seedMastSelection();
     renderTowerMastery();
 }
 
@@ -528,26 +534,35 @@ function renderTowerMastery() {
     const dmgPct  = r => Math.round(0.8 * (1 - Math.pow(0.97, r)) * 100);
     const rateF   = r => 0.5 + 0.5 * Math.pow(0.97, r);
     const ratePct = r => Math.round((1 / rateF(r) - 1) * 100);
+    const bountyPct = r => Math.round(0.4 * (1 - Math.pow(0.97, r)) * 100);
     const perkMeta = {
         damage: { label: 'Damage', value: r => `+${dmgPct(r)}%` },
         fireRate: { label: 'Fire Rate', value: r => `+${ratePct(r)}%` },
-        efficiency: { label: 'Upgrade Cost', value: r => `-${r * 2}%` }
+        efficiency: { label: 'Upgrade Cost', value: r => `-${r * 2}%` },
+        bounty: { label: 'Bounty', value: r => `+${bountyPct(r)}%` }
     };
     const incomePerkMeta = {
         damage: { label: 'Yield / Aura', value: r => `+${dmgPct(r)}%` },
         fireRate: { label: 'Fire Rate', value: r => `+${ratePct(r)}%` },
-        efficiency: { label: 'Upgrade Cost', value: r => `-${r * 2}%` }
+        efficiency: { label: 'Upgrade Cost', value: r => `-${r * 2}%` },
+        bounty: { label: 'Bounty', value: r => `+${bountyPct(r)}%` }
     };
-    // Per-tower perk allowlist. Towers whose fireRate is already at the
-    // engine cap (Laser: fireRate=1) or that never shoot (Relay / Research
-    // Node: fireRate=0) should NOT display the Fire Rate perk because the
-    // XP spent on it would do nothing. See Tower ctor in entities.js where
-    // rateFactor multiplies fireRate then floors at 1.
+    // Per-tower perk sets (the 2026-06 rework — "some perks are useless
+    // or redundant"). Every listed perk demonstrably does something for
+    // that tower type:
+    //   shooters — Damage / Fire Rate / BOUNTY (kills by this type pay
+    //              up to +40% extra credits; replaced the −10%-capped
+    //              upgrade discount nobody felt);
+    //   laser    — Damage / Bounty (fireRate is already at the engine
+    //              floor of 1);
+    //   income   — Yield / Upgrade Cost (the discount IS meaningful
+    //              here: relay upgrades are the economy engine; cap
+    //              doubled to −20%). No bounty — relays don't kill.
     const perksForTower = (towerType) => {
-        if (towerType === 'laser') return ['damage', 'efficiency'];
+        if (towerType === 'laser') return ['damage', 'bounty'];
         if (towerType === 'income' || towerType === 'income_research')
             return ['damage', 'efficiency'];
-        return ['damage', 'fireRate', 'efficiency'];
+        return ['damage', 'fireRate', 'bounty'];
     };
     if (typeof window !== 'undefined') window.__neonPerksForTower = perksForTower;
 
@@ -1607,8 +1622,25 @@ function init() {
     document.getElementById('menu-tree-btn').addEventListener('click', () => {
         navigateToTechTree();
     });
-    document.getElementById('menu-mastery-btn').addEventListener('click', () => {
-        navigateToTowerMastery();
+    // UPGRADES tab strip — TECH TREE and MASTERY LAB are one menu now.
+    // Switching tabs swaps the overlay in place WITHOUT pushing the
+    // back-stack (uiGoBack still exits to wherever UPGRADES was opened
+    // from, no matter how many tab flips happened).
+    document.querySelectorAll('.upg-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const which = tab.dataset.upgTab;
+            const onTree = !document.getElementById('tech-tree').classList.contains('hidden');
+            if (which === 'tree' && !onTree) {
+                hideScreen('tower-mastery');
+                showScreen('tech-tree');
+                renderTechTree();
+            } else if (which === 'mastery' && onTree) {
+                hideScreen('tech-tree');
+                showScreen('tower-mastery');
+                seedMastSelection();
+                renderTowerMastery();
+            }
+        });
     });
     document.getElementById('mastery-back-btn').addEventListener('click', uiGoBack);
     document.getElementById('menu-backpack-btn').addEventListener('click', navigateToBackpack);
