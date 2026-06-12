@@ -231,6 +231,51 @@ const path = require('path');
     ok('sprite cache is stable across frames (no churn/growth)',
         sprites.count2 === sprites.count1, JSON.stringify(sprites));
 
+    // ── 6) Sprite blits are device-pixel SNAPPED (no motion shimmer) ──
+    // Regression: moving enemies looked jittery because sub-pixel
+    // bitmap placement resamples with a different bilinear phase each
+    // frame. With snapping, two sub-pixel positions that round to the
+    // SAME device pixel must produce byte-identical frames.
+    const snap = await page.evaluate(() => {
+        const g = window.game;
+        g.state = 'paused';
+        g.towers.length = 0; g.projectiles.length = 0; g.particles.length = 0;
+        g.enemies.length = 0;
+        const P = g.map.path;
+        const e = new Enemy(P, 'normal', 1);
+        g.enemies.push(e);
+        const T = window.__neonRenderT;
+        // Two logical x positions 0.2 device px apart, placed so both
+        // round to the same device pixel (fractional part .3 and .5-).
+        const base = Math.floor(T.a * 200 + T.ox) + 0.3;
+        const x1 = (base - T.ox) / T.a;
+        const x2 = (base + 0.18 - T.ox) / T.a;
+        e.y = 200;
+        e.x = x1; g.draw();
+        const W = g.canvas.width, H = g.canvas.height;
+        const f1 = g.ctx.getImageData(0, 0, W, H).data;
+        e.x = x2; g.draw();
+        const f2 = g.ctx.getImageData(0, 0, W, H).data;
+        // The HP bar is LIVE vector (intentionally — it changes every
+        // hit) and antialiases continuously at sub-pixel positions;
+        // exclude its rows from the byte comparison. The SPRITE (body
+        // + glow — where bitmap shimmer lives) must be identical.
+        const barTop    = Math.floor(T.a * (200 - e.radius - 10) + T.oy);
+        const barBottom = Math.ceil(T.a * (200 - e.radius - 2) + T.oy);
+        let diff = 0;
+        for (let i = 0; i < f1.length; i++) {
+            if (f1[i] !== f2[i]) {
+                const row = Math.floor((i >> 2) / W);
+                if (row < barTop || row > barBottom) diff++;
+            }
+        }
+        g.enemies.length = 0;
+        return { diff, snapped: typeof T === 'object' };
+    });
+    ok('render transform published for snapped blits', snap.snapped === true);
+    ok('same-device-pixel positions render byte-identically (no shimmer)',
+        snap.diff === 0, `diff=${snap.diff}`);
+
     ok('no JS errors', errs.length === 0, errs.join(' / '));
 
     await browser.close();

@@ -52,7 +52,9 @@ function getSprite(key, logicalW, logicalH, painter) {
         sctx.scale(scale, scale);
         sctx.translate(logicalW / 2, logicalH / 2);   // painter draws around (0,0)
         painter(sctx);
-        s = { canvas: c, w: logicalW, h: logicalH };
+        // `scale` is recorded so blitSprite can detect exact 1:1
+        // (live transform == raster scale) and snap to device pixels.
+        s = { canvas: c, w: logicalW, h: logicalH, scale };
         _spriteCache.set(key, s);
     }
     return s;
@@ -62,17 +64,48 @@ if (typeof window !== 'undefined') {
     window.__neonSpriteCacheSize = () => _spriteCache.size;
 }
 // Blit a cached sprite centred on (x, y) in logical units, optionally
-// rotated. When the live scale matches the raster scale this lands on
-// 1:1 device pixels.
+// rotated.
+//
+// The blit happens in DEVICE space with the centre snapped to a whole
+// device pixel. Sub-pixel bitmap placement resamples the sprite with a
+// different bilinear phase every frame, which reads as shimmer/jitter
+// on anything that moves (the "mobs look jittery" report). Snapping
+// quantizes motion to device pixels — at DPR 2 that's half a logical
+// pixel, spatially invisible — and when the live scale matches the
+// raster scale the draw is an exact 1:1 pixel copy, zero resampling.
 function blitSprite(ctx, s, x, y, angle) {
+    const T = (typeof window !== 'undefined') && window.__neonRenderT;
+    if (!T) {
+        // No live transform published (non-Game callers) — legacy
+        // logical-space blit.
+        ctx.drawImage(s.canvas, x - s.w / 2, y - s.h / 2, s.w, s.h);
+        return;
+    }
+    const c = s.canvas;
+    // k = device px per sprite px. Exactly 1 when the cache is fresh;
+    // ≠ 1 only mid-gesture (stale-scale sprites smoothly rescaled).
+    const k = T.a / s.scale;
+    const dw = c.width * k, dh = c.height * k;
+    const devX = T.a * x + T.ox;
+    const devY = T.a * y + T.oy;
     if (angle) {
+        // Rotated draws resample regardless; snap only the pivot.
         ctx.save();
-        ctx.translate(x, y);
+        ctx.translate((Math.round(devX) - T.ox) / T.a, (Math.round(devY) - T.oy) / T.a);
         ctx.rotate(angle);
-        ctx.drawImage(s.canvas, -s.w / 2, -s.h / 2, s.w, s.h);
+        ctx.drawImage(c, -dw / (2 * T.a), -dh / (2 * T.a), dw / T.a, dh / T.a);
         ctx.restore();
     } else {
-        ctx.drawImage(s.canvas, x - s.w / 2, y - s.h / 2, s.w, s.h);
+        // Snap the CORNER (odd sprite sizes would put a snapped centre
+        // back on a half pixel), expressed back in WORLD units so the
+        // draw runs under the existing transform — no setTransform
+        // round-trip per sprite, which costs real time at 1000+
+        // entities. World→device→world maps the corner onto an exact
+        // integer device pixel (fp error ~1e-7 px, below the
+        // rasterizer's fixed-point sampling grid).
+        const wx = (Math.round(devX - dw / 2) - T.ox) / T.a;
+        const wy = (Math.round(devY - dh / 2) - T.oy) / T.a;
+        ctx.drawImage(c, wx, wy, dw / T.a, dh / T.a);
     }
 }
 

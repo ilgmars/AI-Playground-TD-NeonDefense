@@ -814,6 +814,14 @@ class Game {
         const OX  = Z.tx * DPR;            // device-px pan offset
         const OY  = Z.ty * DPR;
         this.ctx.setTransform(A, 0, 0, A, OX, OY);
+        // Publish the live render transform for blitSprite — it blits
+        // in DEVICE space snapped to whole pixels (sub-pixel bitmap
+        // resampling makes moving sprites shimmer). One shared object,
+        // mutated in place, to avoid per-frame garbage.
+        if (typeof window !== 'undefined') {
+            const T = window.__neonRenderT || (window.__neonRenderT = { a: 1, ox: 0, oy: 0 });
+            T.a = A; T.ox = OX; T.oy = OY;
+        }
 
         this._drawMapLayer(A, OX, OY);
 
