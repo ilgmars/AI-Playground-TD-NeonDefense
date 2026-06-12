@@ -139,6 +139,60 @@ const path = require('path');
         digest.deadActive === false && digest.deadNoCredit === true, JSON.stringify(digest));
     ok('idx-less enemies (splitter children) untouched', digest.childHp === 50);
 
+    // ── 7) DELTA digests (traffic-optimized wire format) ────────────
+    // {u:[[idx,hp]]} updates only what changed; {x:[idx]} kills;
+    // absence means "unchanged" (NOT dead, unlike the full format).
+    const delta = await page.evaluate(() => {
+        const g = window.game;
+        g.enemies.length = 0;
+        g.enemies.push(
+            { active: true, _spawnIdx: 0, hp: 100, maxHp: 100 },
+            { active: true, _spawnIdx: 1, hp: 80,  maxHp: 100 },
+            { active: true, _spawnIdx: 2, hp: 60,  maxHp: 100 }
+        );
+        g.enemiesSpawned = 3;
+        window.__neonMPApplyEnemyState({ w: g.wave, n: 3, u: [[0, 51]], x: [1] });
+        return {
+            updatedHp: g.enemies[0].hp,
+            killedActive: g.enemies[1].active,
+            killedNoCredit: g.enemies[1]._noLocalCredit === true,
+            untouchedHp: g.enemies[2].hp,
+            untouchedActive: g.enemies[2].active,
+        };
+    });
+    ok('delta digest updates listed enemies', delta.updatedHp === 20, JSON.stringify(delta));
+    ok('delta digest kills listed deaths without loot credit',
+        delta.killedActive === false && delta.killedNoCredit === true, JSON.stringify(delta));
+    ok('delta digest leaves unlisted enemies ALONE (absence ≠ dead)',
+        delta.untouchedHp === 60 && delta.untouchedActive === true, JSON.stringify(delta));
+
+    // ── 8) Host-side digest builder: full → silent → delta ──────────
+    const builder = await page.evaluate(() => {
+        const g = window.game;
+        g.enemies.length = 0;
+        g.enemies.push(
+            { active: true, _spawnIdx: 0, hp: 100, maxHp: 100 },
+            { active: true, _spawnIdx: 1, hp: 100, maxHp: 100 }
+        );
+        g.enemiesSpawned = 2;
+        const first = window.__neonMPEnemyDigest(true);          // forced → full
+        const quiet = window.__neonMPEnemyDigest(false);         // nothing changed
+        g.enemies[0].hp = 40;                                    // damage one
+        g.enemies[1].active = false;                             // kill the other
+        const d = window.__neonMPEnemyDigest(false);             // → delta
+        return {
+            firstFull: !!(first && Array.isArray(first.e) && first.e.length === 2),
+            quietNull: quiet === null,
+            deltaU: d && d.u && d.u.length === 1 && d.u[0][0] === 0,
+            deltaX: d && d.x && d.x.length === 1 && d.x[0] === 1,
+            deltaHasNoFullList: d && !Array.isArray(d.e),
+        };
+    });
+    ok('digest builder: forced/first digest is the full format', builder.firstFull, JSON.stringify(builder));
+    ok('digest builder: no changes → no packet (zero bytes on the wire)', builder.quietNull, JSON.stringify(builder));
+    ok('digest builder: changes produce a delta (u: hp change, x: death)',
+        builder.deltaU && builder.deltaX && builder.deltaHasNoFullList, JSON.stringify(builder));
+
     ok('no JS errors', errs.length === 0, errs.join(' / '));
 
     await browser.close();

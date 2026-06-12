@@ -2144,7 +2144,9 @@ function init() {
         if (_activeMode !== 'coop' || !_activeRoom || !game) return;
         if (game.state !== 'playing' && game.state !== 'paused') return;
         const now = Date.now();
-        if (now - _mpLastSyncSent < 5000) return;
+        // 10 s cadence — this digest is diagnostic only (drift report),
+        // so halving the rate is free bandwidth.
+        if (now - _mpLastSyncSent < 10000) return;
         _mpLastSyncSent = now;
         try {
             _activeRoom.send({
@@ -2159,31 +2161,71 @@ function init() {
         } catch (_) {}
     }
     setInterval(maybeSendSync, 1000);
-    // Host → clients: compact enemy digest (see __neonMPApplyEnemyState
-    // for the receiving side and the wire format). 3-s cadence while a
-    // wave is live; nothing is sent between waves or by non-hosts.
+    // Host → clients: enemy digest, DELTA-ENCODED for traffic (coop
+    // pays metered TURN when P2P needs relaying). Wire formats:
+    //   full:  { kind:'es', w, n, e:[[idx,hpByte]…] }   — legacy shape,
+    //          receiver kills anything idx<n that's absent.
+    //   delta: { kind:'es', w, n, u:[[idx,hpByte]…], x:[idx…] } — only
+    //          enemies whose hpByte CHANGED since the last digest (u)
+    //          and deaths since the last digest (x); absence means
+    //          "unchanged", so quiet enemies cost zero bytes.
+    // A full digest goes out on wave change and every FULL_EVERY_MS as
+    // a safety net (covers a client that missed deltas); when nothing
+    // changed at all, nothing is sent.
     let _mpLastEstateSent = 0;
+    let _mpEsLast = new Map();        // spawnIdx → hpByte at last digest
+    let _mpEsLastWave = -1;
+    let _mpEsLastFullAt = 0;
+    const ES_INTERVAL_MS = 3000;
+    const ES_FULL_EVERY_MS = 15000;
+    function buildEnemyDigest(force) {
+        if (!game) return null;
+        const now = Date.now();
+        const wave = game.wave | 0;
+        const spawned = game.enemiesSpawned | 0;
+        const cur = new Map();
+        for (const e of (game.enemies || [])) {
+            if (!e || !e.active || e._spawnIdx == null) continue;
+            const maxHp = e.maxHp || 1;
+            cur.set(e._spawnIdx, Math.max(1, Math.min(255, Math.round(255 * (e.hp || 0) / maxHp))));
+        }
+        const waveChanged = wave !== _mpEsLastWave;
+        const fullDue = waveChanged || force || (now - _mpEsLastFullAt > ES_FULL_EVERY_MS);
+        let packet = null;
+        if (fullDue) {
+            if (cur.size > 0 || spawned > 0) {
+                packet = { kind: 'es', w: wave, n: spawned, e: Array.from(cur.entries()) };
+            }
+            _mpEsLastFullAt = now;
+        } else {
+            const u = [], x = [];
+            for (const [idx, hp] of cur) {
+                if (_mpEsLast.get(idx) !== hp) u.push([idx, hp]);
+            }
+            for (const idx of _mpEsLast.keys()) {
+                if (!cur.has(idx)) x.push(idx);
+            }
+            if (u.length || x.length) {
+                packet = { kind: 'es', w: wave, n: spawned, u, x };
+            }
+        }
+        _mpEsLast = cur;
+        _mpEsLastWave = wave;
+        return packet;
+    }
     function maybeSendEnemyState() {
         if (_activeMode !== 'coop' || !_activeRoom || !game || !_mpIsHost) return;
         if (game.state !== 'playing') return;
         const now = Date.now();
-        if (now - _mpLastEstateSent < 3000) return;
-        const alive = [];
-        for (const e of (game.enemies || [])) {
-            if (!e || !e.active || e._spawnIdx == null) continue;
-            const maxHp = e.maxHp || 1;
-            alive.push([e._spawnIdx, Math.max(1, Math.min(255, Math.round(255 * (e.hp || 0) / maxHp)))]);
-        }
-        const spawned = game.enemiesSpawned | 0;
-        // An EMPTY digest still matters once spawning started — it
-        // tells the client "host cleared everything you're fighting".
-        if (alive.length === 0 && spawned === 0) return;
+        if (now - _mpLastEstateSent < ES_INTERVAL_MS) return;
+        const packet = buildEnemyDigest(false);
+        if (!packet) return;                      // nothing changed → zero bytes
         _mpLastEstateSent = now;
-        try {
-            _activeRoom.send({ kind: 'es', w: game.wave | 0, n: spawned, e: alive });
-        } catch (_) {}
+        try { _activeRoom.send(packet); } catch (_) {}
     }
     setInterval(maybeSendEnemyState, 1000);
+    // Test hook — build (and optionally inspect) a digest on demand.
+    window.__neonMPEnemyDigest = buildEnemyDigest;
     // Host-loss watchdog. A non-host whose partner disappeared would
     // otherwise wait at waveCooldown 0 forever (waves are host-driven).
     // If nothing host-authored ('wave' / 'es' / 'sync' / 'pause')
@@ -2261,29 +2303,42 @@ function init() {
     // host's bank). ~6 bytes/enemy every few seconds — cheap enough
     // for metered connections.
     window.__neonMPApplyEnemyState = function (snap) {
-        if (!game || !snap || !Array.isArray(snap.e)) return;
+        if (!game || !snap) return;
         if ((snap.w | 0) !== (game.wave | 0)) return;   // stale wave digest
-        const hostAlive = new Map();
-        for (const pair of snap.e) {
+        const isFull = Array.isArray(snap.e);
+        const isDelta = !isFull && (Array.isArray(snap.u) || Array.isArray(snap.x));
+        if (!isFull && !isDelta) return;
+        const updates = new Map();
+        for (const pair of (isFull ? snap.e : snap.u) || []) {
             if (Array.isArray(pair) && Number.isInteger(pair[0])) {
-                hostAlive.set(pair[0], Math.max(1, Math.min(255, pair[1] | 0)));
+                updates.set(pair[0], Math.max(1, Math.min(255, pair[1] | 0)));
+            }
+        }
+        const dead = new Set();
+        if (isDelta) {
+            for (const idx of snap.x || []) {
+                if (Number.isInteger(idx)) dead.add(idx);
             }
         }
         const spawned = snap.n | 0;
         let changed = false;
         for (const e of (game.enemies || [])) {
             if (!e || !e.active || e._spawnIdx == null) continue;
-            const ratio = hostAlive.get(e._spawnIdx);
+            const ratio = updates.get(e._spawnIdx);
+            const killByFull  = isFull && ratio == null && e._spawnIdx < spawned;
+            const killByDelta = isDelta && dead.has(e._spawnIdx);
             if (ratio != null) {
                 const target = Math.max(1, Math.round((e.maxHp || 1) * ratio / 255));
                 if (e.hp !== target) { e.hp = target; changed = true; }
-            } else if (e._spawnIdx < spawned) {
-                // Host already killed this one.
+            } else if (killByFull || killByDelta) {
+                // Host already killed this one — remove without loot
+                // (split economy: the credit landed on the host).
                 e._noLocalCredit = true;
                 e.hp = 0;
                 e.active = false;
                 changed = true;
             }
+            // Delta + absent + not dead → unchanged on the host; leave it.
         }
         if (changed) game.uiDirty = true;
     };
@@ -4269,6 +4324,9 @@ function init() {
         _activeRace = NeonMP.race.createRace({
             peer: nick, transport: room,
             getGame: () => (typeof game !== 'undefined' ? game : {}),
+            // HUD-only leaderboard inside coop — 2 s refresh is plenty
+            // and halves the heartbeat traffic vs the 1 s default.
+            heartbeatMs: 2000,
         });
         _raceUnsub = _activeRace.onUpdate(renderRaceOverlay);
         _activeRace.start();
@@ -4441,18 +4499,24 @@ function init() {
     }
     // Throttle cursor frames so we don't flood the data channel. 10 Hz
     // gives smooth motion without saturating the budget; mouse moves
-    // come in much faster than that on desktop.
+    // come in much faster than that on desktop. Additionally skip
+    // sends when the cursor barely moved — an idle or hovering mouse
+    // costs ZERO bytes instead of a steady 10 Hz drip. (Traffic is
+    // metered: coop pays for TURN relay when P2P needs it.)
     let _mpLastCursorSentAt = 0;
+    let _mpLastCursorX = -1, _mpLastCursorY = -1;
     function mpBroadcastCursor(x, y) {
         if (!_activeCoop || !_activeRoom) return;
         const now = Date.now();
         if (now - _mpLastCursorSentAt < 100) return;
+        const qx = Math.round(x), qy = Math.round(y);
+        if (Math.abs(qx - _mpLastCursorX) < 3 && Math.abs(qy - _mpLastCursorY) < 3) return;
         _mpLastCursorSentAt = now;
+        _mpLastCursorX = qx; _mpLastCursorY = qy;
         try {
-            _activeRoom.send({
-                kind: 'cursor', p: _activeCoop.me,
-                x: Math.round(x), y: Math.round(y), t: now,
-            });
+            // No timestamp on the wire — the receiver stamps arrival
+            // time (row.lastSeen) itself.
+            _activeRoom.send({ kind: 'cursor', p: _activeCoop.me, x: qx, y: qy });
         } catch (_) { /* swallow */ }
     }
     // Expose globally so the input handlers scattered through init()
