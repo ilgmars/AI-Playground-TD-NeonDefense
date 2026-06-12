@@ -81,7 +81,7 @@ const path = require('path');
             heldPanelActive: !document.getElementById('bp-held').classList.contains('is-empty'),
         }));
         ok('double-tap chip: item still held',            state.held === true);
-        ok('double-tap chip: not double-removed',         state.stashLen === 0);
+        ok('double-tap chip: stays listed (held-in-place model)', state.stashLen === 1);
         ok('double-tap chip: nothing placed',             state.placedLen === 0);
         ok('double-tap chip: held panel in active state', state.heldPanelActive === true);
         ok('double-tap chip: no JS errors',               errs.length === 0);
@@ -161,7 +161,7 @@ const path = require('path');
         const mid = await page.evaluate(() => ({
             held: !!bpHeld, stashLen: save.backpack.stash.length,
         }));
-        ok('pickup: removes chip from stash', mid.stashLen === 0 && mid.held === true);
+        ok('pickup: chip STAYS in stash, marked held (green)', mid.stashLen === 1 && mid.held === true);
         await page.click('#bp-tostash');
         await page.waitForTimeout(120);
         const after = await page.evaluate(() => ({
@@ -186,18 +186,18 @@ const path = require('path');
         // Pick the first chip.
         await page.click('#bp-stash .bp-chip[data-stash-idx="0"]');
         await page.waitForTimeout(80);
-        // The chip indices are reassigned by renderBackpack — the
-        // remaining chip is now at index 0.
-        await page.click('#bp-stash .bp-chip[data-stash-idx="0"]');
+        // Held-in-place model: the held chip STAYS at index 0 (marked
+        // green); the second chip sits at index 1.
+        await page.click('#bp-stash .bp-chip[data-stash-idx="1"]');
         await page.waitForTimeout(120);
         const after = await page.evaluate(() => ({
             heldId: bpHeld && bpHeld.id,
             stashIds: save.backpack.stash.slice(),
         }));
         ok('swap pickup: new item held',
-           after.heldId !== null);
-        ok('swap pickup: previous item back in stash',
-           after.stashIds.length === 1);
+           after.heldId === 'credit_chip', after.heldId);
+        ok('swap pickup: both items still listed (held-in-place)',
+           after.stashIds.length === 2, JSON.stringify(after.stashIds));
         ok('swap pickup: no JS errors', errs.length === 0);
         await ctx.close();
     }
@@ -791,7 +791,7 @@ const path = require('path');
         ok('8 rotations: still held',         after.held === true);
         ok('8 rotations: rot back to 0',      after.rot === 0);
         ok('8 rotations: nothing placed',     after.placedLen === 0);
-        ok('8 rotations: stash empty',        after.stashLen === 0);
+        ok('8 rotations: held item still listed', after.stashLen === 1);
         ok('8 rotations: ghost stays in grid', after.ghostInside === true);
         ok('8 rotations: no JS errors',       errs.length === 0);
         await ctx.close();
@@ -1065,7 +1065,7 @@ const path = require('path');
         ok('pre-tap: held is the coolant_coil',
            ghostState.heldId === 'coolant_coil');
         ok('pre-tap: plasma still placed',  ghostState.placedCount === 1);
-        ok('pre-tap: stash empty',          ghostState.stashCount === 0);
+        ok('pre-tap: held coil still listed', ghostState.stashCount === 1);
 
         // Tap the red-ghost-over-filled cell. Expected: held item stays,
         // placed item stays, status shows refused feedback. NOT a swap.
@@ -1091,7 +1091,7 @@ const path = require('path');
            after.placedItems.length === 1 &&
            after.placedItems[0].id === 'plasma_cell' &&
            after.placedItems[0].x === 0 && after.placedItems[0].y === 0);
-        ok('after tap: stash still empty',     after.stashIds.length === 0);
+        ok('after tap: held coil still listed', after.stashIds.length === 1);
         ok('after tap: refusal status shown',  /doesn'?t fit|ROTATE/i.test(after.statusText));
         ok('after tap: held panel flashed',    after.heldFlash === true);
         ok('after tap: no JS errors',          errs.length === 0);
@@ -1242,8 +1242,8 @@ const path = require('path');
         ok('touch-drag over ghost-bad: plasma still placed',
            after.placed.length === 1 &&
            after.placed[0].id === 'plasma_cell');
-        ok('touch-drag over ghost-bad: stash still empty',
-           after.stashIds.length === 0);
+        ok('touch-drag over ghost-bad: held coil still listed',
+           after.stashIds.length === 1);
         ok('touch-drag over ghost-bad: no JS errors', errs.length === 0);
         await ctx.close();
     }
@@ -1332,8 +1332,8 @@ const path = require('path');
             held: bpHeld && bpHeld.id,
             stashLen: save.backpack.stash.length,
         }));
-        ok('pure tap (sub-threshold) picks up cleanly',
-           after.held === 'plasma_cell' && after.stashLen === 0);
+        ok('pure tap (sub-threshold) picks up cleanly (chip stays listed)',
+           after.held === 'plasma_cell' && after.stashLen === 1);
         ok('pure tap: no JS errors',  errs.length === 0);
         await ctx.close();
     }

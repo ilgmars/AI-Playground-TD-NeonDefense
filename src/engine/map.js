@@ -193,8 +193,16 @@ class GameMap {
     }
 
     draw(ctx) {
-        for (let r = 0; r < ROWS; r++) {
-            for (let c = 0; c < COLS; c++) {
+        // Iterate THIS map's grid, never the live COLS/ROWS globals.
+        // When the FIELD orientation toggles, the globals swap to the
+        // new dimensions before the next Game is constructed — drawing
+        // the old map against the new globals walked off the grid
+        // ("portrait mode does not start the game at all": the crash
+        // aborted restartGame).
+        const rows = this.grid.length;
+        const cols = this.grid[0] ? this.grid[0].length : 0;
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
                 const x = c * TILE_SIZE;
                 const y = r * TILE_SIZE;
                 const cell = this.grid[r][c];

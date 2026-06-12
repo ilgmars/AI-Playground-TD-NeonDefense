@@ -315,7 +315,9 @@ const path = require('path');
         // user can tap to retry or send back via the STASH button.
         ok('invalid drop did NOT add to placed',        result.placedLen === 1);
         ok('item is still held after invalid drop',     result.held === true);
-        ok('dragged item not stashed after invalid drop', result.stashLen === 0);
+        // Held-in-place model: the dragged stash item stays LISTED
+        // (marked green) while held — it just must not be duplicated.
+        ok('dragged item stays listed once after invalid drop', result.stashLen === 1);
         await ctx.close();
     }
 

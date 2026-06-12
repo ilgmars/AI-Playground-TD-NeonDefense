@@ -2438,6 +2438,13 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
    the drag breaks the moment the finger enters the grid. */
 .bp-cell.filled,
 .bp-chip { touch-action: none; }
+/* Held-in-place stash pick: the chip stays in the list and glows
+   green until it actually lands on the grid (or is sold). */
+.bp-chip.bp-chip-held {
+    border-color: #34d399 !important;
+    box-shadow: 0 0 10px rgba(52, 211, 153, 0.55), inset 0 0 6px rgba(52, 211, 153, 0.25);
+    background: rgba(52, 211, 153, 0.08);
+}
 /* While an item is held, EVERY grid cell (filled or empty) must
    refuse to start a scroll/pan gesture — otherwise dragging the
    item downward scrolls the whole page under the player's finger

@@ -111,6 +111,34 @@ const path = require('path');
     ok('multiplayer run forces WIDE board despite TALL option',
         mp.cols === 24 && mp.rows === 16, JSON.stringify(mp));
 
+    // ── 5) THE USER FLOW: boot WIDE, toggle TALL in the menu, START ────
+    // Regression ("portrait mode does not start the game at all"): the
+    // dims swap inside restartGame redrew the OLD wide game against the
+    // new 24-row globals → out-of-bounds crash → restartGame aborted →
+    // START did nothing. Must start cleanly without a single JS error.
+    const errsBefore = errs.length;
+    await page.evaluate(() => {
+        localStorage.setItem('neonFieldTall', '0');
+        navigateToMainMenu();
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });   // clean WIDE boot
+    await page.waitForTimeout(700);
+    await page.click('#menu-field-btn');                    // toggle to TALL
+    await page.click('#menu-start-btn'); await page.waitForTimeout(250);
+    await page.click('#start-btn');     await page.waitForTimeout(800);
+    const toggled = await page.evaluate(() => ({
+        state: window.game.state,
+        dims: [window.COLS, window.ROWS],
+        gridRows: window.game.map.grid.length,
+        startHidden: document.getElementById('start-screen').classList.contains('hidden'),
+    }));
+    ok('toggle-then-START actually starts a TALL run',
+        toggled.state === 'playing' && toggled.dims[0] === 16 && toggled.dims[1] === 24 &&
+        toggled.gridRows === 24 && toggled.startHidden === true,
+        JSON.stringify(toggled));
+    ok('toggle-then-START throws no JS errors', errs.length === errsBefore,
+        errs.slice(errsBefore).join(' / '));
+
     ok('no JS errors', errs.length === 0, errs.join(' / '));
 
     await browser.close();

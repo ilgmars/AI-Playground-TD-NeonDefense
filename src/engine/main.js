@@ -817,15 +817,41 @@ function bpMiniShape(def, rot, container) {
 function bpPersist() { NeonSave.write(save); }
 
 function bpReturnHeldToStash() {
-    if (bpHeld) { save.backpack.stash.push(bpHeld.id); bpHeld = null; bpLastGhost = null; }
+    if (!bpHeld) return;
+    // Stash-picked items never LEFT the stash list (they're shown
+    // held-in-place, marked green) — putting them back is just
+    // releasing the hold. Only grid-picked items get pushed back.
+    if (bpHeld.source !== 'stash') save.backpack.stash.push(bpHeld.id);
+    bpHeld = null;
+    bpLastGhost = null;
+}
+
+// Remove the held STASH item from the stash array — called only when
+// the item is actually consumed (placed on the grid or sold). Index
+// is re-validated since the stash can shift while holding (salvage).
+function bpConsumeHeldFromStash() {
+    if (!bpHeld || bpHeld.source !== 'stash') return;
+    const bp = save.backpack;
+    let i = bpHeld.stashIdx;
+    if (bp.stash[i] !== bpHeld.id) i = bp.stash.indexOf(bpHeld.id);
+    if (i >= 0) bp.stash.splice(i, 1);
 }
 
 function bpPickStash(i) {
     const bp = save.backpack;
     if (i < 0 || i >= bp.stash.length) return;
+    // Tapping the chip you're already holding is a no-op (mobile
+    // double-taps are common; silently dropping the pick would undo
+    // the player's intent). Use TO STASH to put it down.
+    if (bpHeld && bpHeld.source === 'stash' && bpHeld.stashIdx === i && bpHeld.id === bp.stash[i]) {
+        bpStatus('Already holding — tap a grid cell to place, or TO STASH to put down.');
+        return;
+    }
     if (bpHeld) bpReturnHeldToStash();
-    const id = bp.stash.splice(i, 1)[0];
-    bpHeld = { source: 'stash', id, rot: 0 };
+    // The item STAYS in the list while held — the renderer marks it
+    // green; it's removed only once it lands on the grid (or is sold).
+    const id = bp.stash[i];
+    bpHeld = { source: 'stash', id, stashIdx: i, rot: 0 };
     bpStatus('Pick a grid cell (top-left) to place ' + (BACKPACK_ITEMS[id] ? BACKPACK_ITEMS[id].name : id) + '.');
     renderBackpack();
 }
@@ -853,6 +879,7 @@ function bpPlaceAt(x, y) {
     const def = BACKPACK_ITEMS[bpHeld.id];
     if (!def) { bpHeld = null; bpLastGhost = null; renderBackpack(); return; }
     if (NeonBackpack.canPlace(save.backpack, BACKPACK_ITEMS, def, x, y, bpHeld.rot)) {
+        bpConsumeHeldFromStash();    // NOW it leaves the stash list
         save.backpack.placed.push({ id: bpHeld.id, x, y, rot: bpHeld.rot });
         bpHeld = null; bpLastGhost = null;
         bpPersist();
@@ -913,8 +940,9 @@ function bpRestoreHeld() {
 
 function bpHeldToStash() {
     if (!bpHeld) return;
-    save.backpack.stash.push(bpHeld.id);
-    bpHeld = null; bpLastGhost = null;
+    // Stash-sourced items are still IN the list (held-in-place) — just
+    // release; grid-sourced items get appended.
+    bpReturnHeldToStash();
     bpPersist();
     renderBackpack();
 }
@@ -923,6 +951,7 @@ function bpSellHeld() {
     if (!bpHeld) return;
     const def = BACKPACK_ITEMS[bpHeld.id];
     const rarity = def && def.rarity;
+    bpConsumeHeldFromStash();        // selling consumes the listed copy
     const refund = NeonSave.sellItem(save, rarity);
     bpHeld = null; bpLastGhost = null;
     if (typeof updateMainMenuState === 'function') updateMainMenuState();
@@ -1207,6 +1236,12 @@ function renderBackpack() {
         chip.dataset.stashIdx = String(i);
         if (def && def.rarity) chip.dataset.rarity = def.rarity;
         chip.style.borderColor = BP_RARITY_COLOR[def && def.rarity] || '#64748b';
+        // Held-in-place: a stash pick stays listed, marked green, until
+        // it's actually placed on the grid (or sold).
+        if (bpHeld && bpHeld.source === 'stash' && bpHeld.stashIdx === i && bpHeld.id === id) {
+            chip.classList.add('bp-chip-held');
+            chip.style.borderColor = '#34d399';
+        }
         const shape = document.createElement('div');
         shape.className = 'bp-mini';
         bpMiniShape(def, 0, shape);
@@ -1420,9 +1455,12 @@ function resizeCanvas() {
     // longer matches; force a re-rasterization on the next draw.
     if (typeof game !== 'undefined' && game) game._mapLayerKey = null;
 
-    // Force immediate redraw if paused
+    // Force immediate redraw if paused. Guarded: during a FIELD
+    // orientation change this can run on a game built for the OLD
+    // dimensions — a draw failure here must never abort the caller
+    // (restartGame used to die on it, killing the start button).
     if (typeof game !== 'undefined' && game.state !== 'playing') {
-        game.draw();
+        try { game.draw(); } catch (_) {}
     }
 }
 
