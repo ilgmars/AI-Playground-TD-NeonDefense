@@ -1481,9 +1481,15 @@ window.visualViewport?.addEventListener('resize', () => {
 
 function init() {
     const canvas = document.getElementById('game-canvas');
-    // Fixed logical resolution for perfect game balance
-    window.COLS = 24;
-    window.ROWS = 16;
+    // Fixed logical resolution for perfect game balance. 24×16 wide by
+    // default; the FIELD: TALL option transposes to 16×24 (portrait,
+    // enemies from above) — same tile count, same balance. restartGame
+    // re-applies this per run (and forces WIDE in multiplayer).
+    const _bootFieldTall = (() => {
+        try { return localStorage.getItem('neonFieldTall') === '1'; } catch (_) { return false; }
+    })();
+    window.COLS = _bootFieldTall ? 16 : 24;
+    window.ROWS = _bootFieldTall ? 24 : 16;
     window.TILE_SIZE = 40;
 
     // Declare speed state early so updateSpeedColor() can reference them
@@ -1852,6 +1858,24 @@ function init() {
     // Test hook: drives the same flow without a real prompt().
     window.__neonResetSavePhrase = 'delete all progress';
 
+    // Field orientation toggle — WIDE (landscape, default) ⇄ TALL
+    // (portrait, enemies from above). Stored per device, applied at
+    // the start of the NEXT run (see restartGame; MP always WIDE).
+    const fieldBtn = document.getElementById('menu-field-btn');
+    function renderFieldBtn() {
+        if (!fieldBtn) return;
+        const tall = localStorage.getItem('neonFieldTall') === '1';
+        fieldBtn.textContent = tall ? 'FIELD: TALL ▾' : 'FIELD: WIDE ▸';
+    }
+    if (fieldBtn) {
+        fieldBtn.addEventListener('click', () => {
+            const tall = localStorage.getItem('neonFieldTall') === '1';
+            try { localStorage.setItem('neonFieldTall', tall ? '0' : '1'); } catch (_) {}
+            renderFieldBtn();
+        });
+        renderFieldBtn();
+    }
+
     // Save / Load code modal — portable string backup of the whole save.
     const scStatus = () => document.getElementById('save-code-status');
     document.getElementById('menu-savecode-btn').addEventListener('click', () => {
@@ -2005,6 +2029,7 @@ function init() {
     }
     // Expose for the RST handler + tests.
     window.autoSaveScore = autoSaveScore;
+    window.restartGame = restartGame;       // tests + console debugging
     window.getPlayerName = getPlayerName;
     window.setPlayerName = setPlayerName;
     function clearAutoSaveKey() { _lastAutoSaveKey = null; }
@@ -2590,6 +2615,18 @@ function init() {
     }
 
     function restartGame(seed) {
+        // Field orientation (Trello: "rotate field −90°, enemies come
+        // from above"). TALL boards transpose the grid to 16×24 and
+        // the map walker runs top→bottom — the whole render/input
+        // pipeline follows the COLS/ROWS globals, so nothing else
+        // changes. Applied per RUN (mid-run toggling would invalidate
+        // tower positions). Multiplayer always forces WIDE: both peers
+        // must simulate the identical world.
+        const fieldTall = !_activeMode && localStorage.getItem('neonFieldTall') === '1';
+        window.COLS = fieldTall ? 16 : 24;
+        window.ROWS = fieldTall ? 24 : 16;
+        resizeCanvas();
+
         document.getElementById('restart-confirm').classList.add('hidden');
         document.getElementById('retire-confirm').classList.add('hidden');
         document.getElementById('victory').classList.add('hidden');

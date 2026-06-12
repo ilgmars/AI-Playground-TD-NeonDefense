@@ -28,38 +28,49 @@ class GameMap {
 
         this.path = [];
 
-        let c = 0;
-        let r = Math.floor(rng() * (ROWS - 4)) + 2;
+        // The walk runs along the board's LONG axis: wide boards
+        // (default 24×16) walk left→right, TALL boards (the portrait
+        // "field rotated −90°" option, 16×24) walk top→bottom so
+        // enemies come from above. The RNG call sequence is identical
+        // to the original left→right walker, so every existing seed
+        // still produces the exact same wide map.
+        const tall = ROWS > COLS;
+        const mainLen  = tall ? ROWS : COLS;     // walk-axis length
+        const crossLen = tall ? COLS : ROWS;     // wander-axis length
+        const P = (main, cross) => tall ? { c: cross, r: main } : { c: main, r: cross };
 
-        this.path.push({c, r});
-        this.startPoint = {c, r};
+        let main = 0;
+        let cross = Math.floor(rng() * (crossLen - 4)) + 2;
 
-        while (c < COLS - 1) {
-            let stepRight = Math.floor(rng() * 3) + 2;
-            if (c + stepRight >= COLS - 1) stepRight = (COLS - 1) - c;
+        this.path.push(P(main, cross));
+        this.startPoint = this.path[0];
 
-            for (let i = 0; i < stepRight; i++) {
-                c++;
-                this.path.push({c, r});
+        while (main < mainLen - 1) {
+            let stepFwd = Math.floor(rng() * 3) + 2;
+            if (main + stepFwd >= mainLen - 1) stepFwd = (mainLen - 1) - main;
+
+            for (let i = 0; i < stepFwd; i++) {
+                main++;
+                this.path.push(P(main, cross));
             }
 
-            if (c === COLS - 1) break;
+            if (main === mainLen - 1) break;
 
-            let canUp = r > 2;
-            let canDown = r < ROWS - 3;
-            if (!canUp && !canDown) continue;
+            let canBack = cross > 2;
+            let canFwd  = cross < crossLen - 3;
+            if (!canBack && !canFwd) continue;
 
             let dir = 1;
-            if (canUp && canDown) dir = rng() < 0.5 ? 1 : -1;
-            else if (canUp) dir = -1;
+            if (canBack && canFwd) dir = rng() < 0.5 ? 1 : -1;
+            else if (canBack) dir = -1;
 
-            let maxDist = dir === 1 ? ROWS - 2 - r : r - 2;
+            let maxDist = dir === 1 ? crossLen - 2 - cross : cross - 2;
             if (maxDist < 2) continue;
 
             let dist = Math.floor(rng() * (maxDist - 1)) + 2;
             for (let i = 0; i < dist; i++) {
-                r += dir;
-                this.path.push({c, r});
+                cross += dir;
+                this.path.push(P(main, cross));
             }
         }
 
