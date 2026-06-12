@@ -101,6 +101,10 @@ const path = require('path');
         g._mpHoldWaves = false;
         g.waveCooldown = 1;
         g.update();
+        // Back to paused — later sections insert plain-object enemy
+        // stubs, and a live RAF update() loop would call e.update()
+        // on them (TypeError; flaked on slower CI runners).
+        g.state = 'paused';
         return { before, heldWave, heldCooldown, releasedWave: g.wave };
     });
     ok('held client does NOT self-advance at cooldown 0',
@@ -113,11 +117,12 @@ const path = require('path');
     // locally without loot credit; stale-wave digests are ignored.
     const digest = await page.evaluate(() => {
         const g = window.game;
+        g.state = 'paused';          // stubs below have no update()
         g.enemies.length = 0;
         g.enemies.push(
-            { active: true, _spawnIdx: 0, hp: 100, maxHp: 100 },
-            { active: true, _spawnIdx: 1, hp: 100, maxHp: 100 },
-            { active: true, hp: 50, maxHp: 50 }   // splitter child — no idx, untouched
+            { active: true, _spawnIdx: 0, hp: 100, maxHp: 100, draw() {}, update() {} },
+            { active: true, _spawnIdx: 1, hp: 100, maxHp: 100, draw() {}, update() {} },
+            { active: true, hp: 50, maxHp: 50, draw() {}, update() {} }   // splitter child — no idx, untouched
         );
         g.enemiesSpawned = 2;
         // Stale digest (wrong wave) must be a no-op.
@@ -144,11 +149,12 @@ const path = require('path');
     // absence means "unchanged" (NOT dead, unlike the full format).
     const delta = await page.evaluate(() => {
         const g = window.game;
+        g.state = 'paused';
         g.enemies.length = 0;
         g.enemies.push(
-            { active: true, _spawnIdx: 0, hp: 100, maxHp: 100 },
-            { active: true, _spawnIdx: 1, hp: 80,  maxHp: 100 },
-            { active: true, _spawnIdx: 2, hp: 60,  maxHp: 100 }
+            { active: true, _spawnIdx: 0, hp: 100, maxHp: 100, draw() {}, update() {} },
+            { active: true, _spawnIdx: 1, hp: 80,  maxHp: 100, draw() {}, update() {} },
+            { active: true, _spawnIdx: 2, hp: 60,  maxHp: 100, draw() {}, update() {} }
         );
         g.enemiesSpawned = 3;
         window.__neonMPApplyEnemyState({ w: g.wave, n: 3, u: [[0, 51]], x: [1] });
@@ -169,10 +175,11 @@ const path = require('path');
     // ── 8) Host-side digest builder: full → silent → delta ──────────
     const builder = await page.evaluate(() => {
         const g = window.game;
+        g.state = 'paused';
         g.enemies.length = 0;
         g.enemies.push(
-            { active: true, _spawnIdx: 0, hp: 100, maxHp: 100 },
-            { active: true, _spawnIdx: 1, hp: 100, maxHp: 100 }
+            { active: true, _spawnIdx: 0, hp: 100, maxHp: 100, draw() {}, update() {} },
+            { active: true, _spawnIdx: 1, hp: 100, maxHp: 100, draw() {}, update() {} }
         );
         g.enemiesSpawned = 2;
         const first = window.__neonMPEnemyDigest(true);          // forced → full
@@ -180,6 +187,7 @@ const path = require('path');
         g.enemies[0].hp = 40;                                    // damage one
         g.enemies[1].active = false;                             // kill the other
         const d = window.__neonMPEnemyDigest(false);             // → delta
+        g.enemies.length = 0;
         return {
             firstFull: !!(first && Array.isArray(first.e) && first.e.length === 2),
             quietNull: quiet === null,
