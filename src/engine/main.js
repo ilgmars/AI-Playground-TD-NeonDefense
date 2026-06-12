@@ -1412,7 +1412,14 @@ function resizeCanvas() {
 
     const logicalWidth = window.COLS * window.TILE_SIZE;
     window.RENDER_SCALE = (cssWidth * dpr) / logicalWidth;
-    
+    // CSS-px → device-px factor; game.draw uses it to convert the
+    // pinch-zoom pan offset (kept in CSS px) into the render transform.
+    window.RENDER_DPR = dpr;
+
+    // Backing size or scale changed → the cached static map layer no
+    // longer matches; force a re-rasterization on the next draw.
+    if (typeof game !== 'undefined' && game) game._mapLayerKey = null;
+
     // Force immediate redraw if paused
     if (typeof game !== 'undefined' && game.state !== 'playing') {
         game.draw();
@@ -3325,12 +3332,17 @@ function init() {
         const rect = canvas.getBoundingClientRect();
         const logicalWidth = window.COLS * window.TILE_SIZE;
         const logicalHeight = window.ROWS * window.TILE_SIZE;
-        
+
         const scaleX = logicalWidth / rect.width;
         const scaleY = logicalHeight / rect.height;
+        // Invert the pinch-zoom view transform. Zoom lives in the
+        // render transform now (not on the element), so the bounding
+        // rect no longer reflects it — undo translate-then-scale
+        // explicitly before mapping CSS px to logical units.
+        const Z = window.__neonZoom || { scale: 1, tx: 0, ty: 0 };
         return {
-            x: (e.clientX - rect.left) * scaleX,
-            y: (e.clientY - rect.top) * scaleY
+            x: ((e.clientX - rect.left - Z.tx) / Z.scale) * scaleX,
+            y: ((e.clientY - rect.top  - Z.ty) / Z.scale) * scaleY
         };
     }
 
@@ -3341,11 +3353,16 @@ function init() {
     });
 
     // ── Canvas pinch-zoom + 2-finger pan ────────────────────────────────
-    // Small-screen players couldn't read the field clearly. We apply a
-    // CSS `transform: translate(tx,ty) scale(s)` on the canvas only —
-    // the surrounding UI (build dock, top bar) stays unscaled. Because
-    // getCanvasPos uses getBoundingClientRect, taps in zoomed/panned
-    // state still hit the right tile without any code changes there.
+    // Small-screen players couldn't read the field clearly. The zoom
+    // state lives in window.__neonZoom and is consumed by the RENDER
+    // TRANSFORM inside Game.draw — every vector path re-rasterizes at
+    // the zoomed resolution, so the field stays crisp at any zoom on
+    // any screen. (The previous implementation CSS-scaled the canvas
+    // element, which stretches the rendered bitmap: blurry at 2×+,
+    // plus a compositing-layer hairline bug on some mobile browsers.
+    // Both go away with no element transform at all.)
+    // tx/ty semantics are unchanged: CSS-px translate applied before
+    // scale, origin 0 0 — the pinch/clamp math below is identical.
     //
     // Single-finger touches pass through to the existing build/place
     // logic. Only 2-finger touchmove triggers a zoom/pan.
@@ -3354,21 +3371,12 @@ function init() {
     const ZOOM_MIN = 1;       // never zoom out below natural size
     const ZOOM_MAX = 4;
     function applyZoom() {
-        // When the zoom is at base (1×, no pan) we drop the transform
-        // entirely. Leaving `transform: translate(0,0) scale(1)` on
-        // the canvas creates a compositing layer that, on some mobile
-        // browsers, renders a 1-px hairline at the canvas edge
-        // because of sub-pixel rounding between the parent's
-        // flex-center layout and the GPU-composed canvas — the "weird
-        // line in the middle of the screen" players reported.
-        if (_zoom.scale === 1 && _zoom.tx === 0 && _zoom.ty === 0) {
-            canvas.style.transform = '';
-            canvas.style.transformOrigin = '';
-            return;
+        // The render loop picks the new state up on its next frame.
+        // While paused / on overlays the loop doesn't tick, so force
+        // one draw to commit the new view immediately.
+        if (typeof game !== 'undefined' && game && game.state !== 'playing') {
+            try { game.draw(); } catch (_) {}
         }
-        canvas.style.transformOrigin = '0 0';
-        canvas.style.transform =
-            `translate(${_zoom.tx}px, ${_zoom.ty}px) scale(${_zoom.scale})`;
     }
     function resetZoom() {
         _zoom.scale = 1; _zoom.tx = 0; _zoom.ty = 0;
@@ -3383,9 +3391,12 @@ function init() {
     let _spanPan = null;
     const PAN_THRESHOLD_PX = 12;
     function clampPan() {
+        // No CSS transform on the canvas any more, so the bounding
+        // rect is the layout size directly (it used to be the SCALED
+        // rect, hence the old `/ _zoom.scale`).
         const rect = canvas.getBoundingClientRect();
-        const canvasW = rect.width / _zoom.scale;
-        const canvasH = rect.height / _zoom.scale;
+        const canvasW = rect.width;
+        const canvasH = rect.height;
         const maxTx = canvasW * (_zoom.scale - 1);
         const maxTy = canvasH * (_zoom.scale - 1);
         if (_zoom.tx > 0) _zoom.tx = 0;
@@ -3452,6 +3463,11 @@ function init() {
             _zoom.scale = newScale;
             _zoom.tx = c1.x - (_pinch.cx0 - _pinch.tx0) * k;
             _zoom.ty = c1.y - (_pinch.cy0 - _pinch.ty0) * k;
+            // Gesture in flight: Game._drawMapLayer blits the stale
+            // map raster warped to the new transform instead of
+            // re-rasterizing 300 tiles per touchmove. Cleared on
+            // touchend → first still frame re-renders crisp.
+            window.__neonZoomGesture = true;
             clampPan();
             applyZoom();
             e.preventDefault();
@@ -3471,6 +3487,7 @@ function init() {
             if (_spanPan.active) {
                 _zoom.tx = _spanPan.tx0 + dx;
                 _zoom.ty = _spanPan.ty0 + dy;
+                window.__neonZoomGesture = true;
                 clampPan();
                 applyZoom();
                 e.preventDefault();
@@ -3492,8 +3509,15 @@ function init() {
                 window.__neonPinchCooldownUntil = Date.now() + 200;
             }
         }
+        if (e.touches.length === 0) {
+            // Fingers lifted → next frame re-rasterizes the map layer
+            // at the settled transform (crisp).
+            window.__neonZoomGesture = false;
+            applyZoom();
+        }
     });
     canvas.addEventListener('touchcancel', () => {
+        window.__neonZoomGesture = false;
         if (_pinch) {
             _pinch = null;
             window.__neonPinchCooldownUntil = Date.now() + 250;
@@ -3645,9 +3669,12 @@ function init() {
         const isLandscape = window.innerWidth > window.innerHeight;
         const GHOST_OFFSET_PX = isLandscape ? 70 : 100;
         
-        // Apply offset in screen space, then scale to logical coordinates
-        mousePos.x = (t.clientX - rect.left) * scaleX;
-        mousePos.y = ((t.clientY - GHOST_OFFSET_PX) - rect.top) * scaleY;
+        // Apply offset in screen space, undo the pinch-zoom view
+        // transform (it lives in the render transform now, not on the
+        // element), then scale to logical coordinates.
+        const Zg = window.__neonZoom || { scale: 1, tx: 0, ty: 0 };
+        mousePos.x = ((t.clientX - rect.left - Zg.tx) / Zg.scale) * scaleX;
+        mousePos.y = (((t.clientY - GHOST_OFFSET_PX) - rect.top - Zg.ty) / Zg.scale) * scaleY;
     }, { passive: false });
 
     // Pending placement state: set when finger lifts over canvas, cleared on confirm/cancel.
@@ -3712,8 +3739,10 @@ function init() {
             const isLandscape = window.innerWidth > window.innerHeight;
             const GHOST_OFFSET_PX = isLandscape ? 70 : 100;
 
-            const lx = (t.clientX - rect.left) * scaleX;
-            const ly = ((t.clientY - GHOST_OFFSET_PX) - rect.top) * scaleY;
+            // Same zoom-inverse as the touchmove ghost above.
+            const Zd = window.__neonZoom || { scale: 1, tx: 0, ty: 0 };
+            const lx = ((t.clientX - rect.left - Zd.tx) / Zd.scale) * scaleX;
+            const ly = (((t.clientY - GHOST_OFFSET_PX) - rect.top - Zd.ty) / Zd.scale) * scaleY;
             const col = Math.floor(lx / window.TILE_SIZE);
             const row = Math.floor(ly / window.TILE_SIZE);
 
@@ -3725,11 +3754,12 @@ function init() {
             const ghostOnMap = (col >= 0 && col < window.COLS && row >= 0 && row < window.ROWS);
 
             if (ghostOnMap && game.map.isBuildable(col, row) && game.canAfford(state.type)) {
-                // Convert ghost tile centre back to screen coords for button positioning
+                // Convert ghost tile centre back to screen coords for
+                // button positioning (forward zoom view transform).
                 const tileCentreLogX = col * window.TILE_SIZE + window.TILE_SIZE / 2;
                 const tileCentreLogY = row * window.TILE_SIZE + window.TILE_SIZE / 2;
-                const sx = rect.left + tileCentreLogX / scaleX;
-                const sy = rect.top  + tileCentreLogY / scaleY;
+                const sx = rect.left + Zd.tx + (tileCentreLogX / scaleX) * Zd.scale;
+                const sy = rect.top  + Zd.ty + (tileCentreLogY / scaleY) * Zd.scale;
                 showPlaceConfirm(col, row, state.type, sx, sy);
             } else {
                 // Not buildable, off the map, or can't afford — cancel silently.
@@ -4504,7 +4534,13 @@ function init() {
             overlay.style.height = rect.height + 'px';
         }
         const ctx = overlay.getContext('2d');
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, overlay.width, overlay.height);
+        // Track the game canvas's pinch-zoom view so remote cursors
+        // stay glued to the tile they point at while zoomed/panned.
+        // Identity at base zoom.
+        const Z = window.__neonZoom || { scale: 1, tx: 0, ty: 0 };
+        ctx.setTransform(Z.scale, 0, 0, Z.scale, Z.tx, Z.ty);
         const now = Date.now();
         let alive = false;
         for (const [peer, row] of _remoteCursors) {
@@ -4815,7 +4851,12 @@ function init() {
         canvas.addEventListener('mousemove', (e) => {
             if (!window.__neonMPBroadcast || !window.__neonMPBroadcast.cursor) return;
             const rect = canvas.getBoundingClientRect();
-            window.__neonMPBroadcast.cursor(e.clientX - rect.left, e.clientY - rect.top);
+            // Send zoom-independent (base-view CSS px) coordinates;
+            // the receiving overlay applies ITS OWN zoom transform.
+            const Z = window.__neonZoom || { scale: 1, tx: 0, ty: 0 };
+            window.__neonMPBroadcast.cursor(
+                (e.clientX - rect.left - Z.tx) / Z.scale,
+                (e.clientY - rect.top  - Z.ty) / Z.scale);
         });
         _cursorMoveAttached = true;
     }

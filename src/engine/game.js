@@ -729,6 +729,48 @@ class Game {
         }
     }
 
+    // Static map layer cache. The ~300 map tiles never change within a
+    // run, but map.draw() used to re-rasterize all of them (gradients,
+    // glows) every frame — the largest fixed per-frame cost. We
+    // rasterize them once per (canvas size, render transform, map)
+    // into an offscreen canvas and blit a single image per frame.
+    //
+    // While a pinch/pan gesture is in flight (window.__neonZoomGesture,
+    // set by the touch handlers) the transform changes every event, so
+    // re-rasterizing would jank the gesture. Instead we blit the STALE
+    // layer warped by the delta between its cached transform and the
+    // current one — momentarily soft, exactly like the old CSS zoom —
+    // and re-rasterize crisp on the first frame after the fingers lift.
+    _drawMapLayer(A, OX, OY) {
+        if (typeof document === 'undefined' || !document.createElement) {
+            this.map.draw(this.ctx);                  // node test stubs
+            return;
+        }
+        const key = this.canvas.width + 'x' + this.canvas.height + '|' +
+            A + '|' + OX + '|' + OY + '|' + (this.map && this.map.seed);
+        const gestureActive = (typeof window !== 'undefined') && window.__neonZoomGesture === true;
+        if (this._mapLayerKey !== key && !(gestureActive && this._mapLayer)) {
+            if (!this._mapLayer) this._mapLayer = document.createElement('canvas');
+            if (this._mapLayer.width  !== this.canvas.width)  this._mapLayer.width  = this.canvas.width;
+            if (this._mapLayer.height !== this.canvas.height) this._mapLayer.height = this.canvas.height;
+            const mctx = this._mapLayer.getContext('2d');
+            mctx.setTransform(1, 0, 0, 1, 0, 0);
+            mctx.clearRect(0, 0, this._mapLayer.width, this._mapLayer.height);
+            mctx.setTransform(A, 0, 0, A, OX, OY);
+            this.map.draw(mctx);
+            this._mapLayerKey = key;
+            this._mapLayerT = { a: A, ox: OX, oy: OY };
+        }
+        // Blit. If the cached layer was rasterized under a different
+        // transform (mid-gesture), warp it by the delta so the view
+        // still tracks the fingers.
+        const c = this._mapLayerT || { a: A, ox: OX, oy: OY };
+        const k = A / c.a;
+        this.ctx.setTransform(k, 0, 0, k, OX - k * c.ox, OY - k * c.oy);
+        this.ctx.drawImage(this._mapLayer, 0, 0);
+        this.ctx.setTransform(A, 0, 0, A, OX, OY);
+    }
+
     draw() {
         if (this.uiDirty) {
             this.updateUI();
@@ -738,13 +780,25 @@ class Game {
         // Reset transform to clear the actual physical canvas area
         this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        // Apply High-DPI and responsiveness scaling
-        if (window.RENDER_SCALE) {
-            this.ctx.scale(window.RENDER_SCALE, window.RENDER_SCALE);
-        }
-        
-        this.map.draw(this.ctx);
+
+        // Compose High-DPI scaling with the pinch-zoom transform.
+        // Zoom lives HERE — in the render transform — not as a CSS
+        // `transform: scale()` on the canvas element. CSS-scaling
+        // stretches the rasterized bitmap (blurry at any zoom > 1);
+        // putting it in the context transform re-rasterizes every
+        // vector path at the zoomed resolution, so the field stays
+        // crisp at any zoom on any screen. tx/ty are CSS px (same
+        // semantics the CSS transform had) → device px via RENDER_DPR.
+        const Z = (typeof window !== 'undefined' && window.__neonZoom)
+            ? window.__neonZoom : { scale: 1, tx: 0, ty: 0 };
+        const RS  = window.RENDER_SCALE || 1;
+        const DPR = window.RENDER_DPR || 1;
+        const A   = RS * Z.scale;          // device px per logical unit
+        const OX  = Z.tx * DPR;            // device-px pan offset
+        const OY  = Z.ty * DPR;
+        this.ctx.setTransform(A, 0, 0, A, OX, OY);
+
+        this._drawMapLayer(A, OX, OY);
 
         if (this.selectedTowers && this.selectedTowers.length > 0) {
             for (let t of this.selectedTowers) {

@@ -1,0 +1,183 @@
+// E2E: vector-crisp zoom, measured on actual pixels.
+//
+// Three end-to-end concerns:
+//
+//   1. FIDELITY — at 2.5× zoom the frame must be sharper than the old
+//      CSS-transform model. We quantify it: render the zoomed view
+//      through the real pipeline, then simulate the legacy path by
+//      bitmap-upscaling a 1× raster of the same view, and compare
+//      edge widths along a scanline (count of gradient pixels — a
+//      smeared edge spreads its gradient over ~zoom× more pixels).
+//      The vector render must have measurably narrower edges.
+//
+//   2. INTERACTION — while zoomed+panned, a tap through the REAL
+//      pointer pipeline must land on the world tile under the finger
+//      (the zoom inverse in getCanvasPos, end to end).
+//
+//   3. CACHE STABILITY — steady-state draws must NOT re-rasterize the
+//      static map layer (one key, no churn); a zoom change must
+//      re-rasterize exactly once.
+const { chromium } = require('playwright');
+const { spawn } = require('child_process');
+const path = require('path');
+
+(async () => {
+    const PORT = 8802;
+    const server = spawn(process.execPath, ['tests/helpers/http-server.js', String(PORT)],
+        { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
+    await new Promise(r => setTimeout(r, 600));
+    const browser = await chromium.launch({ headless: true });
+    const ctx = await browser.newContext({
+        viewport: { width: 800, height: 600 },
+        deviceScaleFactor: 2,
+        hasTouch: true,
+    });
+    const page = await ctx.newPage();
+    const errs = [];
+    page.on('pageerror', e => errs.push(e.message));
+    await page.goto(`http://127.0.0.1:${PORT}/index.html#13371337`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(700);
+    await page.evaluate(() => { localStorage.setItem('neonPlayerName', 'E2E'); });
+
+    let pass = 0, fail = 0;
+    function ok(name, cond, extra) {
+        if (cond) { console.log('ok', name); pass++; }
+        else      { console.log('FAIL', name, extra || ''); fail++; }
+    }
+
+    await page.click('#menu-start-btn'); await page.waitForTimeout(250);
+    await page.click('#start-btn');     await page.waitForTimeout(800);
+
+    // ── 1) Pixel-level fidelity at 2.5× zoom ───────────────────────────
+    const sharp = await page.evaluate(() => {
+        const g = window.game;
+        g.state = 'paused';
+        g.enemies.length = 0; g.projectiles.length = 0; g.particles.length = 0;
+
+        // Edge-sharpness stats along a horizontal scanline. Bitmap
+        // upscaling + smoothing spreads every luminance step over
+        // ~zoom× more pixels, which always LOWERS the per-pixel
+        // gradient: the maximum delta drops and strong edges (delta
+        // above a firm threshold) vanish. A vector re-rasterization
+        // keeps step edges at full strength.
+        function edgeStats(imgData, w) {
+            let strong = 0, maxDelta = 0, prev = null;
+            for (let x = 0; x < w; x++) {
+                const i = x * 4;
+                const lum = 0.299 * imgData.data[i] + 0.587 * imgData.data[i + 1] + 0.114 * imgData.data[i + 2];
+                if (prev !== null) {
+                    const d = Math.abs(lum - prev);
+                    if (d > 10) strong++;
+                    if (d > maxDelta) maxDelta = d;
+                }
+                prev = lum;
+            }
+            return { strong, maxDelta };
+        }
+
+        const W = g.canvas.width, H = g.canvas.height;
+        const ZOOM = 2.5;
+
+        // Legacy-model reference: rasterize at 1× and bitmap-upscale,
+        // exactly what CSS `transform: scale(2.5)` showed players.
+        const Z = window.__neonZoom;
+        Z.scale = 1; Z.tx = 0; Z.ty = 0;
+        g._mapLayerKey = null;
+        g.draw();
+        const base = document.createElement('canvas');
+        base.width = W; base.height = H;
+        base.getContext('2d').drawImage(g.canvas, 0, 0);
+        const blurry = document.createElement('canvas');
+        blurry.width = W; blurry.height = H;
+        const bctx = blurry.getContext('2d');
+        bctx.imageSmoothingEnabled = true;
+        bctx.drawImage(base, 0, 0, W * ZOOM, H * ZOOM);
+
+        // Real pipeline at 2.5× (same world region: tx = ty = 0).
+        Z.scale = ZOOM; Z.tx = 0; Z.ty = 0;
+        g._mapLayerKey = null;
+        g.draw();
+
+        // Aggregate over several scanlines so a single quiet row can't
+        // skew the verdict.
+        let crisp = { strong: 0, maxDelta: 0 }, blur = { strong: 0, maxDelta: 0 };
+        for (const fy of [0.3, 0.45, 0.6, 0.75]) {
+            const y = Math.floor(H * fy);
+            const c = edgeStats(g.ctx.getImageData(0, y, W, 1), W);
+            const b = edgeStats(bctx.getImageData(0, y, W, 1), W);
+            crisp.strong += c.strong; blur.strong += b.strong;
+            crisp.maxDelta = Math.max(crisp.maxDelta, c.maxDelta);
+            blur.maxDelta  = Math.max(blur.maxDelta,  b.maxDelta);
+        }
+
+        Z.scale = 1; Z.tx = 0; Z.ty = 0;
+        g._mapLayerKey = null;
+        return { crisp, blur };
+    });
+    ok('zoomed frame renders content (strong edges found on scanlines)',
+        sharp.crisp.strong > 5, JSON.stringify(sharp));
+    ok('vector zoom keeps more strong edges than the legacy bitmap upscale',
+        sharp.crisp.strong > sharp.blur.strong * 1.25,
+        JSON.stringify(sharp));
+    ok('vector zoom keeps higher peak edge contrast than the bitmap upscale',
+        sharp.crisp.maxDelta > sharp.blur.maxDelta * 1.15,
+        JSON.stringify(sharp));
+
+    // ── 2) Zoomed + panned tap lands on the right world tile ───────────
+    const tap = await page.evaluate(() => {
+        const canvas = document.getElementById('game-canvas');
+        const Z = window.__neonZoom;
+        Z.scale = 2; Z.tx = -120; Z.ty = -80;
+        window.game.draw();
+        const r = canvas.getBoundingClientRect();
+        const px = r.left + r.width * 0.4;
+        const py = r.top  + r.height * 0.45;
+        canvas.dispatchEvent(new PointerEvent('pointermove', {
+            bubbles: true, clientX: px, clientY: py,
+        }));
+        const logicalW = window.COLS * window.TILE_SIZE;
+        const logicalH = window.ROWS * window.TILE_SIZE;
+        const wantX = ((px - r.left - Z.tx) / Z.scale) * (logicalW / r.width);
+        const wantY = ((py - r.top  - Z.ty) / Z.scale) * (logicalH / r.height);
+        const got = { x: mousePos.x, y: mousePos.y };
+        const wantCol = Math.floor(wantX / window.TILE_SIZE);
+        const wantRow = Math.floor(wantY / window.TILE_SIZE);
+        const gotCol  = Math.floor(got.x / window.TILE_SIZE);
+        const gotRow  = Math.floor(got.y / window.TILE_SIZE);
+        Z.scale = 1; Z.tx = 0; Z.ty = 0;
+        return { wantCol, wantRow, gotCol, gotRow };
+    });
+    ok('zoomed+panned pointer maps to the expected world tile',
+        tap.gotCol === tap.wantCol && tap.gotRow === tap.wantRow,
+        JSON.stringify(tap));
+
+    // ── 3) Map-layer cache stability ───────────────────────────────────
+    const cache = await page.evaluate(() => {
+        const g = window.game;
+        g.draw();
+        const key1 = g._mapLayerKey;
+        // Spy on map.draw to count actual re-rasterizations.
+        let rasterCalls = 0;
+        const origDraw = g.map.draw.bind(g.map);
+        g.map.draw = (c) => { rasterCalls++; return origDraw(c); };
+        for (let i = 0; i < 30; i++) g.draw();
+        const steadyCalls = rasterCalls;
+        window.__neonZoom.scale = 3; window.__neonZoom.tx = -50; window.__neonZoom.ty = -50;
+        g.draw(); g.draw(); g.draw();
+        const afterZoomCalls = rasterCalls;
+        g.map.draw = origDraw;
+        window.__neonZoom.scale = 1; window.__neonZoom.tx = 0; window.__neonZoom.ty = 0;
+        return { key1: String(key1), steadyCalls, zoomCalls: afterZoomCalls - steadyCalls };
+    });
+    ok('steady-state frames never re-rasterize the map (cache holds)',
+        cache.steadyCalls === 0, JSON.stringify(cache));
+    ok('a zoom change re-rasterizes the map exactly once',
+        cache.zoomCalls === 1, JSON.stringify(cache));
+
+    ok('no JS errors', errs.length === 0, errs.join(' / '));
+
+    await browser.close();
+    server.kill();
+    console.log(`\nRENDER ZOOM E2E: ${pass} pass, ${fail} fail`);
+    process.exit(fail === 0 ? 0 : 1);
+})().catch(e => { console.error(e); process.exit(1); });

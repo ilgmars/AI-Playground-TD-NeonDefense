@@ -37,6 +37,10 @@ const SUITES = [
     { name: 'coop-pause-sync',    file: 'tests/coop-pause-sync.test.js' },
     { name: 'coop-wave-sync',     file: 'tests/coop-wave-sync.test.js' },
     { name: 'canvas-pinch-zoom',  file: 'tests/canvas-pinch-zoom.test.js' },
+    // Pixel-level proof of the vector-crisp zoom: edge sharpness vs a
+    // simulated legacy bitmap upscale, zoomed input mapping, and
+    // map-layer cache stability.
+    { name: 'render-zoom-e2e',    file: 'tests/render-zoom-e2e.test.js' },
     { name: 'coop-mechanics',     file: 'tests/coop-mechanics.test.js' },
     { name: 'scoreboard-global',  file: 'tests/scoreboard-global.test.js' },
     { name: 'coop-fair-tier',     file: 'tests/coop-fair-tier.test.js' },

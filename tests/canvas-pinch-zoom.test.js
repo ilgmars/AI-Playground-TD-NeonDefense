@@ -1,13 +1,15 @@
-// Regression: pinch + 2-finger pan on the canvas applies a
-// `transform: translate(...) scale(...)` to #game-canvas only, and
-// the existing single-finger tap pipeline still hits the right tile
-// because getCanvasPos uses the canvas getBoundingClientRect which
-// reflects the transform.
+// Regression: pinch + 2-finger pan zoom the canvas through the RENDER
+// TRANSFORM (Game.draw reads window.__neonZoom), NOT through a CSS
+// `transform` on #game-canvas. CSS-scaling stretches the rasterized
+// bitmap — blurry at any zoom > 1 — while the render transform
+// re-rasterizes every vector path at the zoomed resolution, so the
+// field stays crisp at any zoom on any screen. The canvas element must
+// therefore never carry a style.transform, and the input pipeline
+// (getCanvasPos) must invert the zoom explicitly.
 //
 // We can't reliably synthesize multi-touch sequences through
 // Playwright on every platform, so the test drives the pinch via
-// the touch-handler event API directly and verifies the resulting
-// CSS transform + window.__neonZoom state.
+// the touch-handler event API directly.
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -38,7 +40,32 @@ const path = require('path');
     await page.click('#menu-start-btn'); await page.waitForTimeout(200);
     await page.click('#start-btn');     await page.waitForTimeout(700);
 
-    // ── 1) Initial state: zoom is 1×, no transform yet ─────────────────
+    // Shared in-page touch helpers.
+    await page.evaluate(() => {
+        const canvas = document.getElementById('game-canvas');
+        window.__t = {
+            makeTouch(id, x, y) {
+                return new Touch({
+                    identifier: id, target: canvas,
+                    clientX: x, clientY: y, pageX: x, pageY: y,
+                    screenX: x, screenY: y, radiusX: 1, radiusY: 1,
+                    rotationAngle: 0, force: 1,
+                });
+            },
+            fire(name, touches) {
+                canvas.dispatchEvent(new TouchEvent(name, {
+                    bubbles: true, cancelable: true,
+                    touches, targetTouches: touches, changedTouches: touches,
+                }));
+            },
+            centre() {
+                const r = canvas.getBoundingClientRect();
+                return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, r };
+            },
+        };
+    });
+
+    // ── 1) Initial state: zoom is 1×, no element transform ─────────────
     const initial = await page.evaluate(() => ({
         scale: window.__neonZoom.scale,
         tx: window.__neonZoom.tx,
@@ -48,137 +75,98 @@ const path = require('path');
     ok('initial scale = 1', initial.scale === 1);
     ok('initial tx = 0',    initial.tx === 0);
     ok('initial ty = 0',    initial.ty === 0);
+    ok('initial: no CSS transform on the canvas', initial.transform === '');
 
     // ── 2) Two-finger pinch OUT (zoom in) ──────────────────────────────
-    // Synthesize touchstart with 2 fingers, then touchmove with the
-    // same centroid but wider apart → distance ratio > 1 → scale up.
     const afterZoom = await page.evaluate(() => {
-        const canvas = document.getElementById('game-canvas');
-        const r = canvas.getBoundingClientRect();
-        const cx = r.left + r.width / 2;
-        const cy = r.top  + r.height / 2;
-        function makeTouch(id, x, y) {
-            return new Touch({
-                identifier: id, target: canvas,
-                clientX: x, clientY: y, pageX: x, pageY: y,
-                screenX: x, screenY: y, radiusX: 1, radiusY: 1,
-                rotationAngle: 0, force: 1,
-            });
-        }
-        function fire(name, touches) {
-            const ev = new TouchEvent(name, {
-                bubbles: true, cancelable: true,
-                touches, targetTouches: touches, changedTouches: touches,
-            });
-            canvas.dispatchEvent(ev);
-        }
-        // Start: two fingers 40 px apart horizontally, centred.
-        fire('touchstart', [
-            makeTouch(1, cx - 20, cy),
-            makeTouch(2, cx + 20, cy),
-        ]);
-        // Move: spread to 80 px apart → ratio 2 → scale doubles.
-        fire('touchmove', [
-            makeTouch(1, cx - 40, cy),
-            makeTouch(2, cx + 40, cy),
-        ]);
+        const { makeTouch, fire, centre } = window.__t;
+        const { cx, cy } = centre();
+        fire('touchstart', [makeTouch(1, cx - 20, cy), makeTouch(2, cx + 20, cy)]);
+        fire('touchmove',  [makeTouch(1, cx - 40, cy), makeTouch(2, cx + 40, cy)]);
+        // One explicit draw so the render transform reflects the pinch.
+        window.game.draw();
+        const t = window.game.ctx.getTransform();
         return {
             scale: window.__neonZoom.scale,
-            transform: canvas.style.transform,
+            transform: document.getElementById('game-canvas').style.transform,
+            gesture: window.__neonZoomGesture,
+            ctxScale: t.a,
+            renderScale: window.RENDER_SCALE,
         };
     });
     ok('pinch out increases scale beyond 1', afterZoom.scale > 1.5);
-    ok('pinch out applies a CSS transform',  /scale\(/.test(afterZoom.transform));
+    ok('zoom does NOT touch the element style (vector-crisp render path)',
+        afterZoom.transform === '', afterZoom.transform);
+    ok('render transform = RENDER_SCALE × zoom (re-rasterizes at zoom res)',
+        Math.abs(afterZoom.ctxScale - afterZoom.renderScale * afterZoom.scale) < 1e-6,
+        `ctx.a=${afterZoom.ctxScale} expected=${afterZoom.renderScale * afterZoom.scale}`);
+    ok('gesture flag set while fingers are down', afterZoom.gesture === true);
 
-    // ── 3) Two-finger pan: same distance, shifted centroid ─────────────
-    // The pinch state is still active from the previous move. Move
-    // the centroid right by ~50 px without changing the spread →
-    // pan only; scale unchanged.
+    // ── 3) Input mapping inverts the zoom: a pointer at client (px,py)
+    // must land on the logical coordinate ((px-rect.left-tx)/s)·scaleX.
+    const mapping = await page.evaluate(() => {
+        const canvas = document.getElementById('game-canvas');
+        const r = canvas.getBoundingClientRect();
+        const Z = window.__neonZoom;
+        const px = r.left + r.width * 0.5, py = r.top + r.height * 0.5;
+        canvas.dispatchEvent(new PointerEvent('pointermove', {
+            bubbles: true, clientX: px, clientY: py,
+        }));
+        const logicalW = window.COLS * window.TILE_SIZE;
+        const logicalH = window.ROWS * window.TILE_SIZE;
+        const ex = ((px - r.left - Z.tx) / Z.scale) * (logicalW / r.width);
+        const ey = ((py - r.top  - Z.ty) / Z.scale) * (logicalH / r.height);
+        return { gotX: mousePos.x, gotY: mousePos.y, ex, ey };
+    });
+    ok('getCanvasPos inverts the zoom transform',
+        Math.abs(mapping.gotX - mapping.ex) < 0.5 && Math.abs(mapping.gotY - mapping.ey) < 0.5,
+        JSON.stringify(mapping));
+
+    // ── 4) Two-finger pan: same distance, shifted centroid ─────────────
     const beforePan = await page.evaluate(() => window.__neonZoom.tx);
     const afterPan = await page.evaluate(() => {
-        const canvas = document.getElementById('game-canvas');
-        const r = canvas.getBoundingClientRect();
-        // We don't know exactly where the canvas currently is after
-        // the zoom; recompute from current rect.
-        const cx = r.left + r.width / 2;
-        const cy = r.top  + r.height / 2;
-        function makeTouch(id, x, y) {
-            return new Touch({
-                identifier: id, target: canvas,
-                clientX: x, clientY: y, pageX: x, pageY: y,
-                screenX: x, screenY: y, radiusX: 1, radiusY: 1,
-                rotationAngle: 0, force: 1,
-            });
-        }
-        function fire(name, touches) {
-            const ev = new TouchEvent(name, {
-                bubbles: true, cancelable: true,
-                touches, targetTouches: touches, changedTouches: touches,
-            });
-            canvas.dispatchEvent(ev);
-        }
-        // Shift centroid 50 px LEFT (negative x) while keeping the
-        // same spread.
-        fire('touchmove', [
-            makeTouch(1, cx - 40 - 50, cy),
-            makeTouch(2, cx + 40 - 50, cy),
-        ]);
+        const { makeTouch, fire, centre } = window.__t;
+        const { cx, cy } = centre();
+        fire('touchmove', [makeTouch(1, cx - 40 - 50, cy), makeTouch(2, cx + 40 - 50, cy)]);
         return window.__neonZoom.tx;
     });
-    // tx is in viewport pixels; left-shift can register as either
-    // direction depending on transform-origin maths. We assert it
-    // CHANGED (not necessarily a specific sign) — the panning
-    // mechanism is what matters.
-    ok('two-finger pan changes tx',  afterPan !== beforePan);
+    ok('two-finger pan changes tx', afterPan !== beforePan);
 
-    // ── 4) Pinch IN (zoom out) clamps at ZOOM_MIN = 1 ──────────────────
+    // ── 5) Pinch IN (zoom out) clamps at ZOOM_MIN = 1 ──────────────────
     const afterClamp = await page.evaluate(() => {
-        const canvas = document.getElementById('game-canvas');
-        const r = canvas.getBoundingClientRect();
-        const cx = r.left + r.width / 2;
-        const cy = r.top  + r.height / 2;
-        function makeTouch(id, x, y) {
-            return new Touch({
-                identifier: id, target: canvas,
-                clientX: x, clientY: y, pageX: x, pageY: y,
-                screenX: x, screenY: y, radiusX: 1, radiusY: 1,
-                rotationAngle: 0, force: 1,
-            });
-        }
-        function fire(name, touches) {
-            const ev = new TouchEvent(name, {
-                bubbles: true, cancelable: true,
-                touches, targetTouches: touches, changedTouches: touches,
-            });
-            canvas.dispatchEvent(ev);
-        }
-        // Pinch all the way in (fingers very close).
-        fire('touchmove', [
-            makeTouch(1, cx - 2, cy),
-            makeTouch(2, cx + 2, cy),
-        ]);
+        const { makeTouch, fire, centre } = window.__t;
+        const { cx, cy } = centre();
+        fire('touchmove', [makeTouch(1, cx - 2, cy), makeTouch(2, cx + 2, cy)]);
         return window.__neonZoom.scale;
     });
     ok('pinch in clamps at minimum 1× (never below natural size)',
         afterClamp >= 1);
 
-    // ── 5) touchend with < 2 touches releases the pinch ────────────────
+    // ── 6) touchend releases pinch, clears gesture flag, and the next
+    // draw re-rasterizes the map layer at the settled transform.
     const released = await page.evaluate(() => {
-        const canvas = document.getElementById('game-canvas');
-        const ev = new TouchEvent('touchend', {
-            bubbles: true, cancelable: true,
-            touches: [], targetTouches: [], changedTouches: [],
-        });
-        canvas.dispatchEvent(ev);
+        const { fire } = window.__t;
+        fire('touchend', []);
+        window.game.draw();
+        const Z = window.__neonZoom;
+        const RS = window.RENDER_SCALE;
+        const key = String(window.game._mapLayerKey || '');
         return {
             cooldown: typeof window.__neonPinchCooldownUntil === 'number' &&
                        window.__neonPinchCooldownUntil > Date.now(),
+            gesture: window.__neonZoomGesture,
+            // The cached layer's key embeds the transform it was
+            // rasterized under — after release it must match the live one.
+            keyMatchesLiveTransform: key.indexOf('|' + (RS * Z.scale) + '|') !== -1,
         };
     });
     ok('pinch cooldown is set on release (suppresses ghost taps)',
         released.cooldown === true);
+    ok('gesture flag cleared on release', released.gesture === false);
+    ok('map layer re-rasterized at the settled zoom (crisp at rest)',
+        released.keyMatchesLiveTransform === true);
 
-    // ── 6) Reset hook restores 1× ──────────────────────────────────────
+    // ── 7) Reset hook restores 1× ──────────────────────────────────────
     const afterReset = await page.evaluate(() => {
         window.__neonResetZoom();
         return {
@@ -191,10 +179,7 @@ const path = require('path');
     ok('reset returns scale to 1', afterReset.scale === 1);
     ok('reset zeroes tx',          afterReset.tx === 0);
     ok('reset zeroes ty',          afterReset.ty === 0);
-    ok('reset transform string is identity-equivalent',
-        afterReset.transform === 'translate(0px, 0px) scale(1)' ||
-        afterReset.transform === '' /* some browsers normalise */ ||
-        /scale\(1\)/.test(afterReset.transform));
+    ok('canvas style stays transform-free after reset', afterReset.transform === '');
 
     ok('no JS errors', errs.length === 0, errs.join(' / '));
 

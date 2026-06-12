@@ -95,7 +95,8 @@ Autopilot strategy knobs live in `AUTOPILOT_CONFIG`; the class only implements t
 
 - **Air spawn rate** (`35 - floor(wave/8)`) and the wave difficulty piecewise formula still live in `Game.startWave()` — centralize if you start tuning them heavily.
 - **DOM lookups in hot paths**: `document.getElementById` called 50+ times across files instead of cached once.
-- **Shadow/glow on every draw call** — fine at 60 FPS for now, will bite at higher entity counts.
+- **Rendering is vector + render-transform zoom.** Pinch zoom lives in `window.__neonZoom` and is applied inside `Game.draw()`'s context transform (NOT as a CSS transform on the canvas — that stretches the bitmap and blurs). Every input path (`getCanvasPos`, touch drag-place, cursor broadcast) must invert it explicitly. The static map layer is cached to an offscreen canvas (`Game._drawMapLayer`), re-rasterized only on resize/zoom change; during an active pinch (`window.__neonZoomGesture`) the stale raster is warp-blitted for smoothness. Benchmark with `node tools/render-bench.js --label=<x>` (results in tools/bench/).
+- **Shadow/glow on every entity draw call** — map glow is now cached, but tower/enemy glow still rasterizes per frame; will bite at extreme entity counts.
 - **No module system, no bundler.** Tests DO exist now (~55 suites, `npm test`) — balance changes are validated headlessly via the autopilot/wave450 smokes, not by hand-playing.
 - **main.js is 4800+ lines** — it has absorbed all panel/menu/overlay rendering (tech tree, backpack UI, lobby, scoreboards) on top of bootstrap and input. Largest refactor target in the codebase.
 - The committed `android/app/src/main/assets/www/` mirror is usually stale; CI re-syncs it at APK build time, so it only matters for local Gradle builds.
