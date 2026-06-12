@@ -399,6 +399,41 @@ class Game {
         this.spawnTimer = 60;
     }
 
+    // Digger waves: every 30th wave's boss digs. Static so tests and
+    // the spawn site share one rule.
+    static isDiggerWave(wave) {
+        return wave > 0 && wave % 30 === 0;
+    }
+
+    // Commit a digger's finished crossing. SP and coop-HOST commit
+    // locally (the host then broadcasts); the coop CLIENT applies only
+    // the host's 'dig' message so both worlds carve identical roads.
+    _commitDig(site) {
+        if (this._mpHoldWaves) return;            // coop non-host: wait for host's dig
+        this._applyDig(site);
+        if (typeof window !== 'undefined' && window.__neonMPBroadcastDig) {
+            try { window.__neonMPBroadcastDig(site); } catch (_) {}
+        }
+    }
+
+    _applyDig(site) {
+        if (!site || !this.map) return;
+        const dug = this.map.digShortcut(site.from, site.to);
+        if (!dug) return;
+        // A tower built onto the trail while the digger was crawling
+        // gets crushed — fully refunded, the dig is not negotiable.
+        for (let i = this.towers.length - 1; i >= 0; i--) {
+            const t = this.towers[i];
+            if (dug.some(d => d.c === t.c && d.r === t.r)) {
+                this.money += t.totalSpent;
+                this.towers.splice(i, 1);
+            }
+        }
+        this._mapLayerKey = null;                 // re-rasterize the map layer
+        this.uiDirty = true;
+        if (typeof SoundFX !== 'undefined' && SoundFX.explosion) SoundFX.explosion();
+    }
+
     addUpgradeEffect(x, y) {
         this.upgradeEffects.push({
             x: x + TILE_SIZE / 2,
@@ -491,6 +526,22 @@ class Game {
                     // Cross-peer identity for the co-op HP digest —
                     // spawn order is deterministic within a wave.
                     boss._spawnIdx = 0;
+                    // Every 30th wave the boss is a DIGGER: it crawls
+                    // the best tower-free shortcut and, if it survives
+                    // the crossing, carves it into PERMANENT road —
+                    // every later spawn takes the shorter route. Kill
+                    // it before it finishes to keep your maze intact.
+                    // (In coop only the HOST commits; the client gets
+                    // a 'dig' broadcast — see __neonMPApplyDig.)
+                    if (Game.isDiggerWave(this.wave)) {
+                        const site = this.map.pickDigSite(this.towers);
+                        if (site) {
+                            boss.isDigger = true;
+                            boss._digSite = site;
+                            boss.reward = Math.floor(boss.reward * 1.5);
+                            boss._onDigComplete = () => this._commitDig(site);
+                        }
+                    }
                     this.enemies.push(boss);
                     this.enemiesSpawned = this.currentWaveDef.count;
                 } else {
@@ -758,7 +809,8 @@ class Game {
             return;
         }
         const key = this.canvas.width + 'x' + this.canvas.height + '|' +
-            A + '|' + OX + '|' + OY + '|' + (this.map && this.map.seed);
+            A + '|' + OX + '|' + OY + '|' + (this.map && this.map.seed) +
+            '|' + ((this.map && this.map._rev) || 0);   // digger carves roads mid-run
         const gestureActive = (typeof window !== 'undefined') && window.__neonZoomGesture === true;
         if (this._mapLayerKey !== key && !(gestureActive && this._mapLayer)) {
             if (!this._mapLayer) this._mapLayer = document.createElement('canvas');

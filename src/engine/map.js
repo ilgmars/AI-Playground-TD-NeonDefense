@@ -114,6 +114,69 @@ class GameMap {
         return out;
     }
 
+    // Tiles a straight crossing passes over (deduped, in order),
+    // endpoints excluded. Used by the digger boss to carve its trail.
+    crossingTiles(a, b) {
+        const steps = Math.max(2, Math.ceil(Math.hypot(b.c - a.c, b.r - a.r) * 4));
+        const out = [];
+        const seen = new Set();
+        for (let s = 1; s < steps; s++) {
+            const t = s / steps;
+            const c = Math.round(a.c + (b.c - a.c) * t);
+            const r = Math.round(a.r + (b.r - a.r) * t);
+            if ((c === a.c && r === a.r) || (c === b.c && r === b.r)) continue;
+            const k = c + '|' + r;
+            if (!seen.has(k)) { seen.add(k); out.push({ c, r }); }
+        }
+        return out;
+    }
+
+    // Digger boss commit: carve the crossing between path indices
+    // from→to into permanent road and rebuild the canonical path so
+    // every FUTURE spawn takes the shorter route. The old loop's tiles
+    // stay grid=1 (still road, still unbuildable) and enemies already
+    // in flight keep their old path array — both remain valid.
+    // Returns the dug tiles. _rev bumps so the cached map layer
+    // re-rasterizes.
+    digShortcut(from, to) {
+        const a = this.path[from], b = this.path[to];
+        if (!a || !b) return null;
+        const dug = this.crossingTiles(a, b);
+        for (const t of dug) this.grid[t.r][t.c] = 1;
+        const newPath = this.path.slice(0, from + 1)
+            .concat(dug)
+            .concat(this.path.slice(to));
+        this.path = newPath;
+        this.endPoint = this.path[this.path.length - 1];
+        this._rev = (this._rev || 0) + 1;
+        this._shortcuts = null;                 // recompute on demand
+        delete this.path._shortcuts;
+        return dug;
+    }
+
+    // Pick the digger's target: the longest-saving shortcut whose
+    // crossing is pure grass AND free of towers. Relaxed thresholds vs
+    // the cutter's (a boss digs harder). Deterministic given the same
+    // map + tower layout.
+    pickDigSite(towers) {
+        const MIN_SAVED = 8;
+        const MAX_CROSS = 4.5;
+        const occupied = new Set((towers || []).map(t => t.c + '|' + t.r));
+        let best = null;
+        for (let i = 0; i < this.path.length - MIN_SAVED; i++) {
+            for (let j = this.path.length - 1; j >= i + MIN_SAVED; j--) {
+                const a = this.path[i], b = this.path[j];
+                if (Math.hypot(b.c - a.c, b.r - a.r) > MAX_CROSS) continue;
+                if (!this._lineIsGrass(a, b)) continue;
+                if (this.crossingTiles(a, b).some(t => occupied.has(t.c + '|' + t.r))) continue;
+                const saved = (j - i) - Math.hypot(b.c - a.c, b.r - a.r);
+                if (!best || saved > best.saved) best = { from: i, to: j, saved };
+                break;      // longest j for this i — move on
+            }
+        }
+        return best ? { from: best.from, to: best.to } : null;
+    }
+
     // Every tile the straight segment between two path tiles crosses
     // (sampled at quarter-tile steps) must be open grass (grid 0).
     _lineIsGrass(a, b) {

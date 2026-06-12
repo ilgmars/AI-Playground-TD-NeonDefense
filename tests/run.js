@@ -90,6 +90,7 @@ const SUITES = [
     { name: 'reset-save-confirm',     file: 'tests/reset-save-confirm.test.js' },
     { name: 'field-orientation',      file: 'tests/field-orientation.test.js' },
     { name: 'cutter-enemy',           file: 'tests/cutter-enemy.test.js' },
+    { name: 'digger-boss',            file: 'tests/digger-boss.test.js' },
     { name: 'mobile-pagehide-xp',     file: 'tests/mobile-pagehide-xp.test.js' },
     { name: 'ascpreview-node',        file: 'tests/ascpreview-node.test.js' },
     { name: 'backpack-ui',     file: 'tests/backpack-ui.test.js' },

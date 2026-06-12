@@ -2330,6 +2330,18 @@ function init() {
             if (typeof game.startWave === 'function') game.startWave();
         } catch (_) {}
     };
+    // Digger boss dig broadcast (coop, host-only). The client never
+    // commits its own digger's crossing (Game._commitDig checks
+    // _mpHoldWaves) — it carves exactly what the host carved.
+    window.__neonMPBroadcastDig = function (site) {
+        if (_activeMode !== 'coop' || !_activeRoom || !_mpIsHost || !site) return;
+        try { _activeRoom.send({ kind: 'dig', f: site.from | 0, t: site.to | 0 }); } catch (_) {}
+    };
+    window.__neonMPApplyDig = function (msg) {
+        if (!game || !msg) return;
+        try { game._applyDig({ from: msg.f | 0, to: msg.t | 0 }); } catch (_) {}
+    };
+
     // Host's periodic enemy digest → snap local monsters to match.
     // Matching is by _spawnIdx (deterministic spawn order within a
     // wave). Entries: e = [[spawnIdx, hpByte 1-255], ...] for every
@@ -4513,6 +4525,13 @@ function init() {
                 _mpLastHostMsgAt = Date.now();
                 if (typeof window.__neonMPApplyEnemyState === 'function') {
                     window.__neonMPApplyEnemyState(msg);
+                }
+            }
+            // Host's digger committed a dig — carve the same road.
+            if (msg && msg.kind === 'dig') {
+                _mpLastHostMsgAt = Date.now();
+                if (typeof window.__neonMPApplyDig === 'function') {
+                    window.__neonMPApplyDig(msg);
                 }
             }
             // Periodic state digest from the partner — populate the

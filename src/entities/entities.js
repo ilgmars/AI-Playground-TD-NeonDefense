@@ -151,6 +151,13 @@ class Enemy {
                 if (s.from === this.pathIndex) { this._crawl = s; break; }
             }
         }
+        // Digger boss: same crawl machinery, but reaching the exit
+        // COMMITS the dig (game-provided callback carves the road).
+        if (this.isDigger && !this._crawl && this._digSite &&
+                this._digSite.from === this.pathIndex) {
+            this._crawl = this._digSite;
+            this._digging = true;
+        }
 
         let target = this._crawl ? this.path[this._crawl.to] : this.path[this.pathIndex];
         let targetX = target.c * TILE_SIZE + TILE_SIZE / 2;
@@ -171,6 +178,13 @@ class Enemy {
             if (this._crawl) {
                 this.pathIndex = this._crawl.to + 1;   // rejoin past the exit tile
                 this._crawl = null;
+                if (this._digging) {
+                    this._digging = false;
+                    this._digSite = null;
+                    if (this._onDigComplete) {
+                        try { this._onDigComplete(); } catch (_) {}
+                    }
+                }
             } else {
                 this.pathIndex++;
             }
@@ -187,6 +201,24 @@ class Enemy {
     draw(ctx) {
         if (!this.active) return;
         drawEnemy(ctx, this.x, this.y, this.radius, this.type, this.hp / this.maxHp, this.currentSlow < 1, this.burnFrames > 0, this.shielded && !this.shieldBroken, this.splitterGeneration === 1, this.isBoss);
+
+        // Digger boss — rotating drill spokes so the player can tell
+        // THIS boss must die before it finishes its crossing.
+        if (this.isDigger) {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate((this._digSpin = (this._digSpin || 0) + 0.15));
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 3;
+            for (let i = 0; i < 3; i++) {
+                ctx.rotate(Math.PI * 2 / 3);
+                ctx.beginPath();
+                ctx.moveTo(this.radius * 0.3, 0);
+                ctx.lineTo(this.radius * 0.9, 0);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
 
         // M2: Freeze ability — blue glow ring overlay.
         if (this.frozen) {
