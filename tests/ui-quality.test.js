@@ -48,25 +48,35 @@ const fs = require('fs');
     ok('bg is not Tailwind slate-900 (#0f172a)', !/--bg-color:\s*#0f172a/i.test(root),
         (root.match(/--bg-color:[^;]*/) || [''])[0]);
     ok('accent is not Tailwind sky-400 (#38bdf8)', !/--accent:\s*#38bdf8/i.test(root));
+    ok('primary accent is GREEN, not a blue/cyan', /--accent:\s*#2bff88/i.test(root),
+        (root.match(/--accent:[^;]*/) || [''])[0]);
+    ok('no leftover cyan accent anywhere in the stylesheet',
+        !/#2ce0ff|44, 224, 255/.test(css));
     ok('a SECOND neon accent exists (multi-colour, not monochrome)',
         /--accent-2:/.test(root));
-    ok('logo is a multi-colour neon-tube treatment (cyan + magenta words)',
-        /\.neon-cyan\s*\{/.test(css) && /\.neon-magenta\s*\{/.test(css));
+    ok('logo is a multi-colour neon-tube treatment (green + magenta words)',
+        /\.neon-green\s*\{/.test(css) && /\.neon-magenta\s*\{/.test(css));
     ok('glow present on key chrome (drop/box/text shadow in accent)',
         /drop-shadow\(/.test(css) && /menu-open/.test(css));
+
+    // ── Menu transitions ─────────────────────────────────────────────
+    ok('overlays animate in (menu transition)',
+        /@keyframes overlay-in/.test(css) && /\.overlay\s*\{[^}]*animation:\s*overlay-in/.test(css));
 
     // ── Tooltips up to date ──────────────────────────────────────────
     ok('no stale "Leave race" tooltip (race mode was removed)',
         !/Leave race/i.test(html));
     ok('no stale "RACE" overlay label', !/>RACE</.test(html));
 
-    // ── Logo is a neon-tube treatment, not flat text ─────────────────
-    ok('logo split into cyan + magenta neon words',
-        /neon-cyan/.test(html) && /neon-magenta/.test(html));
+    // ── Logo is a THIN neon-tube treatment, not flat/bold text ───────
+    ok('logo split into green + magenta neon words',
+        /neon-green/.test(html) && /neon-magenta/.test(html));
+    ok('logo letters are THIN tubes (light font weight)',
+        /\.neon-logo\s*\{[^}]*font-weight:\s*300/.test(css));
     ok('logo has a flickering word', /neon-flicker/.test(html));
     ok('neon flicker keyframes defined', /@keyframes neon-flicker/.test(css));
     ok('neon words use layered tube glow (stacked text-shadow)',
-        /\.neon-cyan\s*\{[^}]*text-shadow:[^}]*0 0 30px/.test(css));
+        /\.neon-green\s*\{[^}]*text-shadow:[^}]*0 0 26px/.test(css));
 
     // ── Live keyboard behaviour ──────────────────────────────────────
     await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });

@@ -1,7 +1,7 @@
 :root {
     /* Palette: deliberately OFF the default dark-mode tell (Tailwind
-       slate-900 #0f172a + a single sky-400 #2ce0ff). Neon Defense gets
-       a violet-black base lit by a CYAN↔MAGENTA dual neon — a real
+       slate-900 + a single sky-blue accent). Neon Defense runs a
+       violet-black base lit by a GREEN↔MAGENTA dual neon — a real
        neon-sign duotone, not one flat blue accent. Gameplay colours
        (towers/enemies, drawn on the canvas) are intentionally NOT
        touched here — players read them as identity. */
@@ -9,8 +9,8 @@
     --bg-deep: #06050d;             /* vignette / deepest wells          */
     --panel-bg: rgba(20, 17, 36, 0.95);   /* dark violet, not slate      */
     --border-color: rgba(150, 130, 210, 0.22);
-    --accent: #2ce0ff;              /* electric cyan (primary)           */
-    --accent-hover: #16c7e6;
+    --accent: #2bff88;              /* neon green (primary)              */
+    --accent-hover: #1fe070;
     --accent-2: #ff5cf0;            /* hot magenta (secondary neon)      */
     --accent-3: #a3e635;            /* lime — primary CTA / "go"         */
     --text-main: #f5f7ff;
@@ -34,7 +34,7 @@ body {
        than a flat dark slate panel (the generic AI-dark-mode look). */
     background-color: var(--bg-deep);
     background-image:
-        radial-gradient(70% 55% at 6% -10%, rgba(44, 224, 255, 0.10), transparent 60%),
+        radial-gradient(70% 55% at 6% -10%, rgba(43, 255, 136, 0.10), transparent 60%),
         radial-gradient(70% 55% at 100% -2%, rgba(255, 92, 240, 0.09), transparent 60%),
         linear-gradient(180deg, var(--bg-color), var(--bg-deep));
     color: var(--text-main);
@@ -167,7 +167,7 @@ body {
 
 #health-display { color: var(--health); text-shadow: 0 0 10px rgba(251, 113, 133, 0.4); }
 #money-display { color: var(--money); text-shadow: 0 0 10px rgba(251, 191, 36, 0.4); }
-#wave-display { color: var(--accent); text-shadow: 0 0 10px rgba(44, 224, 255, 0.4); }
+#wave-display { color: var(--accent); text-shadow: 0 0 10px rgba(43, 255, 136, 0.4); }
 /* speed-display color is set dynamically by updateSpeedColor() in JS */
 #speed-display { text-shadow: 0 0 10px rgba(163, 230, 53, 0.4); }
 #seed-display { color: var(--text-muted); }
@@ -283,8 +283,8 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
 
 .tower-option.selected {
     border-color: var(--accent);
-    background: rgba(44, 224, 255, 0.1);
-    box-shadow: 0 0 15px rgba(44, 224, 255, 0.2);
+    background: rgba(43, 255, 136, 0.1);
+    box-shadow: 0 0 15px rgba(43, 255, 136, 0.2);
 }
 
 .tower-option.disabled {
@@ -301,13 +301,13 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
     flex-shrink: 0;
 }
 
-.basic-icon { border-color: #2ce0ff; background: #0284c7; }
+.basic-icon { border-color: #2bff88; background: #0284c7; }
 .sniper-icon { border-color: #f472b6; background: #be185d; border-radius: 0; }
 .rapid-icon { border-color: #a3e635; background: #4d7c0f; clip-path: polygon(50% 0%, 100% 100%, 0% 100%); border-radius: 0; border: none; }
 .laser-icon { border-color: #8b5cf6; background: #6d28d9; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); border-radius: 0; border: none; }
 .rocket-icon { border-color: #f97316; background: #c2410c; border-radius: 8px; }
 .flak-icon { border-color: #60a5fa; background: #1e3a8a; clip-path: polygon(20% 100%, 80% 100%, 100% 50%, 80% 0%, 20% 0%, 0% 50%); border-radius: 0; border: none; }
-.electric-icon { border-color: #0ea5e9; background: #0284c7; border-radius: 50%; outline: 2px dashed #2ce0ff; outline-offset: -4px; }
+.electric-icon { border-color: #0ea5e9; background: #0284c7; border-radius: 50%; outline: 2px dashed #2bff88; outline-offset: -4px; }
 .silo-icon { border-color: #ef4444; background: #991b1b; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); border-radius: 0; border: none; }
 .income-icon { border-color: #fbbf24; background: #92400e; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); border-radius: 0; border: none; }
 .potion-icon { border-color: #4ade80; background: #166534; border-radius: 50% 50% 40% 40%; }
@@ -337,10 +337,10 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
     display: flex;
     flex-direction: column;
     gap: 12px;
-    background: rgba(15, 23, 42, 0.95);
+    background: rgba(10, 9, 19, 0.95);
     border: 1px solid var(--accent);
     border-radius: 8px;
-    box-shadow: 0 0 20px rgba(44, 224, 255, 0.3);
+    box-shadow: 0 0 20px rgba(43, 255, 136, 0.3);
     z-index: 20;
 }
 
@@ -464,13 +464,22 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(15, 23, 42, 0.9);
+    background: rgba(10, 9, 19, 0.92);     /* violet-black, matches base */
     backdrop-filter: blur(10px);
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     z-index: 100;
+    /* Menu transition: each time an overlay is shown (display:none →
+       flex restarts the animation) it fades + lifts in, so switching
+       screens or UPGRADES tabs animates for free. Collapsed under
+       prefers-reduced-motion by the global rule. */
+    animation: overlay-in 0.24s ease-out both;
+}
+@keyframes overlay-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.992); }
+    to   { opacity: 1; transform: none; }
 }
 
 .overlay.hidden {
@@ -486,31 +495,34 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
     line-height: 1.05;
 }
 
-/* Neon-tube logo: a bright glass-white letter core wrapped in stacked
-   coloured glows (the "tube" bloom), with a thin bright stroke for the
-   glass edge. NEON glows cyan, DEFENSE glows magenta — a two-colour
-   neon sign. One word flickers like a failing tube (disabled under
-   prefers-reduced-motion via the global rule). */
-.neon-logo { font-weight: 700; }
-.neon-word { display: inline-block; color: #eafdff; }
-.neon-cyan {
-    -webkit-text-stroke: 1px rgba(190, 250, 255, 0.55);
+/* Neon-tube logo: THIN bent-glass tubes. A light font weight + a
+   hairline bright core and stacked coloured glows read as actual neon
+   tubing rather than thick filled letters. NEON glows green, DEFENSE
+   glows magenta — a two-colour sign. One word flickers like a failing
+   tube (disabled under prefers-reduced-motion via the global rule). */
+.neon-logo { font-weight: 300; }
+.neon-word {
+    display: inline-block;
+    color: #f3fff6;
+    -webkit-text-stroke: 0.6px rgba(255, 255, 255, 0.5);   /* slim tube wall */
+}
+.neon-green {
+    color: #f0fff6;
     text-shadow:
         0 0 1px #ffffff,
-        0 0 6px #d8fbff,
-        0 0 14px var(--accent),
-        0 0 30px var(--accent),
-        0 0 56px rgba(44, 224, 255, 0.65);
+        0 0 5px #d6ffe6,
+        0 0 12px var(--accent),
+        0 0 26px var(--accent),
+        0 0 52px rgba(43, 255, 136, 0.6);
 }
 .neon-magenta {
     color: #ffeafc;
-    -webkit-text-stroke: 1px rgba(255, 205, 245, 0.55);
     text-shadow:
         0 0 1px #ffffff,
-        0 0 6px #ffe0fa,
-        0 0 14px var(--accent-2),
-        0 0 30px var(--accent-2),
-        0 0 56px rgba(255, 92, 240, 0.6);
+        0 0 5px #ffe0fa,
+        0 0 12px var(--accent-2),
+        0 0 26px var(--accent-2),
+        0 0 52px rgba(255, 92, 240, 0.55);
 }
 .neon-flicker { animation: neon-flicker 5.5s infinite steps(1, end); }
 @keyframes neon-flicker {
@@ -562,13 +574,13 @@ button {
     text-transform: uppercase;
     letter-spacing: 2px;
     transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
-    box-shadow: 0 0 15px rgba(44, 224, 255, 0.2) inset;
+    box-shadow: 0 0 15px rgba(43, 255, 136, 0.2) inset;
 }
 
 button:hover {
     background: var(--accent);
     color: #0f172a;
-    box-shadow: 0 0 20px rgba(44, 224, 255, 0.6);
+    box-shadow: 0 0 20px rgba(43, 255, 136, 0.6);
 }
 
 button.danger {
@@ -760,7 +772,7 @@ body.touch-ui #upgrade-menu {
     padding: 14px 16px;
     padding-bottom: max(14px, env(safe-area-inset-bottom));
     overflow-y: auto;
-    box-shadow: 0 -8px 24px rgba(0,0,0,0.5), 0 0 20px rgba(44,224,255,0.3);
+    box-shadow: 0 -8px 24px rgba(0,0,0,0.5), 0 0 20px rgba(43,255,136,0.3);
     z-index: 50;
     animation: sheet-up 0.18s ease-out;
 }
@@ -1060,7 +1072,7 @@ body.touch-ui .upg-cost { font-size: 0.9rem; }
         padding: 14px 16px;
         padding-bottom: max(14px, env(safe-area-inset-bottom));
         overflow-y: auto;
-        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5), 0 0 20px rgba(44, 224, 255, 0.3);
+        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5), 0 0 20px rgba(43, 255, 136, 0.3);
         z-index: 50;
         animation: sheet-up 0.18s ease-out;
     }
@@ -1445,7 +1457,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     color: #0f172a;
     border-color: var(--accent);
     opacity: 1;
-    box-shadow: 0 0 14px rgba(44, 224, 255, 0.55);
+    box-shadow: 0 0 14px rgba(43, 255, 136, 0.55);
 }
 
 .ascension-btn.locked {
@@ -1474,7 +1486,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     line-height: 1;
 }
 .ascension-step-btn:hover:not(:disabled) {
-    background: rgba(44, 224, 255, 0.18);
+    background: rgba(43, 255, 136, 0.18);
 }
 .ascension-step-btn:disabled {
     opacity: 0.3;
@@ -1532,11 +1544,11 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 
 .score-tab.selected {
-    background: rgba(44, 224, 255, 0.18);
+    background: rgba(43, 255, 136, 0.18);
     color: var(--accent);
     border-color: var(--accent);
     opacity: 1;
-    box-shadow: 0 0 10px rgba(44, 224, 255, 0.35) inset;
+    box-shadow: 0 0 10px rgba(43, 255, 136, 0.35) inset;
 }
 
 /* UPGRADES tab strip — TECH TREE / MASTERY LAB combined menu. Same
@@ -1563,24 +1575,24 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 .upg-tab:hover { opacity: 0.9; }
 .upg-tab.selected {
-    background: rgba(44, 224, 255, 0.18);
+    background: rgba(43, 255, 136, 0.18);
     color: var(--accent);
     border-color: var(--accent);
     opacity: 1;
-    box-shadow: 0 0 10px rgba(44, 224, 255, 0.35) inset;
+    box-shadow: 0 0 10px rgba(43, 255, 136, 0.35) inset;
 }
 
 #tower-tooltip {
     position: fixed;
     z-index: 1000;
-    background: rgba(15, 23, 42, 0.97);
+    background: rgba(10, 9, 19, 0.97);
     border: 1px solid var(--accent);
     border-radius: 8px;
     padding: 10px 14px;
     min-width: 180px;
     max-width: 220px;
     pointer-events: none;
-    box-shadow: 0 0 20px rgba(44, 224, 255, 0.2);
+    box-shadow: 0 0 20px rgba(43, 255, 136, 0.2);
 }
 #tower-tooltip.hidden { display: none; }
 
@@ -1603,7 +1615,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     margin: 12px 0 6px;
 }
 .mg-cell {
-    background: rgba(44, 224, 255, 0.06);
+    background: rgba(43, 255, 136, 0.06);
     border: 2px solid var(--border-color);
     border-radius: 8px;
     font-size: clamp(1.2rem, 5vw, 1.8rem);
@@ -1616,7 +1628,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     transition: background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s;
 }
 .mg-cell:not(.safe):not(.surge):hover {
-    background: rgba(44, 224, 255, 0.18);
+    background: rgba(43, 255, 136, 0.18);
     border-color: var(--accent);
     transform: translateY(-2px);
 }
@@ -1662,7 +1674,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     top: 70px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(15, 23, 42, 0.95);
+    background: rgba(10, 9, 19, 0.95);
     border: 1px solid var(--accent);
     border-radius: 6px;
     padding: 8px 18px;
@@ -1671,7 +1683,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     letter-spacing: 2px;
     font-weight: 700;
     z-index: 200;
-    box-shadow: 0 0 20px rgba(44, 224, 255, 0.4);
+    box-shadow: 0 0 20px rgba(43, 255, 136, 0.4);
     animation: mg-toast-fade 5s ease-out forwards;
     pointer-events: none;
 }
@@ -1778,7 +1790,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     /* Add backdrop for better visibility */
     padding: 8px;
     border-radius: 50px;
-    background: rgba(15, 23, 42, 0.3);
+    background: rgba(10, 9, 19, 0.3);
     backdrop-filter: blur(4px);
 }
 #place-confirm.hidden { display: none; }
@@ -1852,7 +1864,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     margin: 14px auto 10px;
     padding: 10px 14px;
     background: rgba(0, 0, 0, 0.35);
-    border: 1px solid rgba(44, 224, 255, 0.35);
+    border: 1px solid rgba(43, 255, 136, 0.35);
     border-radius: 8px;
     font-family: monospace;
     color: var(--text-main);
@@ -1947,7 +1959,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 .menu-buttons button:hover {
     background: var(--accent);
     color: #0f172a;
-    box-shadow: 0 0 16px rgba(44, 224, 255, 0.45);
+    box-shadow: 0 0 16px rgba(43, 255, 136, 0.45);
 }
 .menu-buttons button.menu-primary {
     border-color: #a3e635;
@@ -1973,7 +1985,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     font-weight: 400;
 }
 .menu-buttons button:hover .menu-balance {
-    color: rgba(15, 23, 42, 0.7);
+    color: rgba(10, 9, 19, 0.7);
 }
 
 /* M2: Loadout dropdowns in Run Setup */
@@ -2036,7 +2048,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 .exit-to-menu-btn:hover {
     border-color: var(--accent);
     color: var(--accent);
-    background: rgba(44, 224, 255, 0.1);
+    background: rgba(43, 255, 136, 0.1);
 }
 
 /* M2: Tech Tree overlay */
@@ -2069,7 +2081,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     max-width: 300px;
     padding: 12px;
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(44, 224, 255, 0.25);
+    border: 1px solid rgba(43, 255, 136, 0.25);
     border-radius: 8px;
 }
 .tree-tier h3 {
@@ -2102,7 +2114,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 .tree-node:hover:not(.owned):not(.locked):not(.too-expensive) {
     border-color: var(--accent);
-    background: rgba(44, 224, 255, 0.12);
+    background: rgba(43, 255, 136, 0.12);
 }
 .tree-node.owned {
     border-color: #a3e635;
@@ -2144,8 +2156,8 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     cursor: pointer;
 }
 #ability-btn.armed {
-    background: rgba(44, 224, 255, 0.18);
-    box-shadow: 0 0 12px rgba(44, 224, 255, 0.45) inset;
+    background: rgba(43, 255, 136, 0.18);
+    box-shadow: 0 0 12px rgba(43, 255, 136, 0.45) inset;
 }
 #ability-btn.no-charges {
     opacity: 0.35;
@@ -2212,7 +2224,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     align-items: flex-start;
     gap: 12px;
     padding: 10px 14px;
-    border: 1px solid rgba(44, 224, 255, 0.25);
+    border: 1px solid rgba(43, 255, 136, 0.25);
     border-radius: 6px;
     background: rgba(0, 0, 0, 0.25);
 }
@@ -2225,8 +2237,8 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     height: 32px;
     flex: 0 0 32px;
     border-radius: 4px;
-    background: rgba(44, 224, 255, 0.15);
-    border: 1px solid rgba(44, 224, 255, 0.35);
+    background: rgba(43, 255, 136, 0.15);
+    border: 1px solid rgba(43, 255, 136, 0.35);
 }
 .mastery-body {
     flex: 1;
@@ -2288,7 +2300,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     margin: 4px 0;
     border-radius: 6px;
     overflow: hidden;
-    border: 1px solid rgba(44, 224, 255, 0.35);
+    border: 1px solid rgba(43, 255, 136, 0.35);
     width: fit-content;
     max-width: 100%;
 }
@@ -2307,7 +2319,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     white-space: nowrap;
 }
 .mastery-variant-toggle .mvb.active {
-    background: rgba(44, 224, 255, 0.25);
+    background: rgba(43, 255, 136, 0.25);
     color: #e2e8f0;
 }
 .mastery-variant-toggle .mvb.locked {
@@ -2315,7 +2327,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     cursor: not-allowed;
 }
 .mastery-variant-toggle .mvb:not(.active):not(.locked):hover {
-    background: rgba(44, 224, 255, 0.12);
+    background: rgba(43, 255, 136, 0.12);
     color: var(--text-main);
 }
 .mastery-perks {
@@ -2335,7 +2347,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     padding: 6px;
     border-radius: 6px;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(15, 23, 42, 0.65);
+    background: rgba(10, 9, 19, 0.65);
 }
 .mastery-perk-info {
     min-width: 0;
@@ -2366,7 +2378,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 .mastery-perk-buy.holding {
     background: var(--accent);
     color: #0f172a;
-    box-shadow: 0 0 14px rgba(44, 224, 255, 0.7);
+    box-shadow: 0 0 14px rgba(43, 255, 136, 0.7);
     animation: holdPulse 0.45s ease-in-out infinite;
 }
 @keyframes holdPulse {
@@ -2387,7 +2399,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     gap: 2px;
     padding: 4px;
     background: rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(44, 224, 255, 0.15);
+    border: 1px solid rgba(43, 255, 136, 0.15);
     border-radius: 3px;
 }
 .tower-variant-row .variant-base {
@@ -2512,7 +2524,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     color: #e2e8f0;
     border-width: 2px;
     border-style: solid;
-    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(10, 9, 19, 0.55);
     font-weight: 700;
 }
 /* Ghost cells are PREVIEW only — never a placed item. The green
@@ -2591,7 +2603,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     background: rgba(255,255,255,0.04);
 }
 .bp-pill-tag.bp-tag-power { color: #fbbf24; }
-.bp-pill-tag.bp-tag-tech  { color: #2ce0ff; }
+.bp-pill-tag.bp-tag-tech  { color: #2bff88; }
 .bp-pill-tag.bp-tag-econ  { color: #4ade80; }
 .bp-pill-tag.bp-tag-core  { color: #fb7185; }
 /* Anchor-cell decorations on the placed grid */
@@ -2624,7 +2636,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     pointer-events: none;
 }
 .bp-cell .bp-tag-icon.bp-tag-power { color: #fbbf24; }
-.bp-cell .bp-tag-icon.bp-tag-tech  { color: #2ce0ff; }
+.bp-cell .bp-tag-icon.bp-tag-tech  { color: #2bff88; }
 .bp-cell .bp-tag-icon.bp-tag-econ  { color: #4ade80; }
 .bp-cell .bp-tag-icon.bp-tag-core  { color: #fb7185; }
 #bp-held-desc { font-size: 0.72rem; color: var(--text-muted); flex: 1 1 100%; text-align: center; margin-top: -4px; }
@@ -2718,8 +2730,8 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     z-index: 50;
     min-width: 200px;
     max-width: 280px;
-    background: rgba(15, 23, 42, 0.85);
-    border: 1px solid rgba(44, 224, 255, 0.4);
+    background: rgba(10, 9, 19, 0.85);
+    border: 1px solid rgba(43, 255, 136, 0.4);
     border-radius: 6px;
     padding: 8px 10px;
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
@@ -2772,7 +2784,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
 }
 .mp-race-row.is-me .mp-race-name {
     color: var(--accent);
-    text-shadow: 0 0 6px rgba(44, 224, 255, 0.5);
+    text-shadow: 0 0 6px rgba(43, 255, 136, 0.5);
 }
 .mp-race-row.is-stale { opacity: 0.45; }
 .mp-race-row.is-dead .mp-race-name { color: #fb7185; }
@@ -2857,7 +2869,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
 }
 .score-source-btn:last-child { border-right: none; }
 .score-source-btn.selected {
-    background: rgba(44, 224, 255, 0.18);
+    background: rgba(43, 255, 136, 0.18);
     color: var(--accent);
 }
 .score-source-btn:hover:not(.selected) {
@@ -2900,8 +2912,8 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     margin-left: 6px;
     padding: 1px 5px;
     border-radius: 3px;
-    background: rgba(44, 224, 255, 0.18);
-    color: #2ce0ff;
+    background: rgba(43, 255, 136, 0.18);
+    color: #2bff88;
     font-size: 0.65rem;
     letter-spacing: 1px;
 }
@@ -2994,13 +3006,13 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     align-items: center;
     gap: 10px;
     padding: 8px 12px;
-    background: rgba(15, 23, 42, 0.6);
+    background: rgba(10, 9, 19, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 4px;
     font-family: monospace;
 }
 .mp-waitroom-peer.is-me {
-    border-color: rgba(44, 224, 255, 0.4);
+    border-color: rgba(43, 255, 136, 0.4);
 }
 .mp-waitroom-peer-name { flex: 1; color: var(--text-main); }
 .mp-waitroom-peer-status {
@@ -3145,7 +3157,7 @@ body.menu-open #build-menu {
 .tt-edge-lit {
     stroke: var(--accent);
     stroke-width: 2.5;
-    filter: drop-shadow(0 0 4px rgba(44, 224, 255, 0.7));
+    filter: drop-shadow(0 0 4px rgba(43, 255, 136, 0.7));
 }
 .tt-disc {
     fill: rgba(20, 17, 36, 0.95);
@@ -3159,9 +3171,9 @@ body.menu-open #build-menu {
 .tt-node:focus-visible .tt-disc { stroke: #fff; stroke-width: 3; }
 
 .tt-owned .tt-disc {
-    fill: rgba(44, 224, 255, 0.16);
+    fill: rgba(43, 255, 136, 0.16);
     stroke: var(--accent);
-    filter: drop-shadow(0 0 8px rgba(44, 224, 255, 0.6));
+    filter: drop-shadow(0 0 8px rgba(43, 255, 136, 0.6));
 }
 .tt-owned .tt-glyph { fill: var(--accent); }
 .tt-owned .tt-label { fill: #d8fbff; }
@@ -3180,7 +3192,7 @@ body.menu-open #build-menu {
     50%      { opacity: 0.55; }
 }
 
-.tt-poor .tt-disc { stroke: rgba(44, 224, 255, 0.45); }
+.tt-poor .tt-disc { stroke: rgba(43, 255, 136, 0.45); }
 .tt-poor .tt-glyph, .tt-poor .tt-label { opacity: 0.7; }
 
 .tt-locked { cursor: default; }
@@ -3198,7 +3210,7 @@ body.menu-open #build-menu {
 .tt-gate-shape { fill: rgba(20, 17, 36, 0.95); stroke: var(--border-color); stroke-width: 2; }
 .tt-gate-open .tt-gate-shape {
     stroke: var(--accent);
-    filter: drop-shadow(0 0 6px rgba(44, 224, 255, 0.55));
+    filter: drop-shadow(0 0 6px rgba(43, 255, 136, 0.55));
 }
 
 .tree-detail {
