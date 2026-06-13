@@ -64,5 +64,12 @@ ok('interceptor still default-denies other external requests',
 ok('appassets still routed to the WebViewAssetLoader',
     /appassets\.androidplatform\.net"\.equals\(host\)[\s\S]*?assetLoader\.shouldInterceptRequest/.test(java));
 
+// 7) The APK build must bundle version.json into assets/www, or the in-app
+//    update check's local fetch (./version.json) 404s and the banner can
+//    never appear. Guards the exact "it never prompts for update" gap.
+const buildYml = read('.github/workflows/build-apk.yml');
+ok('build-apk bundles version.json into assets/www',
+    /cp\s+version\.json\s+android\/app\/src\/main\/assets\/www\/version\.json/.test(buildYml));
+
 console.log(`\nAPK MP ALLOWLIST: ${pass} pass, ${fail} fail`);
 process.exit(fail === 0 ? 0 : 1);

@@ -80,8 +80,12 @@ jobs:
         run: |
           rm -rf android/app/src/main/assets/www/src
           cp -R src android/app/src/main/assets/www/src
-          cp index.html android/app/src/main/assets/www/index.html
-          cp style.css  android/app/src/main/assets/www/style.css
+          cp index.html  android/app/src/main/assets/www/index.html
+          cp style.css   android/app/src/main/assets/www/style.css
+          # The in-app update check fetches the BUNDLED ./version.json and
+          # compares it against the live copy on main. Without this copy the
+          # bundled fetch 404s and the update banner can never appear.
+          cp version.json android/app/src/main/assets/www/version.json
 
       - name: Set local.properties (point to CI SDK)
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
