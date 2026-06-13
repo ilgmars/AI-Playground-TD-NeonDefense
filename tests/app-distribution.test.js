@@ -72,6 +72,7 @@ const path = require('path');
             missingLocal: n(null, '20260601000000'),
             missingLive: n('20260601000000', undefined),
             garbage: n('abc', 'xyz'),
+            zeroLocal: n('0', '20260601000000'),
         };
     });
     ok('isNewerBuild: live newer → true', cmp.newer === true);
@@ -79,6 +80,9 @@ const path = require('path');
     ok('isNewerBuild: equal → false', cmp.equal === false);
     ok('isNewerBuild: missing tokens → false', cmp.missingLocal === false && cmp.missingLive === false);
     ok('isNewerBuild: non-numeric → false', cmp.garbage === false);
+    // Old APK with no bundled version.json → checkForApkUpdate substitutes '0'
+    // for the local token so the update still surfaces.
+    ok('isNewerBuild: "0" local (old APK) → true', cmp.zeroLocal === true);
 
     // ---- 3b) Update decision + banner DOM ------------------------------
     const upd = await page.evaluate(() => {
@@ -120,6 +124,28 @@ const path = require('path');
     ok('dismiss records the live build token', upd.stored === '20260601000000', upd.stored);
     ok('evaluateUpdate: already-dismissed version → no show', upd.dDismissed === false);
     ok('evaluateUpdate: same version → no show', upd.dSame === false);
+
+    // ---- 3b2) APK "Download latest" corner link ------------------------
+    // In the APK, applyUpdateDecision(decision, inApk=true) also reveals the
+    // shared corner link, re-labelled "Download latest", and hides it again
+    // when nothing newer exists. inApk is passed explicitly so this is
+    // exercisable off-device.
+    const dl = await page.evaluate(() => {
+        const apply = window.applyUpdateDecision;
+        const el = document.getElementById('get-app-link');
+        apply({ show: true, liveBuild: '20260601000000' }, true);
+        const shown = {
+            visible: !el.classList.contains('hidden'),
+            text: el.textContent.trim(),
+            href: el.getAttribute('href') || '',
+        };
+        apply({ show: false, liveBuild: '20260601000000' }, true);
+        return { shown, hidden: el.classList.contains('hidden') };
+    });
+    ok('APK update reveals a "Download latest" corner link',
+        dl.shown.visible && /download latest/i.test(dl.shown.text) && /NeonDefense\.apk$/.test(dl.shown.href),
+        JSON.stringify(dl.shown));
+    ok('no newer build → corner link hidden', dl.hidden === true);
 
     // ---- 3c) checkForApkUpdate is a no-op outside the APK --------------
     const guard = await page.evaluate(async () => {

@@ -5596,18 +5596,36 @@ document.addEventListener('DOMContentLoaded', init);
     // Apply an update decision to the DOM (reveal/hide the banner, point the
     // link at the latest APK). Split out from the IO so it's testable without
     // a real APK host or network.
-    function applyUpdateDecision(decision) {
+    function applyUpdateDecision(decision, inApk) {
+        const show = !!(decision && decision.show);
         const banner = document.getElementById('app-update-banner');
-        if (!banner) return false;
-        if (decision && decision.show) {
-            const linkEl = document.getElementById('app-update-link');
-            if (linkEl) linkEl.href = APK_URL;
-            banner.dataset.liveBuild = String(decision.liveBuild);
-            banner.classList.remove('hidden');
-            return true;
+        if (banner) {
+            if (show) {
+                const linkEl = document.getElementById('app-update-link');
+                if (linkEl) linkEl.href = APK_URL;
+                banner.dataset.liveBuild = String(decision.liveBuild);
+                banner.classList.remove('hidden');
+            } else {
+                banner.classList.add('hidden');
+            }
         }
-        banner.classList.add('hidden');
-        return false;
+        // Inside the APK, also surface the same subtle corner link the web
+        // uses to "get the app" — here labelled "Download latest" — so there's
+        // a persistent download path even after the banner is dismissed. Shown
+        // only when a newer build actually exists.
+        if (inApk) {
+            const dl = document.getElementById('get-app-link');
+            if (dl) {
+                if (show) {
+                    dl.textContent = 'Download latest ▸';
+                    dl.href = APK_URL;
+                    dl.classList.remove('hidden');
+                } else {
+                    dl.classList.add('hidden');
+                }
+            }
+        }
+        return show;
     }
 
     // APK only: read bundled ./version.json + live manifest and reveal the
@@ -5615,16 +5633,28 @@ document.addEventListener('DOMContentLoaded', init);
     // a boolean for tests; never throws (offline/blocked → silently skip).
     async function checkForApkUpdate(fetchImpl) {
         if (!isApk()) return false;
-        if (!document.getElementById('app-update-banner')) return false;
+        // The live manifest is the one thing we must read to know whether a
+        // newer build exists. If it's unreachable (offline/blocked), stay quiet.
+        let live;
         try {
-            const local = await fetchBuildToken('./version.json', fetchImpl);
-            const live = await fetchBuildToken(LIVE_VERSION_URL, fetchImpl);
-            let dismissed = null;
-            try { dismissed = localStorage.getItem(DISMISS_KEY); } catch (_) {}
-            return applyUpdateDecision(appDistEvaluateUpdate({ local, live, dismissed }));
+            live = await fetchBuildToken(LIVE_VERSION_URL, fetchImpl);
         } catch (_) {
-            return false; // offline, blocked, or malformed — stay quiet
+            return false;
         }
+        if (!live) return false;
+        // The bundled token is missing on APKs built before version.json was
+        // bundled. A missing local token means this install predates current
+        // main and is therefore behind it, so treat it as the oldest possible
+        // build ('0') rather than bailing — that bail was why old installs were
+        // never prompted to update.
+        let local = null;
+        try { local = await fetchBuildToken('./version.json', fetchImpl); } catch (_) {}
+        let dismissed = null;
+        try { dismissed = localStorage.getItem(DISMISS_KEY); } catch (_) {}
+        const decision = appDistEvaluateUpdate({
+            local: local == null ? '0' : local, live, dismissed,
+        });
+        return applyUpdateDecision(decision, true);
     }
 
     // Expose the pure logic (and the wired entry points) for regression tests.

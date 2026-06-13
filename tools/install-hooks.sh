@@ -21,6 +21,10 @@ cat > .git/hooks/pre-commit <<'EOF'
 if git diff --cached --name-only | grep -qE '^(src/|style\.css$|index\.html$)'; then
     sh tools/bump-cache.sh
     git add index.html
+    # bump-cache.sh also advances version.json's build token; stage it too,
+    # or the APK update check compares against a token that never moves and
+    # never prompts for a new release.
+    if [ -f version.json ]; then git add version.json; fi
 fi
 EOF
 chmod +x .git/hooks/pre-commit
