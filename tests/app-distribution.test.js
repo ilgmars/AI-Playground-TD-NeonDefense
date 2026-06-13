@@ -133,6 +133,20 @@ const path = require('path');
     ok('checkForApkUpdate: no-op when not running as the APK', guard.result === false && guard.hidden === true,
         JSON.stringify(guard));
 
+    // ---- 4) Multiplayer lobby shows the build/version line -------------
+    const mpVer = await page.evaluate(async () => {
+        const btn = document.getElementById('menu-multiplayer-btn');
+        if (!btn || btn.classList.contains('hidden')) return { skipped: true };
+        btn.click();
+        // renderMpVersion paints a fallback synchronously then upgrades from
+        // version.json — wait for the fetch to resolve.
+        await new Promise(r => setTimeout(r, 400));
+        return { text: (document.getElementById('mp-version') || {}).textContent || '' };
+    });
+    ok('MP lobby shows a build/version line',
+        !mpVer.skipped && /NEON DEFENSE/.test(mpVer.text) && /v1\.1/.test(mpVer.text) && /build\s+\d{8}/.test(mpVer.text),
+        JSON.stringify(mpVer));
+
     ok('no JS errors', errs.length === 0, errs.join(' / '));
 
     await browser.close();

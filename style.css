@@ -3080,6 +3080,15 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     color: var(--text-muted);
     max-width: 420px;
 }
+.mp-version {
+    margin: 8px 0 0;
+    font-size: 0.64rem;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    opacity: 0.6;
+    font-variant-numeric: tabular-nums;
+}
+.mp-version:empty { display: none; }
 
 
 /* ── Interaction & accessibility baseline ──────────────────────────

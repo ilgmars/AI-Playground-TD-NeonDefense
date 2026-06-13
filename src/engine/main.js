@@ -4447,6 +4447,40 @@ function init() {
         el.style.color = color || 'var(--text-muted)';
     }
 
+    // Populate the multiplayer lobby's build/version line. Both peers should
+    // be on the same build for co-op to stay in sync, so we surface it where
+    // people are about to connect. Prefers ./version.json (bundled in the
+    // APK, deployed on web); falls back to the ?v= cache-bust token that's
+    // always present on the script tags so it shows *something* offline.
+    let _mpVersionCache = null;
+    async function renderMpVersion() {
+        const el = document.getElementById('mp-version');
+        if (!el) return;
+        // Cache-token fallback, derived from this very script's URL.
+        const fromCacheToken = () => {
+            const s = document.querySelector('script[src*="engine/main.js"]');
+            const m = s && s.src.match(/[?&]v=([0-9A-Za-z]{6,})/);
+            return m ? m[1] : null;
+        };
+        const paint = (version, build) => {
+            const v = version ? 'v' + version : '';
+            const b = build ? 'build ' + build : '';
+            el.textContent = ['NEON DEFENSE', v, b].filter(Boolean).join(' · ');
+        };
+        if (_mpVersionCache) { paint(_mpVersionCache.version, _mpVersionCache.build); return; }
+        // Show the fallback immediately so there's no blank flash, then
+        // upgrade to the full manifest if the fetch succeeds.
+        paint(null, fromCacheToken());
+        try {
+            const res = await fetch('./version.json', { cache: 'no-store' });
+            if (res && res.ok) {
+                const data = await res.json();
+                _mpVersionCache = { version: data && data.version, build: data && data.build };
+                paint(_mpVersionCache.version, _mpVersionCache.build);
+            }
+        } catch (_) { /* offline / blocked — keep the cache-token fallback */ }
+    }
+
     function setupMultiplayerLobby() {
         if (typeof NeonMP === 'undefined' || !NeonMP.lobby || !NeonMP.race) {
             // Scripts didn't load (e.g. broken cache); hide the button so
@@ -4477,6 +4511,7 @@ function init() {
             hideScreen('main-menu');
             showScreen('mp-lobby');
             setStatus(status, 'Pick a mode and room code, then JOIN.', 'var(--text-muted)');
+            renderMpVersion();
         });
         backBtn.addEventListener('click', uiGoBack);
 
