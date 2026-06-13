@@ -54,6 +54,11 @@ const path = require('path');
         opened.masteryVisible && opened.tabs === 2 && opened.rows > 0,
         JSON.stringify(opened));
 
+    // The default (MASTERY) tab comes FIRST in the strip.
+    const firstTab = await page.evaluate(() =>
+        document.querySelector('#tower-mastery .upg-tabs .upg-tab').dataset.upgTab);
+    ok('default MASTERY tab is first in the tab strip', firstTab === 'mastery', firstTab);
+
     await page.click('#tower-mastery .upg-tab[data-upg-tab="tree"]');
     await page.waitForTimeout(200);
     const onTree = await page.evaluate(() => ({

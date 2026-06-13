@@ -271,10 +271,31 @@ function renderOneAbilitySelect() {
 function showScreen(id) {
     const el = document.getElementById(id);
     if (el) el.classList.remove('hidden');
+    updateHudChrome();
 }
 function hideScreen(id) {
     const el = document.getElementById(id);
     if (el) el.classList.add('hidden');
+    updateHudChrome();
+}
+
+// The full-screen menu overlays (.overlay) live INSIDE #game-container,
+// so they never covered the top bar (above) or the DEFENSES dock
+// (beside) — every menu floated over a live-looking game HUD showing
+// health/credits that don't apply outside a run. Hide that chrome
+// whenever any full-screen overlay is up; the in-game race/boon
+// widgets aren't `.overlay`, so the gameplay HUD stays put. Toggling
+// the HUD reflows #content, so resize the canvas to match.
+let _hudHidden = null;
+function updateHudChrome() {
+    if (typeof document === 'undefined' || !document.querySelector) return;
+    const overlayOpen = !!document.querySelector('.overlay:not(.hidden)');
+    if (overlayOpen === _hudHidden) return;        // no change → no reflow
+    _hudHidden = overlayOpen;
+    document.body.classList.toggle('menu-open', overlayOpen);
+    if (typeof resizeCanvas === 'function') {
+        try { resizeCanvas(); } catch (_) {}
+    }
 }
 
 // ── History / back-button integration ────────────────────────────────
@@ -570,17 +591,27 @@ function renderTowerMastery() {
     const rateF   = r => 0.5 + 0.5 * Math.pow(0.97, r);
     const ratePct = r => Math.round((1 / rateF(r) - 1) * 100);
     const bountyPct = r => Math.round(0.4 * (1 - Math.pow(0.97, r)) * 100);
+    // `desc` powers the hover/long-press tooltip on each perk row so
+    // "what does Bounty do?" is answered in-game, not just a number.
     const perkMeta = {
-        damage: { label: 'Damage', value: r => `+${dmgPct(r)}%` },
-        fireRate: { label: 'Fire Rate', value: r => `+${ratePct(r)}%` },
-        efficiency: { label: 'Upgrade Cost', value: r => `-${r * 2}%` },
-        bounty: { label: 'Bounty', value: r => `+${bountyPct(r)}%` }
+        damage: { label: 'Damage', value: r => `+${dmgPct(r)}%`,
+            desc: 'Permanently raises this tower type’s damage every run. Diminishing, no cap.' },
+        fireRate: { label: 'Fire Rate', value: r => `+${ratePct(r)}%`,
+            desc: 'This tower type fires faster every run. Diminishing toward 2×, no cap.' },
+        efficiency: { label: 'Upgrade Cost', value: r => `-${r * 2}%`,
+            desc: 'Cheaper in-run upgrades for this tower type (−2% per rank).' },
+        bounty: { label: 'Bounty', value: r => `+${bountyPct(r)}%`,
+            desc: 'Enemies killed by this tower type drop extra credits during the run (up to +40%). Stacks the more you invest.' }
     };
     const incomePerkMeta = {
-        damage: { label: 'Yield / Aura', value: r => `+${dmgPct(r)}%` },
-        fireRate: { label: 'Fire Rate', value: r => `+${ratePct(r)}%` },
-        efficiency: { label: 'Upgrade Cost', value: r => `-${r * 2}%` },
-        bounty: { label: 'Bounty', value: r => `+${bountyPct(r)}%` }
+        damage: { label: 'Yield / Aura', value: r => `+${dmgPct(r)}%`,
+            desc: 'Raises Relay income / Research Node aura strength every run.' },
+        fireRate: { label: 'Fire Rate', value: r => `+${ratePct(r)}%`,
+            desc: 'No effect on support towers (they don’t fire).' },
+        efficiency: { label: 'Upgrade Cost', value: r => `-${r * 2}%`,
+            desc: 'Cheaper in-run upgrades for support towers (−2% per rank, the perk that matters most here).' },
+        bounty: { label: 'Bounty', value: r => `+${bountyPct(r)}%`,
+            desc: 'No effect on support towers (they don’t get kills).' }
     };
     // Per-tower perk sets (the 2026-06 rework — "some perks are useless
     // or redundant"). Every listed perk demonstrably does something for
@@ -698,6 +729,9 @@ function renderTowerMastery() {
             const cost = NeonSave.getMasteryPerkCost(save, activeKey, perk);
             const perkRow = document.createElement('div');
             perkRow.className = 'mastery-perk-row';
+            // Explain what the perk does on hover (desktop) / long-press
+            // (mobile) — answers "what does Bounty do?" in-game.
+            if (activePerkMeta[perk].desc) perkRow.title = activePerkMeta[perk].desc;
 
             const info = document.createElement('div');
             info.className = 'mastery-perk-info';

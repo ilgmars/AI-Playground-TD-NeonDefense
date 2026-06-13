@@ -41,6 +41,26 @@ const fs = require('fs');
     const inlineCount = (html.match(/style="/g) || []).length;
     ok(`inline-style budget held (${inlineCount} ≤ 37)`, inlineCount <= 37, inlineCount);
 
+    // ── Palette is OFF the generic AI dark-mode defaults ─────────────
+    const root = (css.match(/:root\s*\{[\s\S]*?\}/) || [''])[0];
+    // Check the DECLARED values, not any mention (the comment names the
+    // old colours it's deliberately avoiding).
+    ok('bg is not Tailwind slate-900 (#0f172a)', !/--bg-color:\s*#0f172a/i.test(root),
+        (root.match(/--bg-color:[^;]*/) || [''])[0]);
+    ok('accent is not Tailwind sky-400 (#38bdf8)', !/--accent:\s*#38bdf8/i.test(root));
+    ok('a SECOND neon accent exists (multi-colour, not monochrome)',
+        /--accent-2:/.test(root));
+    ok('title uses a gradient (clipped text), not a flat colour',
+        /\.overlay h1\s*\{[^}]*background-clip:\s*text/.test(css) ||
+        /\.overlay h1\s*\{[^}]*-webkit-background-clip:\s*text/.test(css));
+    ok('glow present on key chrome (drop/box/text shadow in accent)',
+        /drop-shadow\(/.test(css) && /menu-open/.test(css));
+
+    // ── Tooltips up to date ──────────────────────────────────────────
+    ok('no stale "Leave race" tooltip (race mode was removed)',
+        !/Leave race/i.test(html));
+    ok('no stale "RACE" overlay label', !/>RACE</.test(html));
+
     // ── Live keyboard behaviour ──────────────────────────────────────
     await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(700);
@@ -98,6 +118,44 @@ const fs = require('fs');
     ok('keyboard (Tab) focus shows an outline ring on the controls',
         !!ring && ring.style !== 'none' && parseFloat(ring.width) >= 2,
         JSON.stringify(ring));
+
+    // ── HUD chrome hides behind full-screen menus, shows in-run ──────
+    // (we're on the main menu now after the focus checks navigated home)
+    const onMenu = await page.evaluate(() => {
+        if (typeof navigateToMainMenu === 'function') navigateToMainMenu();
+        const cs = id => getComputedStyle(document.getElementById(id)).display;
+        return { body: document.body.classList.contains('menu-open'),
+                 topBar: cs('top-bar'), dock: cs('build-menu') };
+    });
+    ok('main menu hides the game HUD (top bar + dock)',
+        onMenu.body && onMenu.topBar === 'none' && onMenu.dock === 'none',
+        JSON.stringify(onMenu));
+
+    const inRun = await page.evaluate(() => {
+        document.getElementById('menu-start-btn').click();
+        return new Promise(res => setTimeout(() => {
+            document.getElementById('start-btn').click();
+            setTimeout(() => {
+                const cs = id => getComputedStyle(document.getElementById(id)).display;
+                res({ body: document.body.classList.contains('menu-open'),
+                      topBar: cs('top-bar'), dock: cs('build-menu') });
+            }, 700);
+        }, 250));
+    });
+    ok('in-run shows the game HUD again',
+        !inRun.body && inRun.topBar !== 'none' && inRun.dock !== 'none',
+        JSON.stringify(inRun));
+
+    // ── Bounty (and every perk) explains itself via a tooltip ────────
+    const perkTip = await page.evaluate(() => {
+        navigateToMainMenu();
+        document.getElementById('menu-tree-btn').click();   // opens on MASTERY tab
+        const rows = Array.from(document.querySelectorAll('#mastery-grid .mastery-perk-row'));
+        const bountyRow = rows.find(r => /bounty/i.test(r.textContent));
+        return { found: !!bountyRow, tip: bountyRow ? bountyRow.title : '' };
+    });
+    ok('Bounty perk row has an explanatory tooltip',
+        perkTip.found && /credit/i.test(perkTip.tip), JSON.stringify(perkTip));
 
     ok('no JS errors', errs.length === 0, errs.join(' / '));
 

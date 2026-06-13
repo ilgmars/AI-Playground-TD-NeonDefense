@@ -1,12 +1,21 @@
 :root {
-    --bg-color: #0f172a;
-    --panel-bg: rgba(30, 41, 59, 0.95);
-    --border-color: rgba(148, 163, 184, 0.2);
-    --accent: #38bdf8;
-    --accent-hover: #0ea5e9;
-    --text-main: #f8fafc;
-    --text-muted: #94a3b8;
-    
+    /* Palette: deliberately OFF the default dark-mode tell (Tailwind
+       slate-900 #0f172a + a single sky-400 #2ce0ff). Neon Defense gets
+       a violet-black base lit by a CYAN↔MAGENTA dual neon — a real
+       neon-sign duotone, not one flat blue accent. Gameplay colours
+       (towers/enemies, drawn on the canvas) are intentionally NOT
+       touched here — players read them as identity. */
+    --bg-color: #0a0913;            /* near-black, cool indigo undertone */
+    --bg-deep: #06050d;             /* vignette / deepest wells          */
+    --panel-bg: rgba(20, 17, 36, 0.95);   /* dark violet, not slate      */
+    --border-color: rgba(150, 130, 210, 0.22);
+    --accent: #2ce0ff;              /* electric cyan (primary)           */
+    --accent-hover: #16c7e6;
+    --accent-2: #ff5cf0;            /* hot magenta (secondary neon)      */
+    --accent-3: #a3e635;            /* lime — primary CTA / "go"         */
+    --text-main: #f5f7ff;
+    --text-muted: #9aa0c4;          /* lavender-grey, ≥4.5:1 on bg       */
+
     --health: #fb7185;
     --money: #fbbf24;
 }
@@ -20,7 +29,14 @@
 }
 
 body {
-    background-color: #000;
+    /* Not a flat fill: a faint cyan/magenta bloom from the top corners
+       over the violet-black base, so the frame reads as lit neon rather
+       than a flat dark slate panel (the generic AI-dark-mode look). */
+    background-color: var(--bg-deep);
+    background-image:
+        radial-gradient(70% 55% at 6% -10%, rgba(44, 224, 255, 0.10), transparent 60%),
+        radial-gradient(70% 55% at 100% -2%, rgba(255, 92, 240, 0.09), transparent 60%),
+        linear-gradient(180deg, var(--bg-color), var(--bg-deep));
     color: var(--text-main);
     font-family: 'Outfit', sans-serif;
     display: flex;
@@ -151,7 +167,7 @@ body {
 
 #health-display { color: var(--health); text-shadow: 0 0 10px rgba(251, 113, 133, 0.4); }
 #money-display { color: var(--money); text-shadow: 0 0 10px rgba(251, 191, 36, 0.4); }
-#wave-display { color: var(--accent); text-shadow: 0 0 10px rgba(56, 189, 248, 0.4); }
+#wave-display { color: var(--accent); text-shadow: 0 0 10px rgba(44, 224, 255, 0.4); }
 /* speed-display color is set dynamically by updateSpeedColor() in JS */
 #speed-display { text-shadow: 0 0 10px rgba(163, 230, 53, 0.4); }
 #seed-display { color: var(--text-muted); }
@@ -218,7 +234,8 @@ canvas {
 
 #build-menu h3 {
     font-size: 0.9rem;
-    color: var(--text-muted);
+    color: var(--accent-2);              /* magenta dock header — neon accent #2 */
+    text-shadow: 0 0 12px rgba(255, 92, 240, 0.4);
     letter-spacing: 2px;
     text-align: center;
     border-bottom: 1px solid var(--border-color);
@@ -266,8 +283,8 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
 
 .tower-option.selected {
     border-color: var(--accent);
-    background: rgba(56, 189, 248, 0.1);
-    box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+    background: rgba(44, 224, 255, 0.1);
+    box-shadow: 0 0 15px rgba(44, 224, 255, 0.2);
 }
 
 .tower-option.disabled {
@@ -284,13 +301,13 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
     flex-shrink: 0;
 }
 
-.basic-icon { border-color: #38bdf8; background: #0284c7; }
+.basic-icon { border-color: #2ce0ff; background: #0284c7; }
 .sniper-icon { border-color: #f472b6; background: #be185d; border-radius: 0; }
 .rapid-icon { border-color: #a3e635; background: #4d7c0f; clip-path: polygon(50% 0%, 100% 100%, 0% 100%); border-radius: 0; border: none; }
 .laser-icon { border-color: #8b5cf6; background: #6d28d9; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); border-radius: 0; border: none; }
 .rocket-icon { border-color: #f97316; background: #c2410c; border-radius: 8px; }
 .flak-icon { border-color: #60a5fa; background: #1e3a8a; clip-path: polygon(20% 100%, 80% 100%, 100% 50%, 80% 0%, 20% 0%, 0% 50%); border-radius: 0; border: none; }
-.electric-icon { border-color: #0ea5e9; background: #0284c7; border-radius: 50%; outline: 2px dashed #38bdf8; outline-offset: -4px; }
+.electric-icon { border-color: #0ea5e9; background: #0284c7; border-radius: 50%; outline: 2px dashed #2ce0ff; outline-offset: -4px; }
 .silo-icon { border-color: #ef4444; background: #991b1b; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); border-radius: 0; border: none; }
 .income-icon { border-color: #fbbf24; background: #92400e; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); border-radius: 0; border: none; }
 .potion-icon { border-color: #4ade80; background: #166534; border-radius: 50% 50% 40% 40%; }
@@ -323,7 +340,7 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
     background: rgba(15, 23, 42, 0.95);
     border: 1px solid var(--accent);
     border-radius: 8px;
-    box-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
+    box-shadow: 0 0 20px rgba(44, 224, 255, 0.3);
     z-index: 20;
 }
 
@@ -462,18 +479,36 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
 
 .overlay h1 {
     font-size: 4rem;
-    color: var(--accent);
-    text-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+    /* Cyan→magenta neon-sign gradient on the title, with a soft bloom
+       behind it (drop-shadow works on the clipped text; text-shadow
+       wouldn't show through background-clip). */
+    background: linear-gradient(95deg, var(--accent) 15%, #8be9ff 40%, var(--accent-2) 90%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 16px rgba(44, 224, 255, 0.45)) drop-shadow(0 0 26px rgba(255, 92, 240, 0.28));
     margin-bottom: 10px;
     letter-spacing: 4px;
     text-align: center;
+    text-wrap: balance;
 }
 
+/* Menu/screen titles are neon MAGENTA (the secondary hue) so the UI
+   isn't monochrome cyan. The semantic end-states override below. */
 .overlay h2 {
     font-size: 3rem;
+    color: var(--accent-2);
+    text-shadow: 0 0 18px rgba(255, 92, 240, 0.5);
+    margin-bottom: 20px;
+    text-wrap: balance;
+}
+#game-over h2 {                 /* defeat stays alarm-red */
     color: var(--health);
     text-shadow: 0 0 20px rgba(251, 113, 133, 0.5);
-    margin-bottom: 20px;
+}
+#victory h2 {                   /* victory is triumphant gold */
+    color: var(--money);
+    text-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
 }
 
 .overlay p {
@@ -496,13 +531,13 @@ button {
     text-transform: uppercase;
     letter-spacing: 2px;
     transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
-    box-shadow: 0 0 15px rgba(56, 189, 248, 0.2) inset;
+    box-shadow: 0 0 15px rgba(44, 224, 255, 0.2) inset;
 }
 
 button:hover {
     background: var(--accent);
     color: #0f172a;
-    box-shadow: 0 0 20px rgba(56, 189, 248, 0.6);
+    box-shadow: 0 0 20px rgba(44, 224, 255, 0.6);
 }
 
 button.danger {
@@ -694,7 +729,7 @@ body.touch-ui #upgrade-menu {
     padding: 14px 16px;
     padding-bottom: max(14px, env(safe-area-inset-bottom));
     overflow-y: auto;
-    box-shadow: 0 -8px 24px rgba(0,0,0,0.5), 0 0 20px rgba(56,189,248,0.3);
+    box-shadow: 0 -8px 24px rgba(0,0,0,0.5), 0 0 20px rgba(44,224,255,0.3);
     z-index: 50;
     animation: sheet-up 0.18s ease-out;
 }
@@ -994,7 +1029,7 @@ body.touch-ui .upg-cost { font-size: 0.9rem; }
         padding: 14px 16px;
         padding-bottom: max(14px, env(safe-area-inset-bottom));
         overflow-y: auto;
-        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5), 0 0 20px rgba(56, 189, 248, 0.3);
+        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5), 0 0 20px rgba(44, 224, 255, 0.3);
         z-index: 50;
         animation: sheet-up 0.18s ease-out;
     }
@@ -1379,7 +1414,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     color: #0f172a;
     border-color: var(--accent);
     opacity: 1;
-    box-shadow: 0 0 14px rgba(56, 189, 248, 0.55);
+    box-shadow: 0 0 14px rgba(44, 224, 255, 0.55);
 }
 
 .ascension-btn.locked {
@@ -1408,7 +1443,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     line-height: 1;
 }
 .ascension-step-btn:hover:not(:disabled) {
-    background: rgba(56, 189, 248, 0.18);
+    background: rgba(44, 224, 255, 0.18);
 }
 .ascension-step-btn:disabled {
     opacity: 0.3;
@@ -1466,11 +1501,11 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 
 .score-tab.selected {
-    background: rgba(56, 189, 248, 0.18);
+    background: rgba(44, 224, 255, 0.18);
     color: var(--accent);
     border-color: var(--accent);
     opacity: 1;
-    box-shadow: 0 0 10px rgba(56, 189, 248, 0.35) inset;
+    box-shadow: 0 0 10px rgba(44, 224, 255, 0.35) inset;
 }
 
 /* UPGRADES tab strip — TECH TREE / MASTERY LAB combined menu. Same
@@ -1497,11 +1532,11 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 .upg-tab:hover { opacity: 0.9; }
 .upg-tab.selected {
-    background: rgba(56, 189, 248, 0.18);
+    background: rgba(44, 224, 255, 0.18);
     color: var(--accent);
     border-color: var(--accent);
     opacity: 1;
-    box-shadow: 0 0 10px rgba(56, 189, 248, 0.35) inset;
+    box-shadow: 0 0 10px rgba(44, 224, 255, 0.35) inset;
 }
 
 #tower-tooltip {
@@ -1514,7 +1549,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     min-width: 180px;
     max-width: 220px;
     pointer-events: none;
-    box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+    box-shadow: 0 0 20px rgba(44, 224, 255, 0.2);
 }
 #tower-tooltip.hidden { display: none; }
 
@@ -1537,7 +1572,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     margin: 12px 0 6px;
 }
 .mg-cell {
-    background: rgba(56, 189, 248, 0.06);
+    background: rgba(44, 224, 255, 0.06);
     border: 2px solid var(--border-color);
     border-radius: 8px;
     font-size: clamp(1.2rem, 5vw, 1.8rem);
@@ -1550,7 +1585,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     transition: background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s;
 }
 .mg-cell:not(.safe):not(.surge):hover {
-    background: rgba(56, 189, 248, 0.18);
+    background: rgba(44, 224, 255, 0.18);
     border-color: var(--accent);
     transform: translateY(-2px);
 }
@@ -1605,7 +1640,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     letter-spacing: 2px;
     font-weight: 700;
     z-index: 200;
-    box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+    box-shadow: 0 0 20px rgba(44, 224, 255, 0.4);
     animation: mg-toast-fade 5s ease-out forwards;
     pointer-events: none;
 }
@@ -1786,7 +1821,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     margin: 14px auto 10px;
     padding: 10px 14px;
     background: rgba(0, 0, 0, 0.35);
-    border: 1px solid rgba(56, 189, 248, 0.35);
+    border: 1px solid rgba(44, 224, 255, 0.35);
     border-radius: 8px;
     font-family: monospace;
     color: var(--text-main);
@@ -1881,7 +1916,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 .menu-buttons button:hover {
     background: var(--accent);
     color: #0f172a;
-    box-shadow: 0 0 16px rgba(56, 189, 248, 0.45);
+    box-shadow: 0 0 16px rgba(44, 224, 255, 0.45);
 }
 .menu-buttons button.menu-primary {
     border-color: #a3e635;
@@ -1970,7 +2005,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 .exit-to-menu-btn:hover {
     border-color: var(--accent);
     color: var(--accent);
-    background: rgba(56, 189, 248, 0.1);
+    background: rgba(44, 224, 255, 0.1);
 }
 
 /* M2: Tech Tree overlay */
@@ -2003,7 +2038,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     max-width: 300px;
     padding: 12px;
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(56, 189, 248, 0.25);
+    border: 1px solid rgba(44, 224, 255, 0.25);
     border-radius: 8px;
 }
 .tree-tier h3 {
@@ -2036,7 +2071,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 .tree-node:hover:not(.owned):not(.locked):not(.too-expensive) {
     border-color: var(--accent);
-    background: rgba(56, 189, 248, 0.12);
+    background: rgba(44, 224, 255, 0.12);
 }
 .tree-node.owned {
     border-color: #a3e635;
@@ -2078,8 +2113,8 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     cursor: pointer;
 }
 #ability-btn.armed {
-    background: rgba(56, 189, 248, 0.18);
-    box-shadow: 0 0 12px rgba(56, 189, 248, 0.45) inset;
+    background: rgba(44, 224, 255, 0.18);
+    box-shadow: 0 0 12px rgba(44, 224, 255, 0.45) inset;
 }
 #ability-btn.no-charges {
     opacity: 0.35;
@@ -2146,7 +2181,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     align-items: flex-start;
     gap: 12px;
     padding: 10px 14px;
-    border: 1px solid rgba(56, 189, 248, 0.25);
+    border: 1px solid rgba(44, 224, 255, 0.25);
     border-radius: 6px;
     background: rgba(0, 0, 0, 0.25);
 }
@@ -2159,8 +2194,8 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     height: 32px;
     flex: 0 0 32px;
     border-radius: 4px;
-    background: rgba(56, 189, 248, 0.15);
-    border: 1px solid rgba(56, 189, 248, 0.35);
+    background: rgba(44, 224, 255, 0.15);
+    border: 1px solid rgba(44, 224, 255, 0.35);
 }
 .mastery-body {
     flex: 1;
@@ -2222,7 +2257,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     margin: 4px 0;
     border-radius: 6px;
     overflow: hidden;
-    border: 1px solid rgba(56, 189, 248, 0.35);
+    border: 1px solid rgba(44, 224, 255, 0.35);
     width: fit-content;
     max-width: 100%;
 }
@@ -2241,7 +2276,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     white-space: nowrap;
 }
 .mastery-variant-toggle .mvb.active {
-    background: rgba(56, 189, 248, 0.25);
+    background: rgba(44, 224, 255, 0.25);
     color: #e2e8f0;
 }
 .mastery-variant-toggle .mvb.locked {
@@ -2249,7 +2284,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     cursor: not-allowed;
 }
 .mastery-variant-toggle .mvb:not(.active):not(.locked):hover {
-    background: rgba(56, 189, 248, 0.12);
+    background: rgba(44, 224, 255, 0.12);
     color: var(--text-main);
 }
 .mastery-perks {
@@ -2300,7 +2335,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 .mastery-perk-buy.holding {
     background: var(--accent);
     color: #0f172a;
-    box-shadow: 0 0 14px rgba(56, 189, 248, 0.7);
+    box-shadow: 0 0 14px rgba(44, 224, 255, 0.7);
     animation: holdPulse 0.45s ease-in-out infinite;
 }
 @keyframes holdPulse {
@@ -2321,7 +2356,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     gap: 2px;
     padding: 4px;
     background: rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(44, 224, 255, 0.15);
     border-radius: 3px;
 }
 .tower-variant-row .variant-base {
@@ -2525,7 +2560,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     background: rgba(255,255,255,0.04);
 }
 .bp-pill-tag.bp-tag-power { color: #fbbf24; }
-.bp-pill-tag.bp-tag-tech  { color: #38bdf8; }
+.bp-pill-tag.bp-tag-tech  { color: #2ce0ff; }
 .bp-pill-tag.bp-tag-econ  { color: #4ade80; }
 .bp-pill-tag.bp-tag-core  { color: #fb7185; }
 /* Anchor-cell decorations on the placed grid */
@@ -2558,7 +2593,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     pointer-events: none;
 }
 .bp-cell .bp-tag-icon.bp-tag-power { color: #fbbf24; }
-.bp-cell .bp-tag-icon.bp-tag-tech  { color: #38bdf8; }
+.bp-cell .bp-tag-icon.bp-tag-tech  { color: #2ce0ff; }
 .bp-cell .bp-tag-icon.bp-tag-econ  { color: #4ade80; }
 .bp-cell .bp-tag-icon.bp-tag-core  { color: #fb7185; }
 #bp-held-desc { font-size: 0.72rem; color: var(--text-muted); flex: 1 1 100%; text-align: center; margin-top: -4px; }
@@ -2653,7 +2688,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     min-width: 200px;
     max-width: 280px;
     background: rgba(15, 23, 42, 0.85);
-    border: 1px solid rgba(56, 189, 248, 0.4);
+    border: 1px solid rgba(44, 224, 255, 0.4);
     border-radius: 6px;
     padding: 8px 10px;
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
@@ -2706,7 +2741,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
 }
 .mp-race-row.is-me .mp-race-name {
     color: var(--accent);
-    text-shadow: 0 0 6px rgba(56, 189, 248, 0.5);
+    text-shadow: 0 0 6px rgba(44, 224, 255, 0.5);
 }
 .mp-race-row.is-stale { opacity: 0.45; }
 .mp-race-row.is-dead .mp-race-name { color: #fb7185; }
@@ -2791,7 +2826,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
 }
 .score-source-btn:last-child { border-right: none; }
 .score-source-btn.selected {
-    background: rgba(56, 189, 248, 0.18);
+    background: rgba(44, 224, 255, 0.18);
     color: var(--accent);
 }
 .score-source-btn:hover:not(.selected) {
@@ -2834,8 +2869,8 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     margin-left: 6px;
     padding: 1px 5px;
     border-radius: 3px;
-    background: rgba(56, 189, 248, 0.18);
-    color: #38bdf8;
+    background: rgba(44, 224, 255, 0.18);
+    color: #2ce0ff;
     font-size: 0.65rem;
     letter-spacing: 1px;
 }
@@ -2934,7 +2969,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     font-family: monospace;
 }
 .mp-waitroom-peer.is-me {
-    border-color: rgba(56, 189, 248, 0.4);
+    border-color: rgba(44, 224, 255, 0.4);
 }
 .mp-waitroom-peer-name { flex: 1; color: var(--text-main); }
 .mp-waitroom-peer-status {
@@ -3029,3 +3064,30 @@ button,
     color: var(--text-muted);
     letter-spacing: 1px;
 }
+
+/* ── Menu chrome: hide the in-game HUD behind full-screen overlays ──
+   The .overlay menus live inside #game-container, so the top bar
+   (above) and the DEFENSES build dock (beside) stayed visible behind
+   every menu — a live-looking HUD (health/credits) that doesn't apply
+   outside a run. body.menu-open (set by updateHudChrome) hides both so
+   menus own the whole frame. */
+body.menu-open #top-bar,
+body.menu-open #build-menu {
+    display: none;
+}
+
+/* Primary call-to-action: START RUN reads as a filled button, not one
+   more outline in a stack of eight. The rest stay outlined (secondary)
+   and RESET SAVE stays the de-emphasised .small .danger control, so
+   the menu has a clear visual hierarchy instead of a monotonous list. */
+.menu-buttons button.menu-primary {
+    background: #a3e635;
+    color: #0f172a;
+    box-shadow: 0 0 18px rgba(163, 230, 53, 0.35);
+}
+.menu-buttons button.menu-primary:hover {
+    background: #bef264;
+    color: #0f172a;
+    box-shadow: 0 0 24px rgba(163, 230, 53, 0.55);
+}
+.menu-buttons button.menu-primary .menu-balance { color: #0f172a; opacity: 0.7; }
