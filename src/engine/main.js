@@ -382,6 +382,20 @@ function formatCompact(n) {
 }
 window.formatCompact = formatCompact;
 
+// Keyboard parity for the top-bar controls: the interactive stat-boxes
+// are styled divs carrying role="button", so Enter/Space must activate
+// them exactly like a click (guideline: interactive elements need
+// keyboard handlers). One delegated listener, no per-element wiring.
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const el = e.target;
+    if (el && el.getAttribute && el.getAttribute('role') === 'button' &&
+            el.tagName !== 'BUTTON') {
+        e.preventDefault();      // Space must not scroll the page
+        el.click();
+    }
+});
+
 function updateMainMenuState() {
     const bal = document.getElementById('menu-xp-balance');
     if (bal) bal.textContent = formatCompact(save.metaXP) + ' XP';

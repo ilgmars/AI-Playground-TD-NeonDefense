@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Neon Defense</title>
-    <link rel="stylesheet" href="style.css?v=20260613013958">
+    <link rel="stylesheet" href="style.css?v=20260613015204">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
 </head>
 
@@ -94,19 +94,19 @@
             </div>
             <div id="top-bar-controls">
                 <!-- SPEED and ABILITY: visible on desktop, move to overflow on mobile via CSS -->
-                <div class="stat-box interactive" id="speed-btn">
+                <div class="stat-box interactive" id="speed-btn" role="button" tabindex="0" aria-label="Game speed">
                     <span class="label">SPEED</span>
                     <span id="speed-display" class="value">1X</span>
                 </div>
-                <div class="stat-box interactive hidden" id="ability-btn" title="Use ability">
+                <div class="stat-box interactive hidden" id="ability-btn" title="Use ability" role="button" tabindex="0">
                     <span class="label" id="ability-label">ABILITY</span>
                     <span id="ability-display" class="value">—</span>
                 </div>
-                <div class="stat-box interactive" id="pause-btn">
+                <div class="stat-box interactive" id="pause-btn" role="button" tabindex="0" aria-label="Pause">
                     <span class="label">PAUSE</span>
                     <span id="pause-display" class="value">OFF</span>
                 </div>
-                <div class="stat-box interactive" id="autopilot-btn">
+                <div class="stat-box interactive" id="autopilot-btn" role="button" tabindex="0" aria-label="Autopilot">
                     <span class="label">AUTO</span>
                     <span id="autopilot-display" class="value">OFF</span>
                 </div>
@@ -120,20 +120,20 @@
                         <span class="label">AUTO</span>
                         <span class="value proxy-value" data-proxy="autopilot-display">OFF</span>
                     </div>
-                    <div class="stat-box interactive" id="sound-btn">
+                    <div class="stat-box interactive" id="sound-btn" role="button" tabindex="0" aria-label="Sound">
                         <span class="label">SOUND</span>
                         <span id="sound-display" class="value">OFF</span>
                     </div>
-                    <div class="stat-box interactive" id="seed-btn" title="Click to copy seed link">
+                    <div class="stat-box interactive" id="seed-btn" title="Click to copy seed link" role="button" tabindex="0">
                         <span class="label">SEED</span>
                         <span id="seed-display" class="value">—</span>
                     </div>
-                    <div class="stat-box interactive" id="restart-btn" title="Reset / Retire / Exit to menu">
+                    <div class="stat-box interactive" id="restart-btn" title="Reset / Retire / Exit to menu" role="button" tabindex="0">
                         <span class="label">SYS</span>
                         <span id="restart-display" class="value">RST</span>
                     </div>
                 </div>
-                <div class="stat-box interactive" id="overflow-btn" title="More options" aria-label="More options">
+                <div class="stat-box interactive" id="overflow-btn" title="More options" aria-label="More options" role="button" tabindex="0">
                     <span class="label">MORE</span>
                     <span class="value" aria-hidden="true">⋯</span>
                 </div>
@@ -502,7 +502,7 @@
                         <button class="upg-tab" data-upg-tab="tree">TECH TREE</button>
                         <button class="upg-tab selected" data-upg-tab="mastery">MASTERY LAB</button>
                     </div>
-                    <p style="font-size: 0.8rem; color: var(--text-muted); letter-spacing: 1px;">
+                    <p class="screen-hint">
                         Track lifetime tower XP and spend each tower's XP on permanent stat ranks.
                         <strong style="color:var(--accent);">Damage &amp; Fire Rate are endless</strong> (diminishing, ever-rising cost) — a bottomless XP sink.
                         Tap a BUY button once, or <strong style="color:var(--accent);">hold it</strong> to keep spending — faster the longer you hold.
@@ -515,7 +515,7 @@
 
                 <div id="backpack" class="overlay hidden">
                     <h2 style="color:#c084fc; text-shadow:0 0 20px rgba(192,132,252,0.5);">BACKPACK</h2>
-                    <p style="font-size:0.8rem; color:var(--text-muted); letter-spacing:1px;">
+                    <p class="screen-hint">
                         <strong style="color:var(--accent);">SALVAGE</strong> spends meta-XP to roll a random item into your stash (cost climbs as you collect more).
                         <strong style="color:var(--accent);">+ COL / + ROW</strong> grow the grid. <strong style="color:var(--accent);">LUCK</strong> bumps next run's drop chance.
                         Tap a stash item to pick it up, ROTATE it, then tap a grid cell (top-left) to place it.
@@ -650,42 +650,42 @@
         <button id="place-confirm-no" aria-label="Cancel placement">✗</button>
     </div>
 
-    <script src="src/config/config.js?v=20260613013958"></script>
-    <script src="src/security/aegis.js?v=20260613013958"></script>
-    <script src="src/audio/audio.js?v=20260613013958"></script>
-    <script src="src/render/assets.js?v=20260613013958"></script>
-    <script src="src/engine/map.js?v=20260613013958"></script>
-    <script src="src/entities/entities.js?v=20260613013958"></script>
-    <script src="src/ai/autopilot.js?v=20260613013958"></script>
-    <script src="src/progression/save.js?v=20260613013958"></script>
-    <script src="src/progression/tree.js?v=20260613013958"></script>
-    <script src="src/progression/abilities.js?v=20260613013958"></script>
-    <script src="src/progression/backpack.js?v=20260613013958"></script>
-    <script src="src/engine/game.js?v=20260613013958"></script>
-    <script src="src/progression/boons.js?v=20260613013958"></script>
+    <script src="src/config/config.js?v=20260613015204"></script>
+    <script src="src/security/aegis.js?v=20260613015204"></script>
+    <script src="src/audio/audio.js?v=20260613015204"></script>
+    <script src="src/render/assets.js?v=20260613015204"></script>
+    <script src="src/engine/map.js?v=20260613015204"></script>
+    <script src="src/entities/entities.js?v=20260613015204"></script>
+    <script src="src/ai/autopilot.js?v=20260613015204"></script>
+    <script src="src/progression/save.js?v=20260613015204"></script>
+    <script src="src/progression/tree.js?v=20260613015204"></script>
+    <script src="src/progression/abilities.js?v=20260613015204"></script>
+    <script src="src/progression/backpack.js?v=20260613015204"></script>
+    <script src="src/engine/game.js?v=20260613015204"></script>
+    <script src="src/progression/boons.js?v=20260613015204"></script>
     <!-- Multiplayer (lazy: Trystero loads only when the player opens the lobby) -->
-    <script src="src/multiplayer/protocol.js?v=20260613013958"></script>
-    <script src="src/multiplayer/transport.js?v=20260613013958"></script>
-    <script src="src/multiplayer/actions.js?v=20260613013958"></script>
-    <script src="src/multiplayer/guard.js?v=20260613013958"></script>
-    <script src="src/multiplayer/race.js?v=20260613013958"></script>
-    <script src="src/multiplayer/lockstep.js?v=20260613013958"></script>
-    <script src="src/multiplayer/prng.js?v=20260613013958"></script>
-    <script src="src/multiplayer/coop.js?v=20260613013958"></script>
-    <script src="src/multiplayer/global.js?v=20260613013958"></script>
-    <script src="src/multiplayer/lobby.js?v=20260613013958"></script>
-    <script src="src/multiplayer/connectivity.js?v=20260613013958"></script>
+    <script src="src/multiplayer/protocol.js?v=20260613015204"></script>
+    <script src="src/multiplayer/transport.js?v=20260613015204"></script>
+    <script src="src/multiplayer/actions.js?v=20260613015204"></script>
+    <script src="src/multiplayer/guard.js?v=20260613015204"></script>
+    <script src="src/multiplayer/race.js?v=20260613015204"></script>
+    <script src="src/multiplayer/lockstep.js?v=20260613015204"></script>
+    <script src="src/multiplayer/prng.js?v=20260613015204"></script>
+    <script src="src/multiplayer/coop.js?v=20260613015204"></script>
+    <script src="src/multiplayer/global.js?v=20260613015204"></script>
+    <script src="src/multiplayer/lobby.js?v=20260613015204"></script>
+    <script src="src/multiplayer/connectivity.js?v=20260613015204"></script>
     <!-- turn-config.js + mqtt-config.js are git-ignored; generated
          per-deploy by tools/install-turn-config.sh from .credentials
          or the NEON_TURN_CONFIG GitHub Secret. Loaded BEFORE the
          adapter so the globals are set when joinRoom() reads them.
            turn-config.js  → window.__neonTurnConfig.iceServers
            mqtt-config.js  → window.__neonMqttRelayUrls -->
-    <script src="src/multiplayer/turn-config.js?v=20260613013958"></script>
-    <script src="src/multiplayer/mqtt-config.js?v=20260613013958"></script>
-    <script src="src/multiplayer/transport-trystero.js?v=20260613013958"></script>
-    <script src="src/multiplayer/mqtt-direct.js?v=20260613013958"></script>
-    <script src="src/engine/main.js?v=20260613013958"></script>
+    <script src="src/multiplayer/turn-config.js?v=20260613015204"></script>
+    <script src="src/multiplayer/mqtt-config.js?v=20260613015204"></script>
+    <script src="src/multiplayer/transport-trystero.js?v=20260613015204"></script>
+    <script src="src/multiplayer/mqtt-direct.js?v=20260613015204"></script>
+    <script src="src/engine/main.js?v=20260613015204"></script>
 </body>
 
 </html>
