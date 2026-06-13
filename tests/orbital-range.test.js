@@ -21,8 +21,20 @@ function ok(name, c, extra) {
 }
 
 const load = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+// Deterministic Math.random in the sandbox so the rocket's orbit
+// deploy angle/dist is fixed run-to-run — otherwise the engagement
+// frame jitters with the random orbit phase (this is what flaked CI).
+function seededMath() {
+    let s = 0x1234abcd;
+    const m = Object.create(Math);
+    m.random = () => {
+        s ^= s << 13; s ^= s >>> 17; s ^= s << 5; s >>>= 0;
+        return s / 4294967296;
+    };
+    return m;
+}
 const sb = {
-    window: {}, Math, Set, console, TILE_SIZE: 40,
+    window: {}, Math: seededMath(), Set, console, TILE_SIZE: 40,
     SoundFX: { explosion() {}, hit() {}, build() {}, shootElectric() {} },
 };
 vm.createContext(sb);
@@ -57,23 +69,31 @@ function fireFrame(distPx, frames = 8000) {
         `start=${t.hoverRockets[0].range} base=${baseRange}`);
 }
 
+// Distances are chosen relative to the GUARANTEED-reachable band, not
+// the raw cap: rockets orbit up to ~48px around the tower, so a target
+// is firing-guaranteed only when (distance + 48) ≤ cap (720). 600px
+// sits comfortably inside that (648 < 720) and engages regardless of
+// orbit phase; 820px is unreachable even at the rocket's closest
+// approach (820-48=772 > 720). 700px was right on the boundary and
+// orbit-phase-dependent — that's what flaked.
 const fClose = fireFrame(100);
 const fMid   = fireFrame(400);
-const fFar   = fireFrame(700);
+const fFar   = fireFrame(600);
 const fPast  = fireFrame(820);
 
 ok('close target (2.5 tiles) fires promptly', fClose >= 0 && fClose < 120,
     `frame=${fClose}`);
 ok('mid target (10 tiles, beyond base range) IS hit once charged',
     fMid > 0, `frame=${fMid}`);
-ok('far target (~17.5 tiles) is still reachable — long-range weapon',
+ok('far target (15 tiles) is reachable — long-range weapon',
     fFar > 0, `frame=${fFar}`);
 ok('charge-up is gradual: farther targets take longer to engage',
     fClose < fMid && fMid < fFar,
     JSON.stringify({ fClose, fMid, fFar }));
 ok('target past the 6× cap (>18 tiles) is NEVER hit (bounded reach)',
     fPast === -1, `frame=${fPast}`);
-// Sanity: the far engagement is on the order of ~10 s, not minutes.
+// Sanity: the 15-tile engagement is guaranteed within ~12 s (range
+// grows 1.0/frame; 648px reach = 528 frames ≈ 8.8 s, with margin).
 ok('far engagement happens within ~12 s (not the old multi-minute creep)',
     fFar > 0 && fFar < 12 * 60, `frame=${fFar} (${(fFar / 60).toFixed(1)}s)`);
 
