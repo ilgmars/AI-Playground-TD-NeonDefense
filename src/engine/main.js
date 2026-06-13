@@ -378,11 +378,6 @@ function navigateToRunSetup() {
     hideScreen('game-over');
     hideScreen('tech-tree');
     showScreen('start-screen');
-    // Skip-setup now collapses the loadout dropdowns (HERO/KIT/ABILITY/
-    // VARIANTS) into a quick-launch screen — the ASCENSION level choice
-    // and INITIALIZE always remain visible.
-    const ss = document.getElementById('start-screen');
-    if (ss) ss.classList.toggle('skip-loadout', !!(save.settings && save.settings.skipRunSetup));
     renderAscensionSelector('start');
     renderLoadoutDropdowns();
 }
@@ -1753,23 +1748,9 @@ function init() {
     // Ensure Main Menu is visible on initial page load.
     showScreen('main-menu');
 
-    // M2: qol.skipsetup — show toggle only when unlocked, persist state.
-    function refreshSkipsetupRow() {
-        const row = document.getElementById('skipsetup-row');
-        const toggle = document.getElementById('skipsetup-toggle');
-        if (!row || !toggle) return;
-        if (NeonSave.hasUnlocked(save, 'qol.skipsetup')) {
-            row.classList.remove('hidden');
-            toggle.checked = !!save.settings.skipRunSetup;
-        } else {
-            row.classList.add('hidden');
-        }
-    }
-    document.getElementById('skipsetup-toggle').addEventListener('change', e => {
-        save.settings.skipRunSetup = !!e.target.checked;
-        NeonSave.write(save);
-    });
-    refreshSkipsetupRow();
+    // The "quick launch / skip setup" toggle was removed — START RUN
+    // always shows the launch screen with the level choice. (Existing
+    // skipRunSetup prefs are force-reset to false in NeonSave.load.)
 
     // M2: Main Menu wiring — landing screen.
     document.getElementById('menu-start-btn').addEventListener('click', () => {

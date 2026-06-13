@@ -58,27 +58,36 @@ const path = require('path');
     ok('the level picker changes the selected tier', changed.after > (changed.before || 0),
         JSON.stringify(changed));
 
-    // 3) Quick-launch (skip-setup) STILL shows the level choice, just
-    // hides the loadout dropdowns.
-    const skip = await page.evaluate(() => {
-        save.settings.skipRunSetup = true; NeonSave.write(save);
+    // 3) The quick-launch / skip-setup feature was REMOVED: there's no
+    // toggle, the old pref is force-reset to false on load, and START
+    // always shows the full launch screen (loadout visible, level
+    // picker present) — never an instant launch.
+    const removed = await page.evaluate(() => {
+        // Simulate a save that had the old pref on, then reload it.
+        save.settings = save.settings || {};
+        save.settings.skipRunSetup = true;
+        NeonSave.write(save);
+        const reloaded = NeonSave.load();
         navigateToMainMenu();
         document.getElementById('menu-start-btn').click();
         const ss = document.getElementById('start-screen');
-        const asc = ss.querySelectorAll('.ascension-buttons[data-context="start"] button').length;
         const heroRow = ss.querySelector('.loadout-row:has(#run-hero-select)');
-        const heroHidden = heroRow ? getComputedStyle(heroRow).display === 'none' : null;
         return {
+            prefReset: reloaded.settings.skipRunSetup === false,
+            noToggle: !document.getElementById('skipsetup-toggle'),
             screenVisible: !ss.classList.contains('hidden'),
-            ascButtons: asc,
-            skipClass: ss.classList.contains('skip-loadout'),
-            heroHidden,
+            ascButtons: ss.querySelectorAll('.ascension-buttons[data-context="start"] button').length,
+            loadoutVisible: heroRow ? getComputedStyle(heroRow).display !== 'none' : false,
+            gameState: (window.game || {}).state || 'no-game',
         };
     });
-    ok('skip-setup still opens the launch screen', skip.screenVisible);
-    ok('skip-setup KEEPS the level picker', skip.ascButtons >= 3, JSON.stringify(skip));
-    ok('skip-setup collapses the loadout dropdowns', skip.skipClass && skip.heroHidden === true,
-        JSON.stringify(skip));
+    ok('old skip-setup pref is force-reset to false', removed.prefReset, JSON.stringify(removed));
+    ok('the skip-setup toggle is gone', removed.noToggle);
+    ok('START still shows the launch screen with the level picker + loadout',
+        removed.screenVisible && removed.ascButtons >= 3 && removed.loadoutVisible,
+        JSON.stringify(removed));
+    ok('START never instant-launches (stays on setup, not playfield)',
+        removed.gameState !== 'playing', removed.gameState);
 
     ok('no JS errors', errs.length === 0, errs.join(' / '));
 

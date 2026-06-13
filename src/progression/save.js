@@ -243,8 +243,12 @@ const NeonSave = (function () {
             save.lastLoadout = { heroId: 'hero.pioneer', kitId: 'kit.standard', abilityId: 'ability.none', towerLoadout: null };
         }
         if (typeof save.lastLoadout.towerLoadout === 'undefined') save.lastLoadout.towerLoadout = null;
-        if (!save.settings || typeof save.settings !== 'object') save.settings = { skipRunSetup: false };
-        if (typeof save.settings.skipRunSetup !== 'boolean') save.settings.skipRunSetup = false;
+        if (!save.settings || typeof save.settings !== 'object') save.settings = {};
+        // The quick-launch / skip-setup feature was removed — START RUN
+        // always shows the launch screen with the level choice. Force the
+        // old pref off so anyone who'd enabled it gets the level choice
+        // back (the field is kept only so old saves migrate cleanly).
+        save.settings.skipRunSetup = false;
 
         // Backpack backfill — tolerant of older saves / hand-edited codes.
         const bp = (save.backpack && typeof save.backpack === 'object') ? save.backpack : {};

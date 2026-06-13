@@ -12,7 +12,7 @@
     --accent: #2bff88;              /* neon green (primary)              */
     --accent-hover: #1fe070;
     --accent-2: #ff5cf0;            /* hot magenta (secondary neon)      */
-    --accent-3: #a3e635;            /* lime — primary CTA / "go"         */
+    --accent-3: #2bff88;            /* legacy "go" alias — now == --accent */
     --text-main: #f5f7ff;
     --text-muted: #9aa0c4;          /* lavender-grey, ≥4.5:1 on bg       */
 
@@ -169,7 +169,7 @@ body {
 #money-display { color: var(--money); text-shadow: 0 0 10px rgba(251, 191, 36, 0.4); }
 #wave-display { color: var(--accent); text-shadow: 0 0 10px rgba(43, 255, 136, 0.4); }
 /* speed-display color is set dynamically by updateSpeedColor() in JS */
-#speed-display { text-shadow: 0 0 10px rgba(163, 230, 53, 0.4); }
+#speed-display { text-shadow: 0 0 10px rgba(43, 255, 136, 0.4); }
 #seed-display { color: var(--text-muted); }
 #restart-display { color: var(--health); }
 
@@ -185,14 +185,14 @@ body {
 #autopilot-display.on,
 #sound-display.on,
 .proxy-value.on {
-    color: #4ade80;
-    text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+    color: #2bff88;
+    text-shadow: 0 0 10px rgba(43, 255, 136, 0.5);
 }
 
 /* Keep legacy .paused class working (used elsewhere) */
 #pause-display.paused {
-    color: #4ade80;
-    text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+    color: #2bff88;
+    text-shadow: 0 0 10px rgba(43, 255, 136, 0.5);
 }
 
 #content {
@@ -310,7 +310,7 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
 .electric-icon { border-color: #0ea5e9; background: #0284c7; border-radius: 50%; outline: 2px dashed #2bff88; outline-offset: -4px; }
 .silo-icon { border-color: #ef4444; background: #991b1b; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); border-radius: 0; border: none; }
 .income-icon { border-color: #fbbf24; background: #92400e; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); border-radius: 0; border: none; }
-.potion-icon { border-color: #4ade80; background: #166534; border-radius: 50% 50% 40% 40%; }
+.potion-icon { border-color: #2bff88; background: #166534; border-radius: 50% 50% 40% 40%; }
 
 .tower-info {
     display: flex;
@@ -448,14 +448,14 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
     flex-shrink: 0;
 }
 /* Button hover: green to signal "this will enable auto-buy" */
-.upg-auto:hover { color: #4ade80; border-color: #4ade80; background: rgba(74,222,128,0.08); }
+.upg-auto:hover { color: #2bff88; border-color: #2bff88; background: rgba(43, 255, 136,0.08); }
 /* ON state: solid green, same family as pause/autopilot ON indicators */
-.upg-auto.on    { color: #4ade80; border-color: #4ade80; background: rgba(74,222,128,0.12);
-                  box-shadow: 0 0 8px rgba(74,222,128,0.4) inset; }
+.upg-auto.on    { color: #2bff88; border-color: #2bff88; background: rgba(43, 255, 136,0.12);
+                  box-shadow: 0 0 8px rgba(43, 255, 136,0.4) inset; }
 /* MIXED: same green family but dashed border so bulk-select shows the partial state */
-.upg-auto.mixed { color: #4ade80; border-color: #4ade80; border-style: dashed; background: rgba(74,222,128,0.08); }
+.upg-auto.mixed { color: #2bff88; border-color: #2bff88; border-style: dashed; background: rgba(43, 255, 136,0.08); }
 /* ON stays green regardless of row hover state */
-.upgrade-item:hover .upg-auto.on { color: #4ade80; border-color: #4ade80; background: rgba(74,222,128,0.18); }
+.upgrade-item:hover .upg-auto.on { color: #2bff88; border-color: #2bff88; background: rgba(43, 255, 136,0.18); }
 
 /* Overlays */
 .overlay {
@@ -1656,10 +1656,10 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 .mg-cell.safe {
     cursor: default;
-    color: #a3e635;
-    border-color: #a3e635;
-    background: rgba(163, 230, 53, 0.14);
-    text-shadow: 0 0 12px rgba(163, 230, 53, 0.6);
+    color: #2bff88;
+    border-color: #2bff88;
+    background: rgba(43, 255, 136, 0.14);
+    text-shadow: 0 0 12px rgba(43, 255, 136, 0.6);
 }
 .mg-cell.surge {
     cursor: default;
@@ -1736,23 +1736,23 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     text-transform: none;
     letter-spacing: normal;
     text-align: center;
-    border: 1px solid rgba(163, 230, 53, 0.45);
+    border: 1px solid rgba(43, 255, 136, 0.45);
     color: var(--text-main);
-    background: rgba(163, 230, 53, 0.06);
-    box-shadow: 0 0 15px rgba(163, 230, 53, 0.12) inset;
+    background: rgba(43, 255, 136, 0.06);
+    box-shadow: 0 0 15px rgba(43, 255, 136, 0.12) inset;
     transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 .boon-card:hover {
-    background: rgba(163, 230, 53, 0.16);
+    background: rgba(43, 255, 136, 0.16);
     color: var(--text-main);
     transform: translateY(-4px);
-    box-shadow: 0 0 24px rgba(163, 230, 53, 0.5);
+    box-shadow: 0 0 24px rgba(43, 255, 136, 0.5);
 }
 .boon-icon { font-size: 2.2rem; line-height: 1; }
 .boon-name {
     font-size: 1rem;
     font-weight: 700;
-    color: #a3e635;
+    color: #2bff88;
     letter-spacing: 1px;
 }
 .boon-desc {
@@ -1771,7 +1771,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     user-select: none;
 }
 .boon-autopick-row input[type=checkbox] {
-    accent-color: #a3e635;
+    accent-color: #2bff88;
     width: 16px; height: 16px;
 }
 @media (max-width: 768px), (max-height: 500px) {
@@ -1833,14 +1833,14 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     touch-action: manipulation;
 }
 #place-confirm-yes {
-    color: #4ade80;
-    border-color: #4ade80;
-    background: rgba(74, 222, 128, 0.1);
-    box-shadow: 0 0 16px rgba(74, 222, 128, 0.4);
+    color: #2bff88;
+    border-color: #2bff88;
+    background: rgba(43, 255, 136, 0.1);
+    box-shadow: 0 0 16px rgba(43, 255, 136, 0.4);
 }
 #place-confirm-yes:hover,
 #place-confirm-yes:active {
-    background: #4ade80;
+    background: #2bff88;
     color: #0f172a;
 }
 #place-confirm-no {
@@ -1915,7 +1915,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     padding: 6px 0 2px;
     margin-top: 4px;
     border-top: 1px solid rgba(255, 255, 255, 0.15);
-    color: #a3e635;
+    color: #2bff88;
     font-weight: 700;
 }
 .xp-breakdown-balance {
@@ -1926,9 +1926,9 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     margin-top: 4px;
 }
 .xp-breakdown-unlock.loot-banner {
-    background: rgba(192, 132, 252, 0.14);
-    border-color: rgba(192, 132, 252, 0.5);
-    color: #c084fc;
+    background: rgba(255, 92, 240, 0.14);
+    border-color: rgba(255, 92, 240, 0.5);
+    color: #ff5cf0;
 }
 .xp-breakdown-unlock.aegis-banner {
     background: rgba(239, 68, 68, 0.16);
@@ -1946,12 +1946,12 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 .xp-breakdown-unlock {
     margin-top: 8px;
     padding: 6px 8px;
-    background: rgba(163, 230, 53, 0.12);
-    border: 1px solid rgba(163, 230, 53, 0.4);
+    background: rgba(43, 255, 136, 0.12);
+    border: 1px solid rgba(43, 255, 136, 0.4);
     border-radius: 4px;
     text-align: center;
     font-size: 0.8rem;
-    color: #a3e635;
+    color: #2bff88;
     letter-spacing: 1px;
     font-family: inherit;
 }
@@ -2139,8 +2139,8 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     background: rgba(43, 255, 136, 0.12);
 }
 .tree-node.owned {
-    border-color: #a3e635;
-    background: rgba(163, 230, 53, 0.1);
+    border-color: #2bff88;
+    background: rgba(43, 255, 136, 0.1);
     cursor: default;
 }
 .tree-node.locked {
@@ -2165,7 +2165,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     letter-spacing: 1px;
 }
 .tree-node.owned .node-status {
-    color: #a3e635;
+    color: #2bff88;
 }
 .tree-node-desc {
     font-size: 0.75rem;
@@ -2209,16 +2209,6 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* M2: qol.skipsetup toggle */
-.skip-setup-toggle {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    cursor: pointer;
-}
-
 /* M3: Tower Mastery overlay */
 /* Overlay stays centred & full-height; the grid scrolls *inside* it so the
    title and BACK button are always reachable — even on large desktop screens
@@ -2251,8 +2241,8 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     background: rgba(0, 0, 0, 0.25);
 }
 .mastery-row.maxed {
-    border-color: #a3e635;
-    background: rgba(163, 230, 53, 0.08);
+    border-color: #2bff88;
+    background: rgba(43, 255, 136, 0.08);
 }
 .mastery-icon {
     width: 32px;
@@ -2292,7 +2282,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     transition: width 0.2s ease;
 }
 .mastery-bar-fill.maxed {
-    background: #a3e635;
+    background: #2bff88;
 }
 .mastery-spendable {
     margin-top: 4px;
@@ -2314,7 +2304,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 .mastery-milestone-dot.hit {
     opacity: 1;
-    color: #a3e635;
+    color: #2bff88;
 }
 .mastery-variant-toggle {
     display: inline-flex;
@@ -2456,8 +2446,8 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     justify-content: center; margin-bottom: 10px;
 }
 #bp-bar #bp-xp { font-family: monospace; color: #fbbf24; letter-spacing: 1px; }
-#bp-salvage { color: #c084fc; border-color: #c084fc; padding: 8px 18px; font-size: 0.85rem; }
-#bp-salvage:hover:not(:disabled) { background: #c084fc; color: #0f172a; }
+#bp-salvage { color: #ff5cf0; border-color: #ff5cf0; padding: 8px 18px; font-size: 0.85rem; }
+#bp-salvage:hover:not(:disabled) { background: #ff5cf0; color: #0f172a; }
 #bp-salvage:disabled { opacity: 0.4; cursor: default; }
 #bp-expand-w, #bp-expand-h, #bp-luck { padding: 8px 14px; font-size: 0.78rem; }
 #bp-expand-w:disabled, #bp-expand-h:disabled, #bp-luck:disabled { opacity: 0.4; cursor: default; }
@@ -2472,7 +2462,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
        applies in both states because the SAME children are laid out. */
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     justify-content: center; margin-bottom: 10px; padding: 8px 14px;
-    border: 1px dashed #c084fc; border-radius: 8px; background: rgba(192,132,252,0.08);
+    border: 1px dashed #ff5cf0; border-radius: 8px; background: rgba(255, 92, 240,0.08);
     box-sizing: border-box;
 }
 /* Legacy back-compat — explicit .hidden still wins. */
@@ -2481,8 +2471,8 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
    via the HTML disabled attribute. No layout changes vs active. */
 #bp-held.is-empty {
     border-style: dashed;
-    border-color: rgba(192, 132, 252, 0.35);
-    background: rgba(192, 132, 252, 0.04);
+    border-color: rgba(255, 92, 240, 0.35);
+    background: rgba(255, 92, 240, 0.04);
     opacity: 0.7;
 }
 #bp-held.is-empty #bp-held-name { color: var(--text-muted); font-style: italic; }
@@ -2500,7 +2490,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     overflow: hidden;
     box-sizing: border-box;
 }
-#bp-held-name { color: #c084fc; font-weight: 700; }
+#bp-held-name { color: #ff5cf0; font-weight: 700; }
 #bp-held .small, #bp-held button {
     padding: 6px 12px; font-size: 0.72rem; white-space: nowrap; flex: 0 0 auto;
     /* manipulation = taps fire immediately, no 300ms wait, no pan/zoom
@@ -2514,7 +2504,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     display: grid; gap: 2px; padding: 2px;
 }
 .bp-mini-cell { width: 10px; height: 10px; border-radius: 2px; background: rgba(255,255,255,0.06); }
-.bp-mini-cell.on { background: #c084fc; }
+.bp-mini-cell.on { background: #ff5cf0; }
 #bp-grid-wrap { overflow: auto; max-height: 46vh; margin: 0 auto 10px; }
 #bp-grid {
     display: grid; gap: 4px; justify-content: center; margin: 0 auto;
@@ -2526,9 +2516,9 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
    where the recovery controls (ROTATE / RESTORE / STASH) live. */
 #bp-held.bp-held-flash { animation: bpHeldFlash 0.45s ease-out; }
 @keyframes bpHeldFlash {
-    0%   { box-shadow: 0 0 0 0 rgba(192,132,252,0.0); border-color: #c084fc; }
+    0%   { box-shadow: 0 0 0 0 rgba(255, 92, 240,0.0); border-color: #ff5cf0; }
     35%  { box-shadow: 0 0 0 6px rgba(251,113,133,0.45); border-color: #fb7185; }
-    100% { box-shadow: 0 0 0 0 rgba(192,132,252,0.0); border-color: #c084fc; }
+    100% { box-shadow: 0 0 0 0 rgba(255, 92, 240,0.0); border-color: #ff5cf0; }
 }
 .bp-cell {
     width: var(--bp-cell); height: var(--bp-cell);
@@ -2538,7 +2528,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     font-weight: 700; color: #0f172a; cursor: pointer;
     font-size: clamp(0.8rem, 3vw, 1.1rem); transition: background 0.1s;
 }
-.bp-cell:not(.filled):hover { background: rgba(192,132,252,0.12); }
+.bp-cell:not(.filled):hover { background: rgba(255, 92, 240,0.12); }
 /* Placed items get a distinct, opaque outline (2px solid border in
    their rarity colour, plus a subtle inset glow) so they don't blur
    into the grid background or get confused with the ghost preview. */
@@ -2554,7 +2544,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
    diagonal stripes + a dashed outline so a player can't mistake
    it for a placed-but-broken block (which was the "red block
    stuck in the field, can't pick it up" mobile complaint). */
-.bp-cell.ghost-ok  { outline: 2px solid #a3e635; outline-offset: -2px; background: rgba(163,230,53,0.22); }
+.bp-cell.ghost-ok  { outline: 2px solid #2bff88; outline-offset: -2px; background: rgba(43, 255, 136,0.22); }
 .bp-cell.ghost-bad {
     outline: 2px dashed #fb7185;
     outline-offset: -2px;
@@ -2603,7 +2593,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     background: rgba(0,0,0,0.3); color: var(--text-main);
     text-transform: none; letter-spacing: normal; font-size: 0.78rem; cursor: pointer;
 }
-.bp-chip:hover { background: rgba(192,132,252,0.18); color: var(--text-main); }
+.bp-chip:hover { background: rgba(255, 92, 240,0.18); color: var(--text-main); }
 .bp-chip-text { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; }
 .bp-chip-head { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; line-height: 1.1; }
 .bp-chip-name { font-weight: 700; line-height: 1.1; }
@@ -2626,7 +2616,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
 }
 .bp-pill-tag.bp-tag-power { color: #fbbf24; }
 .bp-pill-tag.bp-tag-tech  { color: #2bff88; }
-.bp-pill-tag.bp-tag-econ  { color: #4ade80; }
+.bp-pill-tag.bp-tag-econ  { color: #2bff88; }
 .bp-pill-tag.bp-tag-core  { color: #fb7185; }
 /* Anchor-cell decorations on the placed grid */
 .bp-cell.bp-anchor {
@@ -2659,7 +2649,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
 }
 .bp-cell .bp-tag-icon.bp-tag-power { color: #fbbf24; }
 .bp-cell .bp-tag-icon.bp-tag-tech  { color: #2bff88; }
-.bp-cell .bp-tag-icon.bp-tag-econ  { color: #4ade80; }
+.bp-cell .bp-tag-icon.bp-tag-econ  { color: #2bff88; }
 .bp-cell .bp-tag-icon.bp-tag-core  { color: #fb7185; }
 #bp-held-desc { font-size: 0.72rem; color: var(--text-muted); flex: 1 1 100%; text-align: center; margin-top: -4px; }
 #bp-status { min-height: 1.2em; font-size: 0.82rem; color: #fbbf24; letter-spacing: 1px; margin-bottom: 10px; }
@@ -2831,7 +2821,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
 .mp-race-hp-bar {
     position: absolute;
     inset: 0 auto 0 0;
-    background: linear-gradient(90deg, #4ade80, #22d3ee);
+    background: linear-gradient(90deg, #2bff88, #ff5cf0);
     transition: width 0.35s ease;
 }
 .mp-race-row.is-dead .mp-race-hp-bar { background: #fb7185; width: 0 !important; }
@@ -2925,11 +2915,11 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     font-weight: 700;
 }
 .sb-row.is-me {
-    background: rgba(163, 230, 53, 0.12);
-    border-left: 3px solid #a3e635;
+    background: rgba(43, 255, 136, 0.12);
+    border-left: 3px solid #2bff88;
     padding-left: 7px;
 }
-.sb-row.is-me .sb-rank { color: #a3e635; }
+.sb-row.is-me .sb-rank { color: #2bff88; }
 .score-autopilot-tag {
     margin-left: 6px;
     padding: 1px 5px;
@@ -2943,8 +2933,8 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     margin-left: 6px;
     padding: 1px 5px;
     border-radius: 3px;
-    background: rgba(163, 230, 53, 0.18);
-    color: #a3e635;
+    background: rgba(43, 255, 136, 0.18);
+    color: #2bff88;
     font-size: 0.65rem;
     letter-spacing: 1px;
 }
@@ -2975,7 +2965,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     user-select: none;
 }
 .sb-filter-toggle input[type=checkbox] {
-    accent-color: #a3e635;
+    accent-color: #2bff88;
     width: 14px; height: 14px;
 }
 
@@ -3043,7 +3033,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     color: var(--text-muted);
 }
 .mp-waitroom-peer.is-ready .mp-waitroom-peer-status {
-    color: #4ade80;
+    color: #2bff88;
     font-weight: 700;
 }
 .mp-waitroom-peer.is-host {
@@ -3075,7 +3065,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     line-height: 1.4;
     text-align: left;
 }
-.mp-diagnostics.is-ok    { border-color: rgba(74, 222, 128, 0.45); }
+.mp-diagnostics.is-ok    { border-color: rgba(43, 255, 136, 0.45); }
 .mp-diagnostics.is-bad   { border-color: rgba(251, 113, 133, 0.55); }
 .mp-hint {
     margin: 4px 0 0;
@@ -3147,7 +3137,7 @@ body.menu-open #build-menu {
    the menu has a clear visual hierarchy instead of a monotonous list. */
 /* Primary CTA fills with the SAME neon green as the logo (--accent),
    so the button green and the logo green are one colour (was lime
-   #a3e635, which read as a different green). */
+   #2bff88, which read as a different green). */
 .menu-buttons button.menu-primary {
     background: var(--accent);
     border-color: var(--accent);
@@ -3230,7 +3220,7 @@ body.menu-open #build-menu {
     fill: rgba(20, 17, 36, 0.95);
     stroke: var(--accent-3);
     stroke-width: 2.5;
-    filter: drop-shadow(0 0 10px rgba(163, 230, 53, 0.5));
+    filter: drop-shadow(0 0 10px rgba(43, 255, 136, 0.5));
 }
 .tt-core-label { fill: var(--accent-3); font-size: 12px; font-family: inherit; letter-spacing: 1px; }
 
@@ -3254,12 +3244,3 @@ body.menu-open #build-menu {
 }
 .tree-detail strong { color: var(--accent); letter-spacing: 1px; }
 .tt-detail-status { color: var(--accent-2); font-size: 0.78rem; margin-left: 6px; }
-
-/* Skip-setup quick-launch: collapse the loadout dropdowns (the rows
-   that hold a <select>) and the tower-variant grid, but KEEP the
-   ascension level picker, seed, and INITIALIZE. So START always offers
-   the level choice; skip-setup just trims the loadout step. */
-#start-screen.skip-loadout .loadout-row:has(.loadout-select),
-#start-screen.skip-loadout #tower-loadout-row {
-    display: none;
-}
