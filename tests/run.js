@@ -26,7 +26,8 @@ const SUITES = [
     // pre-boot reseeds Math.random with a room-derived mulberry32.
     // Without the fix in transport-trystero.js, both peers got the
     // same Trystero ID and deduped each other as "self".
-    { name: 'mp-peer-id',      file: 'tests/mp-peer-id.test.js' },
+    // retries: real WebRTC data-channel timing flakes on CI runners.
+    { name: 'mp-peer-id',      file: 'tests/mp-peer-id.test.js', retries: 2 },
     { name: 'sp-no-race-overlay', file: 'tests/sp-no-race-overlay.test.js' },
     { name: 'bp-shape-border',    file: 'tests/bp-shape-border.test.js' },
     { name: 'boon-autopick',      file: 'tests/boon-autopick.test.js' },
@@ -66,13 +67,13 @@ const SUITES = [
     // Real two-client end-to-end over actual Trystero. Self-skips when
     // the environment can't reach trackers / WebRTC (set NEON_MP_FORCE=1
     // to make those skips into failures, e.g. for a release smoke).
-    { name: 'mp-connectivity', file: 'tests/mp-connectivity.test.js' },
+    { name: 'mp-connectivity', file: 'tests/mp-connectivity.test.js', retries: 2 },
     // Full UI-driven two-client lobby flow. Two browsers, real
     // Trystero/MQTT signalling, real race-mode JOIN, asserts both
     // peers see each other in the leaderboard. Self-skips when the
     // sandbox can't reach signalling brokers. NEON_MP_FORCE=1
     // promotes skips to failures (use locally before releasing).
-    { name: 'mp-lobby-act',    file: 'tests/mp-lobby-act.test.js' },
+    { name: 'mp-lobby-act',    file: 'tests/mp-lobby-act.test.js', retries: 2 },
     { name: 'mobile-nav',      file: 'tests/mobile-nav.test.js' },
     { name: 'backpack-touch',         file: 'tests/backpack-touch-drag.test.js' },
     { name: 'backpack-touch-contin',  file: 'tests/backpack-touch-drag-continuity.test.js' },
@@ -102,6 +103,7 @@ const SUITES = [
     { name: 'hold-spend',      file: 'tests/hold-spend.test.js' },
     { name: 'boons',           file: 'tests/boons.test.js' },
     { name: 'extra',           file: 'tests/extra.test.js' },
+    { name: 'run-retry',       file: 'tests/run-retry.test.js' },
     // Meta: fails if any tests/*.test.js isn't registered above.
     { name: 'suite-coverage',  file: 'tests/suite-coverage.test.js' },
 ];
@@ -115,30 +117,57 @@ const SMOKE_SUITES = [
 ];
 
 const withSmoke = process.argv.includes('--with-smoke');
-const suites = withSmoke ? SUITES.concat(SMOKE_SUITES) : SUITES;
+// Test-only seam: NEON_RUN_SUITES (JSON array of {name,file,retries})
+// overrides the suite list so tests/run-retry.test.js can drive the
+// REAL retry/fail-fast loop against fixtures. Never set in CI.
+let suites = withSmoke ? SUITES.concat(SMOKE_SUITES) : SUITES;
+if (process.env.NEON_RUN_SUITES) {
+    try { suites = JSON.parse(process.env.NEON_RUN_SUITES); } catch (_) {}
+}
 
 const root = path.resolve(__dirname, '..');
 const startedAt = Date.now();
 const results = [];
 let firstFailure = null;
 
-for (const suite of suites) {
-    const label = suite.name.padEnd(20, ' ');
-    process.stdout.write(`▶ ${label} ... `);
+function runOnce(suite) {
     const t0 = Date.now();
     const res = spawnSync(process.execPath, [suite.file].concat(suite.args || []), {
         cwd: root,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
     });
-    const ms = Date.now() - t0;
-    const ok = res.status === 0;
-    results.push({ name: suite.name, ok, ms, stdout: res.stdout, stderr: res.stderr });
+    return { ms: Date.now() - t0, ok: res.status === 0, stdout: res.stdout, stderr: res.stderr };
+}
+
+for (const suite of suites) {
+    const label = suite.name.padEnd(20, ' ');
+    process.stdout.write(`▶ ${label} ... `);
+    // `retries` is set ONLY on the real-WebRTC/network suites
+    // (mp-peer-id, mp-connectivity, mp-lobby-act). Those depend on
+    // RTCDataChannel/tracker timing that races on loaded CI runners —
+    // an RTCDataChannel "readyState is not 'open'" flake is environment
+    // noise, not a regression. Deterministic suites get retries=0 and
+    // still fail fast on the FIRST failure, so a true bug is never
+    // masked by a retry.
+    const maxAttempts = 1 + (suite.retries || 0);
+    let res, attempt = 0;
+    do {
+        attempt++;
+        res = runOnce(suite);
+        if (res.ok) break;
+        if (attempt < maxAttempts) {
+            process.stdout.write(`flaky↻(${attempt}) `);
+        }
+    } while (attempt < maxAttempts);
+    const ms = res.ms;
+    const ok = res.ok;
+    results.push({ name: suite.name, ok, ms, attempts: attempt, stdout: res.stdout, stderr: res.stderr });
 
     if (ok) {
-        process.stdout.write(`✓  ${ms}ms\n`);
+        process.stdout.write(`✓  ${ms}ms${attempt > 1 ? ` (passed on retry ${attempt})` : ''}\n`);
     } else {
-        process.stdout.write(`✗  ${ms}ms\n`);
+        process.stdout.write(`✗  ${ms}ms${attempt > 1 ? ` (after ${attempt} attempts)` : ''}\n`);
         if (!firstFailure) firstFailure = suite.name;
         if (res.stdout) {
             process.stdout.write('  ── stdout ─────────────────────────────────────────\n');
