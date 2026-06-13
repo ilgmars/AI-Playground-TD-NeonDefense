@@ -96,6 +96,7 @@ const SUITES = [
     { name: 'backpack-held-in-place', file: 'tests/backpack-held-in-place.test.js' },
     { name: 'upgrades-menu',          file: 'tests/upgrades-menu.test.js' },
     { name: 'tech-tree-graph',        file: 'tests/tech-tree-graph.test.js' },
+    { name: 'title-consistency',      file: 'tests/title-consistency.test.js' },
     { name: 'ui-quality',             file: 'tests/ui-quality.test.js' },
     { name: 'mobile-pagehide-xp',     file: 'tests/mobile-pagehide-xp.test.js' },
     { name: 'ascpreview-node',        file: 'tests/ascpreview-node.test.js' },

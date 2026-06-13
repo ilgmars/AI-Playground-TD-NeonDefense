@@ -519,13 +519,18 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
     21%                               { opacity: 0.78; }
 }
 
-/* Menu/screen titles are neon MAGENTA (the secondary hue) so the UI
-   isn't monochrome cyan. The semantic end-states override below. */
+/* One consistent treatment for EVERY sub-screen title (UPGRADES,
+   BACKPACK, RUN SETUP, SCOREBOARD, MULTIPLAYER, …): same size, glow,
+   spacing and neon-magenta hue, so the menus feel like one system.
+   (The main-menu LOGO is the brand mark — .neon-logo, intentionally
+   distinct.) Only the two semantic end-states recolour, below. */
 .overlay h2 {
     font-size: 3rem;
     color: var(--accent-2);
     text-shadow: 0 0 18px rgba(255, 92, 240, 0.5);
     margin-bottom: 20px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
     text-wrap: balance;
 }
 #game-over h2 {                 /* defeat stays alarm-red */
