@@ -5493,10 +5493,24 @@ document.addEventListener('DOMContentLoaded', init);
 
     async function fetchBuildToken(url, fetchImpl) {
         const f = fetchImpl || window.fetch;
-        const res = await f(url, { cache: 'no-store' });
-        if (!res || !res.ok) throw new Error('version fetch failed: ' + url);
-        const data = await res.json();
-        return data && data.build;
+        // Hard 5s cap via AbortController so the update probe can never
+        // linger on a slow/captive network. The whole check is already
+        // fire-and-forget (never awaited by boot), so the game stays
+        // fully playable offline regardless — this just frees the socket.
+        let signal, timer;
+        try {
+            if (typeof AbortController === 'function') {
+                const ac = new AbortController();
+                signal = ac.signal;
+                timer = setTimeout(() => ac.abort(), 5000);
+            }
+            const res = await f(url, { cache: 'no-store', signal });
+            if (!res || !res.ok) throw new Error('version fetch failed: ' + url);
+            const data = await res.json();
+            return data && data.build;
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
     }
 
     // Pure decision: given the bundled + live build tokens and any prior

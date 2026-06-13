@@ -1967,6 +1967,7 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     min-width: 240px;
 }
 .menu-buttons button {
+    position: relative;          /* anchor for the absolutely-placed XP balance */
     padding: 10px 16px;
     font-size: 0.95rem;
     letter-spacing: 2px;
@@ -2001,7 +2002,13 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     opacity: 1;
 }
 .menu-buttons .menu-balance {
-    float: right;
+    /* Pinned to the right edge and out of flow so the button LABEL stays
+       centred (a float here reserved width and shoved "UPGRADES" left of
+       every other centred label). */
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
     font-size: 0.75rem;
     color: var(--text-muted);
     font-weight: 400;

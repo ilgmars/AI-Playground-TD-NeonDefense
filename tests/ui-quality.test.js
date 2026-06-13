@@ -104,6 +104,36 @@ const fs = require('fs');
     ok('all top-bar controls are named (aria-label or title)',
         semantics.every(s => s.named), JSON.stringify(semantics));
 
+    // Every main-menu button LABEL must be horizontally centred. Regression
+    // for the UPGRADES button: its floated "… XP" balance used to reserve
+    // width and shove the centred label ~16px left of every other button.
+    // The XP balance is now absolutely positioned so the label stays centred.
+    await page.evaluate(() => { if (typeof navigateToMainMenu === 'function') navigateToMainMenu(); });
+    await page.waitForTimeout(250);
+    const labelCentering = await page.evaluate(() => {
+        const firstTextCenter = (el) => {
+            const r = document.createRange();
+            for (const n of el.childNodes) {
+                if (n.nodeType === 3 && n.textContent.trim()) {
+                    r.selectNode(n);
+                    const b = r.getBoundingClientRect();
+                    return (b.left + b.right) / 2;
+                }
+            }
+            return null;
+        };
+        return [...document.querySelectorAll('#main-menu .menu-buttons button')]
+            .filter(el => el.offsetParent !== null)
+            .map(el => {
+                const br = el.getBoundingClientRect();
+                const tc = firstTextCenter(el);
+                return { t: el.textContent.trim().slice(0, 14), off: tc == null ? 0 : Math.round(tc - (br.left + br.width / 2)) };
+            });
+    });
+    ok('every main-menu label is centred (≤2px off)',
+        labelCentering.length >= 5 && labelCentering.every(b => Math.abs(b.off) <= 2),
+        JSON.stringify(labelCentering));
+
     // Enter on the focused PAUSE control must toggle pause, same as a
     // click — proves the delegated keyboard activation end to end.
     await page.click('#menu-start-btn'); await page.waitForTimeout(200);
