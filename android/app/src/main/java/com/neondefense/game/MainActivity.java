@@ -124,9 +124,18 @@ public class MainActivity extends AppCompatActivity {
                 if ("appassets.androidplatform.net".equals(host)) {
                     return assetLoader.shouldInterceptRequest(request.getUrl());
                 }
-                // Allow the in-app update check to read the version manifest
-                // from the repo. Everything else external stays blocked.
-                if ("raw.githubusercontent.com".equals(host)) {
+                // Default-deny posture: external requests are blocked (returns
+                // an empty body) UNLESS the host is on the allowlist below.
+                // The allowlist covers exactly what the game legitimately
+                // needs off-device:
+                //   • the in-app update manifest, and
+                //   • the multiplayer libraries (Trystero + mqtt.js) loaded by
+                //     dynamic import() from these CDNs. Without this, co-op
+                //     can't load its transport at all inside the APK.
+                // The MQTT broker itself connects over a WebSocket, which is
+                // NOT routed through shouldInterceptRequest, so it needs no
+                // entry here.
+                if (isAllowedExternalHost(host)) {
                     return null; // let the WebView fetch it normally
                 }
                 if ("http".equals(scheme) || "https".equals(scheme)) {
@@ -149,6 +158,28 @@ public class MainActivity extends AppCompatActivity {
         });
 
         webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html");
+    }
+
+    /**
+     * Hosts the game is allowed to reach off-device. Everything else is
+     * blocked by the WebView request interceptor. Matches the exact host or
+     * any sub-domain of it (so "a.b.esm.sh" still matches "esm.sh").
+     *   • raw.githubusercontent.com — in-app update version manifest.
+     *   • esm.sh / cdn.jsdelivr.net — the Trystero + mqtt.js libraries that
+     *     multiplayer loads via dynamic import(). Required for co-op.
+     */
+    private static boolean isAllowedExternalHost(String host) {
+        if (host == null) return false;
+        host = host.toLowerCase();
+        final String[] allow = {
+            "raw.githubusercontent.com",
+            "esm.sh",
+            "cdn.jsdelivr.net",
+        };
+        for (String a : allow) {
+            if (host.equals(a) || host.endsWith("." + a)) return true;
+        }
+        return false;
     }
 
     private void showCrashReport(String text) {
