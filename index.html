@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Neon Defense</title>
-    <link rel="stylesheet" href="style.css?v=20260613094741">
+    <link rel="stylesheet" href="style.css?v=20260613104218">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
 </head>
 
@@ -315,7 +315,10 @@
                     <button id="sb-back-btn" class="secondary" style="margin-top:18px;">⌂ BACK</button>
                 </div>
                 <div id="main-menu" class="overlay">
-                    <h1>NEON DEFENSE</h1>
+                    <h1 class="neon-logo" aria-label="Neon Defense">
+                        <span class="neon-word neon-cyan">NEON</span>
+                        <span class="neon-word neon-magenta neon-flicker">DEFENSE</span>
+                    </h1>
                     <p>Protect the core from the rogue geometry.</p>
                     <div class="menu-buttons">
                         <button id="menu-start-btn" class="menu-primary">START RUN</button>
@@ -479,20 +482,15 @@
                     <div class="tree-balance-row">
                         Meta-XP Balance: <span id="tree-xp-balance">0</span>
                     </div>
-                    <div class="tech-tree-grid">
-                        <div class="tree-tier" data-tier="tier1">
-                            <h3>STARTERS · 50 XP</h3>
-                            <div class="tree-nodes" data-tier-body="tier1"></div>
-                        </div>
-                        <div class="tree-tier" data-tier="tier2">
-                            <h3>CORE TOOLS · 200 XP</h3>
-                            <div class="tree-nodes" data-tier-body="tier2"></div>
-                        </div>
-                        <div class="tree-tier" data-tier="tier3">
-                            <h3>ADVANCED SYSTEMS · 500 XP</h3>
-                            <div class="tree-nodes" data-tier-body="tier3"></div>
-                        </div>
+                    <!-- Visual skill graph: nodes wired by branches from a
+                         central CORE outward through gated tiers. Built by
+                         renderTechTree() as SVG. -->
+                    <div id="tech-tree-view">
+                        <svg id="tech-tree-svg" xmlns="http://www.w3.org/2000/svg"
+                             viewBox="0 0 1040 660" preserveAspectRatio="xMidYMid meet"
+                             role="group" aria-label="Tech tree"></svg>
                     </div>
+                    <div id="tree-node-detail" class="tree-detail">Hover or tap a node to see what it does.</div>
                     <button id="tree-back-btn" class="secondary">BACK</button>
                 </div>
 
@@ -650,42 +648,42 @@
         <button id="place-confirm-no" aria-label="Cancel placement">✗</button>
     </div>
 
-    <script src="src/config/config.js?v=20260613094741"></script>
-    <script src="src/security/aegis.js?v=20260613094741"></script>
-    <script src="src/audio/audio.js?v=20260613094741"></script>
-    <script src="src/render/assets.js?v=20260613094741"></script>
-    <script src="src/engine/map.js?v=20260613094741"></script>
-    <script src="src/entities/entities.js?v=20260613094741"></script>
-    <script src="src/ai/autopilot.js?v=20260613094741"></script>
-    <script src="src/progression/save.js?v=20260613094741"></script>
-    <script src="src/progression/tree.js?v=20260613094741"></script>
-    <script src="src/progression/abilities.js?v=20260613094741"></script>
-    <script src="src/progression/backpack.js?v=20260613094741"></script>
-    <script src="src/engine/game.js?v=20260613094741"></script>
-    <script src="src/progression/boons.js?v=20260613094741"></script>
+    <script src="src/config/config.js?v=20260613104218"></script>
+    <script src="src/security/aegis.js?v=20260613104218"></script>
+    <script src="src/audio/audio.js?v=20260613104218"></script>
+    <script src="src/render/assets.js?v=20260613104218"></script>
+    <script src="src/engine/map.js?v=20260613104218"></script>
+    <script src="src/entities/entities.js?v=20260613104218"></script>
+    <script src="src/ai/autopilot.js?v=20260613104218"></script>
+    <script src="src/progression/save.js?v=20260613104218"></script>
+    <script src="src/progression/tree.js?v=20260613104218"></script>
+    <script src="src/progression/abilities.js?v=20260613104218"></script>
+    <script src="src/progression/backpack.js?v=20260613104218"></script>
+    <script src="src/engine/game.js?v=20260613104218"></script>
+    <script src="src/progression/boons.js?v=20260613104218"></script>
     <!-- Multiplayer (lazy: Trystero loads only when the player opens the lobby) -->
-    <script src="src/multiplayer/protocol.js?v=20260613094741"></script>
-    <script src="src/multiplayer/transport.js?v=20260613094741"></script>
-    <script src="src/multiplayer/actions.js?v=20260613094741"></script>
-    <script src="src/multiplayer/guard.js?v=20260613094741"></script>
-    <script src="src/multiplayer/race.js?v=20260613094741"></script>
-    <script src="src/multiplayer/lockstep.js?v=20260613094741"></script>
-    <script src="src/multiplayer/prng.js?v=20260613094741"></script>
-    <script src="src/multiplayer/coop.js?v=20260613094741"></script>
-    <script src="src/multiplayer/global.js?v=20260613094741"></script>
-    <script src="src/multiplayer/lobby.js?v=20260613094741"></script>
-    <script src="src/multiplayer/connectivity.js?v=20260613094741"></script>
+    <script src="src/multiplayer/protocol.js?v=20260613104218"></script>
+    <script src="src/multiplayer/transport.js?v=20260613104218"></script>
+    <script src="src/multiplayer/actions.js?v=20260613104218"></script>
+    <script src="src/multiplayer/guard.js?v=20260613104218"></script>
+    <script src="src/multiplayer/race.js?v=20260613104218"></script>
+    <script src="src/multiplayer/lockstep.js?v=20260613104218"></script>
+    <script src="src/multiplayer/prng.js?v=20260613104218"></script>
+    <script src="src/multiplayer/coop.js?v=20260613104218"></script>
+    <script src="src/multiplayer/global.js?v=20260613104218"></script>
+    <script src="src/multiplayer/lobby.js?v=20260613104218"></script>
+    <script src="src/multiplayer/connectivity.js?v=20260613104218"></script>
     <!-- turn-config.js + mqtt-config.js are git-ignored; generated
          per-deploy by tools/install-turn-config.sh from .credentials
          or the NEON_TURN_CONFIG GitHub Secret. Loaded BEFORE the
          adapter so the globals are set when joinRoom() reads them.
            turn-config.js  → window.__neonTurnConfig.iceServers
            mqtt-config.js  → window.__neonMqttRelayUrls -->
-    <script src="src/multiplayer/turn-config.js?v=20260613094741"></script>
-    <script src="src/multiplayer/mqtt-config.js?v=20260613094741"></script>
-    <script src="src/multiplayer/transport-trystero.js?v=20260613094741"></script>
-    <script src="src/multiplayer/mqtt-direct.js?v=20260613094741"></script>
-    <script src="src/engine/main.js?v=20260613094741"></script>
+    <script src="src/multiplayer/turn-config.js?v=20260613104218"></script>
+    <script src="src/multiplayer/mqtt-config.js?v=20260613104218"></script>
+    <script src="src/multiplayer/transport-trystero.js?v=20260613104218"></script>
+    <script src="src/multiplayer/mqtt-direct.js?v=20260613104218"></script>
+    <script src="src/engine/main.js?v=20260613104218"></script>
 </body>
 
 </html>

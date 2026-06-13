@@ -50,9 +50,8 @@ const fs = require('fs');
     ok('accent is not Tailwind sky-400 (#38bdf8)', !/--accent:\s*#38bdf8/i.test(root));
     ok('a SECOND neon accent exists (multi-colour, not monochrome)',
         /--accent-2:/.test(root));
-    ok('title uses a gradient (clipped text), not a flat colour',
-        /\.overlay h1\s*\{[^}]*background-clip:\s*text/.test(css) ||
-        /\.overlay h1\s*\{[^}]*-webkit-background-clip:\s*text/.test(css));
+    ok('logo is a multi-colour neon-tube treatment (cyan + magenta words)',
+        /\.neon-cyan\s*\{/.test(css) && /\.neon-magenta\s*\{/.test(css));
     ok('glow present on key chrome (drop/box/text shadow in accent)',
         /drop-shadow\(/.test(css) && /menu-open/.test(css));
 
@@ -60,6 +59,14 @@ const fs = require('fs');
     ok('no stale "Leave race" tooltip (race mode was removed)',
         !/Leave race/i.test(html));
     ok('no stale "RACE" overlay label', !/>RACE</.test(html));
+
+    // ── Logo is a neon-tube treatment, not flat text ─────────────────
+    ok('logo split into cyan + magenta neon words',
+        /neon-cyan/.test(html) && /neon-magenta/.test(html));
+    ok('logo has a flickering word', /neon-flicker/.test(html));
+    ok('neon flicker keyframes defined', /@keyframes neon-flicker/.test(css));
+    ok('neon words use layered tube glow (stacked text-shadow)',
+        /\.neon-cyan\s*\{[^}]*text-shadow:[^}]*0 0 30px/.test(css));
 
     // ── Live keyboard behaviour ──────────────────────────────────────
     await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });

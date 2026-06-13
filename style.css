@@ -478,19 +478,45 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
 }
 
 .overlay h1 {
-    font-size: 4rem;
-    /* Cyan→magenta neon-sign gradient on the title, with a soft bloom
-       behind it (drop-shadow works on the clipped text; text-shadow
-       wouldn't show through background-clip). */
-    background: linear-gradient(95deg, var(--accent) 15%, #8be9ff 40%, var(--accent-2) 90%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    filter: drop-shadow(0 0 16px rgba(44, 224, 255, 0.45)) drop-shadow(0 0 26px rgba(255, 92, 240, 0.28));
-    margin-bottom: 10px;
-    letter-spacing: 4px;
+    font-size: 4.4rem;
+    margin-bottom: 12px;
+    letter-spacing: 6px;
     text-align: center;
     text-wrap: balance;
+    line-height: 1.05;
+}
+
+/* Neon-tube logo: a bright glass-white letter core wrapped in stacked
+   coloured glows (the "tube" bloom), with a thin bright stroke for the
+   glass edge. NEON glows cyan, DEFENSE glows magenta — a two-colour
+   neon sign. One word flickers like a failing tube (disabled under
+   prefers-reduced-motion via the global rule). */
+.neon-logo { font-weight: 700; }
+.neon-word { display: inline-block; color: #eafdff; }
+.neon-cyan {
+    -webkit-text-stroke: 1px rgba(190, 250, 255, 0.55);
+    text-shadow:
+        0 0 1px #ffffff,
+        0 0 6px #d8fbff,
+        0 0 14px var(--accent),
+        0 0 30px var(--accent),
+        0 0 56px rgba(44, 224, 255, 0.65);
+}
+.neon-magenta {
+    color: #ffeafc;
+    -webkit-text-stroke: 1px rgba(255, 205, 245, 0.55);
+    text-shadow:
+        0 0 1px #ffffff,
+        0 0 6px #ffe0fa,
+        0 0 14px var(--accent-2),
+        0 0 30px var(--accent-2),
+        0 0 56px rgba(255, 92, 240, 0.6);
+}
+.neon-flicker { animation: neon-flicker 5.5s infinite steps(1, end); }
+@keyframes neon-flicker {
+    0%, 18%, 22%, 24%, 55%, 57%, 100% { opacity: 1; }
+    20%, 23%, 56%                     { opacity: 0.45; }
+    21%                               { opacity: 0.78; }
 }
 
 /* Menu/screen titles are neon MAGENTA (the secondary hue) so the UI
@@ -3091,3 +3117,96 @@ body.menu-open #build-menu {
     box-shadow: 0 0 24px rgba(163, 230, 53, 0.55);
 }
 .menu-buttons button.menu-primary .menu-balance { color: #0f172a; opacity: 0.7; }
+
+/* ── Tech tree: SVG skill graph ────────────────────────────────────
+   Wired nodes (CORE → gated tiers) drawn as an SVG <svg id=tech-tree-svg>.
+   States: owned (lit cyan), available (magenta, pulsing, clickable),
+   poor (affordable tier but not enough XP — dim), locked (tier shut). */
+#tech-tree-view {
+    width: 100%;
+    max-width: 1040px;
+    margin: 4px auto 8px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+}
+#tech-tree-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    min-width: 680px;          /* keep nodes legible; view scrolls on phones */
+}
+.tt-edge { stroke: rgba(150, 130, 210, 0.22); stroke-width: 2; }
+.tt-edge-lit {
+    stroke: var(--accent);
+    stroke-width: 2.5;
+    filter: drop-shadow(0 0 4px rgba(44, 224, 255, 0.7));
+}
+.tt-disc {
+    fill: rgba(20, 17, 36, 0.95);
+    stroke: var(--border-color);
+    stroke-width: 2;
+}
+.tt-glyph { fill: var(--text-muted); font-size: 20px; font-family: inherit; }
+.tt-label { fill: var(--text-muted); font-size: 13px; font-family: inherit; letter-spacing: 0.5px; }
+.tt-node { cursor: default; }
+.tt-node:focus { outline: none; }
+.tt-node:focus-visible .tt-disc { stroke: #fff; stroke-width: 3; }
+
+.tt-owned .tt-disc {
+    fill: rgba(44, 224, 255, 0.16);
+    stroke: var(--accent);
+    filter: drop-shadow(0 0 8px rgba(44, 224, 255, 0.6));
+}
+.tt-owned .tt-glyph { fill: var(--accent); }
+.tt-owned .tt-label { fill: #d8fbff; }
+
+.tt-available { cursor: pointer; }
+.tt-available .tt-disc {
+    stroke: var(--accent-2);
+    filter: drop-shadow(0 0 8px rgba(255, 92, 240, 0.6));
+    animation: tt-pulse 1.8s ease-in-out infinite;
+}
+.tt-available .tt-glyph { fill: var(--accent-2); }
+.tt-available .tt-label { fill: #ffeafc; }
+.tt-available:hover .tt-disc { fill: rgba(255, 92, 240, 0.14); }
+@keyframes tt-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+}
+
+.tt-poor .tt-disc { stroke: rgba(44, 224, 255, 0.45); }
+.tt-poor .tt-glyph, .tt-poor .tt-label { opacity: 0.7; }
+
+.tt-locked { cursor: default; }
+.tt-locked .tt-disc { opacity: 0.4; stroke-dasharray: 3 3; }
+.tt-locked .tt-glyph, .tt-locked .tt-label { opacity: 0.35; }
+
+.tt-core-disc {
+    fill: rgba(20, 17, 36, 0.95);
+    stroke: var(--accent-3);
+    stroke-width: 2.5;
+    filter: drop-shadow(0 0 10px rgba(163, 230, 53, 0.5));
+}
+.tt-core-label { fill: var(--accent-3); font-size: 12px; font-family: inherit; letter-spacing: 1px; }
+
+.tt-gate-shape { fill: rgba(20, 17, 36, 0.95); stroke: var(--border-color); stroke-width: 2; }
+.tt-gate-open .tt-gate-shape {
+    stroke: var(--accent);
+    filter: drop-shadow(0 0 6px rgba(44, 224, 255, 0.55));
+}
+
+.tree-detail {
+    max-width: 720px;
+    margin: 0 auto 10px;
+    min-height: 2.6em;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-align: center;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: rgba(20, 17, 36, 0.6);
+}
+.tree-detail strong { color: var(--accent); letter-spacing: 1px; }
+.tt-detail-status { color: var(--accent-2); font-size: 0.78rem; margin-left: 6px; }

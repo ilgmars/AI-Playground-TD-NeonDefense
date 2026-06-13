@@ -440,64 +440,151 @@ function navigateToTechTree() {
     renderTechTree();
 }
 
+const SVGNS = 'http://www.w3.org/2000/svg';
+function _svg(tag, attrs) {
+    const el = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+}
+function _treeNodeName(node) {
+    return (node.kind === 'hero' && HEROES[node.id.slice(5)]) ? HEROES[node.id.slice(5)].name
+        : (node.kind === 'kit'  && STARTER_KITS[node.id.slice(4)]) ? STARTER_KITS[node.id.slice(4)].name
+        : (node.kind === 'ability' && ABILITIES[node.id.slice(8)]) ? ABILITIES[node.id.slice(8)].name
+        : (node.kind === 'qol' && QOL_NODES[node.id]) ? QOL_NODES[node.id].name
+        : node.id;
+}
+// Glyph per node kind — a quick read of what a node is before reading it.
+const TREE_KIND_GLYPH = { hero: '☗', kit: '🜲', ability: '✦', qol: '⚙' };
+
+// The tech tree as a wired GRAPH: a central CORE feeds the first ring of
+// nodes; each tier connects to the next through a gate junction that
+// lights once the prior tier has its 2 unlocks (the real isTierOpen
+// rule, shown as structure). Layout is computed from TECH_TREE so adding
+// nodes needs no layout edits.
 function renderTechTree() {
     const bal = document.getElementById('tree-xp-balance');
     if (bal) bal.textContent = formatCompact(save.metaXP);
+    const svg = document.getElementById('tech-tree-svg');
+    if (!svg) return;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-    for (const tierKey of ['tier1', 'tier2', 'tier3']) {
-        const tierEl = document.querySelector(`.tree-tier[data-tier="${tierKey}"]`);
-        const body   = document.querySelector(`.tree-nodes[data-tier-body="${tierKey}"]`);
-        if (!tierEl || !body) continue;
+    const VBW = 1040, VBH = 660, MIDY = VBH / 2;
+    const tiers = ['tier1', 'tier2', 'tier3'];
+    const colX = { tier1: 250, tier2: 560, tier3: 870 };
+    const gateX = { tier2: 405, tier3: 715 };   // junction before tier 2 / 3
+    const ROOT = { x: 70, y: MIDY };
 
-        const open = NeonTree.isTierOpen(save, tierKey);
-        tierEl.classList.toggle('locked', !open);
+    // Position every node, vertically centred per tier column.
+    const pos = {};
+    for (const tk of tiers) {
+        const nodes = TECH_TREE[tk].nodes;
+        const span = 116;
+        const top = MIDY - ((nodes.length - 1) * span) / 2;
+        nodes.forEach((n, i) => { pos[n.id] = { x: colX[tk], y: top + i * span, tier: tk, node: n }; });
+    }
+    const gatePos = { tier2: { x: gateX.tier2, y: MIDY }, tier3: { x: gateX.tier3, y: MIDY } };
 
-        body.innerHTML = '';
-        for (const node of TECH_TREE[tierKey].nodes) {
-            body.appendChild(buildTreeNodeEl(node, tierKey, open));
+    const edgesG = _svg('g', {});  const nodesG = _svg('g', {});
+    svg.appendChild(edgesG); svg.appendChild(nodesG);
+
+    const edge = (x1, y1, x2, y2, lit) => edgesG.appendChild(_svg('path', {
+        d: `M ${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}`,
+        class: 'tt-edge' + (lit ? ' tt-edge-lit' : ''), fill: 'none',
+    }));
+
+    // Wire it: CORE → tier1 nodes; tier1 nodes → gate1 → tier2; etc.
+    for (const n of TECH_TREE.tier1.nodes) {
+        const p = pos[n.id];
+        edge(ROOT.x, ROOT.y, p.x, p.y, NeonSave.hasUnlocked(save, n.id));
+    }
+    for (const tk of ['tier2', 'tier3']) {
+        const prior = tk === 'tier2' ? 'tier1' : 'tier2';
+        const open = NeonTree.isTierOpen(save, tk);
+        const g = gatePos[tk];
+        for (const n of TECH_TREE[prior].nodes) {
+            edge(pos[n.id].x, pos[n.id].y, g.x, g.y, NeonSave.hasUnlocked(save, n.id));
+        }
+        for (const n of TECH_TREE[tk].nodes) {
+            edge(g.x, g.y, pos[n.id].x, pos[n.id].y, open);
         }
     }
-}
 
-function buildTreeNodeEl(node, tierKey, tierOpen) {
-    const el = document.createElement('div');
-    el.className = 'tree-node';
+    // CORE node.
+    const core = _svg('g', { class: 'tt-core' });
+    core.appendChild(_svg('circle', { cx: ROOT.x, cy: ROOT.y, r: 26, class: 'tt-core-disc' }));
+    const coreLabel = _svg('text', { x: ROOT.x, y: ROOT.y + 5, class: 'tt-core-label', 'text-anchor': 'middle' });
+    coreLabel.textContent = 'CORE';
+    core.appendChild(coreLabel);
+    nodesG.appendChild(core);
 
-    const owned     = NeonSave.hasUnlocked(save, node.id);
-    const cost      = TECH_TREE[tierKey].cost;
-    const canAfford = save.metaXP >= cost;
-    let status = cost + ' XP';
-    if (owned) { el.classList.add('owned'); status = 'OWNED'; }
-    else if (!tierOpen) { el.classList.add('locked'); status = 'LOCKED'; }
-    else if (!canAfford) { el.classList.add('too-expensive'); status = cost + ' XP (need more)'; }
-
-    const nameRow = document.createElement('div');
-    nameRow.className = 'tree-node-name';
-    const displayName = (node.kind === 'hero' && HEROES[node.id.slice(5)]) ? HEROES[node.id.slice(5)].name
-                      : (node.kind === 'kit'  && STARTER_KITS[node.id.slice(4)]) ? STARTER_KITS[node.id.slice(4)].name
-                      : (node.kind === 'ability' && ABILITIES[node.id.slice(8)]) ? ABILITIES[node.id.slice(8)].name
-                      : (node.kind === 'qol' && QOL_NODES[node.id]) ? QOL_NODES[node.id].name
-                      : node.id;
-    nameRow.innerHTML = `<span>${displayName}</span><span class="node-status">${status}</span>`;
-
-    const desc = document.createElement('div');
-    desc.className = 'tree-node-desc';
-    desc.textContent = node.desc;
-
-    el.appendChild(nameRow);
-    el.appendChild(desc);
-
-    if (!owned && tierOpen && canAfford) {
-        el.addEventListener('click', () => {
-            if (NeonTree.purchase(save, node.id)) {
-                renderTechTree();
-                renderLoadoutDropdowns();
-                updateMainMenuState();
-            }
-        });
+    // Gate junctions (diamonds) with the unlock requirement.
+    for (const tk of ['tier2', 'tier3']) {
+        const g = gatePos[tk], open = NeonTree.isTierOpen(save, tk);
+        const gg = _svg('g', { class: 'tt-gate' + (open ? ' tt-gate-open' : '') });
+        gg.appendChild(_svg('rect', { x: g.x - 11, y: g.y - 11, width: 22, height: 22,
+            transform: `rotate(45 ${g.x} ${g.y})`, class: 'tt-gate-shape' }));
+        gg.appendChild((() => { const t = _svg('title', {}); t.textContent =
+            open ? 'Unlocked' : 'Unlock 2 nodes in the previous tier'; return t; })());
+        nodesG.appendChild(gg);
     }
 
-    return el;
+    // Nodes.
+    for (const tk of tiers) {
+        const tierOpen = NeonTree.isTierOpen(save, tk);
+        const cost = TECH_TREE[tk].cost;
+        for (const node of TECH_TREE[tk].nodes) {
+            const p = pos[node.id];
+            const owned = NeonSave.hasUnlocked(save, node.id);
+            const afford = save.metaXP >= cost;
+            let state = 'locked';
+            if (owned) state = 'owned';
+            else if (!tierOpen) state = 'locked';
+            else if (afford) state = 'available';
+            else state = 'poor';
+
+            const g = _svg('g', {
+                class: 'tt-node tt-' + state,
+                tabindex: '0', role: 'button',
+                'aria-label': _treeNodeName(node) + ' — ' + (owned ? 'owned' : state === 'available' ? `costs ${cost} XP` : state),
+            });
+            g.appendChild(_svg('circle', { cx: p.x, cy: p.y, r: 24, class: 'tt-disc' }));
+            const glyph = _svg('text', { x: p.x, y: p.y + 7, 'text-anchor': 'middle', class: 'tt-glyph' });
+            glyph.textContent = owned ? '✓' : (TREE_KIND_GLYPH[node.kind] || '●');
+            g.appendChild(glyph);
+            const label = _svg('text', { x: p.x, y: p.y + 42, 'text-anchor': 'middle', class: 'tt-label' });
+            label.textContent = _treeNodeName(node);
+            g.appendChild(label);
+
+            const showDetail = () => {
+                const detail = document.getElementById('tree-node-detail');
+                if (!detail) return;
+                const status = owned ? 'OWNED'
+                    : !tierOpen ? 'LOCKED — unlock 2 nodes in the previous tier'
+                    : afford ? `${cost} XP — click to unlock`
+                    : `${cost} XP — need ${cost - save.metaXP} more`;
+                detail.innerHTML = `<strong>${_treeNodeName(node)}</strong> <span class="tt-detail-status">${status}</span><br>${node.desc}`;
+            };
+            g.addEventListener('pointerenter', showDetail);
+            g.addEventListener('focus', showDetail);
+            const tryBuy = () => {
+                if (NeonSave.hasUnlocked(save, node.id)) { showDetail(); return; }
+                if (NeonTree.purchase(save, node.id)) {
+                    renderTechTree();
+                    renderLoadoutDropdowns();
+                    updateMainMenuState();
+                } else { showDetail(); }
+            };
+            g.addEventListener('click', tryBuy);
+            g.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();   // don't also hit the global role=button handler
+                    tryBuy();
+                }
+            });
+            nodesG.appendChild(g);
+        }
+    }
 }
 
 // M3: Tower Mastery screen. Shows 9 tower rows with XP progress bars
