@@ -418,17 +418,14 @@ class Game {
 
     _applyDig(site) {
         if (!site || !this.map) return;
-        const dug = this.map.digShortcut(site.from, site.to);
-        if (!dug) return;
-        // A tower built onto the trail while the digger was crawling
-        // gets crushed — fully refunded, the dig is not negotiable.
-        for (let i = this.towers.length - 1; i >= 0; i--) {
-            const t = this.towers[i];
-            if (dug.some(d => d.c === t.c && d.r === t.r)) {
-                this.money += t.totalSpent;
-                this.towers.splice(i, 1);
-            }
-        }
+        // digReroute carves a stepped trench (never a straight line),
+        // RELOCATES any tower standing on it to the nearest free tile
+        // (the dig moves your defenses, it never eats them), and either
+        // MOVES the road (replace) or adds a SECOND route (branch).
+        const res = this.map.digReroute(site.from, site.to, {
+            mode: site.mode, towers: this.towers,
+        });
+        if (!res) return;
         this._mapLayerKey = null;                 // re-rasterize the map layer
         this.uiDirty = true;
         if (typeof SoundFX !== 'undefined' && SoundFX.explosion) SoundFX.explosion();
@@ -536,6 +533,10 @@ class Game {
                     if (Game.isDiggerWave(this.wave)) {
                         const site = this.map.pickDigSite(this.towers);
                         if (site) {
+                            // Alternate the dig's nature per digger:
+                            // wave 30 MOVES the road (replace), wave 60
+                            // adds a SECOND route (branch), and so on.
+                            site.mode = (Math.floor(this.wave / 30) % 2 === 1) ? 'replace' : 'branch';
                             boss.isDigger = true;
                             boss._digSite = site;
                             boss.reward = Math.floor(boss.reward * 1.5);
@@ -556,7 +557,15 @@ class Game {
                         spawnType = 'cutter';
                     }
                     if (spawnType === 'cutter') this.map.computeShortcuts();
-                    const newEnemy = new Enemy(this.map.path, spawnType, this.currentWaveDef.hpMult);
+                    // Branch digs add ADDITIONAL routes: ground spawns
+                    // alternate between the canonical road and the
+                    // newest trench by spawn index (deterministic).
+                    let spawnPath = this.map.path;
+                    if (spawnType !== 'air' && this.map.altRoutes && this.map.altRoutes.length > 0 &&
+                            this.enemiesSpawned % 2 === 1) {
+                        spawnPath = this.map.altRoutes[this.map.altRoutes.length - 1];
+                    }
+                    const newEnemy = new Enemy(spawnPath, spawnType, this.currentWaveDef.hpMult);
                     if (this.freezeTimer > 0) {
                         newEnemy.frozen = true;
                         newEnemy.frozenFrames = this.freezeTimer;
@@ -1336,7 +1345,9 @@ class Game {
     updateUI() {
         document.getElementById('wave-display').textContent = this.wave;
         document.getElementById('health-display').textContent = this.health;
-        document.getElementById('money-display').textContent = Math.floor(this.money);
+        document.getElementById('money-display').textContent =
+            (typeof window.formatCompact === 'function')
+                ? window.formatCompact(this.money) : Math.floor(this.money);
         
         const airInterval = this.ascension.airWaveInterval;
         let nextAir = airInterval - (this.wave % airInterval);

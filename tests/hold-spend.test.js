@@ -20,11 +20,9 @@ const path = require('path');
     location.reload();
   });
   await page.waitForTimeout(700);
-  // Mastery Lab lives inside the combined UPGRADES menu now:
-  // open UPGRADES (tree tab), then switch to the MASTERY tab.
+  // UPGRADES opens on the MASTERY tab by default.
   await page.click('#menu-tree-btn');
   await page.waitForTimeout(150);
-  await page.click('.upg-tab[data-upg-tab="mastery"]');
   await page.waitForTimeout(400);
 
   const btn = page.locator('.mastery-perk-buy').first();

@@ -45,11 +45,9 @@ const path = require('path');
     // ── 1) Logic helper exposed for tests ────────────────────────────
     // The render call below installs the helper on window. Open the
     // Lab once so renderTowerMastery runs.
-    // Mastery Lab lives inside the combined UPGRADES menu now:
-    // open UPGRADES (tree tab), then switch to the MASTERY tab.
+    // UPGRADES opens on the MASTERY tab by default.
     await page.click('#menu-tree-btn');
     await page.waitForTimeout(150);
-    await page.click('.upg-tab[data-upg-tab="mastery"]');
     await page.waitForTimeout(300);
 
     const helper = await page.evaluate(() => {

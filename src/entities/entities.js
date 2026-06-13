@@ -383,7 +383,10 @@ class Tower {
                 // Orbital rockets hover further out and orbit more slowly
                 const isOrbital = this.type === 'silo_orbital';
                 this.hoverRockets.push({
-                    range: this.range,
+                    // Orbital rockets DEPLOY short-sighted (0.6×) and
+                    // grow into a long-range weapon the longer they
+                    // circle — see the seeker growth below.
+                    range: isOrbital ? this.range * 0.6 : this.range,
                     angle: Math.random() * Math.PI * 2,
                     dist: isOrbital ? (Math.random() * 20 + 28) : (Math.random() * 10 + 15)
                 });
@@ -395,13 +398,15 @@ class Tower {
             // "fires at an enemy half a screen away" bug).
             //   Base silo:  fast growth to 1.5× — rockets are ammo,
             //               they should engage promptly.
-            //   Orbital:    SLOW growth to 2.0× — its identity is the
-            //               long hover, so banking rockets longer
-            //               meaningfully widens their strike radius
-            //               (~35 s of hover to reach the cap).
+            //   Orbital:    deploys SHORT (0.6×, see the push above)
+            //               and grows into a LONG-range weapon — 2.5×
+            //               tower range after ~15 s of circling. The
+            //               first cut used 0.06/frame, which took
+            //               minutes to matter: players watched rockets
+            //               "circling, not shooting at anything".
             const isOrbitalSilo = this.type === 'silo_orbital';
-            const seekerCap = this.range * (isOrbitalSilo ? 2.0 : 1.5);
-            const seekerGrowth = isOrbitalSilo ? 0.06 : 0.5;
+            const seekerCap = this.range * (isOrbitalSilo ? 2.5 : 1.5);
+            const seekerGrowth = isOrbitalSilo ? 0.25 : 0.5;
             for (let i = this.hoverRockets.length - 1; i >= 0; i--) {
                 let r = this.hoverRockets[i];
                 r.angle += isOrbitalSilo ? 0.007 : 0.02;

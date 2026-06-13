@@ -46,24 +46,26 @@ const path = require('path');
     await page.click('#menu-tree-btn');
     await page.waitForTimeout(200);
     const opened = await page.evaluate(() => ({
-        treeVisible: !document.getElementById('tech-tree').classList.contains('hidden'),
-        tabs: document.querySelectorAll('#tech-tree .upg-tabs .upg-tab').length,
-    }));
-    ok('UPGRADES opens on the TECH TREE tab with a 2-tab strip',
-        opened.treeVisible && opened.tabs === 2, JSON.stringify(opened));
-
-    await page.click('#tech-tree .upg-tab[data-upg-tab="mastery"]');
-    await page.waitForTimeout(200);
-    const onMastery = await page.evaluate(() => ({
         masteryVisible: !document.getElementById('tower-mastery').classList.contains('hidden'),
-        treeHidden: document.getElementById('tech-tree').classList.contains('hidden'),
+        tabs: document.querySelectorAll('#tower-mastery .upg-tabs .upg-tab').length,
         rows: document.querySelectorAll('#mastery-grid .mastery-row').length,
     }));
-    ok('MASTERY tab switches in place and renders rows',
-        onMastery.masteryVisible && onMastery.treeHidden && onMastery.rows > 0,
-        JSON.stringify(onMastery));
+    ok('UPGRADES opens on the MASTERY tab (default) with a 2-tab strip',
+        opened.masteryVisible && opened.tabs === 2 && opened.rows > 0,
+        JSON.stringify(opened));
+
+    await page.click('#tower-mastery .upg-tab[data-upg-tab="tree"]');
+    await page.waitForTimeout(200);
+    const onTree = await page.evaluate(() => ({
+        treeVisible: !document.getElementById('tech-tree').classList.contains('hidden'),
+        masteryHidden: document.getElementById('tower-mastery').classList.contains('hidden'),
+    }));
+    ok('TECH TREE tab switches in place',
+        onTree.treeVisible && onTree.masteryHidden, JSON.stringify(onTree));
 
     // Flip back and forth, then BACK must land on the main menu.
+    await page.click('#tech-tree .upg-tab[data-upg-tab="mastery"]');
+    await page.waitForTimeout(150);
     await page.click('#tower-mastery .upg-tab[data-upg-tab="tree"]');
     await page.waitForTimeout(150);
     await page.click('#tech-tree .upg-tab[data-upg-tab="mastery"]');

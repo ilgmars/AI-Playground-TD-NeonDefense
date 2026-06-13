@@ -131,44 +131,119 @@ class GameMap {
         return out;
     }
 
-    // Digger boss commit: carve the crossing between path indices
-    // from→to into permanent road and rebuild the canonical path so
-    // every FUTURE spawn takes the shorter route. The old loop's tiles
-    // stay grid=1 (still road, still unbuildable) and enemies already
-    // in flight keep their old path array — both remain valid.
-    // Returns the dug tiles. _rev bumps so the cached map layer
-    // re-rasterizes.
-    digShortcut(from, to) {
+    // Build the digger's route between two path tiles: a CONTIGUOUS,
+    // axis-aligned stepped walk (4-adjacent tiles) with deterministic
+    // jogs — never just a straight line. rng must be a seeded PRNG so
+    // both coop peers carve the identical trench. Endpoints excluded.
+    buildDugRoute(a, b, rng) {
+        const route = [];
+        let c = a.c, r = a.r;
+        // Full-grid clamp — endpoints can sit on the border (the path
+        // enters at col/row 0), so the trench must be allowed there too.
+        const clampC = v => Math.max(0, Math.min(this.grid[0].length - 1, v));
+        const clampR = v => Math.max(0, Math.min(this.grid.length - 1, v));
+        const step = (nc, nr) => {
+            c = nc; r = nr;
+            if (!(c === b.c && r === b.r)) route.push({ c, r });
+        };
+        // Walk in alternating axis legs of 1-3 tiles (rng-chosen) until
+        // close, then finish axis-by-axis. The alternation is what
+        // gives the trench its bends.
+        let guard = 0;
+        while ((c !== b.c || r !== b.r) && guard++ < 200) {
+            const dc = b.c - c, dr = b.r - r;
+            const horizFirst = Math.abs(dc) === 0 ? false
+                : Math.abs(dr) === 0 ? true
+                : rng() < 0.5;
+            const leg = 1 + Math.floor(rng() * 3);
+            if (horizFirst) {
+                for (let i = 0; i < leg && c !== b.c; i++) step(clampC(c + Math.sign(b.c - c)), r);
+            } else {
+                for (let i = 0; i < leg && r !== b.r; i++) step(c, clampR(r + Math.sign(b.r - r)));
+            }
+        }
+        return route;
+    }
+
+    // Digger boss commit: carve a permanent trench between path
+    // indices from→to and rewire the road network.
+    //   mode 'replace' — the canonical path is rebuilt THROUGH the
+    //     trench: the road has permanently moved; the old loop's tiles
+    //     stay road (unbuildable) but no future spawn walks them.
+    //   mode 'branch'  — the old road stays canonical AND the trench
+    //     becomes an ADDITIONAL route (this.altRoutes); spawns
+    //     alternate between them (see Game's spawn block).
+    // Towers standing on trench tiles are RELOCATED to the nearest
+    // free buildable tile (never deleted — the dig moves your
+    // defenses, it doesn't eat them). Returns { dug, mode, moved }.
+    // Deterministic: the route rng is seeded from (map seed, from, to,
+    // rev), so coop peers only need {from, to, mode} on the wire.
+    digReroute(from, to, opts) {
+        opts = opts || {};
+        const mode = opts.mode === 'branch' ? 'branch' : 'replace';
         const a = this.path[from], b = this.path[to];
         if (!a || !b) return null;
-        const dug = this.crossingTiles(a, b);
+        const rng = createRng((this.seed | 0) ^ (from * 73856093) ^ (to * 19349663) ^ ((this._rev || 0) * 83492791));
+        const dug = this.buildDugRoute(a, b, rng);
         for (const t of dug) this.grid[t.r][t.c] = 1;
-        const newPath = this.path.slice(0, from + 1)
-            .concat(dug)
-            .concat(this.path.slice(to));
-        this.path = newPath;
+
+        // Relocate blocking towers to the closest free buildable tile
+        // (ring search by Chebyshev distance, deterministic scan order).
+        const moved = [];
+        const towers = opts.towers || [];
+        const occupied = new Set(towers.map(t => t.c + '|' + t.r));
+        const onTrench = towers.filter(t => dug.some(d => d.c === t.c && d.r === t.r));
+        for (const t of onTrench) {
+            occupied.delete(t.c + '|' + t.r);
+            let placed = false;
+            for (let radius = 1; radius <= 6 && !placed; radius++) {
+                for (let dr = -radius; dr <= radius && !placed; dr++) {
+                    for (let dc = -radius; dc <= radius && !placed; dc++) {
+                        if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius) continue;
+                        const nc = t.c + dc, nr = t.r + dr;
+                        if (!this.grid[nr] || this.grid[nr][nc] !== 0) continue;
+                        if (occupied.has(nc + '|' + nr)) continue;
+                        t.c = nc; t.r = nr;
+                        t.x = nc * TILE_SIZE; t.y = nr * TILE_SIZE;
+                        occupied.add(nc + '|' + nr);
+                        moved.push(t);
+                        placed = true;
+                    }
+                }
+            }
+            // Pathological no-space case: leave the tower where it is —
+            // it sits on road visually but keeps fighting.
+            if (!placed) occupied.add(t.c + '|' + t.r);
+        }
+
+        const rerouted = this.path.slice(0, from + 1).concat(dug).concat(this.path.slice(to));
+        if (mode === 'replace') {
+            this.path = rerouted;
+        } else {
+            this.altRoutes = this.altRoutes || [];
+            this.altRoutes.push(rerouted);
+        }
         this.endPoint = this.path[this.path.length - 1];
         this._rev = (this._rev || 0) + 1;
         this._shortcuts = null;                 // recompute on demand
         delete this.path._shortcuts;
-        return dug;
+        return { dug, mode, moved };
     }
 
-    // Pick the digger's target: the longest-saving shortcut whose
-    // crossing is pure grass AND free of towers. Relaxed thresholds vs
-    // the cutter's (a boss digs harder). Deterministic given the same
-    // map + tower layout.
+    // Pick the digger's target stretch: the longest-saving (from, to)
+    // pair within trench reach. Towers no longer block a site (they
+    // get relocated by the dig); a savings cap keeps one dig from
+    // erasing nearly half the road (gamebreaking).
     pickDigSite(towers) {
         const MIN_SAVED = 8;
         const MAX_CROSS = 4.5;
-        const occupied = new Set((towers || []).map(t => t.c + '|' + t.r));
+        const MAX_SAVED_FRAC = 0.45;
         let best = null;
         for (let i = 0; i < this.path.length - MIN_SAVED; i++) {
             for (let j = this.path.length - 1; j >= i + MIN_SAVED; j--) {
                 const a = this.path[i], b = this.path[j];
                 if (Math.hypot(b.c - a.c, b.r - a.r) > MAX_CROSS) continue;
-                if (!this._lineIsGrass(a, b)) continue;
-                if (this.crossingTiles(a, b).some(t => occupied.has(t.c + '|' + t.r))) continue;
+                if ((j - i) > this.path.length * MAX_SAVED_FRAC) continue;
                 const saved = (j - i) - Math.hypot(b.c - a.c, b.r - a.r);
                 if (!best || saved > best.saved) best = { from: i, to: j, saved };
                 break;      // longest j for this i — move on

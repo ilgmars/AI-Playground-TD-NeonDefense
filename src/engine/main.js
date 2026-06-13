@@ -361,9 +361,30 @@ function navigateToRunSetup() {
     renderLoadoutDropdowns();
 }
 
+// Compact large numbers for HUD/menu display: 9 999 stays raw, then
+// 12.4k / 3.2m / 1.1b. One decimal, trailing .0 trimmed. Full
+// precision stays in the save — this is display-only.
+function formatCompact(n) {
+    n = Math.floor(Number(n) || 0);
+    const abs = Math.abs(n);
+    if (abs < 10000) return String(n);
+    const units = [[1e9, 'b'], [1e6, 'm'], [1e3, 'k']];
+    for (const [div, suffix] of units) {
+        if (abs >= div) {
+            // Floor to one decimal so 999 949 reads 999.9k, never the
+            // unit-overflowing 1000k.
+            const v = Math.floor((n / div) * 10) / 10;
+            const s = (v % 1 === 0) ? String(v) : v.toFixed(1);
+            return s + suffix;
+        }
+    }
+    return String(n);
+}
+window.formatCompact = formatCompact;
+
 function updateMainMenuState() {
     const bal = document.getElementById('menu-xp-balance');
-    if (bal) bal.textContent = save.metaXP + ' XP';
+    if (bal) bal.textContent = formatCompact(save.metaXP) + ' XP';
 
     const daily = document.getElementById('menu-dailyseed-btn');
     if (daily) {
@@ -386,7 +407,7 @@ function navigateToTechTree() {
 
 function renderTechTree() {
     const bal = document.getElementById('tree-xp-balance');
-    if (bal) bal.textContent = save.metaXP;
+    if (bal) bal.textContent = formatCompact(save.metaXP);
 
     for (const tierKey of ['tier1', 'tier2', 'tier3']) {
         const tierEl = document.querySelector(`.tree-tier[data-tier="${tierKey}"]`);
@@ -637,7 +658,7 @@ function renderTowerMastery() {
 
         const spendable = document.createElement('div');
         spendable.className = 'mastery-spendable';
-        spendable.textContent = `Spendable ${Math.floor(mast.xp || 0)} XP`;
+        spendable.textContent = `Spendable ${formatCompact(mast.xp || 0)} XP`;
 
         const milestones = document.createElement('div');
         milestones.className = 'mastery-milestones';
@@ -696,7 +717,7 @@ function renderTowerMastery() {
                 btn.textContent = newMaxed ? 'MAX' : missingNow > 0 ? `NEED ${missingNow}` : `BUY ${newCost}`;
                 btn.disabled = newMaxed || !stillAfford;
                 value.textContent = `${activePerkMeta[perk].value(newRank)} · ${fmtLv(limit, newRank)}`;
-                spendable.textContent = `Spendable ${Math.floor(m.xp || 0)} XP`;
+                spendable.textContent = `Spendable ${formatCompact(m.xp || 0)} XP`;
                 return stillAfford;
             };
             bindHoldToSpend(btn, attempt, () => renderTowerMastery());
@@ -1335,7 +1356,7 @@ function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, mas
         document.getElementById('victory-xp-first').textContent   = xp.firstBonus;
         document.getElementById('victory-xp-retire').textContent  = xp.retireBonus || 0;
         document.getElementById('victory-xp-total').textContent   = xp.total;
-        document.getElementById('victory-xp-balance').textContent = save.metaXP;
+        document.getElementById('victory-xp-balance').textContent = formatCompact(save.metaXP);
         document.getElementById('victory-xp-clear-row').classList.toggle('hidden', xp.clearBonus === 0);
         document.getElementById('victory-xp-first-row').classList.toggle('hidden', xp.firstBonus === 0);
     } else {
@@ -1343,7 +1364,7 @@ function renderRunResultXP({ wave, tier, xp, firstClear, autoUnlockedNodeId, mas
         document.getElementById('xp-clear').textContent    = xp.clearBonus;
         document.getElementById('xp-first').textContent    = xp.firstBonus;
         document.getElementById('xp-total').textContent    = xp.total;
-        document.getElementById('xp-balance').textContent  = save.metaXP;
+        document.getElementById('xp-balance').textContent  = formatCompact(save.metaXP);
         document.getElementById('xp-clear-row').classList.toggle('hidden', xp.clearBonus === 0);
         document.getElementById('xp-first-row').classList.toggle('hidden', xp.firstBonus === 0);
     }
@@ -1620,7 +1641,10 @@ function init() {
         }
     });
     document.getElementById('menu-tree-btn').addEventListener('click', () => {
-        navigateToTechTree();
+        // UPGRADES opens on the MASTERY tab by default (user request —
+        // it's the screen players visit every run); TECH TREE is one
+        // tab flip away.
+        navigateToTowerMastery();
     });
     // UPGRADES tab strip — TECH TREE and MASTERY LAB are one menu now.
     // Switching tabs swaps the overlay in place WITHOUT pushing the
@@ -2405,11 +2429,11 @@ function init() {
     // _mpHoldWaves) — it carves exactly what the host carved.
     window.__neonMPBroadcastDig = function (site) {
         if (_activeMode !== 'coop' || !_activeRoom || !_mpIsHost || !site) return;
-        try { _activeRoom.send({ kind: 'dig', f: site.from | 0, t: site.to | 0 }); } catch (_) {}
+        try { _activeRoom.send({ kind: 'dig', f: site.from | 0, t: site.to | 0, m: site.mode === 'branch' ? 'branch' : 'replace' }); } catch (_) {}
     };
     window.__neonMPApplyDig = function (msg) {
         if (!game || !msg) return;
-        try { game._applyDig({ from: msg.f | 0, to: msg.t | 0 }); } catch (_) {}
+        try { game._applyDig({ from: msg.f | 0, to: msg.t | 0, mode: msg.m === 'branch' ? 'branch' : 'replace' }); } catch (_) {}
     };
 
     // Host's periodic enemy digest → snap local monsters to match.

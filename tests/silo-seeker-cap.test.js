@@ -19,12 +19,13 @@ function ok(name, c, extra) {
 }
 
 // Mirror src/entities/entities.js: base silo grows 0.5/frame to a
-// 1.5× cap (rockets are ammo — engage promptly); orbital grows
-// 0.06/frame to a 2.0× cap, so its strike radius meaningfully scales
-// with HOW LONG the rockets have been hovering (~35 s to cap).
+// 1.5× cap (rockets are ammo — engage promptly); orbital DEPLOYS at
+// 0.6× and grows 0.25/frame into a LONG-range weapon (2.5× cap,
+// ~15 s of hover). The first orbital cut (0.06/frame, 2.0× cap) took
+// minutes to matter — players watched rockets circling, never firing.
 function tick(rocket, towerRange, frames, isOrbital = false) {
-    const seekerCap = towerRange * (isOrbital ? 2.0 : 1.5);
-    const growth = isOrbital ? 0.06 : 0.5;
+    const seekerCap = towerRange * (isOrbital ? 2.5 : 1.5);
+    const growth = isOrbital ? 0.25 : 0.5;
     for (let i = 0; i < frames; i++) {
         if (rocket.range < seekerCap) rocket.range += growth;
     }
@@ -37,17 +38,18 @@ tick(r1, 110, 10000);
 ok('silo seeker capped at 1.5x range', r1.range <= 110 * 1.5 + 0.0001, `range=${r1.range}`);
 ok('silo seeker reaches cap',          Math.abs(r1.range - 165) < 1, `range=${r1.range}`);
 
-// Orbital (range 120) — slow growth, 2.0× cap: hover time matters.
-const r2 = { range: 120 };
+// Orbital (range 120): deploys at 0.6× = 72, grows 0.25/frame to a
+// 2.5× cap = 300 — a long-range weapon you charge by waiting.
+const r2 = { range: 120 * 0.6 };
 tick(r2, 120, 100000, true);
-ok('orbital seeker capped at 2.0x range', r2.range <= 120 * 2.0 + 0.0601, `range=${r2.range}`);
-ok('orbital seeker reaches cap eventually', r2.range >= 240, `range=${r2.range}`);
-// Hover-time scaling: after 10 s (600 frames) the orbital seeker is
-// still well below cap — long hovers are rewarded with more reach.
-const r2b = { range: 120 };
-tick(r2b, 120, 600, true);
-ok('orbital seeker grows SLOWLY (10 s ≈ +36, far from cap)',
-    Math.abs(r2b.range - 156) < 1 && r2b.range < 240, `range=${r2b.range}`);
+ok('orbital seeker capped at 2.5x range', r2.range <= 120 * 2.5 + 0.2501, `range=${r2.range}`);
+ok('orbital seeker reaches cap eventually', r2.range >= 300, `range=${r2.range}`);
+// Growth pacing: ~5 s of hover (300 frames) puts it past base tower
+// range (147 > 120); cap lands around 15 s — hover time IS the weapon.
+const r2b = { range: 120 * 0.6 };
+tick(r2b, 120, 300, true);
+ok('5 s hover already beats base range (72 → 147)',
+    Math.abs(r2b.range - 147) < 1 && r2b.range > 120, `range=${r2b.range}`);
 
 // Below-cap rocket still grows by 0.5 per frame.
 const r3 = { range: 50 };
