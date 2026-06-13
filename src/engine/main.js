@@ -1140,7 +1140,7 @@ function bpSalvage() {
     if (typeof updateMainMenuState === 'function') updateMainMenuState();
     const def = BACKPACK_ITEMS[id];
     const nextCost = NeonSave.getSalvageCost(save);
-    bpStatus(`Salvaged ${def ? def.name : id} (${def ? def.rarity : '?'}) → stash. Next salvage: ${nextCost} XP.`);
+    bpStatus(`Bought ${def ? def.name : id} (${def ? def.rarity : '?'}) → stash. Next: ${nextCost} XP.`);
     renderBackpack();
 }
 
@@ -1168,7 +1168,7 @@ function bpBuyLuck() {
         return;
     }
     if (typeof updateMainMenuState === 'function') updateMainMenuState();
-    bpStatus(`Salvage Luck +1% (now +${save.backpack.luckBoost}%) for ${paid} XP.`);
+    bpStatus(`Luck +1% (now +${save.backpack.luckBoost}%) for ${paid} XP.`);
     renderBackpack();
 }
 
@@ -5434,5 +5434,140 @@ document.addEventListener('DOMContentLoaded', init);
             // Also watch inline style changes (not covered by MutationObserver attributes on style)
             new MutationObserver(sync).observe(display, { attributeFilter: ['style'] });
         });
+    });
+})();
+
+// ---------------------------------------------------------------------------
+// App distribution: mobile-web download link + APK in-app update notice.
+//
+// Two distinct surfaces, gated by where the page is running:
+//   • mobile web (a phone browser on github.io)  → a tiny, subtle "Get the
+//     Android app" link in the bottom corner.
+//   • inside the APK (host appassets.androidplatform.net) → an update banner
+//     when the live build token is newer than the one bundled in the APK.
+//
+// The decision logic is split into pure functions (appDistShouldShowLink,
+// appDistIsNewerBuild) so it can be unit-tested without a real device or
+// network; the DOM wiring below just feeds them the live environment.
+// ---------------------------------------------------------------------------
+(function setupAppDistribution() {
+    const APK_HOST = 'appassets.androidplatform.net';
+    const APK_URL = 'https://github.com/ilgmars/AI-Playground-TD-NeonDefense/releases/download/Games/NeonDefense.apk';
+    // The APK WebView blocks arbitrary external fetches, but its request
+    // interceptor explicitly lets raw.githubusercontent.com through so this
+    // one manifest can be read to detect a newer release.
+    const LIVE_VERSION_URL = 'https://raw.githubusercontent.com/ilgmars/AI-Playground-TD-NeonDefense/main/version.json';
+    const DISMISS_KEY = 'neonApkUpdateDismissed';
+
+    // Show the mobile-web download link only on a touch/mobile browser that
+    // is NOT already the installed app. Desktop and the APK never see it.
+    function appDistShouldShowLink({ hostname, ua, coarse }) {
+        if (hostname === APK_HOST) return false;            // inside the app
+        const mobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(ua || '');
+        return mobileUA || !!coarse;
+    }
+
+    // Compare two build tokens (UTC YYYYMMDDHHMMSS strings). True iff `live`
+    // is strictly newer than `local`. Tolerates missing/garbage input.
+    function appDistIsNewerBuild(local, live) {
+        const a = String(local == null ? '' : local).replace(/\D/g, '');
+        const b = String(live == null ? '' : live).replace(/\D/g, '');
+        if (!a || !b) return false;
+        if (a.length !== b.length) return b.length > a.length;
+        return b > a; // equal length → lexical compare == numeric compare
+    }
+
+    function isApk() { return location.hostname === APK_HOST; }
+
+    function maybeShowAppLink() {
+        const el = document.getElementById('get-app-link');
+        if (!el) return;
+        const show = appDistShouldShowLink({
+            hostname: location.hostname,
+            ua: navigator.userAgent,
+            coarse: !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches),
+        });
+        el.classList.toggle('hidden', !show);
+        if (show) el.href = APK_URL;
+    }
+
+    async function fetchBuildToken(url, fetchImpl) {
+        const f = fetchImpl || window.fetch;
+        const res = await f(url, { cache: 'no-store' });
+        if (!res || !res.ok) throw new Error('version fetch failed: ' + url);
+        const data = await res.json();
+        return data && data.build;
+    }
+
+    // Pure decision: given the bundled + live build tokens and any prior
+    // dismissal, should the update banner show? Returns { show, liveBuild }.
+    function appDistEvaluateUpdate({ local, live, dismissed }) {
+        if (!appDistIsNewerBuild(local, live)) return { show: false, liveBuild: String(live) };
+        if (dismissed != null && String(dismissed) === String(live)) {
+            return { show: false, liveBuild: String(live) };
+        }
+        return { show: true, liveBuild: String(live) };
+    }
+
+    // Apply an update decision to the DOM (reveal/hide the banner, point the
+    // link at the latest APK). Split out from the IO so it's testable without
+    // a real APK host or network.
+    function applyUpdateDecision(decision) {
+        const banner = document.getElementById('app-update-banner');
+        if (!banner) return false;
+        if (decision && decision.show) {
+            const linkEl = document.getElementById('app-update-link');
+            if (linkEl) linkEl.href = APK_URL;
+            banner.dataset.liveBuild = String(decision.liveBuild);
+            banner.classList.remove('hidden');
+            return true;
+        }
+        banner.classList.add('hidden');
+        return false;
+    }
+
+    // APK only: read bundled ./version.json + live manifest and reveal the
+    // banner if a newer build exists (and wasn't already dismissed). Returns
+    // a boolean for tests; never throws (offline/blocked → silently skip).
+    async function checkForApkUpdate(fetchImpl) {
+        if (!isApk()) return false;
+        if (!document.getElementById('app-update-banner')) return false;
+        try {
+            const local = await fetchBuildToken('./version.json', fetchImpl);
+            const live = await fetchBuildToken(LIVE_VERSION_URL, fetchImpl);
+            let dismissed = null;
+            try { dismissed = localStorage.getItem(DISMISS_KEY); } catch (_) {}
+            return applyUpdateDecision(appDistEvaluateUpdate({ local, live, dismissed }));
+        } catch (_) {
+            return false; // offline, blocked, or malformed — stay quiet
+        }
+    }
+
+    // Expose the pure logic (and the wired entry points) for regression tests.
+    window.appDistShouldShowLink = appDistShouldShowLink;
+    window.appDistIsNewerBuild = appDistIsNewerBuild;
+    window.appDistEvaluateUpdate = appDistEvaluateUpdate;
+    window.applyUpdateDecision = applyUpdateDecision;
+    window.maybeShowAppLink = maybeShowAppLink;
+    window.checkForApkUpdate = checkForApkUpdate;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        maybeShowAppLink();
+
+        const dismiss = document.getElementById('app-update-dismiss');
+        const banner = document.getElementById('app-update-banner');
+        if (dismiss && banner) {
+            dismiss.addEventListener('click', () => {
+                banner.classList.add('hidden');
+                try {
+                    if (banner.dataset.liveBuild) {
+                        localStorage.setItem(DISMISS_KEY, banner.dataset.liveBuild);
+                    }
+                } catch (_) {}
+            });
+        }
+
+        // Fire-and-forget; the WebView allows the one manifest host through.
+        checkForApkUpdate();
     });
 })();

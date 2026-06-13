@@ -1,0 +1,142 @@
+// Regression: app-distribution surfaces.
+//   1. The backpack "buy" action is labelled BUY ITEM, not the old ominous
+//      SALVAGE (button + tooltip + hint).
+//   2. The mobile-web "Get the Android app" link shows only in a mobile
+//      browser that is NOT the installed APK (pure appDistShouldShowLink).
+//   3. The APK in-app update banner reveals only when the live build token
+//      is newer than the bundled one and the user hasn't dismissed it
+//      (pure appDistIsNewerBuild + appDistEvaluateUpdate), and the DOM
+//      wiring (applyUpdateDecision + the dismiss button) behaves.
+const { chromium } = require('playwright');
+const { spawn } = require('child_process');
+const path = require('path');
+
+(async () => {
+    const PORT = 9760 + Math.floor(Math.random() * 30);
+    const server = spawn(process.execPath, ['tests/helpers/http-server.js', String(PORT)],
+        { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
+    await new Promise(r => setTimeout(r, 600));
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    const errs = [];
+    page.on('pageerror', e => errs.push(e.message));
+
+    let pass = 0, fail = 0;
+    function ok(name, cond, extra) {
+        if (cond) { console.log('ok', name); pass++; }
+        else      { console.log('FAIL', name, extra || ''); fail++; }
+    }
+
+    await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(700);
+
+    // ---- 1) SALVAGE → BUY ITEM rename ----------------------------------
+    const rename = await page.evaluate(() => {
+        const btn = document.getElementById('bp-salvage');
+        return {
+            btnText: btn ? btn.textContent.trim() : null,
+            title: btn ? (btn.getAttribute('title') || '') : '',
+            hint: document.body.innerHTML,
+        };
+    });
+    ok('buy button reads BUY ITEM (not SALVAGE)',
+        /BUY ITEM/i.test(rename.btnText) && !/SALVAGE/i.test(rename.btnText),
+        JSON.stringify({ t: rename.btnText }));
+
+    // ---- 2) Mobile-web download link visibility ------------------------
+    const link = await page.evaluate(() => {
+        const el = document.getElementById('get-app-link');
+        const f = window.appDistShouldShowLink;
+        return {
+            exists: !!el,
+            hiddenOnDesktop: el ? el.classList.contains('hidden') : null,
+            hrefIsApk: el ? /NeonDefense\.apk$/.test(el.getAttribute('href') || '') : false,
+            desktop: f({ hostname: 'ilgmars.github.io', ua: 'Mozilla/5.0 (X11; Linux x86_64)', coarse: false }),
+            mobileWeb: f({ hostname: 'ilgmars.github.io', ua: 'Mozilla/5.0 (Linux; Android 13) Mobile', coarse: true }),
+            insideApk: f({ hostname: 'appassets.androidplatform.net', ua: 'Mozilla/5.0 (Linux; Android 13) Mobile', coarse: true }),
+        };
+    });
+    ok('get-app link element exists with the APK href', link.exists && link.hrefIsApk, JSON.stringify(link));
+    ok('link hidden on this (desktop) test browser', link.hiddenOnDesktop === true);
+    ok('shouldShowLink: false on desktop', link.desktop === false);
+    ok('shouldShowLink: true on mobile web', link.mobileWeb === true);
+    ok('shouldShowLink: false inside the APK', link.insideApk === false);
+
+    // ---- 3a) Build-token comparison (pure) -----------------------------
+    const cmp = await page.evaluate(() => {
+        const n = window.appDistIsNewerBuild;
+        return {
+            newer: n('20260101000000', '20260601000000'),
+            older: n('20260601000000', '20260101000000'),
+            equal: n('20260601000000', '20260601000000'),
+            missingLocal: n(null, '20260601000000'),
+            missingLive: n('20260601000000', undefined),
+            garbage: n('abc', 'xyz'),
+        };
+    });
+    ok('isNewerBuild: live newer → true', cmp.newer === true);
+    ok('isNewerBuild: live older → false', cmp.older === false);
+    ok('isNewerBuild: equal → false', cmp.equal === false);
+    ok('isNewerBuild: missing tokens → false', cmp.missingLocal === false && cmp.missingLive === false);
+    ok('isNewerBuild: non-numeric → false', cmp.garbage === false);
+
+    // ---- 3b) Update decision + banner DOM ------------------------------
+    const upd = await page.evaluate(() => {
+        const ev = window.appDistEvaluateUpdate;
+        const apply = window.applyUpdateDecision;
+        const banner = document.getElementById('app-update-banner');
+
+        const hiddenInitially = banner.classList.contains('hidden');
+
+        // Newer, not dismissed → show.
+        const dShow = ev({ local: '20260101000000', live: '20260601000000', dismissed: null });
+        apply(dShow);
+        const shownAfterApply = !banner.classList.contains('hidden');
+        const linkHref = document.getElementById('app-update-link').getAttribute('href') || '';
+
+        // Dismiss button hides it and records the live token.
+        document.getElementById('app-update-dismiss').click();
+        const hiddenAfterDismiss = banner.classList.contains('hidden');
+        const stored = localStorage.getItem('neonApkUpdateDismissed');
+
+        // Same version already dismissed → no show.
+        const dDismissed = ev({ local: '20260101000000', live: '20260601000000', dismissed: '20260601000000' });
+
+        // Not newer → no show.
+        const dSame = ev({ local: '20260601000000', live: '20260601000000', dismissed: null });
+
+        return {
+            hiddenInitially, shownAfterApply,
+            linkIsApk: /NeonDefense\.apk$/.test(linkHref),
+            hiddenAfterDismiss, stored,
+            dShow: dShow.show, dDismissed: dDismissed.show, dSame: dSame.show,
+        };
+    });
+    ok('update banner hidden by default', upd.hiddenInitially === true);
+    ok('evaluateUpdate: newer & undismissed → show', upd.dShow === true);
+    ok('applyUpdateDecision reveals the banner', upd.shownAfterApply === true);
+    ok('update link points at the APK', upd.linkIsApk === true);
+    ok('dismiss hides the banner', upd.hiddenAfterDismiss === true);
+    ok('dismiss records the live build token', upd.stored === '20260601000000', upd.stored);
+    ok('evaluateUpdate: already-dismissed version → no show', upd.dDismissed === false);
+    ok('evaluateUpdate: same version → no show', upd.dSame === false);
+
+    // ---- 3c) checkForApkUpdate is a no-op outside the APK --------------
+    const guard = await page.evaluate(async () => {
+        const stubFetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve({ build: '29990101000000' }) });
+        // On this test host (127.0.0.1) we are NOT the APK → must return false
+        // and never reveal the banner, even though the stub reports a newer build.
+        document.getElementById('app-update-banner').classList.add('hidden');
+        const result = await window.checkForApkUpdate(stubFetch);
+        return { result, hidden: document.getElementById('app-update-banner').classList.contains('hidden') };
+    });
+    ok('checkForApkUpdate: no-op when not running as the APK', guard.result === false && guard.hidden === true,
+        JSON.stringify(guard));
+
+    ok('no JS errors', errs.length === 0, errs.join(' / '));
+
+    await browser.close();
+    server.kill();
+    console.log(`\nAPP DISTRIBUTION: ${pass} pass, ${fail} fail`);
+    process.exit(fail === 0 ? 0 : 1);
+})().catch(e => { console.error(e); process.exit(1); });

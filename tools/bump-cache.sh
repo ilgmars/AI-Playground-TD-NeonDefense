@@ -23,3 +23,11 @@ if git diff --quiet index.html; then
 else
     echo "bump-cache: index.html updated to v=$NEW"
 fi
+
+# Keep version.json's build token in lock-step with the cache-bust token.
+# The APK reads this manifest (bundled vs the live copy on main) to decide
+# whether a newer release is available; the mobile-web link uses none of it.
+if [ -f version.json ]; then
+    sed -i "s/\"build\"[[:space:]]*:[[:space:]]*\"[0-9a-zA-Z]\{6,\}\"/\"build\": \"$NEW\"/" version.json
+    echo "bump-cache: version.json build set to $NEW"
+fi

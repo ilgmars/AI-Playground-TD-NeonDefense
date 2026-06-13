@@ -100,11 +100,34 @@ public class MainActivity extends AppCompatActivity {
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                String host = request.getUrl().getHost();
+                // The game itself lives on appassets; let it navigate freely.
+                if (host == null || "appassets.androidplatform.net".equals(host)) {
+                    return false;
+                }
+                // Any external link (e.g. the APK update download) opens in
+                // the system browser/installer rather than inside the WebView.
+                try {
+                    startActivity(new android.content.Intent(
+                            android.content.Intent.ACTION_VIEW, request.getUrl()));
+                } catch (Exception e) {
+                    android.util.Log.w("NeonDefense", "no handler for " + request.getUrl());
+                }
+                return true;
+            }
+
+            @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 String host = request.getUrl().getHost();
                 String scheme = request.getUrl().getScheme();
                 if ("appassets.androidplatform.net".equals(host)) {
                     return assetLoader.shouldInterceptRequest(request.getUrl());
+                }
+                // Allow the in-app update check to read the version manifest
+                // from the repo. Everything else external stays blocked.
+                if ("raw.githubusercontent.com".equals(host)) {
+                    return null; // let the WebView fetch it normally
                 }
                 if ("http".equals(scheme) || "https".equals(scheme)) {
                     return new WebResourceResponse("text/plain", "utf-8",

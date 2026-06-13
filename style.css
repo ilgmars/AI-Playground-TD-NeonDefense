@@ -3244,3 +3244,78 @@ body.menu-open #build-menu {
 }
 .tree-detail strong { color: var(--accent); letter-spacing: 1px; }
 .tt-detail-status { color: var(--accent-2); font-size: 0.78rem; margin-left: 6px; }
+
+/* ---- "Get the app" link (mobile web only) + APK update banner ---- */
+/* Tiny, subtle, pinned to a corner. Revealed by main.js only in the
+   right context; .hidden keeps them out of the way everywhere else. */
+#get-app-link {
+    position: fixed;
+    right: 10px;
+    bottom: 8px;
+    z-index: 1001;            /* above the menu overlays (z 1000) */
+    padding: 4px 8px;
+    font-size: 0.62rem;
+    letter-spacing: 0.5px;
+    font-weight: 300;
+    color: var(--text-muted);
+    text-decoration: none;
+    background: rgba(10, 9, 19, 0.55);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    opacity: 0.55;
+    transition: opacity 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+#get-app-link:hover,
+#get-app-link:focus-visible {
+    opacity: 1;
+    color: var(--accent);
+    border-color: var(--accent);
+}
+#get-app-link.hidden { display: none; }
+
+#app-update-banner {
+    position: fixed;
+    left: 50%;
+    bottom: 12px;
+    transform: translateX(-50%);
+    z-index: 1001;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: calc(100vw - 24px);
+    padding: 7px 10px 7px 14px;
+    font-size: 0.72rem;
+    letter-spacing: 0.5px;
+    color: var(--text-main);
+    background: var(--panel-bg);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    box-shadow: 0 0 14px rgba(43, 255, 136, 0.18);
+    animation: overlay-in 0.24s ease;
+}
+#app-update-banner.hidden { display: none; }
+#app-update-banner #app-update-text { font-weight: 300; }
+#app-update-banner #app-update-link {
+    color: #06120b;
+    background: var(--accent);
+    text-decoration: none;
+    padding: 4px 10px;
+    border-radius: 5px;
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+}
+#app-update-banner #app-update-link:hover,
+#app-update-banner #app-update-link:focus-visible {
+    background: var(--accent-hover);
+}
+#app-update-banner #app-update-dismiss {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 0 2px;
+    cursor: pointer;
+}
+#app-update-banner #app-update-dismiss:hover { color: var(--text-main); }
