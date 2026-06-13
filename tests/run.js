@@ -100,6 +100,7 @@ const SUITES = [
     { name: 'start-level-choice',     file: 'tests/start-level-choice.test.js' },
     { name: 'app-distribution',       file: 'tests/app-distribution.test.js' },
     { name: 'apk-mp-allowlist',       file: 'tests/apk-mp-allowlist.test.js' },
+    { name: 'path-outline',           file: 'tests/path-outline.test.js' },
     { name: 'ui-quality',             file: 'tests/ui-quality.test.js' },
     { name: 'mobile-pagehide-xp',     file: 'tests/mobile-pagehide-xp.test.js' },
     { name: 'ascpreview-node',        file: 'tests/ascpreview-node.test.js' },

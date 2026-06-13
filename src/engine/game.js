@@ -879,6 +879,85 @@ class Game {
         this.ctx.setTransform(A, 0, 0, A, OX, OY);
     }
 
+    // Edge segments tracing the silhouette of the road corridor (every
+    // path/base/spawner tile edge that borders a buildable tile or the grid
+    // border). Cached and only recomputed when the map revision changes —
+    // the digger boss bumps map._rev when it carves a new route, so the
+    // outline follows the path it redraws. Returned in logical px.
+    _pathOutlineSegments() {
+        const grid = this.map && this.map.grid;
+        if (!grid || !grid.length) return [];
+        const rows = grid.length;
+        const cols = grid[0] ? grid[0].length : 0;
+        const rev = (this.map._rev || 0);
+        const key = rev + ':' + rows + 'x' + cols;
+        if (this._pathOutlineKey === key && this._pathOutlineSegs) return this._pathOutlineSegs;
+        const T = TILE_SIZE;
+        const isRoad = (r, c) => (r >= 0 && r < rows && c >= 0 && c < cols && grid[r][c] !== 0);
+        const segs = [];
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (grid[r][c] === 0) continue;          // buildable, not road
+                const x = c * T, y = r * T;
+                if (!isRoad(r - 1, c)) segs.push([x, y, x + T, y]);             // top
+                if (!isRoad(r + 1, c)) segs.push([x, y + T, x + T, y + T]);     // bottom
+                if (!isRoad(r, c - 1)) segs.push([x, y, x, y + T]);             // left
+                if (!isRoad(r, c + 1)) segs.push([x + T, y, x + T, y + T]);     // right
+            }
+        }
+        this._pathOutlineKey = key;
+        this._pathOutlineSegs = segs;
+        return segs;
+    }
+
+    // Near-death warning: the outline reads yellow normally, ramps to orange
+    // at ≤6 health and red at ≤3 so the threat registers at a glance.
+    _pathOutlineColor() {
+        const h = this.health;
+        if (h <= 3) return { core: '#ff3b3b', glow: 'rgba(255, 59, 59, 0.9)' };
+        if (h <= 6) return { core: '#ff9e2c', glow: 'rgba(255, 158, 44, 0.85)' };
+        return        { core: '#ffe23b', glow: 'rgba(255, 226, 59, 0.8)' };
+    }
+
+    // A super-thin neon tube along the road's edge: a soft glow pass plus a
+    // 1px bright core, gently pulsing. Drawn each frame (not in the cached
+    // map layer) because both the colour and the pulse change over time.
+    _drawPathOutline(ctx) {
+        if (!ctx || typeof ctx.stroke !== 'function') return;   // node-test stub
+        const segs = this._pathOutlineSegments();
+        if (!segs.length) return;
+        const reduced = (typeof window !== 'undefined' && window.matchMedia &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        // _animClock is sampled once per rendered frame by the main loop, so
+        // two draws of the same frame pulse identically (no shimmer).
+        const t = this._animClock || 0;
+        const pulse = reduced ? 0.85 : (0.72 + 0.28 * Math.sin(t / 520));
+        const col = this._pathOutlineColor();
+        ctx.save();
+        ctx.beginPath();
+        for (let i = 0; i < segs.length; i++) {
+            const s = segs[i];
+            ctx.moveTo(s[0], s[1]);
+            ctx.lineTo(s[2], s[3]);
+        }
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        // Glow halo.
+        ctx.shadowColor = col.glow;
+        ctx.shadowBlur = reduced ? 5 : 5 + 5 * pulse;
+        ctx.strokeStyle = col.glow;
+        ctx.globalAlpha = 0.5 * pulse;
+        ctx.lineWidth = 2.4;
+        ctx.stroke();
+        // Bright, super-thin core tube.
+        ctx.shadowBlur = reduced ? 3 : 3 + 3 * pulse;
+        ctx.strokeStyle = col.core;
+        ctx.globalAlpha = pulse;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+    }
+
     draw() {
         if (this.uiDirty) {
             this.updateUI();
@@ -915,6 +994,7 @@ class Game {
         }
 
         this._drawMapLayer(A, OX, OY);
+        this._drawPathOutline(this.ctx);
 
         if (this.selectedTowers && this.selectedTowers.length > 0) {
             for (let t of this.selectedTowers) {

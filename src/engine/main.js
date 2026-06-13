@@ -4268,6 +4268,12 @@ function init() {
         for (let i = 0; i < gameSpeed; i++) {
             game.update();
         }
+        // Sample the wall clock ONCE per rendered frame for time-based
+        // animation (the path-outline pulse). Reading it inside draw() would
+        // make two draws of the same frame differ (shimmer); sampling here
+        // keeps draw() deterministic and the pulse speed independent of
+        // gameSpeed.
+        game._animClock = time;
         game.draw();
 
         // Roguelike boon pick — frequency now once per ascension tier.
