@@ -530,6 +530,15 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
     20%, 23%, 56%                     { opacity: 0.45; }
     21%                               { opacity: 0.78; }
 }
+/* Slow square-wave STROBE on the "EF" of DEFENSE — a steady on/off
+   pulse, distinct from the word's irregular flicker. steps(1) makes it
+   a hard toggle (a strobe, not a fade). Held by the global
+   prefers-reduced-motion rule. */
+.neon-strobe { animation: neon-strobe 2.6s steps(1, end) infinite; }
+@keyframes neon-strobe {
+    0%, 49%   { opacity: 1; }
+    50%, 100% { opacity: 0.28; }
+}
 
 /* One consistent treatment for EVERY sub-screen title (UPGRADES,
    BACKPACK, RUN SETUP, SCOREBOARD, MULTIPLAYER, …): same size, glow,

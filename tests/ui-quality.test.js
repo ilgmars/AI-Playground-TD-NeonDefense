@@ -75,6 +75,9 @@ const fs = require('fs');
         /\.neon-logo\s*\{[^}]*font-weight:\s*300/.test(css));
     ok('logo has a flickering word', /neon-flicker/.test(html));
     ok('neon flicker keyframes defined', /@keyframes neon-flicker/.test(css));
+    ok('slow strobe on the EF letters of DEFENSE',
+        /D<span class="neon-strobe">EF<\/span>ENSE/.test(html) &&
+        /@keyframes neon-strobe/.test(css));
     ok('neon words use layered tube glow (stacked text-shadow)',
         /\.neon-green\s*\{[^}]*text-shadow:[^}]*0 0 26px/.test(css));
 
