@@ -393,21 +393,31 @@ class Tower {
                 this.cooldown = this.fireRate;
             }
 
-            // Seeker range grows the longer a rocket hovers, capped so
-            // it stays visually plausible (uncapped growth was the old
-            // "fires at an enemy half a screen away" bug).
-            //   Base silo:  fast growth to 1.5× — rockets are ammo,
-            //               they should engage promptly.
-            //   Orbital:    deploys at 1.0× and EXTENDS to 6× tower
-            //               range (≈720px ≈ 18 tiles — most of the
-            //               field) at 1.0/frame, so a rocket left
-            //               circling becomes a genuine long-range
-            //               strike that reaches DISTANT targets in
-            //               ~10 s. (Earlier 2.5× / 0.25 capped at
-            //               ~7 tiles — players reported it "not
-            //               shooting at distant targets".)
+            // Seeker range grows the longer a rocket hovers.
+            //   Base silo:  fast growth to a 1.5× cap — rockets are
+            //               ammo, they should engage promptly (and the
+            //               cap stops them firing at absurd distances).
+            //   Orbital:    deploys at 1.0× tower range, then gains
+            //               range every IDLE frame (1.0/frame) with NO
+            //               fixed multiple cap — a rocket left circling
+            //               keeps extending its reach until it can
+            //               strike an enemy. Bounded only by the field
+            //               diagonal (+ margin for off-screen air
+            //               spawns), so an idle rocket can reach ANY
+            //               enemy on the map, including sniping the
+            //               next wave's first spawn the instant it
+            //               appears. A fresh rocket resets to 1.0×, and
+            //               the rocket is consumed the frame it fires,
+            //               so range never actually runs away.
             const isOrbitalSilo = this.type === 'silo_orbital';
-            const seekerCap = this.range * (isOrbitalSilo ? 6.0 : 1.5);
+            let seekerCap;
+            if (isOrbitalSilo) {
+                const cols = (typeof window !== 'undefined' && window.COLS) || 24;
+                const rows = (typeof window !== 'undefined' && window.ROWS) || 16;
+                seekerCap = Math.hypot(cols * TILE_SIZE, rows * TILE_SIZE) + 8 * TILE_SIZE;
+            } else {
+                seekerCap = this.range * 1.5;
+            }
             const seekerGrowth = isOrbitalSilo ? 1.0 : 0.5;
             for (let i = this.hoverRockets.length - 1; i >= 0; i--) {
                 let r = this.hoverRockets[i];

@@ -1,13 +1,13 @@
-// Regression: the Orbital Strike (silo_orbital) is a LONG-RANGE
-// weapon — its hover rockets must actually FIRE at distant targets,
-// not just grow a number. Drives the real Tower.update loop:
+// Regression: the Orbital Strike (silo_orbital) is a LONG-RANGE weapon
+// whose idle rockets gain range INDEFINITELY until they can strike.
+// Drives the real Tower.update loop:
 //
 //   * a target up close fires (almost) immediately,
-//   * a target ~10 tiles out (400px, beyond base range) gets hit once
-//     the seeker has charged,
-//   * a target ~18 tiles out (≈720px = 6× range) is still reachable,
-//   * a target past the cap (800px) is never hit (bounded — not the
-//     old "fires half a screen away at random" bug),
+//   * an idle rocket keeps gaining range frame after frame (no plateau
+//     at a fixed multiple) until it reaches an enemy,
+//   * targets anywhere on the field (incl. 25 tiles out) are reachable
+//     given enough idle time; only something beyond the field bound
+//     never is (sane upper limit, no runaway numbers),
 //   * orbital deploys at FULL tower range (never worse than base silo
 //     up close).
 const fs = require('fs');
@@ -69,33 +69,46 @@ function fireFrame(distPx, frames = 8000) {
         `start=${t.hoverRockets[0].range} base=${baseRange}`);
 }
 
-// Distances are chosen relative to the GUARANTEED-reachable band, not
-// the raw cap: rockets orbit up to ~48px around the tower, so a target
-// is firing-guaranteed only when (distance + 48) ≤ cap (720). 600px
-// sits comfortably inside that (648 < 720) and engages regardless of
-// orbit phase; 820px is unreachable even at the rocket's closest
-// approach (820-48=772 > 720). 700px was right on the boundary and
-// orbit-phase-dependent — that's what flaked.
+// The orbital seeker now grows INDEFINITELY while idle, bounded only
+// by the field diagonal + 8-tile margin (≈1474px ≈ 37 tiles). Targets
+// anywhere on the map are reachable; only something beyond the field
+// bound never is. Distances account for the rocket's ±48px orbit:
+// guaranteed-reachable when (distance + 48) ≤ bound.
+const FIELD_BOUND = Math.hypot(24 * 40, 16 * 40) + 8 * 40;   // ≈1474px
 const fClose = fireFrame(100);
 const fMid   = fireFrame(400);
-const fFar   = fireFrame(600);
-const fPast  = fireFrame(820);
+const fFar   = fireFrame(1000);                    // 25 tiles — far, still on-field
+const fPast  = fireFrame(FIELD_BOUND + 200, 200000); // beyond the field bound
 
 ok('close target (2.5 tiles) fires promptly', fClose >= 0 && fClose < 120,
     `frame=${fClose}`);
 ok('mid target (10 tiles, beyond base range) IS hit once charged',
     fMid > 0, `frame=${fMid}`);
-ok('far target (15 tiles) is reachable — long-range weapon',
+ok('far target (25 tiles, across the field) is reachable while idle',
     fFar > 0, `frame=${fFar}`);
 ok('charge-up is gradual: farther targets take longer to engage',
     fClose < fMid && fMid < fFar,
     JSON.stringify({ fClose, fMid, fFar }));
-ok('target past the 6× cap (>18 tiles) is NEVER hit (bounded reach)',
+ok('a target BEYOND the field bound is never reached (sane upper bound)',
     fPast === -1, `frame=${fPast}`);
-// Sanity: the 15-tile engagement is guaranteed within ~12 s (range
-// grows 1.0/frame; 648px reach = 528 frames ≈ 8.8 s, with margin).
-ok('far engagement happens within ~12 s (not the old multi-minute creep)',
-    fFar > 0 && fFar < 12 * 60, `frame=${fFar} (${(fFar / 60).toFixed(1)}s)`);
+
+// The core request: a rocket idling with NOTHING in reach keeps
+// gaining range frame after frame (it doesn't plateau at some fixed
+// multiple) until it can finally strike. Verify the deployed rocket's
+// range strictly increases over a long idle and clears the old 720
+// ceiling.
+{
+    const t = new Tower(5, 5, 'silo_orbital');
+    t.update([], [], []);                      // deploy one rocket, no enemies
+    const r0 = t.hoverRockets[0].range;
+    for (let f = 0; f < 600; f++) t.update([], [], []);
+    const r1 = t.hoverRockets[0].range;
+    for (let f = 0; f < 600; f++) t.update([], [], []);
+    const r2 = t.hoverRockets[0].range;
+    ok('idle rocket keeps gaining range (no plateau at a fixed multiple)',
+        r1 > r0 && r2 > r1 && r2 > 720,
+        JSON.stringify({ r0: Math.round(r0), r1: Math.round(r1), r2: Math.round(r2) }));
+}
 
 console.log(`\nORBITAL RANGE: ${pass} pass, ${fail} fail`);
 process.exit(fail === 0 ? 0 : 1);
