@@ -378,6 +378,11 @@ function navigateToRunSetup() {
     hideScreen('game-over');
     hideScreen('tech-tree');
     showScreen('start-screen');
+    // Skip-setup now collapses the loadout dropdowns (HERO/KIT/ABILITY/
+    // VARIANTS) into a quick-launch screen — the ASCENSION level choice
+    // and INITIALIZE always remain visible.
+    const ss = document.getElementById('start-screen');
+    if (ss) ss.classList.toggle('skip-loadout', !!(save.settings && save.settings.skipRunSetup));
     renderAscensionSelector('start');
     renderLoadoutDropdowns();
 }
@@ -1768,12 +1773,12 @@ function init() {
 
     // M2: Main Menu wiring — landing screen.
     document.getElementById('menu-start-btn').addEventListener('click', () => {
-        if (save.settings.skipRunSetup && save.lastLoadout) {
-            // Skip Run Setup: restart with last loadout immediately.
-            restartGame(null);
-        } else {
-            navigateToRunSetup();
-        }
+        // Always show the launch screen so the ASCENSION (level) choice
+        // is offered every time — "skip setup" used to launch instantly
+        // and removed that choice, which players missed. Skip-setup now
+        // just collapses the loadout dropdowns (handled in
+        // navigateToRunSetup); the level picker + INITIALIZE stay.
+        navigateToRunSetup();
     });
     document.getElementById('menu-tree-btn').addEventListener('click', () => {
         // UPGRADES opens on the MASTERY tab by default (user request —

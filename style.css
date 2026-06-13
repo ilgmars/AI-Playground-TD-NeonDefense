@@ -550,10 +550,20 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
    distinct.) Only the two semantic end-states recolour, below. */
 .overlay h2 {
     font-size: 3rem;
-    color: var(--accent-2);
-    text-shadow: 0 0 18px rgba(255, 92, 240, 0.5);
+    color: #ffeafc;
+    /* Same neon-TUBE lettering as the main-menu logo: thin weight, a
+       slim glass stroke and stacked magenta glows — so every screen
+       title reads as part of one neon-sign system, not bold flat type. */
+    font-weight: 300;
+    -webkit-text-stroke: 0.6px rgba(255, 205, 245, 0.5);
+    text-shadow:
+        0 0 1px #ffffff,
+        0 0 6px #ffe0fa,
+        0 0 14px var(--accent-2),
+        0 0 30px var(--accent-2),
+        0 0 56px rgba(255, 92, 240, 0.5);
     margin-bottom: 20px;
-    letter-spacing: 3px;
+    letter-spacing: 4px;
     text-transform: uppercase;
     text-wrap: balance;
 }
@@ -1974,12 +1984,12 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     box-shadow: 0 0 16px rgba(43, 255, 136, 0.45);
 }
 .menu-buttons button.menu-primary {
-    border-color: #a3e635;
-    color: #a3e635;
+    border-color: var(--accent);
+    color: var(--accent);
 }
 .menu-buttons button.menu-primary:hover {
-    background: #a3e635;
-    box-shadow: 0 0 16px rgba(163, 230, 53, 0.45);
+    background: var(--accent);
+    box-shadow: 0 0 16px rgba(43, 255, 136, 0.45);
 }
 .menu-buttons button.small {
     font-size: 0.8rem;
@@ -3135,17 +3145,22 @@ body.menu-open #build-menu {
    more outline in a stack of eight. The rest stay outlined (secondary)
    and RESET SAVE stays the de-emphasised .small .danger control, so
    the menu has a clear visual hierarchy instead of a monotonous list. */
+/* Primary CTA fills with the SAME neon green as the logo (--accent),
+   so the button green and the logo green are one colour (was lime
+   #a3e635, which read as a different green). */
 .menu-buttons button.menu-primary {
-    background: #a3e635;
-    color: #0f172a;
-    box-shadow: 0 0 18px rgba(163, 230, 53, 0.35);
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #06120b;
+    box-shadow: 0 0 18px rgba(43, 255, 136, 0.4);
 }
 .menu-buttons button.menu-primary:hover {
-    background: #bef264;
-    color: #0f172a;
-    box-shadow: 0 0 24px rgba(163, 230, 53, 0.55);
+    background: #62ffaa;
+    border-color: #62ffaa;
+    color: #06120b;
+    box-shadow: 0 0 26px rgba(43, 255, 136, 0.6);
 }
-.menu-buttons button.menu-primary .menu-balance { color: #0f172a; opacity: 0.7; }
+.menu-buttons button.menu-primary .menu-balance { color: #06120b; opacity: 0.75; }
 
 /* ── Tech tree: SVG skill graph ────────────────────────────────────
    Wired nodes (CORE → gated tiers) drawn as an SVG <svg id=tech-tree-svg>.
@@ -3239,3 +3254,12 @@ body.menu-open #build-menu {
 }
 .tree-detail strong { color: var(--accent); letter-spacing: 1px; }
 .tt-detail-status { color: var(--accent-2); font-size: 0.78rem; margin-left: 6px; }
+
+/* Skip-setup quick-launch: collapse the loadout dropdowns (the rows
+   that hold a <select>) and the tower-variant grid, but KEEP the
+   ascension level picker, seed, and INITIALIZE. So START always offers
+   the level choice; skip-setup just trims the loadout step. */
+#start-screen.skip-loadout .loadout-row:has(.loadout-select),
+#start-screen.skip-loadout #tower-loadout-row {
+    display: none;
+}

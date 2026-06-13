@@ -139,6 +139,34 @@ const fs = require('fs');
         !!ring && ring.style !== 'none' && parseFloat(ring.width) >= 2,
         JSON.stringify(ring));
 
+    // ── Lettering + green consistency with the logo ──────────────────
+    const consistency = await page.evaluate(() => {
+        const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+        // Resolve --accent to an rgb() string via a probe element.
+        const probe = document.createElement('span');
+        probe.style.color = accent; document.body.appendChild(probe);
+        const accentRGB = getComputedStyle(probe).color;
+        probe.remove();
+        // START RUN primary CTA fill.
+        const cta = document.getElementById('menu-start-btn');
+        const ctaBg = getComputedStyle(cta).backgroundColor;
+        // A sub-screen title weight vs the logo weight.
+        const ss = document.getElementById('start-screen');
+        ss.classList.remove('hidden');
+        const titleWeight = getComputedStyle(ss.querySelector('h2')).fontWeight;
+        ss.classList.add('hidden');
+        const logoWeight = getComputedStyle(document.querySelector('.neon-logo')).fontWeight;
+        return { accentRGB, ctaBg, titleWeight, logoWeight };
+    });
+    ok('primary CTA fill is the SAME green as the logo accent',
+        consistency.ctaBg === consistency.accentRGB,
+        JSON.stringify(consistency));
+    ok('CTA css carries no leftover lime (#a3e635)',
+        !/menu-buttons button\.menu-primary\s*\{[^}]*#a3e635/.test(css));
+    ok('sub-screen titles use the logo’s thin lettering weight',
+        consistency.titleWeight === consistency.logoWeight && consistency.titleWeight === '300',
+        JSON.stringify(consistency));
+
     // ── HUD chrome hides behind full-screen menus, shows in-run ──────
     // (we're on the main menu now after the focus checks navigated home)
     const onMenu = await page.evaluate(() => {

@@ -63,14 +63,17 @@ const path = require('path');
     {
         const { page, ctx } = await fresh();
         const flag = await page.evaluate(async () => {
-            // Bootstrap a real game without going through the run-setup
-            // screen by flipping the skipRunSetup pref + lastLoadout.
+            // Bootstrap a real game: START RUN → INITIALIZE. skipRunSetup
+            // collapses the loadout step but the launch screen + level
+            // picker still show, so we click INITIALIZE to launch.
             save.settings = save.settings || {};
             save.settings.skipRunSetup = true;
             save.lastLoadout = { heroId: null, kitId: null, abilityId: null, towerLoadout: null };
             NeonSave.write(save);
             document.getElementById('menu-start-btn').click();
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise(r => setTimeout(r, 120));
+            document.getElementById('start-btn').click();   // INITIALIZE → launch
+            await new Promise(r => setTimeout(r, 240));
             // Synthesise an enemy that has already reached the end and
             // tick once. Provide the minimal shape Game.update reads.
             const startHP = game.health;
@@ -100,7 +103,9 @@ const path = require('path');
             save.lastLoadout = { heroId: null, kitId: null, abilityId: null, towerLoadout: null };
             NeonSave.write(save);
             document.getElementById('menu-start-btn').click();
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise(r => setTimeout(r, 120));
+            document.getElementById('start-btn').click();   // INITIALIZE → launch
+            await new Promise(r => setTimeout(r, 240));
 
             // Force wave ≥ 30 + SYS button into retire mode.
             game.wave = 31;
