@@ -360,6 +360,7 @@ function navigateToMainMenu() {
     hideScreen('tower-mastery');
     hideScreen('backpack');
     hideScreen('save-code-modal');
+    hideScreen('options-menu');
     hideScreen('mp-lobby');
     hideScreen('mp-waitroom');
     hideScreen('mp-race-overlay');   // double-belt+suspenders
@@ -2073,23 +2074,51 @@ function init() {
     // Test hook: drives the same flow without a real prompt().
     window.__neonResetSavePhrase = 'delete all progress';
 
-    // Field orientation toggle — WIDE (landscape, default) ⇄ TALL
-    // (portrait, enemies from above). Stored per device, applied at
-    // the start of the NEXT run (see restartGame; MP always WIDE).
-    const fieldBtn = document.getElementById('menu-field-btn');
-    function renderFieldBtn() {
-        if (!fieldBtn) return;
-        const tall = localStorage.getItem('neonFieldTall') === '1';
-        fieldBtn.textContent = tall ? 'FIELD: TALL ▾' : 'FIELD: WIDE ▸';
+    // OPTIONS menu — device + gameplay toggles, both persisted per device.
+    //   • Field: TALL  → portrait board (WIDE default), applied at the start
+    //     of the NEXT run (see restartGame; MP always WIDE).
+    //   • Vertical rotation → APK-only. The browser already turns with the
+    //     device; the WebView is manifest-locked to landscape, so this calls
+    //     the native bridge (NeonAndroid.setAllowPortrait) to unlock portrait.
+    //     Hidden on the web, where there's nothing to toggle.
+    const inApk = location.hostname === 'appassets.androidplatform.net';
+    function applyApkOrientation() {
+        const allow = localStorage.getItem('neonAllowPortrait') === '1';
+        try {
+            if (window.NeonAndroid && window.NeonAndroid.setAllowPortrait) {
+                window.NeonAndroid.setAllowPortrait(allow);
+            }
+        } catch (_) {}
     }
-    if (fieldBtn) {
-        fieldBtn.addEventListener('click', () => {
-            const tall = localStorage.getItem('neonFieldTall') === '1';
-            try { localStorage.setItem('neonFieldTall', tall ? '0' : '1'); } catch (_) {}
-            renderFieldBtn();
+
+    const fieldChk  = document.getElementById('opt-field-tall');
+    if (fieldChk) {
+        fieldChk.checked = localStorage.getItem('neonFieldTall') === '1';
+        fieldChk.addEventListener('change', () => {
+            try { localStorage.setItem('neonFieldTall', fieldChk.checked ? '1' : '0'); } catch (_) {}
         });
-        renderFieldBtn();
     }
+
+    const rotateRow = document.getElementById('opt-rotate-row');
+    const rotateChk = document.getElementById('opt-allow-portrait');
+    if (rotateRow && !inApk) rotateRow.classList.add('hidden');
+    if (rotateChk) {
+        rotateChk.checked = localStorage.getItem('neonAllowPortrait') === '1';
+        rotateChk.addEventListener('change', () => {
+            try { localStorage.setItem('neonAllowPortrait', rotateChk.checked ? '1' : '0'); } catch (_) {}
+            applyApkOrientation();
+        });
+    }
+    if (inApk) applyApkOrientation();   // restore saved orientation at boot
+
+    const optionsBtn = document.getElementById('menu-options-btn');
+    if (optionsBtn) optionsBtn.addEventListener('click', () => {
+        _enterSubScreen();
+        hideScreen('main-menu');
+        showScreen('options-menu');
+    });
+    const optionsBackBtn = document.getElementById('options-back-btn');
+    if (optionsBackBtn) optionsBackBtn.addEventListener('click', uiGoBack);
 
     // Save / Load code modal — portable string backup of the whole save.
     const scStatus = () => document.getElementById('save-code-status');

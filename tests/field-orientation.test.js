@@ -86,18 +86,19 @@ const path = require('path');
     ok('enemies move DOWNWARD on a tall board', tall.moved > 20, tall.moved);
     ok('canvas is portrait for a tall board', tall.canvasPortrait === true);
 
-    // ── 3) Menu toggle + persistence ───────────────────────────────────
+    // ── 3) OPTIONS toggle + persistence ────────────────────────────────
     await page.evaluate(() => navigateToMainMenu());
     await page.waitForTimeout(200);
-    const label1 = await page.evaluate(() => document.getElementById('menu-field-btn').textContent);
-    await page.click('#menu-field-btn');
-    const label2 = await page.evaluate(() => ({
-        label: document.getElementById('menu-field-btn').textContent,
+    await page.click('#menu-options-btn');
+    const checked1 = await page.evaluate(() => document.getElementById('opt-field-tall').checked);
+    await page.click('#opt-field-tall');
+    const after = await page.evaluate(() => ({
+        checked: document.getElementById('opt-field-tall').checked,
         stored: localStorage.getItem('neonFieldTall'),
     }));
-    ok('field button shows TALL while option is on', /TALL/.test(label1), label1);
-    ok('clicking toggles back to WIDE and persists', /WIDE/.test(label2.label) && label2.stored === '0',
-        JSON.stringify(label2));
+    ok('field toggle is checked while option is on', checked1 === true, String(checked1));
+    ok('unchecking toggles back to WIDE and persists', after.checked === false && after.stored === '0',
+        JSON.stringify(after));
 
     // ── 4) Multiplayer forces WIDE ─────────────────────────────────────
     const mp = await page.evaluate(() => {
@@ -123,7 +124,9 @@ const path = require('path');
     });
     await page.reload({ waitUntil: 'domcontentloaded' });   // clean WIDE boot
     await page.waitForTimeout(700);
-    await page.click('#menu-field-btn');                    // toggle to TALL
+    await page.click('#menu-options-btn');                  // open OPTIONS
+    await page.click('#opt-field-tall');                    // toggle to TALL
+    await page.evaluate(() => navigateToMainMenu());        // back to the menu
     await page.click('#menu-start-btn'); await page.waitForTimeout(250);
     await page.click('#start-btn');     await page.waitForTimeout(800);
     const toggled = await page.evaluate(() => ({
@@ -138,6 +141,27 @@ const path = require('path');
         JSON.stringify(toggled));
     ok('toggle-then-START throws no JS errors', errs.length === errsBefore,
         errs.slice(errsBefore).join(' / '));
+
+    // ── 6) APK "Vertical rotation" toggle drives the native bridge ─────
+    // On the web the row is hidden (browser rotates on its own); we
+    // force-show it and stub the bridge the APK injects to prove the
+    // toggle calls NeonAndroid.setAllowPortrait both ways and persists.
+    const rot = await page.evaluate(() => {
+        const calls = [];
+        window.NeonAndroid = { setAllowPortrait: (v) => calls.push(v) };
+        const chk = document.getElementById('opt-allow-portrait');
+        chk.checked = true;  chk.dispatchEvent(new Event('change'));
+        const on = localStorage.getItem('neonAllowPortrait');
+        chk.checked = false; chk.dispatchEvent(new Event('change'));
+        return { calls, on, off: localStorage.getItem('neonAllowPortrait') };
+    });
+    ok('vertical-rotation toggle calls the native bridge both ways',
+        rot.calls.length === 2 && rot.calls[0] === true && rot.calls[1] === false,
+        JSON.stringify(rot.calls));
+    ok('vertical-rotation toggle persists', rot.on === '1' && rot.off === '0', JSON.stringify(rot));
+    ok('vertical-rotation row is hidden on the web',
+        await page.evaluate(() => document.getElementById('opt-rotate-row').classList.contains('hidden')),
+        'expected hidden on web');
 
     ok('no JS errors', errs.length === 0, errs.join(' / '));
 

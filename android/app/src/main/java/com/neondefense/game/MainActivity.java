@@ -1,6 +1,7 @@
 package com.neondefense.game;
 
 import android.annotation.SuppressLint;
+import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Build;
@@ -66,6 +67,23 @@ public class MainActivity extends AppCompatActivity {
 
         webView = new WebView(this);
         setContentView(webView);
+
+        // Bridge for the OPTIONS "Vertical rotation" toggle. The manifest
+        // locks the activity to sensorLandscape; the game calls this at boot
+        // and on toggle to unlock/relock portrait so the app turns with the
+        // device, matching how the web build already behaves.
+        webView.addJavascriptInterface(new Object() {
+            @android.webkit.JavascriptInterface
+            public void setAllowPortrait(final boolean allow) {
+                runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        setRequestedOrientation(allow
+                                ? ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+                                : ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+                    }
+                });
+            }
+        }, "NeonAndroid");
 
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);

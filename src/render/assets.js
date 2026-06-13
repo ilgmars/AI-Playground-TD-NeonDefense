@@ -131,9 +131,11 @@ function drawPathTile(ctx, x, y, size) {
     ctx.fillStyle = '#1e293b'; // slightly lighter path
     ctx.fillRect(x, y, size, size);
     
-    // Path inner glowing border
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.1)';
-    ctx.lineWidth = 1;
+    // Path inner glowing border — per-tile randomized intensity (stable per coord, so no shimmer on redraw)
+    const n = Math.sin((x * 12.9898 + y * 78.233)) * 43758.5453;
+    const a = 0.03 + (n - Math.floor(n)) * 0.14; // ~0.03–0.17
+    ctx.strokeStyle = `rgba(148, 163, 184, ${a.toFixed(3)})`;
+    ctx.lineWidth = 0.5;
     ctx.strokeRect(x+2, y+2, size-4, size-4);
 }
 

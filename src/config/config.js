@@ -144,6 +144,21 @@ const TOWERS = {
                 displayName: 'Relay',     defaultTargetMode: 'closest',
                 incomePerWave: 20 },
 
+    // Tech-tree-unlocked extra towers (Arsenal branch). Both compose
+    // EXISTING behaviour flags so they need no entities.js dispatch case:
+    //   mortar    → fires via the default projectile branch + splash explode
+    //               (long range, big AoE, slow cadence — siege artillery).
+    //   disruptor → default branch projectile that applies the source tower's
+    //               slowEffect/slowDuration on hit (entities.js Projectile),
+    //               with a small splash — a low-damage area-slow support tower.
+    // Build buttons are hidden until the granting node is owned (main.js).
+    mortar:    { cost: 350, range: 280, damage: 90,  fireRate: 130,
+                 displayName: 'Mortar',    defaultTargetMode: 'mostHp',
+                 splash: 70 },
+    disruptor: { cost: 250, range: 160, damage: 6,   fireRate: 45,
+                 displayName: 'Disruptor', defaultTargetMode: 'first',
+                 splash: 45, slowEffect: 0.45, slowDuration: 90 },
+
     // M3: Variants — unlocked by per-tower mastery m1 (1000 XP damage dealt).
     // Selected per-type in Run Setup; Game.getEffectiveTowerType resolves
     // base → variant at build time.
@@ -357,6 +372,16 @@ const TOWER_UPGRADES = {
         { name: 'Efficiency', desc: '+10¢ per wave',       baseCost: 150, costMult: 1.6, apply: (t) => { t.incomePerWave += 10; } },
         { name: 'Overcharge', desc: '+15¢ per wave',       baseCost: 250, costMult: 1.8, apply: (t) => { t.incomePerWave += 15; } },
         { name: 'Network',    desc: '+5¢ per other Relay', baseCost: 200, costMult: 1.5, apply: (t) => { t.networkBonus = (t.networkBonus || 0) + 1; } }
+    ],
+    mortar: [
+        { name: 'Warhead',  desc: 'More damage & blast radius', baseCost: 250, costMult: 1.6, apply: (t) => { t.damage += 40; t.splash = (t.splash || 70) + 15; } },
+        { name: 'Spotter',  desc: 'Increases range',            baseCost: 150, costMult: 1.4, apply: (t) => { t.range += 40; } },
+        { name: 'Autoload', desc: 'Fires faster',               baseCost: 300, costMult: 1.7, apply: (t) => { t.fireRate = Math.max(40, Math.floor(t.fireRate * 0.8)); } }
+    ],
+    disruptor: [
+        { name: 'Field',     desc: 'Stronger slow effect',  baseCost: 200, costMult: 1.6, apply: (t) => { t.slowEffect = Math.min(0.85, (t.slowEffect || 0.45) + 0.15); } },
+        { name: 'Radius',    desc: 'Larger slow field',      baseCost: 150, costMult: 1.5, apply: (t) => { t.splash += 20; } },
+        { name: 'Capacitor', desc: 'Fires faster',           baseCost: 200, costMult: 1.6, apply: (t) => { t.fireRate = Math.max(15, Math.floor(t.fireRate * 0.8)); } }
     ]
 };
 
@@ -422,12 +447,55 @@ const QOL_NODES = {
 };
 
 // -------------------------------------------------------------------------
-// Tech Tree (M2). 3 tiers x 5 nodes. Costs: T1=50, T2=200, T3=500 XP.
-// Tier gating: need >= 2 owned nodes in prior tier to open next tier.
-// Pre-unlocks: hero.pioneer + kit.standard (see save.js).
-// Auto-unlocks: clearing A1/A3/A5/A7 grants specific nodes for free
-// (see tree.js autoUnlockOnAscension).
+// Tech Tree v2 — a branched passive/unlock graph (replaces the old 3×5
+// tier list). Nodes live in a flat `id -> def` map and connect via prereq
+// edges (`requires`). Logic (eligibility, escalating cost, respec, effect
+// summing) lives in src/progression/tree.js; rendering in main.js computes
+// layout from `branch` + prereq depth (no hand-authored coordinates).
+//
+// Node def:
+//   branch    one of TREE_BRANCHES (cluster the node belongs to)
+//   name/desc UI strings
+//   kind      glyph hint (TREE_KIND_GLYPH in main.js)
+//   baseCost  per-node base XP — the *variable* cost. Effective cost adds a
+//             global escalator: baseCost * TREE_COST_GROWTH^(owned nodes).
+//   requires  prereq node ids ([] = root, wired to CORE; always reachable)
+//   effect    optional passive stat deltas, SAME keys the backpack uses
+//             (damage/fireRate/payout/kill/interest/startMoney/maxHP/regen/
+//             towerCost/upgradeCost). Negative = a keystone downside.
+//             Summed by NeonTree.computeStats → Game.applyMetaPassives.
+//   grants    optional unlock id pushed into unlockedNodes on purchase, read
+//             by EXISTING consumers (ability.*/hero.*/kit.*/qol.* unchanged;
+//             variant.all + tower.* are new gates in game.js/main.js).
+//   keystone  build-defining capstone (bigger effect, deep, expensive).
+//
+// Escalating cost + shared CORE + prereq depth make a full clear
+// astronomically priced, so players SPECIALISE into a build. Pre-unlocks
+// (hero.pioneer/kit.standard) and ascension auto-grants are RESPEC_PROTECTED
+// (kept on respec, never refunded, never counted toward escalation).
 // -------------------------------------------------------------------------
+const TREE_BRANCHES = {
+    offense:   { name: 'OFFENSE',   color: '#f87171' },
+    economy:   { name: 'ECONOMY',   color: '#fbbf24' },
+    fortify:   { name: 'FORTIFY',   color: '#4ade80' },
+    arsenal:   { name: 'ARSENAL',   color: '#a78bfa' },
+    intel:     { name: 'INTEL',     color: '#38bdf8' },
+    ascendant: { name: 'ASCENDANT', color: '#f472b6' }
+};
+
+// Global escalator: every allocatable node owned makes the NEXT one pricier.
+const TREE_COST_GROWTH = 1.05;
+
+// Respec refunds this fraction of total XP spent into the tree.
+const TREE_RESPEC_REFUND = 0.30;
+
+// Never cleared/refunded by respec, never counted toward escalation:
+// the two pre-unlocks plus the four ascension auto-grant ids.
+const RESPEC_PROTECTED = [
+    'hero.pioneer', 'kit.standard',
+    'kit.economist', 'qol.hpbars', 'qol.dailyseed', 'qol.skipsetup'
+];
+
 const TECH_TREE = {
     tier1: {
         cost: 50,
