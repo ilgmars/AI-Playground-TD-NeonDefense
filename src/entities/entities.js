@@ -383,10 +383,10 @@ class Tower {
                 // Orbital rockets hover further out and orbit more slowly
                 const isOrbital = this.type === 'silo_orbital';
                 this.hoverRockets.push({
-                    // Orbital rockets DEPLOY short-sighted (0.6×) and
-                    // grow into a long-range weapon the longer they
-                    // circle — see the seeker growth below.
-                    range: isOrbital ? this.range * 0.6 : this.range,
+                    // Orbital rockets deploy at full tower range (never
+                    // worse than base silo up close) and EXTEND their
+                    // reach the longer they circle — see growth below.
+                    range: this.range,
                     angle: Math.random() * Math.PI * 2,
                     dist: isOrbital ? (Math.random() * 20 + 28) : (Math.random() * 10 + 15)
                 });
@@ -398,15 +398,17 @@ class Tower {
             // "fires at an enemy half a screen away" bug).
             //   Base silo:  fast growth to 1.5× — rockets are ammo,
             //               they should engage promptly.
-            //   Orbital:    deploys SHORT (0.6×, see the push above)
-            //               and grows into a LONG-range weapon — 2.5×
-            //               tower range after ~15 s of circling. The
-            //               first cut used 0.06/frame, which took
-            //               minutes to matter: players watched rockets
-            //               "circling, not shooting at anything".
+            //   Orbital:    deploys at 1.0× and EXTENDS to 6× tower
+            //               range (≈720px ≈ 18 tiles — most of the
+            //               field) at 1.0/frame, so a rocket left
+            //               circling becomes a genuine long-range
+            //               strike that reaches DISTANT targets in
+            //               ~10 s. (Earlier 2.5× / 0.25 capped at
+            //               ~7 tiles — players reported it "not
+            //               shooting at distant targets".)
             const isOrbitalSilo = this.type === 'silo_orbital';
-            const seekerCap = this.range * (isOrbitalSilo ? 2.5 : 1.5);
-            const seekerGrowth = isOrbitalSilo ? 0.25 : 0.5;
+            const seekerCap = this.range * (isOrbitalSilo ? 6.0 : 1.5);
+            const seekerGrowth = isOrbitalSilo ? 1.0 : 0.5;
             for (let i = this.hoverRockets.length - 1; i >= 0; i--) {
                 let r = this.hoverRockets[i];
                 r.angle += isOrbitalSilo ? 0.007 : 0.02;

@@ -87,6 +87,7 @@ const SUITES = [
     { name: 'variant-mastery', file: 'tests/variant-mastery.test.js' },
     { name: 'mastery-perk-allowlist', file: 'tests/mastery-perk-allowlist.test.js' },
     { name: 'silo-seeker-cap',        file: 'tests/silo-seeker-cap.test.js' },
+    { name: 'orbital-range',          file: 'tests/orbital-range.test.js' },
     { name: 'reset-save-confirm',     file: 'tests/reset-save-confirm.test.js' },
     { name: 'field-orientation',      file: 'tests/field-orientation.test.js' },
     { name: 'cutter-enemy',           file: 'tests/cutter-enemy.test.js' },
@@ -101,6 +102,8 @@ const SUITES = [
     { name: 'hold-spend',      file: 'tests/hold-spend.test.js' },
     { name: 'boons',           file: 'tests/boons.test.js' },
     { name: 'extra',           file: 'tests/extra.test.js' },
+    // Meta: fails if any tests/*.test.js isn't registered above.
+    { name: 'suite-coverage',  file: 'tests/suite-coverage.test.js' },
 ];
 
 const SMOKE_SUITES = [

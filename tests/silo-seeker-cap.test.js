@@ -20,12 +20,13 @@ function ok(name, c, extra) {
 
 // Mirror src/entities/entities.js: base silo grows 0.5/frame to a
 // 1.5× cap (rockets are ammo — engage promptly); orbital DEPLOYS at
-// 0.6× and grows 0.25/frame into a LONG-range weapon (2.5× cap,
-// ~15 s of hover). The first orbital cut (0.06/frame, 2.0× cap) took
-// minutes to matter — players watched rockets circling, never firing.
+// 1.0× (full tower range) and EXTENDS 1.0/frame to a 6× cap (≈18
+// tiles, most of the field) — a genuine long-range weapon that
+// reaches distant targets in ~10 s. (2.5× capped at ~7 tiles; players
+// reported it "not shooting at distant targets".)
 function tick(rocket, towerRange, frames, isOrbital = false) {
-    const seekerCap = towerRange * (isOrbital ? 2.5 : 1.5);
-    const growth = isOrbital ? 0.25 : 0.5;
+    const seekerCap = towerRange * (isOrbital ? 6.0 : 1.5);
+    const growth = isOrbital ? 1.0 : 0.5;
     for (let i = 0; i < frames; i++) {
         if (rocket.range < seekerCap) rocket.range += growth;
     }
@@ -38,18 +39,21 @@ tick(r1, 110, 10000);
 ok('silo seeker capped at 1.5x range', r1.range <= 110 * 1.5 + 0.0001, `range=${r1.range}`);
 ok('silo seeker reaches cap',          Math.abs(r1.range - 165) < 1, `range=${r1.range}`);
 
-// Orbital (range 120): deploys at 0.6× = 72, grows 0.25/frame to a
-// 2.5× cap = 300 — a long-range weapon you charge by waiting.
-const r2 = { range: 120 * 0.6 };
+// Orbital (range 120): deploys at 1.0× = 120, grows 1.0/frame to a
+// 6× cap = 720 (≈18 tiles) — a long-range weapon you charge by
+// waiting. Distant targets across the field become reachable.
+const r2 = { range: 120 };
 tick(r2, 120, 100000, true);
-ok('orbital seeker capped at 2.5x range', r2.range <= 120 * 2.5 + 0.2501, `range=${r2.range}`);
-ok('orbital seeker reaches cap eventually', r2.range >= 300, `range=${r2.range}`);
-// Growth pacing: ~5 s of hover (300 frames) puts it past base tower
-// range (147 > 120); cap lands around 15 s — hover time IS the weapon.
-const r2b = { range: 120 * 0.6 };
-tick(r2b, 120, 300, true);
-ok('5 s hover already beats base range (72 → 147)',
-    Math.abs(r2b.range - 147) < 1 && r2b.range > 120, `range=${r2b.range}`);
+ok('orbital seeker capped at 6x range', r2.range <= 120 * 6.0 + 1.0001, `range=${r2.range}`);
+ok('orbital seeker reaches the long-range cap (720)', r2.range >= 720, `range=${r2.range}`);
+// Never worse than base silo: it deploys AT tower range.
+const r2start = { range: 120 };
+ok('orbital deploys at full tower range (not short-sighted)', r2start.range === 120);
+// ~10 s of hover (600 frames) reaches the far field (~720px).
+const r2b = { range: 120 };
+tick(r2b, 120, 600, true);
+ok('10 s hover reaches across the field (120 → 720)',
+    r2b.range >= 700 && r2b.range > 120, `range=${r2b.range}`);
 
 // Below-cap rocket still grows by 0.5 per frame.
 const r3 = { range: 50 };
