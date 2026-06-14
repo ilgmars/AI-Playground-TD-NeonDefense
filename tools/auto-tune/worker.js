@@ -46,6 +46,18 @@ async function runGame(params, workerId, ascensionTier = 0) {
         await page.click('#menu-start-btn');
         await page.waitForTimeout(800);
 
+        // The autopilot now only builds tower types the player has unlocked.
+        // The tuning harness must field the full arsenal, so unlock every
+        // tree-gated tower before the run starts.
+        await page.evaluate(() => {
+            save.unlockedNodes = save.unlockedNodes || [];
+            for (const t of TREE_GATED_TOWERS) {
+                const id = 'tower.' + t;
+                if (!save.unlockedNodes.includes(id)) save.unlockedNodes.push(id);
+            }
+            NeonSave.write(save);
+        });
+
         // Test-only tier override. This bypasses progression locks inside the
         // harness without changing the production selector rules.
         if (ascensionTier > 0) {

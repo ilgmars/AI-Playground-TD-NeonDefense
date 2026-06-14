@@ -95,6 +95,7 @@ const SUITES = [
     { name: 'options-gfx-flip',       file: 'tests/options-graphics-flip.test.js' },
     { name: 'menu-layout-audit',      file: 'tests/menu-layout-audit.test.js' },
     { name: 'mastery-unlocked-towers',file: 'tests/mastery-unlocked-towers.test.js' },
+    { name: 'autopilot-gating',       file: 'tests/autopilot-gating.test.js' },
     { name: 'cutter-enemy',           file: 'tests/cutter-enemy.test.js' },
     { name: 'digger-boss',            file: 'tests/digger-boss.test.js' },
     { name: 'backpack-held-in-place', file: 'tests/backpack-held-in-place.test.js' },

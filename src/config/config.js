@@ -284,16 +284,23 @@ const AUTOPILOT_CONFIG = {
         rocket:   w => w >= 6  ? Math.min(45, Math.ceil(w / 4)) : 0,            // reduced vs sniper
         electric: w => w >= 7  ? Math.min(20, Math.ceil(w / 6)) : 0,            // moderate
         silo:     w => w >= 10 ? Math.min(25, Math.ceil(w / 5)) : 0,            // moderate
-        income:   w => w >= 5 ? Math.min(14, Math.max(1, Math.floor(w / 7))) : 0  // earlier + denser — relays pay back fast and fund everything else
+        income:   w => w >= 5 ? Math.min(14, Math.max(1, Math.floor(w / 7))) : 0, // earlier + denser — relays pay back fast and fund everything else
+        // Tree-unlocked towers — modest targets (advanced unlocks); only built
+        // once the player owns them (the autopilot zeroes wanted for locked
+        // types). Keeps composition diverse without destabilising the curve.
+        mortar:    w => w >= 12 ? Math.min(6, Math.ceil(w / 10)) : 0,           // siege splash
+        railgun:   w => w >= 14 ? Math.min(6, Math.ceil(w / 10)) : 0,           // line-pierce
+        disruptor: w => w >= 10 ? Math.min(4, Math.ceil(w / 14)) : 0,           // area slow support
+        beacon:    w => w >= 12 ? Math.min(3, Math.ceil(w / 18)) : 0            // damage aura support
     },
 
     // Order used when scanning for the biggest tower-count deficit.
-    buildOrder: ['flak', 'laser', 'sniper', 'rocket', 'silo', 'electric', 'basic', 'rapid', 'income'],
+    buildOrder: ['flak', 'laser', 'sniper', 'rocket', 'silo', 'electric', 'mortar', 'railgun', 'basic', 'rapid', 'disruptor', 'beacon', 'income'],
 
     // Priority weight when choosing which tower to upgrade (higher = prefer).
     // Income bumped 2 → 6: relay upgrades have multiplicative payoff on every
     // future wave, so they're competitive with mid-tier combat upgrades.
-    upgradeValue: { silo: 10, rocket: 9, electric: 8, sniper: 7, income: 6, laser: 6, flak: 5, rapid: 4, basic: 3 },
+    upgradeValue: { silo: 10, rocket: 9, railgun: 9, mortar: 8, electric: 8, sniper: 7, income: 6, laser: 6, flak: 5, disruptor: 5, beacon: 4, rapid: 4, basic: 3 },
 
     // (wave) => probability that the autopilot builds vs upgrades this tick.
     buildChance: w => w < 15 ? 0.85 : w < 30 ? 0.7 : w < 50 ? 0.6 : 0.55,

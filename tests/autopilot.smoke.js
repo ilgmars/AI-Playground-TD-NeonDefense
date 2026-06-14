@@ -55,6 +55,17 @@ async function main() {
 
     await page.click('#menu-start-btn');
     await page.waitForTimeout(200);
+    // Unlock every tree-gated tower so the (now unlock-gated) autopilot fields
+    // the full mix — keeps the balance smoke representative of an end-game,
+    // fully-unlocked loadout rather than the Blaster/Sniper/Flak starter set.
+    await page.evaluate(() => {
+        save.unlockedNodes = save.unlockedNodes || [];
+        for (const t of TREE_GATED_TOWERS) {
+            const id = 'tower.' + t;
+            if (!save.unlockedNodes.includes(id)) save.unlockedNodes.push(id);
+        }
+        NeonSave.write(save);
+    });
     if (ASCENSION > 0) {
         await page.evaluate((tier) => {
             eval(`selectedTier = ${tier}`);

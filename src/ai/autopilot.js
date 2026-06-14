@@ -89,7 +89,7 @@ class Autopilot {
         // (active air wave with zero flak — bypass placement scoring later).
         const urgentFlak = (w === airInterval && !g.currentWaveDef && counts.flak === 0)
                          || (isAirWave && counts.flak === 0);
-        const needLaser  = w >= 3 && counts.laser === 0;
+        const needLaser  = w >= 3 && counts.laser === 0 && this._isBuildable('laser');
 
         const targetType = this._pickTargetType(counts, wanted, urgentFlak, needFlak, needLaser);
 
@@ -115,7 +115,8 @@ class Autopilot {
     }
 
     _countTowers() {
-        const counts = { basic: 0, sniper: 0, rapid: 0, laser: 0, rocket: 0, flak: 0, electric: 0, silo: 0, income: 0 };
+        const counts = { basic: 0, sniper: 0, rapid: 0, laser: 0, rocket: 0, flak: 0, electric: 0, silo: 0, income: 0,
+            mortar: 0, disruptor: 0, railgun: 0, beacon: 0 };
         // M3: Use baseOf so variants (e.g. laser_pulse, flak_emp) count toward their base type.
         for (let t of this.game.towers) {
             const base = baseOf(t.type);
@@ -124,10 +125,25 @@ class Autopilot {
         return counts;
     }
 
+    // Respect the player's tech-tree unlocks: the autopilot only builds what
+    // the player could build by hand. In bare headless harnesses without
+    // main.js the helper is absent → treat everything as buildable (those
+    // harnesses unlock all towers, so the full mix is still exercised).
+    _isBuildable(type) {
+        if (typeof window !== 'undefined' && typeof window.isTowerUnlocked === 'function') {
+            return window.isTowerUnlocked(type);
+        }
+        return true;
+    }
+
     _wantedCounts(wave) {
         const wanted = {};
         const capMult = AUTOPILOT_CONFIG.wantedCountCapMult || {};
         for (let type in AUTOPILOT_CONFIG.wantedCount) {
+            // Locked towers want 0 → every selection path (deficit scan,
+            // affordable pick, fallback) keys off wanted, so they're never
+            // chosen until unlocked.
+            if (!this._isBuildable(type)) { wanted[type] = 0; continue; }
             const raw = AUTOPILOT_CONFIG.wantedCount[type](wave);
             const mult = (capMult[type] !== undefined) ? capMult[type] : 1.0;
             wanted[type] = Math.max(0, Math.round(raw * mult));
