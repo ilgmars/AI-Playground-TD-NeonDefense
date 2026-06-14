@@ -54,7 +54,8 @@ const path = require('path');
     ok('core towers (Blaster, Sniper) are shown', fresh.hasBlaster && fresh.hasSniper, JSON.stringify(fresh.names));
     ok('tree-gated Mortar hidden until unlocked', fresh.hasMortar === false);
     ok('tree-gated Relay hidden until unlocked', fresh.hasRelay === false);
-    ok('locked-towers note names the count', !!fresh.noteText && /\b5\b/.test(fresh.noteText) && /Tech Tree/i.test(fresh.noteText),
+    // Only Blaster + Sniper + Flak are free, so 10 towers are gated.
+    ok('locked-towers note names the count', !!fresh.noteText && /\b10\b/.test(fresh.noteText) && /Tech Tree/i.test(fresh.noteText),
         JSON.stringify({ note: fresh.noteText }));
 
     // ── 2) Unlock Mortar → its row appears, locked count drops ────────────
@@ -69,13 +70,34 @@ const path = require('path');
         return { hasMortar: names.some(n => /Mortar/i.test(n)), noteText: note ? note.textContent : null };
     });
     ok('unlocked Mortar now appears in the Mastery Lab', unlocked.hasMortar === true);
-    ok('locked count drops to 4 after unlocking one', !!unlocked.noteText && /\b4\b/.test(unlocked.noteText),
+    ok('locked count drops to 9 after unlocking one', !!unlocked.noteText && /\b9\b/.test(unlocked.noteText),
         JSON.stringify({ note: unlocked.noteText }));
 
     // ── 3) Tree towers are registered in the mastery roster ───────────────
     const roster = await page.evaluate(() => NeonSave.TOWER_TYPES.slice());
     ok('mastery roster includes the tree towers',
         ['mortar', 'disruptor', 'railgun', 'beacon'].every(t => roster.includes(t)), JSON.stringify(roster));
+
+    // ── 4) Build menu gating: only Blaster + Sniper + Flak free ───────────
+    const buildMenu = await page.evaluate(() => {
+        save.unlockedNodes = (save.unlockedNodes || []).filter(n => !/^tower\./.test(n)); // clean slate
+        NeonSave.write(save);
+        updateBuildMenuForLoadout({});
+        const vis = (t) => {
+            const el = document.querySelector(`.tower-option[data-type="${t}"]`);
+            return !!el && !el.classList.contains('tt-tower-locked');
+        };
+        return {
+            basic: vis('basic'), sniper: vis('sniper'), flak: vis('flak'),
+            rapid: vis('rapid'), laser: vis('laser'), rocket: vis('rocket'),
+            electric: vis('electric'), silo: vis('silo'), income: vis('income'),
+        };
+    });
+    ok('free at start: Blaster + Sniper + Flak buildable',
+        buildMenu.basic && buildMenu.sniper && buildMenu.flak, JSON.stringify(buildMenu));
+    ok('gated until unlocked: Shotgun/Laser/Rocket/Tesla/Silo/Relay hidden',
+        !buildMenu.rapid && !buildMenu.laser && !buildMenu.rocket &&
+        !buildMenu.electric && !buildMenu.silo && !buildMenu.income, JSON.stringify(buildMenu));
 
     ok('no JS errors', errs.length === 0, errs.join(' / '));
 

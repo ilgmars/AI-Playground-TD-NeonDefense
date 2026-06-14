@@ -36,11 +36,11 @@ const path = require('path');
     await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(700);
 
-    // Relay (income) is now tree-gated, so it only appears in the Mastery Lab
-    // once unlocked — unlock it up front so the "Relay row" assertions below
-    // exercise the real row.
+    // Laser and Relay (income) are now tree-gated, so they only appear in the
+    // Mastery Lab once unlocked — unlock them up front so the "Laser row" /
+    // "Relay row" assertions below exercise the real rows. (Sniper stays free.)
     await page.evaluate(() => {
-        save.unlockedNodes = (save.unlockedNodes || []).concat(['tower.income']);
+        save.unlockedNodes = (save.unlockedNodes || []).concat(['tower.laser', 'tower.income']);
         NeonSave.write(save);
     });
 

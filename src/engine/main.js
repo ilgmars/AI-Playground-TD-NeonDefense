@@ -5553,9 +5553,10 @@ function init() {
 }
 
 // Single source of truth for "is this base tower available to build/master".
-// Tree-gated towers (the new ones + Relay) need their Arsenal node owned;
-// the core attack towers are always available. Reused by the build menu, the
-// selectTower hotkey guard, and the Mastery Lab roster.
+// Only Blaster, Sniper and Flak are free; every other tower needs its Arsenal
+// node owned. Reused by the build menu, the selectTower hotkey guard, and the
+// Mastery Lab roster. (Autopilot builds via the ungated game.buildTower, so
+// headless balance/auto-tune still exercise the full tower mix.)
 function isTowerUnlocked(type) {
     if (typeof TREE_GATED_TOWERS !== 'undefined' && TREE_GATED_TOWERS.indexOf(type) !== -1) {
         return NeonSave.hasUnlocked(save, 'tower.' + type);
@@ -5570,9 +5571,8 @@ if (typeof window !== 'undefined') window.isTowerUnlocked = isTowerUnlocked;
 function updateBuildMenuForLoadout(towerLoadout) {
     document.querySelectorAll('.tower-option[data-type]').forEach(el => {
         const baseType = el.dataset.type;
-        // Tree-gated towers stay hidden until their Arsenal node is owned —
-        // the new towers AND the Relay/income support tower (moved into the
-        // tree). The core attack towers are always buildable.
+        // Tree-gated towers stay hidden until their Arsenal node is owned.
+        // Only Blaster, Sniper and Flak are free; the rest are unlocked here.
         if (TREE_GATED_TOWERS.indexOf(baseType) !== -1) {
             const unlocked = isTowerUnlocked(baseType);
             el.classList.toggle('tt-tower-locked', !unlocked);   // CSS hide, no inline style

@@ -510,7 +510,11 @@ const TREE_COST_GROWTH = 1.2;   // steep: by ~node 10 each costs ~6x base, ~38x 
 // Towers NOT buildable by default — unlocked by a tree node that grants
 // 'tower.<type>'. The core attack towers stay free; the Relay/income support
 // tower + the tree-only towers live here. Build buttons hide until unlocked.
-const TREE_GATED_TOWERS = ['income', 'mortar', 'disruptor', 'railgun', 'beacon'];
+// Towers that must be unlocked in the tech tree before they can be built.
+// Only Blaster, Sniper and Flak are free at the start — everything else
+// (the rest of the core arsenal + the support/new towers) is gated.
+const TREE_GATED_TOWERS = ['rapid', 'laser', 'rocket', 'electric', 'silo',
+    'income', 'mortar', 'disruptor', 'railgun', 'beacon'];
 
 // Respec refunds this fraction of total XP spent into the tree.
 const TREE_RESPEC_REFUND = 0.30;
@@ -568,6 +572,15 @@ const TECH_TREE = {
     ars_variants:  { branch: 'arsenal', name: 'Variant Protocols',     kind: 'variant', baseCost: 350, requires: ['ars_air'],    grants: 'variant.all',       desc: "Unlock every tower's alternate variant immediately (no mastery grind)." },
     ars_mortar:    { branch: 'arsenal', name: 'Mortar Battery',        kind: 'tower', keystone: true, baseCost: 450, requires: ['ars_variants'], grants: 'tower.mortar',    desc: 'Unlock the MORTAR tower — long-range siege artillery (big splash, slow cadence).' },
     ars_disruptor: { branch: 'arsenal', name: 'Disruptor Array',       kind: 'tower', keystone: true, baseCost: 450, requires: ['ars_freeze'],   grants: 'tower.disruptor', desc: 'Unlock the DISRUPTOR tower — area-slow support (low damage, slows on hit).' },
+    // Core arsenal: the standard attack towers are earned, not given. A fresh
+    // save builds only Blaster, Sniper and Flak (AA for the wave-5 air rush);
+    // these cheap early nodes unlock the rest. Costs still escalate via the
+    // global GROWTH exponent, so a full unlock nudges you toward a build.
+    ars_shotgun:   { branch: 'arsenal', name: 'Scatter Bay',           kind: 'tower', baseCost: 50,  requires: [],              grants: 'tower.rapid',    desc: 'Unlock the SHOTGUN tower — short-range spread, pierces 2.' },
+    ars_laser:     { branch: 'arsenal', name: 'Beam Lab',              kind: 'tower', baseCost: 80,  requires: ['ars_shotgun'], grants: 'tower.laser',    desc: 'Unlock the LASER tower — continuous beam that also slows.' },
+    ars_rocket:    { branch: 'arsenal', name: 'Rocketry',              kind: 'tower', baseCost: 110, requires: ['ars_laser'],   grants: 'tower.rocket',   desc: 'Unlock the ROCKET tower — homing splash damage.' },
+    ars_tesla:     { branch: 'arsenal', name: 'Arc Reactor',           kind: 'tower', baseCost: 150, requires: ['ars_rocket'],  grants: 'tower.electric', desc: 'Unlock the TESLA tower — chain lightning across 3 targets.' },
+    ars_silo:      { branch: 'arsenal', name: 'Silo Clearance',        kind: 'tower', baseCost: 200, requires: ['ars_tesla'],   grants: 'tower.silo',     desc: 'Unlock the SILO tower — long-range rocket swarm.' },
 
     // ── INTEL — automation, QoL, light passives ───────────────────────────
     int_hpbars:  { branch: 'intel', name: 'Threat Display',   kind: 'qol',    baseCost: 50,  requires: [],              grants: 'qol.hpbars',     desc: 'Unlock enemy HP bars.' },
