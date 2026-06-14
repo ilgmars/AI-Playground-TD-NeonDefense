@@ -215,7 +215,9 @@ class Game {
         // M3: Research Node aura — boosts damage of all towers within auraRange
         // tiles of each Research Node by auraBonus. Recomputes each wave (stackable).
         for (const t of this.towers) t.auraDamageBonus = 0;
-        const researchNodes = this.towers.filter(t => t.type === 'income_research');
+        // Any tower with an auraBonus projects the damage aura — Research Node
+        // variants AND the tree-unlocked Beacon support tower.
+        const researchNodes = this.towers.filter(t => (t.auraBonus || 0) > 0);
         for (const rn of researchNodes) {
             for (const t of this.towers) {
                 if (t === rn) continue;

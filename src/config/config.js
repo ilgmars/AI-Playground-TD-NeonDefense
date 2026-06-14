@@ -158,6 +158,17 @@ const TOWERS = {
     disruptor: { cost: 250, range: 160, damage: 6,   fireRate: 45,
                  displayName: 'Disruptor', defaultTargetMode: 'first',
                  splash: 45, slowEffect: 0.45, slowDuration: 90 },
+    // Railgun: extreme range, heavy single-shot that PIERCES a line of enemies.
+    // Fires via the default projectile branch; pierce handled by Projectile.
+    railgun:   { cost: 300, range: 320, damage: 70,  fireRate: 110,
+                 displayName: 'Railgun',   defaultTargetMode: 'first',
+                 pierce: 3 },
+    // Beacon: pure SUPPORT — no attack (range 0), projects a damage aura to
+    // nearby towers (Game.applyAura reads any tower with auraBonus). Passive,
+    // so it short-circuits combat in Tower.update like income towers.
+    beacon:    { cost: 275, range: 0,   damage: 0,   fireRate: 0,
+                 displayName: 'Beacon',    defaultTargetMode: 'closest',
+                 auraBonus: 0.06, auraRange: 3 },
 
     // M3: Variants — unlocked by per-tower mastery m1 (1000 XP damage dealt).
     // Selected per-type in Run Setup; Game.getEffectiveTowerType resolves
@@ -382,6 +393,16 @@ const TOWER_UPGRADES = {
         { name: 'Field',     desc: 'Stronger slow effect',  baseCost: 200, costMult: 1.6, apply: (t) => { t.slowEffect = Math.min(0.85, (t.slowEffect || 0.45) + 0.15); } },
         { name: 'Radius',    desc: 'Larger slow field',      baseCost: 150, costMult: 1.5, apply: (t) => { t.splash += 20; } },
         { name: 'Capacitor', desc: 'Fires faster',           baseCost: 200, costMult: 1.6, apply: (t) => { t.fireRate = Math.max(15, Math.floor(t.fireRate * 0.8)); } }
+    ],
+    railgun: [
+        { name: 'Slug',       desc: 'Heavier round (more damage)', baseCost: 250, costMult: 1.6, apply: (t) => { t.damage += 45; } },
+        { name: 'Penetrator', desc: 'Pierces more enemies',        baseCost: 220, costMult: 1.8, apply: (t) => { t.pierce = (t.pierce || 3) + 1; } },
+        { name: 'Cooling',    desc: 'Fires faster',                baseCost: 280, costMult: 1.6, apply: (t) => { t.fireRate = Math.max(40, Math.floor(t.fireRate * 0.8)); } }
+    ],
+    beacon: [
+        { name: 'Amplifier', desc: 'Stronger damage aura',  baseCost: 300, costMult: 1.7, apply: (t) => { t.auraBonus = (t.auraBonus || 0.06) + 0.03; } },
+        { name: 'Antenna',   desc: 'Larger aura radius',     baseCost: 250, costMult: 1.6, apply: (t) => { t.auraRange = (t.auraRange || 3) + 1; } },
+        { name: 'Overcharge',desc: 'Even stronger aura',     baseCost: 400, costMult: 1.8, apply: (t) => { t.auraBonus = (t.auraBonus || 0.06) + 0.04; } }
     ]
 };
 
@@ -484,7 +505,12 @@ const TREE_BRANCHES = {
 };
 
 // Global escalator: every allocatable node owned makes the NEXT one pricier.
-const TREE_COST_GROWTH = 1.05;
+const TREE_COST_GROWTH = 1.2;   // steep: by ~node 10 each costs ~6x base, ~38x by node 20 — forces committing to a path
+
+// Towers NOT buildable by default — unlocked by a tree node that grants
+// 'tower.<type>'. The core attack towers stay free; the Relay/income support
+// tower + the tree-only towers live here. Build buttons hide until unlocked.
+const TREE_GATED_TOWERS = ['income', 'mortar', 'disruptor', 'railgun', 'beacon'];
 
 // Respec refunds this fraction of total XP spent into the tree.
 const TREE_RESPEC_REFUND = 0.30;
@@ -560,7 +586,28 @@ const TECH_TREE = {
     asc_empire:      { branch: 'ascendant', name: 'Economic Empire', kind: 'keystone', keystone: true, baseCost: 900,  requires: ['eco_key', 'asc_gate'], effect: { payout: 0.20, interest: 0.08, startMoney: 100 }, desc: 'KEYSTONE: +20% payout, +8% interest, +100¢ start.' },
     asc_fortress:    { branch: 'ascendant', name: 'Living Fortress', kind: 'keystone', keystone: true, baseCost: 900,  requires: ['def_key', 'asc_gate'], effect: { maxHP: 12, regen: 2, payout: 0.10 }, desc: 'KEYSTONE: +12 max integrity, +2 regen, +10% payout.' },
     asc_legacy:      { branch: 'ascendant', name: "Veteran's Legacy",kind: 'mixed', baseCost: 800, requires: ['asc_gate'], effect: { damage: 0.08, payout: 0.08, kill: 0.08, regen: 1 }, desc: '+8% damage, +8% payout, +8% credits per kill, +1 regen.' },
-    asc_singularity: { branch: 'ascendant', name: 'Singularity',     kind: 'keystone', keystone: true, baseCost: 1500, requires: ['asc_war', 'asc_empire', 'asc_fortress'], effect: { damage: 0.20, fireRate: 0.15, payout: 0.20, maxHP: 10 }, desc: 'GRAND KEYSTONE: +20% damage, +15% fire rate, +20% payout, +10 max integrity. The apex of every path.' }
+    asc_singularity: { branch: 'ascendant', name: 'Singularity',     kind: 'keystone', keystone: true, baseCost: 1500, requires: ['asc_war', 'asc_empire', 'asc_fortress'], effect: { damage: 0.20, fireRate: 0.15, payout: 0.20, maxHP: 10 }, desc: 'GRAND KEYSTONE: +20% damage, +15% fire rate, +20% payout, +10 max integrity. The apex of every path.' },
+
+    // ── REWORK additions: more choices + tree-unlocked towers ─────────────
+    // Offense
+    off_dmg5:  { branch: 'offense', name: 'Singularity Rounds',  kind: 'damage', baseCost: 450, requires: ['off_dmg4'],  effect: { damage: 0.12 },   desc: '+12% tower damage.' },
+    off_rate4: { branch: 'offense', name: 'Cryo-Cooled Barrels', kind: 'rate',   baseCost: 360, requires: ['off_rate3'], effect: { fireRate: 0.10 }, desc: '+10% fire rate.' },
+    // Economy
+    eco_pay3:   { branch: 'economy', name: 'Profiteering', kind: 'payout', baseCost: 360, requires: ['eco_pay2'],   effect: { payout: 0.12 },   desc: '+12% wave payout.' },
+    eco_kill3:  { branch: 'economy', name: 'Blood Money',  kind: 'kill',   baseCost: 360, requires: ['eco_kill2'],  effect: { kill: 0.15 },     desc: '+15% credits per kill.' },
+    eco_start2: { branch: 'economy', name: 'Trust Fund',   kind: 'money',  baseCost: 220, requires: ['eco_start1'], effect: { startMoney: 100 }, desc: '+100¢ starting credits.' },
+    // Fortify
+    def_hp5:  { branch: 'fortify', name: 'Aegis Plating',     kind: 'hp',    baseCost: 450, requires: ['def_hp4'],  effect: { maxHP: 10 }, desc: '+10 max integrity.' },
+    def_reg4: { branch: 'fortify', name: 'Regenerative Mesh', kind: 'regen', baseCost: 360, requires: ['def_reg3'], effect: { regen: 2 },  desc: '+2 integrity regen per wave.' },
+    // Intel
+    int_kill: { branch: 'intel', name: 'Target Analysis', kind: 'kill',     baseCost: 200, requires: ['int_pay'],   effect: { kill: 0.08 },     desc: '+8% credits per kill.' },
+    int_int:  { branch: 'intel', name: 'Market Feed',     kind: 'interest', baseCost: 200, requires: ['int_start'], effect: { interest: 0.04 }, desc: '+4% of banked credits each wave.' },
+    // Arsenal — the Relay/income tower now lives in the tree, plus two new towers
+    ars_relay:   { branch: 'arsenal', name: 'Relay Network',     kind: 'tower', baseCost: 80,  requires: [],               grants: 'tower.income',   desc: 'Unlock the RELAY support tower (passive income). No longer buildable by default.' },
+    ars_railgun: { branch: 'arsenal', name: 'Railgun Emplacement',kind: 'tower', keystone: true, baseCost: 420, requires: ['ars_variants'], grants: 'tower.railgun', desc: 'Unlock the RAILGUN tower — extreme-range round that pierces a line of enemies.' },
+    ars_beacon:  { branch: 'arsenal', name: 'Beacon Array',      kind: 'tower', keystone: true, baseCost: 400, requires: ['ars_warden'],   grants: 'tower.beacon',  desc: 'Unlock the BEACON tower — projects a damage aura to nearby towers.' },
+    // Ascendant — rewards going deep into the Arsenal towers
+    asc_arsenal: { branch: 'ascendant', name: 'Master Armory', kind: 'keystone', keystone: true, baseCost: 1000, requires: ['ars_railgun', 'ars_beacon'], effect: { damage: 0.10, fireRate: 0.08 }, desc: 'KEYSTONE: +10% damage and +8% fire rate (needs both new tree towers).' }
 };
 
 // Ascension-clear → free tree node mapping. Fires on first clear of each tier.

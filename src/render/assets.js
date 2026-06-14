@@ -480,8 +480,8 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
     // every branch and rendered as just the empty base ring.
     // Tech-tree extra towers reuse an existing turret SHAPE (no new painter)
     // but get their own accent COLOR so they read as distinct towers.
-    const SHAPE_ALIAS = { mortar: 'silo', disruptor: 'electric' };
-    const ALT_COLOR   = { mortar: '#fb923c', disruptor: '#2dd4bf' };
+    const SHAPE_ALIAS = { mortar: 'silo', disruptor: 'electric', railgun: 'sniper', beacon: 'income' };
+    const ALT_COLOR   = { mortar: '#fb923c', disruptor: '#2dd4bf', railgun: '#93c5fd', beacon: '#fde68a' };
     const variant = TOWER_VARIANT_RENDER[type];
     const renderType = variant ? variant.base : (SHAPE_ALIAS[type] || type);
     const baseColor = renderType === 'sniper' ? '#f472b6' : renderType === 'rapid' ? '#a3e635' : renderType === 'laser' ? '#8b5cf6' : renderType === 'rocket' ? '#f97316' : renderType === 'electric' ? '#0ea5e9' : renderType === 'flak' ? '#60a5fa' : renderType === 'silo' ? '#ef4444' : renderType === 'income' ? '#fbbf24' : '#38bdf8';

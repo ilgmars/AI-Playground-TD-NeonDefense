@@ -473,13 +473,6 @@ function renderTechTree() {
     if (!svg) return;
     while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-    // Taller-than-wide viewBox so the six branch lanes get vertical room — a
-    // depth bucket can hold up to 4 stacked nodes, which overlapped at 660.
-    // Set on the element so CSS aspect-ratio matches and the view never
-    // collapses to a thin band (the "deformed on mobile" report).
-    const VBW = 1040, VBH = 860;
-    svg.setAttribute('viewBox', '0 0 ' + VBW + ' ' + VBH);
-
     // Depth = longest prerequisite chain from a root (memoized).
     const depthCache = {};
     function depthOf(id) {
@@ -495,20 +488,7 @@ function renderTechTree() {
     let maxDepth = 0;
     for (const id of ids) maxDepth = Math.max(maxDepth, depthOf(id));
 
-    // Columns: CORE at far left, then one column per depth.
-    const CORE_X = 46;
-    const colLeft = 132, colRight = VBW - 56;
-    const colStep = maxDepth > 0 ? (colRight - colLeft) / maxDepth : 0;
-    const colX = d => colLeft + d * colStep;
-
-    // Lanes: one horizontal band per branch.
-    const laneH = VBH / branchKeys.length;
-    const laneTop = bi => bi * laneH;
-    const laneCenter = bi => bi * laneH + laneH / 2;
-
-    // Position every node within its lane: x by depth, y stacked per
-    // (lane, depth) bucket and spread evenly across the lane band.
-    const pos = {};
+    // Bucket nodes by (lane, depth).
     const buckets = {};                       // `${bi}|${depth}` -> [ids]
     for (const id of ids) {
         const bi = branchKeys.indexOf(TECH_TREE[id].branch);
@@ -516,12 +496,46 @@ function renderTechTree() {
         const key = bi + '|' + d;
         (buckets[key] || (buckets[key] = [])).push(id);
     }
+
+    // ADAPTIVE layout: each lane's height is sized to its busiest depth bucket,
+    // so stacked nodes never overlap no matter how many a branch grows to (this
+    // is the fix for the "elements overlap" report). The viewBox AND the
+    // element's aspect-ratio are sized to the content; the view scrolls on
+    // small screens. CORE sits at the far left, vertically centred, a full
+    // column clear of every lane node.
+    const NODE_VSPACE = 58;     // min vertical gap between stacked nodes
+    const LANE_PAD = 28;        // padding above/below a lane's nodes
+    const COL_STEP = 150;       // horizontal gap between depth columns
+    const laneHeights = branchKeys.map((_, bi) => {
+        let maxStack = 1;
+        for (let d = 0; d <= maxDepth; d++) {
+            const b = buckets[bi + '|' + d];
+            if (b && b.length > maxStack) maxStack = b.length;
+        }
+        return maxStack * NODE_VSPACE + 2 * LANE_PAD;
+    });
+    const laneTops = [];
+    let accY = 0;
+    for (let bi = 0; bi < branchKeys.length; bi++) { laneTops[bi] = accY; accY += laneHeights[bi]; }
+    const VBH = accY;
+
+    const CORE_X = 52;
+    const colLeft = 152, colRightPad = 70;
+    const VBW = colLeft + maxDepth * COL_STEP + colRightPad;
+    const colX = d => colLeft + d * COL_STEP;
+
+    svg.setAttribute('viewBox', '0 0 ' + VBW + ' ' + VBH);
+    svg.style.aspectRatio = VBW + ' / ' + VBH;   // element box matches the viewBox (no letterbox / squish)
+
+    // Position nodes: x by depth, y stacked + evenly centred within the lane.
+    const pos = {};
     for (const key of Object.keys(buckets)) {
         const [biStr, dStr] = key.split('|');
         const bi = +biStr, d = +dStr;
         const list = buckets[key];
+        const top = laneTops[bi], h = laneHeights[bi];
         list.forEach((id, k) => {
-            const y = laneTop(bi) + laneH * (k + 1) / (list.length + 1);
+            const y = top + h * (k + 1) / (list.length + 1);
             pos[id] = { x: colX(d), y, bi };
         });
     }
@@ -556,7 +570,7 @@ function renderTechTree() {
 
     // Branch labels at the left edge of each lane.
     branchKeys.forEach((bk, bi) => {
-        const t = _svg('text', { x: 6, y: laneTop(bi) + 14, class: 'tt-branch-label' });
+        const t = _svg('text', { x: 6, y: laneTops[bi] + 16, class: 'tt-branch-label' });
         t.setAttribute('fill', TREE_BRANCHES[bk].color);
         t.textContent = TREE_BRANCHES[bk].name;
         nodesG.appendChild(t);
@@ -5448,8 +5462,10 @@ function init() {
 function updateBuildMenuForLoadout(towerLoadout) {
     document.querySelectorAll('.tower-option[data-type]').forEach(el => {
         const baseType = el.dataset.type;
-        // Tech-tree extra towers stay hidden until their Arsenal node is owned.
-        if (baseType === 'mortar' || baseType === 'disruptor') {
+        // Tree-gated towers stay hidden until their Arsenal node is owned —
+        // the new towers AND the Relay/income support tower (moved into the
+        // tree). The core attack towers are always buildable.
+        if (TREE_GATED_TOWERS.indexOf(baseType) !== -1) {
             const unlocked = NeonSave.hasUnlocked(save, 'tower.' + baseType);
             el.classList.toggle('tt-tower-locked', !unlocked);   // CSS hide, no inline style
             if (!unlocked) return;
@@ -5480,7 +5496,11 @@ window.buyPotion = function() {
 
 window.selectTower = function(type) {
     if (game.state !== 'playing' && game.state !== 'paused') return;
-    
+    // Tree-gated towers can't be selected/built until their node is owned
+    // (guards the hotkey path too, not just the hidden build button).
+    if (typeof TREE_GATED_TOWERS !== 'undefined' && TREE_GATED_TOWERS.indexOf(type) !== -1
+        && !NeonSave.hasUnlocked(save, 'tower.' + type)) return;
+
     document.querySelectorAll('.tower-option').forEach(el => el.classList.remove('selected'));
     
     if (selectedTowerType === type) {

@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Neon Defense</title>
-    <link rel="stylesheet" href="style.css?v=20260614053633">
+    <link rel="stylesheet" href="style.css?v=20260614054815">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
 </head>
 
@@ -622,15 +622,16 @@
                         <span class="cost">400¢</span>
                     </div>
                 </div>
-                <div class="tower-option" data-type="income" data-hotkey="9" onclick="selectTower('income')">
+                <!-- Tree-gated towers — hidden until their Arsenal node is
+                     owned (toggled by updateBuildMenuForLoadout). The Relay
+                     (income) support tower now lives in the tree too. -->
+                <div class="tower-option tt-tower-locked" data-type="income" onclick="selectTower('income')">
                     <div class="tower-icon income-icon"></div>
                     <div class="tower-info">
                         <span class="name">Relay</span>
                         <span class="cost">200¢</span>
                     </div>
                 </div>
-                <!-- Tech-tree-unlocked extra towers — hidden until their
-                     Arsenal node is owned (shown by updateBuildMenuForLoadout). -->
                 <div class="tower-option tt-tower-locked" data-type="mortar" onclick="selectTower('mortar')">
                     <div class="tower-icon mortar-icon"></div>
                     <div class="tower-info">
@@ -643,6 +644,20 @@
                     <div class="tower-info">
                         <span class="name">Disruptor</span>
                         <span class="cost">250¢</span>
+                    </div>
+                </div>
+                <div class="tower-option tt-tower-locked" data-type="railgun" onclick="selectTower('railgun')">
+                    <div class="tower-icon railgun-icon"></div>
+                    <div class="tower-info">
+                        <span class="name">Railgun</span>
+                        <span class="cost">300¢</span>
+                    </div>
+                </div>
+                <div class="tower-option tt-tower-locked" data-type="beacon" onclick="selectTower('beacon')">
+                    <div class="tower-icon beacon-icon"></div>
+                    <div class="tower-info">
+                        <span class="name">Beacon</span>
+                        <span class="cost">275¢</span>
                     </div>
                 </div>
                 <hr style="border-color: rgba(255,255,255,0.1); margin: 6px 0;">
@@ -694,42 +709,42 @@
         <button id="app-update-dismiss" aria-label="Dismiss update notice">×</button>
     </div>
 
-    <script src="src/config/config.js?v=20260614053633"></script>
-    <script src="src/security/aegis.js?v=20260614053633"></script>
-    <script src="src/audio/audio.js?v=20260614053633"></script>
-    <script src="src/render/assets.js?v=20260614053633"></script>
-    <script src="src/engine/map.js?v=20260614053633"></script>
-    <script src="src/entities/entities.js?v=20260614053633"></script>
-    <script src="src/ai/autopilot.js?v=20260614053633"></script>
-    <script src="src/progression/save.js?v=20260614053633"></script>
-    <script src="src/progression/tree.js?v=20260614053633"></script>
-    <script src="src/progression/abilities.js?v=20260614053633"></script>
-    <script src="src/progression/backpack.js?v=20260614053633"></script>
-    <script src="src/engine/game.js?v=20260614053633"></script>
-    <script src="src/progression/boons.js?v=20260614053633"></script>
+    <script src="src/config/config.js?v=20260614054815"></script>
+    <script src="src/security/aegis.js?v=20260614054815"></script>
+    <script src="src/audio/audio.js?v=20260614054815"></script>
+    <script src="src/render/assets.js?v=20260614054815"></script>
+    <script src="src/engine/map.js?v=20260614054815"></script>
+    <script src="src/entities/entities.js?v=20260614054815"></script>
+    <script src="src/ai/autopilot.js?v=20260614054815"></script>
+    <script src="src/progression/save.js?v=20260614054815"></script>
+    <script src="src/progression/tree.js?v=20260614054815"></script>
+    <script src="src/progression/abilities.js?v=20260614054815"></script>
+    <script src="src/progression/backpack.js?v=20260614054815"></script>
+    <script src="src/engine/game.js?v=20260614054815"></script>
+    <script src="src/progression/boons.js?v=20260614054815"></script>
     <!-- Multiplayer (lazy: Trystero loads only when the player opens the lobby) -->
-    <script src="src/multiplayer/protocol.js?v=20260614053633"></script>
-    <script src="src/multiplayer/transport.js?v=20260614053633"></script>
-    <script src="src/multiplayer/actions.js?v=20260614053633"></script>
-    <script src="src/multiplayer/guard.js?v=20260614053633"></script>
-    <script src="src/multiplayer/race.js?v=20260614053633"></script>
-    <script src="src/multiplayer/lockstep.js?v=20260614053633"></script>
-    <script src="src/multiplayer/prng.js?v=20260614053633"></script>
-    <script src="src/multiplayer/coop.js?v=20260614053633"></script>
-    <script src="src/multiplayer/global.js?v=20260614053633"></script>
-    <script src="src/multiplayer/lobby.js?v=20260614053633"></script>
-    <script src="src/multiplayer/connectivity.js?v=20260614053633"></script>
+    <script src="src/multiplayer/protocol.js?v=20260614054815"></script>
+    <script src="src/multiplayer/transport.js?v=20260614054815"></script>
+    <script src="src/multiplayer/actions.js?v=20260614054815"></script>
+    <script src="src/multiplayer/guard.js?v=20260614054815"></script>
+    <script src="src/multiplayer/race.js?v=20260614054815"></script>
+    <script src="src/multiplayer/lockstep.js?v=20260614054815"></script>
+    <script src="src/multiplayer/prng.js?v=20260614054815"></script>
+    <script src="src/multiplayer/coop.js?v=20260614054815"></script>
+    <script src="src/multiplayer/global.js?v=20260614054815"></script>
+    <script src="src/multiplayer/lobby.js?v=20260614054815"></script>
+    <script src="src/multiplayer/connectivity.js?v=20260614054815"></script>
     <!-- turn-config.js + mqtt-config.js are git-ignored; generated
          per-deploy by tools/install-turn-config.sh from .credentials
          or the NEON_TURN_CONFIG GitHub Secret. Loaded BEFORE the
          adapter so the globals are set when joinRoom() reads them.
            turn-config.js  → window.__neonTurnConfig.iceServers
            mqtt-config.js  → window.__neonMqttRelayUrls -->
-    <script src="src/multiplayer/turn-config.js?v=20260614053633"></script>
-    <script src="src/multiplayer/mqtt-config.js?v=20260614053633"></script>
-    <script src="src/multiplayer/transport-trystero.js?v=20260614053633"></script>
-    <script src="src/multiplayer/mqtt-direct.js?v=20260614053633"></script>
-    <script src="src/engine/main.js?v=20260614053633"></script>
+    <script src="src/multiplayer/turn-config.js?v=20260614054815"></script>
+    <script src="src/multiplayer/mqtt-config.js?v=20260614054815"></script>
+    <script src="src/multiplayer/transport-trystero.js?v=20260614054815"></script>
+    <script src="src/multiplayer/mqtt-direct.js?v=20260614054815"></script>
+    <script src="src/engine/main.js?v=20260614054815"></script>
 </body>
 
 </html>

@@ -71,6 +71,7 @@ const NeonSave = (function () {
             totalXPEarned: 0,
             treeSpent: 0,                                      // cumulative XP put into the tech tree (drives the 30% respec refund)
             treeV2Migrated: true,                              // fresh saves are already v2 — no old nodes to migrate
+            treeV3Migrated: true,                              // fresh saves predate no rework — nothing to refund
             ascensionCleared: 0,                               // highest tier where wave 30 was reached
             mpAscensionCleared: 0,                             // coop has its own progression; reserved for future tier-picker
             unlockedNodes: ['hero.pioneer', 'kit.standard'],   // M2 pre-unlocked tree nodes
@@ -178,6 +179,11 @@ const NeonSave = (function () {
                     if (typeof NeonTree !== 'undefined' && NeonTree.migrateV2) {
                         try { NeonTree.migrateV2(parsed); } catch (_) {}
                     }
+                    // v3: one-time FULL refund of tree spend after the cost
+                    // rework, so players re-pick under the new (steeper) costs.
+                    if (typeof NeonTree !== 'undefined' && NeonTree.migrateV3) {
+                        try { NeonTree.migrateV3(parsed); } catch (_) {}
+                    }
                     return parsed;
                 }
             } catch (_) { /* fall through to fresh */ }
@@ -213,6 +219,9 @@ const NeonSave = (function () {
         // Pre-v2 saves default to false so the one-time tree migration runs
         // once on load (refund old purchased nodes, see NeonTree.migrateV2).
         if (typeof save.treeV2Migrated !== 'boolean') save.treeV2Migrated = false;
+        // Pre-rework saves default to false → the v3 cost-rework migration runs
+        // once, fully refunding tree spend so players re-pick under new costs.
+        if (typeof save.treeV3Migrated !== 'boolean') save.treeV3Migrated = false;
         if (typeof save.ascensionCleared !== 'number') save.ascensionCleared = 0;
         if (typeof save.mpAscensionCleared !== 'number') save.mpAscensionCleared = 0;
         if (!save.globalCache || typeof save.globalCache !== 'object') save.globalCache = {};

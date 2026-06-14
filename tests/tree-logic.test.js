@@ -131,5 +131,21 @@ const xpAfterMigrate = old.metaXP;
 ok('migration is idempotent (re-run is a no-op)',
     NeonTree.migrateV2(old) === 0 && old.metaXP === xpAfterMigrate);
 
+// ── v3 rework migration: FULL refund of current-tree spend, clear, re-pick ──
+const v3 = NeonSave.createFreshSave();
+v3.treeV3Migrated = false;
+v3.metaXP = 500;
+v3.treeSpent = 300;                                   // what they'd spent on the current tree
+v3.unlockedNodes = ['hero.pioneer', 'kit.standard', 'off_dmg1', 'off_dmg2', 'ars_scan', 'ability.scan'];
+const v3refund = NeonTree.migrateV3(v3);
+ok('v3 migration refunds 100% of tree spend', v3refund === 300, v3refund);
+ok('v3 migration credits the full refund', v3.metaXP === 800, v3.metaXP);
+ok('v3 migration clears bought nodes + their grants',
+    !NeonSave.hasUnlocked(v3, 'off_dmg1') && !NeonSave.hasUnlocked(v3, 'ars_scan') && !NeonSave.hasUnlocked(v3, 'ability.scan'));
+ok('v3 migration keeps pre-unlocks', NeonSave.hasUnlocked(v3, 'hero.pioneer') && NeonSave.hasUnlocked(v3, 'kit.standard'));
+ok('v3 migration resets treeSpent + sets flag', v3.treeSpent === 0 && v3.treeV3Migrated === true);
+const v3xp = v3.metaXP;
+ok('v3 migration is idempotent', NeonTree.migrateV3(v3) === 0 && v3.metaXP === v3xp);
+
 console.log(`\nTREE LOGIC: ${pass} pass, ${fail} fail`);
 process.exit(fail === 0 ? 0 : 1);

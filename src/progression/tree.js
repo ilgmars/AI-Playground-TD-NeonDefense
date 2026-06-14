@@ -155,6 +155,31 @@ const NeonTree = (function () {
         return refund;
     }
 
+    // One-time migration after the cost REWORK: the rules changed under players
+    // (much steeper costs), so FULLY refund what they spent on the current tree
+    // and clear it — they re-pick under the new prices with all their XP back.
+    // Unlike respec (a voluntary 30% refund), this is 100%. Reuses respec's
+    // clear logic. Idempotent via save.treeV3Migrated. Returns XP refunded.
+    function migrateV3(save) {
+        if (!save || save.treeV3Migrated) return 0;
+        if (!Array.isArray(save.unlockedNodes)) save.unlockedNodes = [];
+        const refund = Math.max(0, Math.floor(save.treeSpent || 0));
+        const clearedNodes = save.unlockedNodes.filter(
+            id => TECH_TREE[id] && RESPEC_PROTECTED.indexOf(id) === -1);
+        const remove = new Set();
+        for (const id of clearedNodes) {
+            remove.add(id);
+            const g = TECH_TREE[id].grants;
+            if (g && RESPEC_PROTECTED.indexOf(g) === -1) remove.add(g);
+        }
+        save.unlockedNodes = save.unlockedNodes.filter(id => !remove.has(id));
+        save.metaXP    = (save.metaXP || 0) + refund;   // 100% refund
+        save.treeSpent = 0;
+        save.treeV3Migrated = true;
+        NeonSave.write(save);
+        return refund;
+    }
+
     return {
         allocatedCount,
         effectiveCost,
@@ -164,7 +189,8 @@ const NeonTree = (function () {
         computeStats,
         respec,
         autoUnlockOnAscension,
-        migrateV2
+        migrateV2,
+        migrateV3
     };
 })();
 

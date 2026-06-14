@@ -374,7 +374,7 @@ class Tower {
     }
 
     update(enemies, projectiles, particles) {
-        if (this.type === 'income' || this.type === 'income_research') return; // passive tower, no combat logic
+        if (this.type === 'income' || this.type === 'income_research' || this.type === 'beacon') return; // passive towers, no combat logic
         if (this.cooldown > 0) this.cooldown--;
 
         if (this.type === 'silo' || this.type === 'silo_orbital') {
