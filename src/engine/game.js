@@ -869,48 +869,55 @@ class Game {
         // hpBucket: the baked path outline recolours at the near-death
         // thresholds, so the layer must re-rasterize when the bucket flips.
         const hpBucket = this.health <= 3 ? 'r' : this.health <= 6 ? 'o' : 'y';
-        const key = this.canvas.width + 'x' + this.canvas.height + '|' +
+        // Pad the cached layer beyond the viewport by margin M so a pan/zoom
+        // gesture stays COVERED and warp-blits (cheap) instead of triggering a
+        // full vector map+outline redraw every touchmove — at zoom>1 every pan
+        // uncovered a canvas-sized layer, which was the "moving the map is
+        // laggy" report. M is capped so the offscreen stays bounded. (All the
+        // transform math below reduces to the old behaviour at M=0.)
+        const M = Math.min(420, Math.round(this.canvas.width * 0.35));
+        const layerW = this.canvas.width + 2 * M;
+        const layerH = this.canvas.height + 2 * M;
+        const key = layerW + 'x' + layerH + '|' +
             A + '|' + OX + '|' + OY + '|' + (this.map && this.map.seed) +
             '|' + ((this.map && this.map._rev) || 0) +   // digger carves roads mid-run
             '|' + hpBucket;
         const gestureActive = (typeof window !== 'undefined') && window.__neonZoomGesture === true;
         if (this._mapLayerKey !== key && !(gestureActive && this._mapLayer)) {
             if (!this._mapLayer) this._mapLayer = document.createElement('canvas');
-            if (this._mapLayer.width  !== this.canvas.width)  this._mapLayer.width  = this.canvas.width;
-            if (this._mapLayer.height !== this.canvas.height) this._mapLayer.height = this.canvas.height;
+            if (this._mapLayer.width  !== layerW) this._mapLayer.width  = layerW;
+            if (this._mapLayer.height !== layerH) this._mapLayer.height = layerH;
             const mctx = this._mapLayer.getContext('2d');
             mctx.setTransform(1, 0, 0, 1, 0, 0);
             mctx.clearRect(0, 0, this._mapLayer.width, this._mapLayer.height);
-            mctx.setTransform(A, 0, 0, A, OX, OY);
+            // Shift by +M so the layer's (0,0) pixel sits at device (-M,-M):
+            // the layer spans device [-M, canvas+M] on each axis.
+            mctx.setTransform(A, 0, 0, A, OX + M, OY + M);
             this.map.draw(mctx);
             this._drawPathOutline(mctx);   // bake the static outline into the cached layer (zero per-frame cost)
             this._mapLayerKey = key;
-            this._mapLayerT = { a: A, ox: OX, oy: OY };
+            this._mapLayerT = { a: A, ox: OX, oy: OY, m: M };
         }
-        // Blit. If the cached layer was rasterized under a different
-        // transform (mid-gesture), warp it by the delta so the view
-        // still tracks the fingers.
-        const c = this._mapLayerT || { a: A, ox: OX, oy: OY };
+        // Blit, warping the (possibly stale) layer to the current transform.
+        const c = this._mapLayerT || { a: A, ox: OX, oy: OY, m: 0 };
         const k = A / c.a;
-        const bx = OX - k * c.ox;
-        const by = OY - k * c.oy;
-        // Coverage check: the warped layer occupies [bx, bx + k·W] ×
-        // [by, by + k·H] in device space. Panning or zooming OUT moves
-        // regions into view that the stale raster never contained —
-        // blitting it would leave unrendered patches trailing the
-        // finger. For those frames, draw the map directly (full
-        // vector, slightly more work, always complete); the cache
-        // re-rasterizes the moment the gesture ends.
+        const ex = OX - k * (c.ox + c.m);   // device pos of the layer's (0,0) pixel
+        const ey = OY - k * (c.oy + c.m);
+        // Coverage: the warped layer occupies [ex, ex + k·layerW] ×
+        // [ey, ey + k·layerH]. Panning/zooming far enough that it no longer
+        // covers the canvas → draw the map directly (complete, slower); the
+        // cache re-rasterizes the moment the gesture ends. The M margin keeps
+        // ordinary pans covered, so that fallback rarely fires now.
         const covers =
-            bx <= 0 && by <= 0 &&
-            bx + k * this._mapLayer.width  >= this.canvas.width &&
-            by + k * this._mapLayer.height >= this.canvas.height;
+            ex <= 0 && ey <= 0 &&
+            ex + k * this._mapLayer.width  >= this.canvas.width &&
+            ey + k * this._mapLayer.height >= this.canvas.height;
         if (!covers) {
             this.map.draw(this.ctx);
             this._drawPathOutline(this.ctx);   // gesture fallback: outline isn't in this direct (uncached) draw
             return;
         }
-        this.ctx.setTransform(k, 0, 0, k, bx, by);
+        this.ctx.setTransform(k, 0, 0, k, ex, ey);
         this.ctx.drawImage(this._mapLayer, 0, 0);
         this.ctx.setTransform(A, 0, 0, A, OX, OY);
     }
