@@ -866,9 +866,13 @@ class Game {
             this.map.draw(this.ctx);                  // node test stubs
             return;
         }
+        // hpBucket: the baked path outline recolours at the near-death
+        // thresholds, so the layer must re-rasterize when the bucket flips.
+        const hpBucket = this.health <= 3 ? 'r' : this.health <= 6 ? 'o' : 'y';
         const key = this.canvas.width + 'x' + this.canvas.height + '|' +
             A + '|' + OX + '|' + OY + '|' + (this.map && this.map.seed) +
-            '|' + ((this.map && this.map._rev) || 0);   // digger carves roads mid-run
+            '|' + ((this.map && this.map._rev) || 0) +   // digger carves roads mid-run
+            '|' + hpBucket;
         const gestureActive = (typeof window !== 'undefined') && window.__neonZoomGesture === true;
         if (this._mapLayerKey !== key && !(gestureActive && this._mapLayer)) {
             if (!this._mapLayer) this._mapLayer = document.createElement('canvas');
@@ -879,6 +883,7 @@ class Game {
             mctx.clearRect(0, 0, this._mapLayer.width, this._mapLayer.height);
             mctx.setTransform(A, 0, 0, A, OX, OY);
             this.map.draw(mctx);
+            this._drawPathOutline(mctx);   // bake the static outline into the cached layer (zero per-frame cost)
             this._mapLayerKey = key;
             this._mapLayerT = { a: A, ox: OX, oy: OY };
         }
@@ -902,6 +907,7 @@ class Game {
             by + k * this._mapLayer.height >= this.canvas.height;
         if (!covers) {
             this.map.draw(this.ctx);
+            this._drawPathOutline(this.ctx);   // gesture fallback: outline isn't in this direct (uncached) draw
             return;
         }
         this.ctx.setTransform(k, 0, 0, k, bx, by);
@@ -969,19 +975,15 @@ class Game {
         return        { core: '#ffe23b', glow: 'rgba(255, 226, 59, 0.8)' };
     }
 
-    // A super-thin neon tube along the road's edge: a soft glow pass plus a
-    // 1px bright core, gently pulsing. Drawn each frame (not in the cached
-    // map layer) because both the colour and the pulse change over time.
+    // A static, super-thin neon line along the road edge. BAKED into the
+    // cached map layer (see _drawMapLayer), so it costs nothing per frame —
+    // only re-rasterized on resize / zoom / map-rev change, or when the
+    // near-death colour bucket flips. No animation (the pulse + centerline
+    // shimmer read as lag and were removed by request).
     _drawPathOutline(ctx) {
         if (!ctx || typeof ctx.stroke !== 'function') return;   // node-test stub
         const segs = this._pathOutlineSegments();
         if (!segs.length) return;
-        const reduced = (typeof window !== 'undefined' && window.matchMedia &&
-            window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-        // _animClock is sampled once per rendered frame by the main loop, so
-        // two draws of the same frame pulse identically (no shimmer).
-        const t = this._animClock || 0;
-        const pulse = reduced ? 0.85 : (0.72 + 0.28 * Math.sin(t / 520));
         const col = this._pathOutlineColor();
         ctx.save();
         ctx.beginPath();
@@ -992,21 +994,19 @@ class Game {
         }
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        // Glow halo.
+        // Faint glow + hair-thin bright core. Static — drawn once into the
+        // cached layer, so a little blur here is free (not per-frame).
         ctx.shadowColor = col.glow;
-        ctx.shadowBlur = reduced ? 4 : 4 + 4 * pulse;
+        ctx.shadowBlur = 3;
         ctx.strokeStyle = col.glow;
-        ctx.globalAlpha = 0.45 * pulse;
-        ctx.lineWidth = 1.4;
+        ctx.globalAlpha = 0.4;
+        ctx.lineWidth = 1.2;
         ctx.stroke();
-        // Bright, hair-thin core tube.
-        ctx.shadowBlur = reduced ? 2 : 2 + 2 * pulse;
+        ctx.shadowBlur = 0;
         ctx.strokeStyle = col.core;
-        ctx.globalAlpha = pulse;
-        ctx.lineWidth = 0.6;
+        ctx.globalAlpha = 0.95;
+        ctx.lineWidth = 0.5;
         ctx.stroke();
-        // (The moving centerline "shimmer" sweep was removed by request — just
-        // the road outline, no animated line down the middle of the path.)
         ctx.restore();
     }
 
@@ -1045,8 +1045,7 @@ class Game {
             T.a = A; T.ox = OX; T.oy = OY;
         }
 
-        this._drawMapLayer(A, OX, OY);
-        this._drawPathOutline(this.ctx);
+        this._drawMapLayer(A, OX, OY);   // includes the baked path outline
 
         if (this.selectedTowers && this.selectedTowers.length > 0) {
             for (let t of this.selectedTowers) {

@@ -109,17 +109,19 @@ const path = require('path');
     ok('outline recomputes after a map-revision (boss re-route) change',
         reroute.placed && reroute.after !== reroute.before, JSON.stringify(reroute));
 
-    // 4) The outline is actually wired into the per-frame draw (not dead code).
+    // 4) The outline is baked into the cached map layer on rasterization
+    //    (not redrawn every frame — that per-frame stroke+shadowBlur was lag).
     const wired = await page.evaluate(() => {
         const g = window.game;
         let called = 0;
         const orig = g._drawPathOutline.bind(g);
         g._drawPathOutline = (ctx) => { called++; return orig(ctx); };
+        g._mapLayerKey = null;   // force the cached layer to re-rasterize
         g.draw();
         g._drawPathOutline = orig;
         return called;
     });
-    ok('draw() invokes the path outline every frame', wired === 1, String(wired));
+    ok('outline is baked into the map layer on (re)rasterization', wired >= 1, String(wired));
 
     ok('no JS errors', errs.length === 0, errs.join(' / '));
 
