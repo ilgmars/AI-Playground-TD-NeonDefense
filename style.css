@@ -3364,6 +3364,36 @@ body.menu-open #build-menu {
 }
 #get-app-link.hidden { display: none; }
 
+/* Main-menu footer: current build (left) + APK download link (right). */
+#mm-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    max-width: 340px;
+    margin: 16px auto 0;
+    gap: 10px;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+}
+#mm-version { opacity: 0.7; }
+#mm-download {
+    color: var(--text-muted);
+    text-decoration: none;
+    opacity: 0.7;
+    transition: color 0.2s ease, opacity 0.2s ease, text-shadow 0.2s ease;
+}
+#mm-download:hover { opacity: 1; color: var(--accent); }
+/* Newer build available → light the link (and version) up green. */
+#mm-download.update {
+    color: var(--accent);
+    opacity: 1;
+    font-weight: bold;
+    text-shadow: 0 0 8px rgba(43, 255, 136, 0.7);
+}
+#mm-version.update { color: var(--accent); opacity: 1; }
+
 #app-update-banner {
     position: fixed;
     left: 50%;

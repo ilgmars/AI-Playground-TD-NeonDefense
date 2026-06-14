@@ -173,6 +173,32 @@ const path = require('path');
         !mpVer.skipped && /NEON DEFENSE/.test(mpVer.text) && /v1\.1/.test(mpVer.text) && /build\s+\d{8}/.test(mpVer.text),
         JSON.stringify(mpVer));
 
+    // 4. Main-menu footer: current version + a download link that lights green
+    //    when a newer build exists on main (populateMainMenuVersion).
+    const mmNew = await page.evaluate(async () => {
+        const make = (o) => ({ ok: true, json: async () => o });
+        const stub = (url) => String(url).indexOf('raw.githubusercontent') !== -1
+            ? Promise.resolve(make({ build: '20990101000000' }))            // live = far future (newer)
+            : Promise.resolve(make({ version: '1.1', build: '20000101000000' })); // local = old
+        const r = await window.populateMainMenuVersion(stub);
+        return { newer: r.newer,
+            ver: document.getElementById('mm-version').textContent,
+            dlGreen: document.getElementById('mm-download').classList.contains('update') };
+    });
+    ok('main-menu shows the build as a yymmdd.hhmmss timestamp', /000101\.000000/.test(mmNew.ver), JSON.stringify(mmNew));
+    ok('newer build → "update available" + green download link',
+        mmNew.newer === true && /update available/.test(mmNew.ver) && mmNew.dlGreen === true, JSON.stringify(mmNew));
+
+    const mmCur = await page.evaluate(async () => {
+        const make = (o) => ({ ok: true, json: async () => o });
+        const stub = (url) => String(url).indexOf('raw.githubusercontent') !== -1
+            ? Promise.resolve(make({ build: '20000101000000' }))            // live == local
+            : Promise.resolve(make({ version: '1.1', build: '20000101000000' }));
+        const r = await window.populateMainMenuVersion(stub);
+        return { newer: r.newer, dlGreen: document.getElementById('mm-download').classList.contains('update') };
+    });
+    ok('up-to-date build → no update, neutral link', mmCur.newer === false && mmCur.dlGreen === false, JSON.stringify(mmCur));
+
     ok('no JS errors', errs.length === 0, errs.join(' / '));
 
     await browser.close();

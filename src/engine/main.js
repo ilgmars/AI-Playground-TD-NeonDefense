@@ -5796,6 +5796,43 @@ document.addEventListener('DOMContentLoaded', init);
         return applyUpdateDecision(decision, true);
     }
 
+    // "20260614093629" → "260614.093629" (yymmdd.hhmmss). Falls back to the
+    // raw token if it isn't the expected YYYYMMDDHHMMSS shape.
+    function formatBuild(b) {
+        const s = String(b == null ? '' : b).replace(/\D/g, '');
+        if (s.length < 14) return s ? 'build ' + s : 'build unknown';
+        return s.slice(2, 8) + '.' + s.slice(8, 14);
+    }
+
+    // Main-menu footer: show the current build (bottom-left) + an APK download
+    // link (bottom-right) that lights green when a newer build exists on main.
+    // Runs on web AND in the APK — `local` is the page's bundled version.json,
+    // `live` is main's. Never throws (offline/blocked → just shows the version).
+    async function populateMainMenuVersion(fetchImpl) {
+        const verEl = document.getElementById('mm-version');
+        const dlEl = document.getElementById('mm-download');
+        let local = null;
+        try {
+            const f = fetchImpl || window.fetch;
+            const res = await f('./version.json', { cache: 'no-store' });
+            if (res && res.ok) local = await res.json();
+        } catch (_) {}
+        const localBuild = local && local.build;
+        let live = null;
+        try { live = await fetchBuildToken(LIVE_VERSION_URL, fetchImpl); } catch (_) {}
+        const newer = !!live && appDistIsNewerBuild(localBuild, live);
+        if (verEl) {
+            verEl.textContent = formatBuild(localBuild) + (newer ? ' • update available' : '');
+            verEl.classList.toggle('update', newer);
+        }
+        if (dlEl) {
+            dlEl.href = APK_URL;
+            dlEl.textContent = newer ? 'Download latest ▸' : 'Get the app ▸';
+            dlEl.classList.toggle('update', newer);
+        }
+        return { localBuild: String(localBuild), live: String(live), newer };
+    }
+
     // Expose the pure logic (and the wired entry points) for regression tests.
     window.appDistShouldShowLink = appDistShouldShowLink;
     window.appDistIsNewerBuild = appDistIsNewerBuild;
@@ -5803,9 +5840,11 @@ document.addEventListener('DOMContentLoaded', init);
     window.applyUpdateDecision = applyUpdateDecision;
     window.maybeShowAppLink = maybeShowAppLink;
     window.checkForApkUpdate = checkForApkUpdate;
+    window.populateMainMenuVersion = populateMainMenuVersion;
 
     document.addEventListener('DOMContentLoaded', () => {
         maybeShowAppLink();
+        populateMainMenuVersion();
 
         const dismiss = document.getElementById('app-update-dismiss');
         const banner = document.getElementById('app-update-banner');
