@@ -3295,11 +3295,13 @@ body.menu-open #build-menu {
     display: block;
     margin: 0 auto;
 }
+/* NB: no drop-shadow filters anywhere in the tree. Re-rasterising a filter
+   on 70+ nodes every frame is what made zooming lag — the neon look comes
+   from bright strokes/fills instead, which scale for free. */
 .tt-edge { stroke: rgba(150, 130, 210, 0.16); stroke-width: 1.5; }
 .tt-edge-lit {
     stroke: var(--accent);
-    stroke-width: 2.5;
-    filter: drop-shadow(0 0 4px rgba(43, 255, 136, 0.7));
+    stroke-width: 3;
 }
 .tt-disc {
     fill: rgba(20, 17, 36, 0.95);
@@ -3308,26 +3310,28 @@ body.menu-open #build-menu {
 }
 .tt-glyph { fill: var(--text-muted); font-size: 14px; font-family: inherit; }
 .tt-label { fill: var(--text-muted); font-size: 13px; font-family: inherit; letter-spacing: 0.5px; }
+/* Node name under each disc — the "what am I getting" at a glance. */
+.tt-name { fill: var(--text-muted); font-size: 9px; font-family: inherit; letter-spacing: 0.3px; }
 .tt-node { cursor: default; }
 .tt-node:focus { outline: none; }
 .tt-node:focus-visible .tt-disc { stroke: #fff; stroke-width: 3; }
 
 .tt-owned .tt-disc {
-    fill: rgba(43, 255, 136, 0.16);
+    fill: rgba(43, 255, 136, 0.2);
     stroke: var(--accent);
-    filter: drop-shadow(0 0 8px rgba(43, 255, 136, 0.6));
+    stroke-width: 2.5;
 }
 .tt-owned .tt-glyph { fill: var(--accent); }
-.tt-owned .tt-label { fill: #d8fbff; }
+.tt-owned .tt-label, .tt-owned .tt-name { fill: #d8fbff; }
 
 .tt-available { cursor: pointer; }
 .tt-available .tt-disc {
     stroke: var(--accent-2);
-    filter: drop-shadow(0 0 8px rgba(255, 92, 240, 0.6));
+    stroke-width: 3;
     animation: tt-pulse 1.8s ease-in-out infinite;
 }
 .tt-available .tt-glyph { fill: var(--accent-2); }
-.tt-available .tt-label { fill: #ffeafc; }
+.tt-available .tt-label, .tt-available .tt-name { fill: #ffeafc; }
 .tt-available:hover .tt-disc { fill: rgba(255, 92, 240, 0.14); }
 @keyframes tt-pulse {
     0%, 100% { opacity: 1; }
@@ -3344,8 +3348,10 @@ body.menu-open #build-menu {
 .tt-core-disc {
     fill: rgba(20, 17, 36, 0.95);
     stroke: var(--accent-3);
-    stroke-width: 2.5;
-    filter: drop-shadow(0 0 10px rgba(43, 255, 136, 0.5));
+    stroke-width: 3;
+    /* The ONLY filter left in the tree — one static element, so it doesn't
+       cause the zoom lag the 70+ per-node glows did, and keeps a focal glow. */
+    filter: drop-shadow(0 0 8px rgba(43, 255, 136, 0.5));
 }
 .tt-core-label { fill: var(--accent-3); font-size: 12px; font-family: inherit; letter-spacing: 1px; }
 
@@ -3363,7 +3369,7 @@ body.menu-open #build-menu {
 .tt-gate-shape { fill: rgba(20, 17, 36, 0.95); stroke: var(--border-color); stroke-width: 2; }
 .tt-gate-open .tt-gate-shape {
     stroke: var(--accent);
-    filter: drop-shadow(0 0 6px rgba(43, 255, 136, 0.55));
+    stroke-width: 2.5;
 }
 
 .tree-detail {

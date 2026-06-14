@@ -560,8 +560,10 @@ function renderTechTree() {
     for (let bi = 0; bi < branchKeys.length; bi++) { laneTops[bi] = accY; accY += laneHeights[bi]; }
     const VBH = accY;
 
-    const CORE_X = 52;
-    const colLeft = 152, colRightPad = 70;
+    // CORE sits in a left gutter; the branch labels live to its RIGHT (x=84)
+    // so the centre lane's label (ARSENAL) no longer sits under the CORE disc.
+    const CORE_X = 44;
+    const colLeft = 200, colRightPad = 70;
     const VBW = colLeft + maxDepth * COL_STEP + colRightPad;
     const colX = d => colLeft + d * COL_STEP;
 
@@ -611,7 +613,7 @@ function renderTechTree() {
 
     // Branch labels at the left edge of each lane.
     branchKeys.forEach((bk, bi) => {
-        const t = _svg('text', { x: 6, y: laneTops[bi] + 16, class: 'tt-branch-label' });
+        const t = _svg('text', { x: 84, y: laneTops[bi] + 16, class: 'tt-branch-label' });
         t.setAttribute('fill', TREE_BRANCHES[bk].color);
         t.textContent = TREE_BRANCHES[bk].name;
         nodesG.appendChild(t);
@@ -651,6 +653,13 @@ function renderTechTree() {
         const glyph = _svg('text', { x: p.x, y: p.y + 5, 'text-anchor': 'middle', class: 'tt-glyph' });
         glyph.textContent = owned ? '✓' : (TREE_KIND_GLYPH[node.kind] || '●');
         g.appendChild(glyph);
+        // Node name under the disc — so players see what each node grants
+        // without hovering. Truncated; the full name + desc stay in the
+        // tooltip and the detail panel.
+        const nm = node.name.length > 15 ? node.name.slice(0, 14) + '…' : node.name;
+        const nameEl = _svg('text', { x: p.x, y: p.y + r + 12, 'text-anchor': 'middle', class: 'tt-name' });
+        nameEl.textContent = nm;
+        g.appendChild(nameEl);
         const title = _svg('title', {}); title.textContent = node.name + ' — ' + node.desc;
         g.appendChild(title);
 
