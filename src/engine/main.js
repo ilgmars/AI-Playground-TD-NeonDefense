@@ -2122,41 +2122,17 @@ function init() {
     window.__neonResetSavePhrase = 'delete all progress';
 
     // OPTIONS menu — device + gameplay toggles, both persisted per device.
-    //   • Field: TALL  → portrait board (WIDE default), applied at the start
-    //     of the NEXT run (see restartGame; MP always WIDE).
-    //   • Vertical rotation → APK-only. The browser already turns with the
-    //     device; the WebView is manifest-locked to landscape, so this calls
-    //     the native bridge (NeonAndroid.setAllowPortrait) to unlock portrait.
-    //     Hidden on the web, where there's nothing to toggle.
-    const inApk = location.hostname === 'appassets.androidplatform.net';
-    function applyApkOrientation() {
-        const allow = localStorage.getItem('neonAllowPortrait') === '1';
-        try {
-            if (window.NeonAndroid && window.NeonAndroid.setAllowPortrait) {
-                window.NeonAndroid.setAllowPortrait(allow);
-            }
-        } catch (_) {}
-    }
-
-    const fieldChk  = document.getElementById('opt-field-tall');
+    //   • Portrait field → portrait board (landscape default), applied at the
+    //     start of the NEXT run (see restartGame; MP always WIDE). This is the
+    //     ONLY orientation control — device rotation is intentionally not
+    //     offered (the playfield switch covers portrait vs landscape).
+    const fieldChk = document.getElementById('opt-field-tall');
     if (fieldChk) {
         fieldChk.checked = localStorage.getItem('neonFieldTall') === '1';
         fieldChk.addEventListener('change', () => {
             try { localStorage.setItem('neonFieldTall', fieldChk.checked ? '1' : '0'); } catch (_) {}
         });
     }
-
-    const rotateRow = document.getElementById('opt-rotate-row');
-    const rotateChk = document.getElementById('opt-allow-portrait');
-    if (rotateRow && !inApk) rotateRow.classList.add('hidden');
-    if (rotateChk) {
-        rotateChk.checked = localStorage.getItem('neonAllowPortrait') === '1';
-        rotateChk.addEventListener('change', () => {
-            try { localStorage.setItem('neonAllowPortrait', rotateChk.checked ? '1' : '0'); } catch (_) {}
-            applyApkOrientation();
-        });
-    }
-    if (inApk) applyApkOrientation();   // restore saved orientation at boot
 
     const optionsBtn = document.getElementById('menu-options-btn');
     if (optionsBtn) optionsBtn.addEventListener('click', () => {

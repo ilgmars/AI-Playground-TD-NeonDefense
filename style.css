@@ -2982,11 +2982,13 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     width: 14px; height: 14px;
 }
 
-/* OPTIONS-menu toggles are square checkboxes with the label beside them
-   (accent-filled with a ✓ when on). Scoped to #options-menu so the scoreboard
-   filter checkboxes are untouched. Keeps <input type=checkbox> so the .checked
-   JS is unchanged. */
+/* OPTIONS-menu toggles: thin neon SLIDER switches (label left, switch right).
+   On = neon-green track + glow, knob right; off = dim red, knob left. Scoped
+   to #options-menu so the scoreboard filter checkboxes are untouched; keeps
+   <input type=checkbox> so the .checked JS is unchanged. */
 #options-menu .sb-filter-toggle {
+    flex-direction: row-reverse;
+    justify-content: space-between;
     gap: 12px;
     font-size: 0.9rem;
     color: var(--text);
@@ -2996,28 +2998,34 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     -webkit-appearance: none;
     position: relative;
     flex: 0 0 auto;
-    width: 26px; height: 26px;
+    width: 42px; height: 16px;          /* thin */
     margin: 0;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    background: rgba(239, 68, 68, 0.30);
+    border: 1px solid rgba(239, 68, 68, 0.85);
+    box-shadow: 0 0 5px rgba(239, 68, 68, 0.45);
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition: background .2s, border-color .2s, box-shadow .2s;
+}
+#options-menu .sb-filter-toggle input[type=checkbox]::before {
+    content: "";
+    position: absolute;
+    top: 50%; left: 1px;
+    width: 12px; height: 12px;
+    transform: translateY(-50%);
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.6);
+    transition: left .2s;
 }
 #options-menu .sb-filter-toggle input[type=checkbox]:checked {
-    background: var(--accent);
+    background: rgba(43, 255, 136, 0.30);
     border-color: var(--accent);
+    box-shadow: 0 0 8px rgba(43, 255, 136, 0.7);
 }
 #options-menu .sb-filter-toggle input[type=checkbox]:checked::before {
-    content: "✓";
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #04110a;
-    font-size: 18px;
-    font-weight: bold;
+    left: calc(100% - 13px);
+    box-shadow: 0 0 6px var(--accent);
 }
 #options-menu .sb-filter-toggle input[type=checkbox]:focus-visible {
     outline: 2px solid var(--accent-2);
