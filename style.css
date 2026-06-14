@@ -3315,7 +3315,9 @@ body.menu-open #build-menu {
 .tt-keystone .tt-glyph { font-size: 15px; }
 
 /* RESPEC + BACK action row in the tech-tree overlay. */
-.tree-actions { display: flex; gap: 10px; justify-content: center; align-items: center; }
+/* flex: 0 0 auto so the RESPEC/BACK row keeps its height and never gets
+   overlapped by a tall node-detail panel on short screens. */
+.tree-actions { display: flex; flex: 0 0 auto; gap: 10px; justify-content: center; align-items: center; }
 
 .tt-gate-shape { fill: rgba(20, 17, 36, 0.95); stroke: var(--border-color); stroke-width: 2; }
 .tt-gate-open .tt-gate-shape {
@@ -3327,6 +3329,14 @@ body.menu-open #build-menu {
     max-width: 720px;
     margin: 0 auto 10px;
     min-height: 2.6em;
+    /* A long node description scrolls WITHIN this box instead of growing the
+       column and shoving the RESPEC/BACK row off (or under) the bottom on
+       short phones. flex:0 0 auto keeps it from being stretched by the flex
+       column. */
+    max-height: 24vh;
+    overflow-y: auto;
+    flex: 0 0 auto;
+    box-sizing: border-box;
     padding: 8px 14px;
     font-size: 0.85rem;
     color: var(--text-muted);

@@ -179,6 +179,37 @@ const path = require('path');
     });
     ok('up-to-date build → no update, neutral link', mmCur.newer === false && mmCur.dlGreen === false, JSON.stringify(mmCur));
 
+    // 5. The version check re-runs every time the player returns to the main
+    //    menu (so a freshly-deployed build is noticed without relaunching),
+    //    and an hourly timer keeps it fresh while the menu sits open.
+    const recheck = await page.evaluate(async () => {
+        window.__neonVersionCheckThrottleMs = 0;        // disable the 30s throttle for the test
+        let liveHits = 0;
+        const realFetch = window.fetch;
+        window.fetch = (url, opts) => {
+            const u = String(url);
+            if (u.indexOf('raw.githubusercontent') !== -1) {
+                liveHits++;
+                return Promise.resolve({ ok: true, json: async () => ({ build: '20990101000000' }) });
+            }
+            if (u.indexOf('version.json') !== -1) {
+                return Promise.resolve({ ok: true, json: async () => ({ version: '1.1', build: '20000101000000' }) });
+            }
+            return realFetch(url, opts);
+        };
+        const hasFn = typeof window.refreshVersionInfo === 'function';
+        navigateToTechTree();                           // leave the menu …
+        await new Promise(r => setTimeout(r, 60));
+        const before = liveHits;
+        navigateToMainMenu();                           // … and come back → must re-check
+        await new Promise(r => setTimeout(r, 250));
+        window.fetch = realFetch;
+        return { hasFn, before, after: liveHits };
+    });
+    ok('refreshVersionInfo entry point is wired', recheck.hasFn === true, JSON.stringify(recheck));
+    ok('returning to the main menu re-checks the live build',
+        recheck.after > recheck.before, JSON.stringify(recheck));
+
     ok('no JS errors', errs.length === 0, errs.join(' / '));
 
     await browser.close();

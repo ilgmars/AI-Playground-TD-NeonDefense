@@ -42,6 +42,12 @@ const SCREENS = [
     { id: 'main-menu',         open: null },                                  // shown at boot
     { id: 'options-menu',      open: `document.getElementById('menu-options-btn').click()` },
     { id: 'tech-tree',         open: `navigateToTechTree()` },
+    // Same overlay, but with a node SELECTED so the detail panel fills with a
+    // long description — that's when it used to push over the RESPEC/BACK row.
+    { id: 'tech-tree', label: 'tech-tree (node selected)', open: `navigateToTechTree()`,
+      after: `(() => { const ns=[...document.querySelectorAll('.tt-node')];
+        const t=ns.find(n=>/Variant Protocols|KEYSTONE|Unlock/i.test(n.textContent))||ns[12];
+        if(t) t.dispatchEvent(new MouseEvent('click',{bubbles:true})); })()` },
     { id: 'tower-mastery',     open: `navigateToTowerMastery()` },
     { id: 'backpack',          open: `navigateToBackpack()` },
     { id: 'scoreboard-screen', open: `document.getElementById('menu-scores-btn').click()` },
@@ -232,11 +238,15 @@ function AUDIT_FN() {
                 if (opened !== true && sc.optional) continue;     // e.g. MP disabled
             }
             await page.waitForTimeout(sc.id === 'mp-lobby' ? 500 : 250);
+            if (sc.after) {
+                await page.evaluate((js) => { try { eval(js); } catch (_) {} }, sc.after);
+                await page.waitForTimeout(150);
+            }
 
             const res = await page.evaluate((id) => window.__audit(id), sc.id);
             if (res.error === 'not-visible' && sc.optional) continue;  // MP button hidden
 
-            const label = `[${vp.name}] ${sc.id}`;
+            const label = `[${vp.name}] ${sc.label || sc.id}`;
             if (res.error) { ok(`${label} opened`, false, res.error); continue; }
             ok(`${label} — ${res.controls} controls, ${res.nodes} nodes, no layout issues`,
                 res.issues.length === 0,

@@ -365,6 +365,10 @@ function navigateToMainMenu() {
     hideScreen('mp-waitroom');
     hideScreen('mp-race-overlay');   // double-belt+suspenders
     showScreen('main-menu');
+    // Re-check for a newer deployed build every time we land on the menu
+    // (throttled inside refreshVersionInfo) so an update surfaces without
+    // relaunching the app. A no-op until the boot IIFE has wired it.
+    if (typeof window !== 'undefined' && window.refreshVersionInfo) window.refreshVersionInfo();
     _exitSubScreenState();
     // Halt the in-progress run so update() bails — the menu owns the canvas now.
     if (typeof game !== 'undefined' && (game.state === 'playing' || game.state === 'paused')) {
@@ -2172,9 +2176,21 @@ function init() {
     //     offered (the playfield switch covers portrait vs landscape).
     const fieldChk = document.getElementById('opt-field-tall');
     if (fieldChk) {
+        // State-aware label: spell out the board you'll actually get rather
+        // than statically saying "Portrait" even when it's off (the source of
+        // the "this toggle is confusing" feedback).
+        const syncFieldLabel = () => {
+            const lbl = document.getElementById('opt-field-tall-label');
+            if (!lbl) return;
+            lbl.innerHTML = fieldChk.checked
+                ? 'Board shape: <strong>Portrait</strong> (tall) <span class="opt-hint">applied next run · path runs left → right</span>'
+                : 'Board shape: <strong>Landscape</strong> (wide) <span class="opt-hint">applied next run · path runs top → down</span>';
+        };
         fieldChk.checked = localStorage.getItem('neonFieldTall') === '1';
+        syncFieldLabel();
         fieldChk.addEventListener('change', () => {
             try { localStorage.setItem('neonFieldTall', fieldChk.checked ? '1' : '0'); } catch (_) {}
+            syncFieldLabel();
         });
     }
     // Crisp graphics — supersample the canvas (sharper, more GPU). Applied live.
@@ -5816,8 +5832,28 @@ document.addEventListener('DOMContentLoaded', init);
     window.checkForApkUpdate = checkForApkUpdate;
     window.populateMainMenuVersion = populateMainMenuVersion;
 
+    // One entry point that refreshes both the footer build line and the APK
+    // update banner. Called at boot, every time the main menu opens, and once
+    // an hour while the app stays open. Throttled so bouncing in/out of the
+    // menu doesn't hammer GitHub's raw endpoint; the hourly tick forces past
+    // the throttle. (window.__neonVersionCheckThrottleMs overrides for tests.)
+    let _verBusy = false, _verLast = 0;
+    async function refreshVersionInfo(force) {
+        const throttle = (typeof window.__neonVersionCheckThrottleMs === 'number')
+            ? window.__neonVersionCheckThrottleMs : 30000;
+        const now = Date.now();
+        if (!force && (_verBusy || now - _verLast < throttle)) return;
+        _verBusy = true; _verLast = now;
+        try { await populateMainMenuVersion(); await checkForApkUpdate(); }
+        catch (_) {}
+        finally { _verBusy = false; }
+    }
+    window.refreshVersionInfo = refreshVersionInfo;
+
     document.addEventListener('DOMContentLoaded', () => {
-        populateMainMenuVersion();
+        refreshVersionInfo();
+        // Catch a deploy that lands while the player just sits on the menu.
+        setInterval(() => refreshVersionInfo(true), 60 * 60 * 1000);
 
         const dismiss = document.getElementById('app-update-dismiss');
         const banner = document.getElementById('app-update-banner');
@@ -5831,8 +5867,5 @@ document.addEventListener('DOMContentLoaded', init);
                 } catch (_) {}
             });
         }
-
-        // Fire-and-forget; the WebView allows the one manifest host through.
-        checkForApkUpdate();
     });
 })();
