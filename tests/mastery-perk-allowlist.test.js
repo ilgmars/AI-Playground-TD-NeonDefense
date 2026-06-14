@@ -36,6 +36,14 @@ const path = require('path');
     await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(700);
 
+    // Relay (income) is now tree-gated, so it only appears in the Mastery Lab
+    // once unlocked — unlock it up front so the "Relay row" assertions below
+    // exercise the real row.
+    await page.evaluate(() => {
+        save.unlockedNodes = (save.unlockedNodes || []).concat(['tower.income']);
+        NeonSave.write(save);
+    });
+
     let pass = 0, fail = 0;
     function ok(name, cond, extra) {
         if (cond) { console.log('ok', name); pass++; }

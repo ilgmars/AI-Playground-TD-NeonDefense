@@ -2248,6 +2248,16 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     overflow-y: auto;
     padding: 2px 6px 2px 2px;
 }
+.mastery-locked-note {
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    opacity: 0.85;
+    padding: 8px 10px;
+    margin-top: 2px;
+    border: 1px dashed var(--border-color);
+    border-radius: 6px;
+}
 .mastery-row {
     display: flex;
     align-items: flex-start;

@@ -45,7 +45,7 @@ function sanitizeTowerLoadout(loadout) {
     for (const baseType of NeonSave.TOWER_TYPES) {
         const variantId = TOWER_VARIANTS[baseType];
         const selected = source[baseType];
-        if (selected === variantId && isTowerVariantUnlocked(baseType)) {
+        if (variantId && selected === variantId && isTowerVariantUnlocked(baseType)) {
             clean[baseType] = variantId;
         } else if (selected === baseType) {
             clean[baseType] = baseType;
@@ -184,6 +184,7 @@ function renderTowerVariantGrid() {
     let anyUnlocked = false;
     for (const baseType of NeonSave.TOWER_TYPES) {
         const variantId = TOWER_VARIANTS[baseType];
+        if (!variantId || !TOWERS[variantId]) continue;   // tree towers have no variant
         const variantUnlocked = isTowerVariantUnlocked(baseType);
         if (!variantUnlocked) continue;
         anyUnlocked = true;
@@ -779,13 +780,20 @@ function renderTowerMastery() {
     //              doubled to −20%). No bounty — relays don't kill.
     const perksForTower = (towerType) => {
         if (towerType === 'laser') return ['damage', 'bounty'];
-        if (towerType === 'income' || towerType === 'income_research')
+        // Support / aura towers (Relay, Research Node, Beacon) don't kill and
+        // don't fire — Yield + Upgrade Cost are the only perks that matter.
+        if (towerType === 'income' || towerType === 'income_research' || towerType === 'beacon')
             return ['damage', 'efficiency'];
         return ['damage', 'fireRate', 'bounty'];
     };
     if (typeof window !== 'undefined') window.__neonPerksForTower = perksForTower;
 
+    let hiddenLocked = 0;
     for (const type of NeonSave.TOWER_TYPES) {
+        // Only show towers the player has actually unlocked; tree-gated towers
+        // (Relay + the new tree towers) appear here once their Arsenal node is
+        // owned. Locked ones are hidden, with a one-line note below.
+        if (typeof isTowerUnlocked === 'function' && !isTowerUnlocked(type)) { hiddenLocked++; continue; }
         // Resolve which entry (base vs unlocked variant) this row is currently
         // viewing — driven by mastSelection (seeded from save.lastLoadout on
         // open). The toggle below lets the player switch live.
@@ -873,7 +881,7 @@ function renderTowerMastery() {
 
         const perks = document.createElement('div');
         perks.className = 'mastery-perks';
-        const activePerkMeta = (type === 'income' || activeKey === 'income_research') ? incomePerkMeta : perkMeta;
+        const activePerkMeta = (type === 'income' || type === 'beacon' || activeKey === 'income_research') ? incomePerkMeta : perkMeta;
         // Endless perks have an infinite limit — show "Lv N" instead of "N/∞".
         const fmtLv = (lim, rk) => Number.isFinite(lim) ? `${rk}/${lim}` : `Lv ${rk}`;
         for (const perk of perksForTower(activeKey)) {
@@ -938,6 +946,15 @@ function renderTowerMastery() {
         row.appendChild(icon);
         row.appendChild(body);
         grid.appendChild(row);
+    }
+
+    // Tell the player where the missing towers went, so the shorter list
+    // doesn't read as a bug.
+    if (hiddenLocked > 0) {
+        const note = document.createElement('div');
+        note.className = 'mastery-locked-note';
+        note.textContent = `🔒 ${hiddenLocked} more tower${hiddenLocked > 1 ? 's' : ''} unlock in the Tech Tree — master them here once owned.`;
+        grid.appendChild(note);
     }
 }
 
@@ -5535,6 +5552,18 @@ function init() {
     }
 }
 
+// Single source of truth for "is this base tower available to build/master".
+// Tree-gated towers (the new ones + Relay) need their Arsenal node owned;
+// the core attack towers are always available. Reused by the build menu, the
+// selectTower hotkey guard, and the Mastery Lab roster.
+function isTowerUnlocked(type) {
+    if (typeof TREE_GATED_TOWERS !== 'undefined' && TREE_GATED_TOWERS.indexOf(type) !== -1) {
+        return NeonSave.hasUnlocked(save, 'tower.' + type);
+    }
+    return true;
+}
+if (typeof window !== 'undefined') window.isTowerUnlocked = isTowerUnlocked;
+
 // When a run starts with variant towers active (tower loadout), update the build
 // menu so names and costs reflect the variant rather than the base tower.
 // data-type stays as the base type (canonical build key); only the display changes.
@@ -5545,7 +5574,7 @@ function updateBuildMenuForLoadout(towerLoadout) {
         // the new towers AND the Relay/income support tower (moved into the
         // tree). The core attack towers are always buildable.
         if (TREE_GATED_TOWERS.indexOf(baseType) !== -1) {
-            const unlocked = NeonSave.hasUnlocked(save, 'tower.' + baseType);
+            const unlocked = isTowerUnlocked(baseType);
             el.classList.toggle('tt-tower-locked', !unlocked);   // CSS hide, no inline style
             if (!unlocked) return;
         }
@@ -5577,8 +5606,7 @@ window.selectTower = function(type) {
     if (game.state !== 'playing' && game.state !== 'paused') return;
     // Tree-gated towers can't be selected/built until their node is owned
     // (guards the hotkey path too, not just the hidden build button).
-    if (typeof TREE_GATED_TOWERS !== 'undefined' && TREE_GATED_TOWERS.indexOf(type) !== -1
-        && !NeonSave.hasUnlocked(save, 'tower.' + type)) return;
+    if (typeof isTowerUnlocked === 'function' && !isTowerUnlocked(type)) return;
 
     document.querySelectorAll('.tower-option').forEach(el => el.classList.remove('selected'));
     

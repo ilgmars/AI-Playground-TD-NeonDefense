@@ -9,7 +9,10 @@ const NeonSave = (function () {
     const SCHEMA_VERSION = 1;
 
     // Tower types used by the current game. Kept in sync with TOWERS keys in config.js.
-    const TOWER_TYPES = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'flak', 'electric', 'silo', 'income'];
+    // The tail (mortar … beacon) are the tech-tree-unlocked towers — listed
+    // here so they accrue mastery XP and get a Mastery Lab row once unlocked.
+    const TOWER_TYPES = ['basic', 'sniper', 'rapid', 'laser', 'rocket', 'flak', 'electric', 'silo', 'income',
+        'mortar', 'disruptor', 'railgun', 'beacon'];
     const MASTERY_PERK_DEFAULTS = { damage: 0, fireRate: 0, efficiency: 0, bounty: 0 };
     // Damage / Fire Rate / Bounty are ENDLESS (diminishing effect, geometric
     // cost) so per-tower mastery XP always has a sink. Bounty replaced the
