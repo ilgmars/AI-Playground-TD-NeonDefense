@@ -1005,26 +1005,8 @@ class Game {
         ctx.globalAlpha = pulse;
         ctx.lineWidth = 0.6;
         ctx.stroke();
-        // Super-subtle shimmer flowing spawn→base, the way the mobs travel: a
-        // short bright dash sweeping the centerline (dash = on-segment, gap =
-        // rest of the path, so only one band shows; negative offset advances it
-        // forward along the draw direction). Skipped under reduced motion.
-        const line = this._pathCenterline();
-        if (!reduced && line && typeof ctx.setLineDash === 'function') {
-            const band = TILE_SIZE * 1.6;
-            ctx.beginPath();
-            ctx.moveTo(line.pts[0].x, line.pts[0].y);
-            for (let i = 1; i < line.pts.length; i++) ctx.lineTo(line.pts[i].x, line.pts[i].y);
-            ctx.setLineDash([band, line.len]);
-            ctx.lineDashOffset = -((t * 0.12) % (band + line.len));
-            ctx.shadowColor = col.glow;
-            ctx.shadowBlur = 6;
-            ctx.strokeStyle = col.core;
-            ctx.globalAlpha = 0.18 + 0.07 * Math.sin(t / 300);
-            ctx.lineWidth = 1.2;
-            ctx.stroke();
-            ctx.setLineDash([]);
-        }
+        // (The moving centerline "shimmer" sweep was removed by request — just
+        // the road outline, no animated line down the middle of the path.)
         ctx.restore();
     }
 

@@ -73,7 +73,7 @@ if (typeof window !== 'undefined') {
 // quantizes motion to device pixels — at DPR 2 that's half a logical
 // pixel, spatially invisible — and when the live scale matches the
 // raster scale the draw is an exact 1:1 pixel copy, zero resampling.
-function blitSprite(ctx, s, x, y, angle) {
+function blitSprite(ctx, s, x, y, angle, smooth) {
     const T = (typeof window !== 'undefined') && window.__neonRenderT;
     if (!T) {
         // No live transform published (non-Game callers) — legacy
@@ -103,8 +103,14 @@ function blitSprite(ctx, s, x, y, angle) {
         // entities. World→device→world maps the corner onto an exact
         // integer device pixel (fp error ~1e-7 px, below the
         // rasterizer's fixed-point sampling grid).
-        const wx = (Math.round(devX - dw / 2) - T.ox) / T.a;
-        const wy = (Math.round(devY - dh / 2) - T.oy) / T.a;
+        //
+        // smooth=true skips the snap: snapping a SLOW-MOVING sprite makes it
+        // hop a whole device pixel at a time (visible jitter/vibration), so
+        // moving entities (enemies) blit at sub-pixel for fluid motion at a
+        // hair of softness. Static sprites (towers) keep the crisp snap.
+        const cornerX = devX - dw / 2, cornerY = devY - dh / 2;
+        const wx = ((smooth ? cornerX : Math.round(cornerX)) - T.ox) / T.a;
+        const wy = ((smooth ? cornerY : Math.round(cornerY)) - T.oy) / T.a;
         ctx.drawImage(c, wx, wy, dw / T.a, dh / T.a);
     }
 }
@@ -252,7 +258,7 @@ function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burni
     const sprite = getSprite('e|' + type + '|' + color + '|' + radius, side, side,
         (sctx) => _paintEnemyBody(sctx, type, radius, color));
     if (sprite) {
-        blitSprite(ctx, sprite, x, y);
+        blitSprite(ctx, sprite, x, y, 0, true);   // smooth=true: enemies move, so blit sub-pixel (no jitter)
     } else {
         ctx.save();
         ctx.translate(x, y);
