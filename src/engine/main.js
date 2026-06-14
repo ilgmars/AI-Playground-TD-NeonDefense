@@ -1717,17 +1717,23 @@ function resizeCanvas() {
     const container = document.getElementById('game-container');
     if (!canvas || !container) return;
 
-    const containerAspect = container.clientWidth / container.clientHeight;
+    // When the view is rotated 90°/270° (Screen-orientation toggle), the canvas
+    // is fitted against the SWAPPED container dimensions so the rotated bitmap
+    // fills the screen instead of overflowing it.
+    const rotated = (typeof canvasRotationDeg === 'function') && (canvasRotationDeg() % 180 === 90);
+    const availW = rotated ? container.clientHeight : container.clientWidth;
+    const availH = rotated ? container.clientWidth : container.clientHeight;
+    const containerAspect = availW / availH;
     const gameAspect = window.COLS / window.ROWS;
 
     let cssWidth, cssHeight;
 
     if (containerAspect > gameAspect) {
-        cssHeight = container.clientHeight;
-        cssWidth = container.clientHeight * gameAspect;
+        cssHeight = availH;
+        cssWidth = availH * gameAspect;
     } else {
-        cssWidth = container.clientWidth;
-        cssHeight = container.clientWidth / gameAspect;
+        cssWidth = availW;
+        cssHeight = availW / gameAspect;
     }
 
     canvas.style.width = cssWidth + 'px';
@@ -1777,17 +1783,41 @@ function isDeviceSecondaryOrientation() {
     const o = window.orientation;            // deprecated fallback
     return o === 180 || o === -90 || o === 270;
 }
+// Total canvas display rotation = the "Screen orientation" 90° toggle PLUS the
+// 180° auto-flip, combined into one CSS rotation (0 / 90 / 180 / 270). Pointer
+// input is un-rotated around the canvas centre (see flipClient + getCanvasPos),
+// so towers still place where you tap. The board SHAPE (field transpose) is a
+// separate setting — this only turns the rendered view.
+function canvasRotationDeg() {
+    let d = 0;
+    if (window.__neonScreenRotate) d += 90;
+    if (window.__neonFlip180) d += 180;
+    return ((d % 360) + 360) % 360;
+}
+function applyCanvasTransform() {
+    const canvas = document.getElementById('game-canvas');
+    if (!canvas) return;
+    const d = canvasRotationDeg();
+    canvas.style.transform = d ? ('rotate(' + d + 'deg)') : '';
+}
 // "Auto-flip orientation" OPTION (default on): when enabled AND the device is
 // upside-down (secondary orientation), rotate the canvas 180° so the field
-// stays upright. 180° is pixel-lossless; pointer input is negated around the
-// canvas centre (see flipClient). Pure no-op on desktop / primary orientation.
+// stays upright. 180° is pixel-lossless; pointer input is rotated around the
+// canvas centre. Pure no-op on desktop / primary orientation.
 function applyAutoFlip() {
-    const canvas = document.getElementById('game-canvas');
     let enabled = true;
     try { enabled = localStorage.getItem('neonAutoFlip') !== '0'; } catch (_) {}
-    const flip = enabled && isDeviceSecondaryOrientation();
-    window.__neonFlip180 = flip;
-    if (canvas) canvas.classList.toggle('flip-180', flip);
+    window.__neonFlip180 = enabled && isDeviceSecondaryOrientation();
+    applyCanvasTransform();
+}
+// "Screen orientation" OPTION: rotate the whole view 90° (portrait ⇄ landscape)
+// independent of the board shape. Display-only, so it applies live.
+function applyScreenRotation() {
+    let on = false;
+    try { on = localStorage.getItem('neonScreenRotate') === '1'; } catch (_) {}
+    window.__neonScreenRotate = on;
+    applyCanvasTransform();
+    if (typeof resizeCanvas === 'function') { try { resizeCanvas(); } catch (_) {} }
 }
 
 window.addEventListener('resize', resizeCanvas);
@@ -1801,7 +1831,8 @@ window.addEventListener('orientationchange', () => {
     setTimeout(resizeCanvas, 600); // extra pass after flex layout settles
 });
 try { if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', applyAutoFlip); } catch (_) {}
-applyAutoFlip();   // initial state at load
+applyAutoFlip();         // initial state at load
+applyScreenRotation();   // honour the saved Screen-orientation toggle
 // Also catch resize events that follow orientation changes on Android
 window.addEventListener('resize', () => {
     clearTimeout(window._resizeDebounce);
@@ -2253,6 +2284,24 @@ function init() {
         fieldChk.addEventListener('change', () => {
             try { localStorage.setItem('neonFieldTall', fieldChk.checked ? '1' : '0'); } catch (_) {}
             syncFieldLabel();
+        });
+    }
+    // Screen orientation — rotate the whole view 90° (portrait ⇄ landscape),
+    // independent of the board shape. Display-only, so it applies live.
+    const rotChk = document.getElementById('opt-screen-rotate');
+    if (rotChk) {
+        const syncRotLabel = () => {
+            const lbl = document.getElementById('opt-screen-rotate-label');
+            if (!lbl) return;
+            lbl.innerHTML = 'Screen orientation: <strong>' + (rotChk.checked ? 'Portrait (rotated 90°)' : 'Landscape') +
+                '</strong> <span class="opt-hint">turn the whole view 90° to fit how you hold the device — separate from board shape</span>';
+        };
+        rotChk.checked = localStorage.getItem('neonScreenRotate') === '1';
+        syncRotLabel();
+        rotChk.addEventListener('change', () => {
+            try { localStorage.setItem('neonScreenRotate', rotChk.checked ? '1' : '0'); } catch (_) {}
+            syncRotLabel();
+            if (typeof applyScreenRotation === 'function') { try { applyScreenRotation(); } catch (_) {} }
         });
     }
     // Crisp graphics — supersample the canvas (sharper, more GPU). Applied live.
@@ -4005,28 +4054,42 @@ function init() {
     // screen point maps to the un-rotated frame by negating around the canvas
     // centre (180° is its own inverse; the bounding rect is unchanged). One
     // helper used by every game-canvas pointer read.
+    // Un-rotate a client point around the canvas centre by the current display
+    // rotation (0/90/180/270), returning a point in the SAME client-space frame
+    // as before — so the pinch/pan handlers that call this keep working
+    // unchanged; only getCanvasPos needs the rotated-dimension fix-up below.
     function flipClient(clientX, clientY) {
-        if (!window.__neonFlip180) return { x: clientX, y: clientY };
+        const deg = canvasRotationDeg();
+        if (!deg) return { x: clientX, y: clientY };
         const r = canvas.getBoundingClientRect();
-        return { x: 2 * (r.left + r.width / 2) - clientX, y: 2 * (r.top + r.height / 2) - clientY };
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        const rad = -deg * Math.PI / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+        const dx = clientX - cx, dy = clientY - cy;
+        return { x: cx + (dx * cos - dy * sin), y: cy + (dx * sin + dy * cos) };
     }
 
     function getCanvasPos(e) {
         const rect = canvas.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
         const p = flipClient(e.clientX, e.clientY);
+        // Use the UN-rotated canvas CSS size: when rotated 90°/270° the
+        // bounding rect's width/height are swapped, so rect.* would mis-scale.
+        const cssW = parseFloat(canvas.style.width)  || rect.width;
+        const cssH = parseFloat(canvas.style.height) || rect.height;
+        const localX = p.x - cx + cssW / 2;       // 0..cssW in the un-rotated canvas
+        const localY = p.y - cy + cssH / 2;
         const logicalWidth = window.COLS * window.TILE_SIZE;
         const logicalHeight = window.ROWS * window.TILE_SIZE;
-
-        const scaleX = logicalWidth / rect.width;
-        const scaleY = logicalHeight / rect.height;
+        const scaleX = logicalWidth / cssW;
+        const scaleY = logicalHeight / cssH;
         // Invert the pinch-zoom view transform. Zoom lives in the
         // render transform now (not on the element), so the bounding
         // rect no longer reflects it — undo translate-then-scale
         // explicitly before mapping CSS px to logical units.
         const Z = window.__neonZoom || { scale: 1, tx: 0, ty: 0 };
         return {
-            x: ((p.x - rect.left - Z.tx) / Z.scale) * scaleX,
-            y: ((p.y - rect.top  - Z.ty) / Z.scale) * scaleY
+            x: ((localX - Z.tx) / Z.scale) * scaleX,
+            y: ((localY - Z.ty) / Z.scale) * scaleY
         };
     }
 

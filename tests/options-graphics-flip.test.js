@@ -36,10 +36,12 @@ const path = require('path');
     const flip = await page.evaluate(() => {
         try { Object.defineProperty(screen, 'orientation', { configurable: true, value: { type: 'landscape-secondary', addEventListener() {} } }); } catch (_) {}
         const c = document.getElementById('game-canvas');
+        // Rotation is now an inline transform (so the 90° Screen-orientation
+        // toggle and the 180° auto-flip can combine), not the old flip-180 class.
         localStorage.setItem('neonAutoFlip', '1'); applyAutoFlip();
-        const on = !!window.__neonFlip180 && c.classList.contains('flip-180');
+        const on = !!window.__neonFlip180 && /rotate\(180deg\)/.test(c.style.transform);
         localStorage.setItem('neonAutoFlip', '0'); applyAutoFlip();
-        const offWhenDisabled = !!window.__neonFlip180 || c.classList.contains('flip-180');
+        const offWhenDisabled = !!window.__neonFlip180 || /rotate\(180deg\)/.test(c.style.transform);
         localStorage.setItem('neonAutoFlip', '1'); applyAutoFlip();   // leave enabled for step 3
         return { on, offWhenDisabled };
     });
