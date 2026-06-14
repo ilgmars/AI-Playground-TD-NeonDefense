@@ -310,6 +310,8 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
 .electric-icon { border-color: #0ea5e9; background: #0284c7; border-radius: 50%; outline: 2px dashed #2bff88; outline-offset: -4px; }
 .silo-icon { border-color: #ef4444; background: #991b1b; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); border-radius: 0; border: none; }
 .income-icon { border-color: #fbbf24; background: #92400e; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); border-radius: 0; border: none; }
+.mortar-icon { border-color: #fb923c; background: #9a3412; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); border-radius: 0; border: none; }
+.disruptor-icon { border-color: #2dd4bf; background: #0f766e; border-radius: 50%; outline: 2px dashed #99f6e4; outline-offset: -4px; }
 .potion-icon { border-color: #2bff88; background: #166534; border-radius: 50% 50% 40% 40%; }
 
 .tower-info {
@@ -3239,6 +3241,15 @@ body.menu-open #build-menu {
     filter: drop-shadow(0 0 10px rgba(43, 255, 136, 0.5));
 }
 .tt-core-label { fill: var(--accent-3); font-size: 12px; font-family: inherit; letter-spacing: 1px; }
+
+/* Branch lane labels — fill is set inline (per-branch colour), so no fill here. */
+.tt-branch-label { font-size: 11px; font-family: inherit; letter-spacing: 1px; opacity: 0.85; font-weight: bold; }
+/* Keystones read as bigger, heavier nodes. */
+.tt-keystone .tt-disc { stroke-width: 3; }
+.tt-keystone .tt-glyph { font-size: 17px; }
+
+/* RESPEC + BACK action row in the tech-tree overlay. */
+.tree-actions { display: flex; gap: 10px; justify-content: center; align-items: center; }
 
 .tt-gate-shape { fill: rgba(20, 17, 36, 0.95); stroke: var(--border-color); stroke-width: 2; }
 .tt-gate-open .tt-gate-shape {

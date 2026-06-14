@@ -497,39 +497,70 @@ const RESPEC_PROTECTED = [
 ];
 
 const TECH_TREE = {
-    tier1: {
-        cost: 50,
-        name: 'STARTERS',
-        nodes: [
-            { id: 'hero.pioneer',   kind: 'hero',    desc: 'Hero: start each run with +25% money.' },
-            { id: 'kit.standard',   kind: 'kit',     desc: 'Starter kit: baseline loadout, no penalties.' },
-            { id: 'hero.engineer',  kind: 'hero',    desc: 'Hero: towers cost 10% less and upgrades cost 5% less.' },
-            { id: 'ability.scan',   kind: 'ability', desc: 'Active ability: reveal the next 3 waves once per run.' },
-            { id: 'kit.economist',  kind: 'kit',     desc: 'Starter kit: $75 start, but a free Relay is pre-placed.' }
-        ]
-    },
-    tier2: {
-        cost: 200,
-        name: 'CORE TOOLS',
-        nodes: [
-            { id: 'hero.warden',       kind: 'hero',    desc: 'Hero: +5 max HP; repair potions heal +1 more.' },
-            { id: 'ability.airstrike', kind: 'ability', desc: 'Active ability: 3 targeted 200-damage area strikes.' },
-            { id: 'kit.medic',         kind: 'kit',     desc: 'Starter kit: +2 starting repairs; repairs cost 1.5x.' },
-            { id: 'qol.hpbars',        kind: 'qol',    desc: 'Intel: show enemy HP bars above active enemies.' },
-            { id: 'qol.fastai',        kind: 'qol',    desc: 'Automation: built-in Autopilot checks twice as often.' }
-        ]
-    },
-    tier3: {
-        cost: 500,
-        name: 'ADVANCED SYSTEMS',
-        nodes: [
-            { id: 'ability.freeze',    kind: 'ability', desc: 'Active ability: freeze every enemy for 3 seconds.' },
-            { id: 'kit.strategist',    kind: 'kit',     desc: 'Starter kit: reveal future waves; start with 20% less money.' },
-            { id: 'qol.dailyseed',     kind: 'qol',    desc: 'Challenge mode: unlock a deterministic daily-seed run button.' },
-            { id: 'qol.skipsetup',     kind: 'qol',    desc: 'Launch flow: reuse the last loadout from the main menu.' },
-            { id: 'qol.ascpreview',    kind: 'qol',    desc: 'Intel: preview the next hidden Ascension modifier.' }
-        ]
-    }
+    // ── OFFENSE — damage & fire rate ──────────────────────────────────────
+    off_dmg1:  { branch: 'offense', name: 'Calibrated Barrels', kind: 'damage', baseCost: 40,  requires: [],                        effect: { damage: 0.05 },   desc: '+5% tower damage.' },
+    off_rate1: { branch: 'offense', name: 'Feed Mechanism',     kind: 'rate',   baseCost: 40,  requires: [],                        effect: { fireRate: 0.05 }, desc: '+5% fire rate.' },
+    off_dmg2:  { branch: 'offense', name: 'Hardened Rounds',    kind: 'damage', baseCost: 90,  requires: ['off_dmg1'],              effect: { damage: 0.06 },   desc: '+6% tower damage.' },
+    off_rate2: { branch: 'offense', name: 'Servo Loaders',      kind: 'rate',   baseCost: 90,  requires: ['off_rate1'],             effect: { fireRate: 0.06 }, desc: '+6% fire rate.' },
+    off_dmg3:  { branch: 'offense', name: 'AP Cores',           kind: 'damage', baseCost: 160, requires: ['off_dmg2'],              effect: { damage: 0.08 },   desc: '+8% tower damage.' },
+    off_rate3: { branch: 'offense', name: 'Overclocked Coils',  kind: 'rate',   baseCost: 160, requires: ['off_rate2'],             effect: { fireRate: 0.08 }, desc: '+8% fire rate.' },
+    off_focus: { branch: 'offense', name: 'Targeting Uplink',   kind: 'mixed',  baseCost: 220, requires: ['off_dmg2', 'off_rate2'], effect: { damage: 0.06, fireRate: 0.04 }, desc: '+6% damage and +4% fire rate.' },
+    off_dmg4:  { branch: 'offense', name: 'Antimatter Slugs',   kind: 'damage', baseCost: 320, requires: ['off_dmg3'],              effect: { damage: 0.10 },   desc: '+10% tower damage.' },
+    off_key:   { branch: 'offense', name: 'Glass Cannon',       kind: 'keystone', keystone: true, baseCost: 700, requires: ['off_dmg4', 'off_focus'], effect: { damage: 0.25, fireRate: 0.12, towerCost: -0.15 }, desc: 'KEYSTONE: +25% damage, +12% fire rate — but towers cost 15% more.' },
+
+    // ── ECONOMY — credits, payout, interest ───────────────────────────────
+    eco_pay1:   { branch: 'economy', name: 'Bounty Board',     kind: 'payout',   baseCost: 40,  requires: [],            effect: { payout: 0.06 },   desc: '+6% wave-completion payout.' },
+    eco_kill1:  { branch: 'economy', name: 'Scrap Collectors', kind: 'kill',     baseCost: 40,  requires: [],            effect: { kill: 0.08 },     desc: '+8% credits per kill.' },
+    eco_pay2:   { branch: 'economy', name: 'War Bonds',        kind: 'payout',   baseCost: 90,  requires: ['eco_pay1'],  effect: { payout: 0.08 },   desc: '+8% wave-completion payout.' },
+    eco_int1:   { branch: 'economy', name: 'Reserve Account',  kind: 'interest', baseCost: 120, requires: ['eco_pay1'],  effect: { interest: 0.03 }, desc: '+3% of banked credits each wave.' },
+    eco_start1: { branch: 'economy', name: 'Seed Capital',     kind: 'money',    baseCost: 90,  requires: ['eco_kill1'], effect: { startMoney: 50 }, desc: '+50¢ starting credits.' },
+    eco_kill2:  { branch: 'economy', name: 'Black Market',     kind: 'kill',     baseCost: 160, requires: ['eco_kill1'], effect: { kill: 0.12 },     desc: '+12% credits per kill.' },
+    eco_disc:   { branch: 'economy', name: 'Bulk Contracts',   kind: 'cost',     baseCost: 220, requires: ['eco_pay2'],  effect: { towerCost: 0.06, upgradeCost: 0.06 }, desc: '−6% tower build & upgrade cost.' },
+    eco_int2:   { branch: 'economy', name: 'Compound Vault',   kind: 'interest', baseCost: 300, requires: ['eco_int1'],  effect: { interest: 0.05 }, desc: '+5% of banked credits each wave.' },
+    eco_key:    { branch: 'economy', name: 'Greed Doctrine',   kind: 'keystone', keystone: true, baseCost: 700, requires: ['eco_int2', 'eco_disc'], effect: { payout: 0.30, interest: 0.10, kill: -0.15 }, desc: 'KEYSTONE: +30% payout, +10% interest — but −15% credits per kill.' },
+
+    // ── FORTIFY — integrity & regen ───────────────────────────────────────
+    def_hp1:   { branch: 'fortify', name: 'Plated Core',          kind: 'hp',    baseCost: 40,  requires: [],                       effect: { maxHP: 4 },    desc: '+4 max integrity.' },
+    def_reg1:  { branch: 'fortify', name: 'Repair Drones',        kind: 'regen', baseCost: 40,  requires: [],                       effect: { regen: 1 },    desc: '+1 integrity regen per wave.' },
+    def_hp2:   { branch: 'fortify', name: 'Reinforced Bulkheads', kind: 'hp',    baseCost: 90,  requires: ['def_hp1'],              effect: { maxHP: 5 },    desc: '+5 max integrity.' },
+    def_reg2:  { branch: 'fortify', name: 'Nanite Swarm',         kind: 'regen', baseCost: 120, requires: ['def_reg1'],             effect: { regen: 1 },    desc: '+1 integrity regen per wave.' },
+    def_hp3:   { branch: 'fortify', name: 'Ablative Armor',       kind: 'hp',    baseCost: 160, requires: ['def_hp2'],              effect: { maxHP: 6 },    desc: '+6 max integrity.' },
+    def_field: { branch: 'fortify', name: 'Field Hospital',       kind: 'mixed', baseCost: 220, requires: ['def_hp2', 'def_reg1'],  effect: { maxHP: 6, regen: 1 }, desc: '+6 max integrity and +1 regen per wave.' },
+    def_hp4:   { branch: 'fortify', name: 'Titanium Frame',       kind: 'hp',    baseCost: 320, requires: ['def_hp3'],              effect: { maxHP: 8 },    desc: '+8 max integrity.' },
+    def_reg3:  { branch: 'fortify', name: 'Self-Repair Matrix',   kind: 'regen', baseCost: 300, requires: ['def_reg2'],             effect: { regen: 2 },    desc: '+2 integrity regen per wave.' },
+    def_key:   { branch: 'fortify', name: 'Bastion Protocol',     kind: 'keystone', keystone: true, baseCost: 700, requires: ['def_hp4', 'def_field'], effect: { maxHP: 15, regen: 3, fireRate: -0.10 }, desc: 'KEYSTONE: +15 max integrity, +3 regen — but −10% fire rate.' },
+
+    // ── ARSENAL — unlock abilities, heroes, kits, variants & extra towers ──
+    ars_scan:      { branch: 'arsenal', name: 'Recon Uplink',          kind: 'ability', baseCost: 60,  requires: [],             grants: 'ability.scan',      desc: 'Unlock the Scan ability (reveal the next 3 waves).' },
+    ars_eng:       { branch: 'arsenal', name: 'Field Engineer',        kind: 'hero',    baseCost: 80,  requires: [],             grants: 'hero.engineer',     desc: 'Unlock the Engineer hero (−10% tower / −5% upgrade cost).' },
+    ars_econ:      { branch: 'arsenal', name: 'Economist Kit',         kind: 'kit',     baseCost: 80,  requires: [],             grants: 'kit.economist',     desc: 'Unlock the Economist starter kit.' },
+    ars_air:       { branch: 'arsenal', name: 'Orbital Authorization', kind: 'ability', baseCost: 180, requires: ['ars_scan'],   grants: 'ability.airstrike', desc: 'Unlock the Airstrike ability.' },
+    ars_warden:    { branch: 'arsenal', name: 'Warden Doctrine',       kind: 'hero',    baseCost: 200, requires: ['ars_eng'],    grants: 'hero.warden',       desc: 'Unlock the Warden hero (+5 max HP; repairs heal +1).' },
+    ars_medic:     { branch: 'arsenal', name: 'Medic Kit',             kind: 'kit',     baseCost: 160, requires: ['ars_econ'],   grants: 'kit.medic',         desc: 'Unlock the Medic starter kit.' },
+    ars_freeze:    { branch: 'arsenal', name: 'Cryo Authorization',    kind: 'ability', baseCost: 300, requires: ['ars_air'],    grants: 'ability.freeze',    desc: 'Unlock the Freeze Wave ability.' },
+    ars_strat:     { branch: 'arsenal', name: 'Strategist Kit',        kind: 'kit',     baseCost: 280, requires: ['ars_medic'],  grants: 'kit.strategist',    desc: 'Unlock the Strategist starter kit.' },
+    ars_variants:  { branch: 'arsenal', name: 'Variant Protocols',     kind: 'variant', baseCost: 350, requires: ['ars_air'],    grants: 'variant.all',       desc: "Unlock every tower's alternate variant immediately (no mastery grind)." },
+    ars_mortar:    { branch: 'arsenal', name: 'Mortar Battery',        kind: 'tower', keystone: true, baseCost: 450, requires: ['ars_variants'], grants: 'tower.mortar',    desc: 'Unlock the MORTAR tower — long-range siege artillery (big splash, slow cadence).' },
+    ars_disruptor: { branch: 'arsenal', name: 'Disruptor Array',       kind: 'tower', keystone: true, baseCost: 450, requires: ['ars_freeze'],   grants: 'tower.disruptor', desc: 'Unlock the DISRUPTOR tower — area-slow support (low damage, slows on hit).' },
+
+    // ── INTEL — automation, QoL, light passives ───────────────────────────
+    int_hpbars:  { branch: 'intel', name: 'Threat Display',   kind: 'qol',    baseCost: 50,  requires: [],              grants: 'qol.hpbars',     desc: 'Unlock enemy HP bars.' },
+    int_fastai:  { branch: 'intel', name: 'Co-Processor',     kind: 'qol',    baseCost: 80,  requires: [],              grants: 'qol.fastai',     desc: 'Unlock Fast Autopilot (built-in autopilot checks twice as often).' },
+    int_start:   { branch: 'intel', name: 'Pre-Deployment',   kind: 'money',  baseCost: 120, requires: ['int_hpbars'],  effect: { startMoney: 50 }, desc: '+50¢ starting credits.' },
+    int_pay:     { branch: 'intel', name: 'Logistics AI',     kind: 'payout', baseCost: 120, requires: ['int_fastai'],  effect: { payout: 0.06 },   desc: '+6% wave-completion payout.' },
+    int_daily:   { branch: 'intel', name: 'Daily Uplink',     kind: 'qol',    baseCost: 150, requires: ['int_hpbars'],  grants: 'qol.dailyseed',  desc: 'Unlock the Daily Challenge (deterministic daily seed).' },
+    int_skip:    { branch: 'intel', name: 'Loadout Memory',   kind: 'qol',    baseCost: 150, requires: ['int_fastai'],  grants: 'qol.skipsetup',  desc: 'Unlock one-click reuse of the last loadout.' },
+    int_regen:   { branch: 'intel', name: 'Auto-Medic',       kind: 'regen',  baseCost: 160, requires: ['int_skip'],    effect: { regen: 1 },       desc: '+1 integrity regen per wave.' },
+    int_preview: { branch: 'intel', name: 'Foresight Module', kind: 'qol',    baseCost: 220, requires: ['int_daily'],   grants: 'qol.ascpreview', desc: 'Unlock the Ascension +1 preview.' },
+    int_dmg:     { branch: 'intel', name: 'Smart Targeting',  kind: 'damage', baseCost: 200, requires: ['int_preview'], effect: { damage: 0.06 },   desc: '+6% tower damage.' },
+
+    // ── ASCENDANT — endgame cross-branch keystones ────────────────────────
+    asc_gate:        { branch: 'ascendant', name: 'Ascendant Core',  kind: 'mixed', baseCost: 500, requires: ['off_dmg3', 'eco_pay2', 'def_hp3'], effect: { damage: 0.05, payout: 0.05, maxHP: 3 }, desc: 'Requires investment across Offense, Economy and Fortify. +5% damage, +5% payout, +3 max integrity.' },
+    asc_war:         { branch: 'ascendant', name: 'War Machine',     kind: 'keystone', keystone: true, baseCost: 900,  requires: ['off_key', 'ars_variants'], effect: { damage: 0.15, fireRate: 0.10, kill: 0.10 }, desc: 'KEYSTONE: +15% damage, +10% fire rate, +10% credits per kill.' },
+    asc_empire:      { branch: 'ascendant', name: 'Economic Empire', kind: 'keystone', keystone: true, baseCost: 900,  requires: ['eco_key', 'asc_gate'], effect: { payout: 0.20, interest: 0.08, startMoney: 100 }, desc: 'KEYSTONE: +20% payout, +8% interest, +100¢ start.' },
+    asc_fortress:    { branch: 'ascendant', name: 'Living Fortress', kind: 'keystone', keystone: true, baseCost: 900,  requires: ['def_key', 'asc_gate'], effect: { maxHP: 12, regen: 2, payout: 0.10 }, desc: 'KEYSTONE: +12 max integrity, +2 regen, +10% payout.' },
+    asc_legacy:      { branch: 'ascendant', name: "Veteran's Legacy",kind: 'mixed', baseCost: 800, requires: ['asc_gate'], effect: { damage: 0.08, payout: 0.08, kill: 0.08, regen: 1 }, desc: '+8% damage, +8% payout, +8% credits per kill, +1 regen.' },
+    asc_singularity: { branch: 'ascendant', name: 'Singularity',     kind: 'keystone', keystone: true, baseCost: 1500, requires: ['asc_war', 'asc_empire', 'asc_fortress'], effect: { damage: 0.20, fireRate: 0.15, payout: 0.20, maxHP: 10 }, desc: 'GRAND KEYSTONE: +20% damage, +15% fire rate, +20% payout, +10 max integrity. The apex of every path.' }
 };
 
 // Ascension-clear → free tree node mapping. Fires on first clear of each tier.
@@ -841,13 +872,6 @@ const BACKPACK_RARITY_WEIGHT = { common: 50, uncommon: 28, rare: 14, epic: 6, le
 
 // Lookup a node definition by id across all 3 tiers. Returns null if not found.
 function getTreeNode(nodeId) {
-    for (const tierKey of ['tier1', 'tier2', 'tier3']) {
-        const tier = TECH_TREE[tierKey];
-        for (const node of tier.nodes) {
-            if (node.id === nodeId) {
-                return { ...node, tier: tierKey, cost: tier.cost };
-            }
-        }
-    }
-    return null;
+    const node = TECH_TREE[nodeId];
+    return node ? { id: nodeId, ...node } : null;
 }

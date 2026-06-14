@@ -461,10 +461,14 @@ function drawTower(ctx, x, y, type, size, angle, level = 1) {
     // (basic / sniper / …) light up for variants too. Without this,
     // anything ending in _cryo / _scatter / _flame / etc. fell through
     // every branch and rendered as just the empty base ring.
+    // Tech-tree extra towers reuse an existing turret SHAPE (no new painter)
+    // but get their own accent COLOR so they read as distinct towers.
+    const SHAPE_ALIAS = { mortar: 'silo', disruptor: 'electric' };
+    const ALT_COLOR   = { mortar: '#fb923c', disruptor: '#2dd4bf' };
     const variant = TOWER_VARIANT_RENDER[type];
-    const renderType = variant ? variant.base : type;
+    const renderType = variant ? variant.base : (SHAPE_ALIAS[type] || type);
     const baseColor = renderType === 'sniper' ? '#f472b6' : renderType === 'rapid' ? '#a3e635' : renderType === 'laser' ? '#8b5cf6' : renderType === 'rocket' ? '#f97316' : renderType === 'electric' ? '#0ea5e9' : renderType === 'flak' ? '#60a5fa' : renderType === 'silo' ? '#ef4444' : renderType === 'income' ? '#fbbf24' : '#38bdf8';
-    const color = variant ? variant.accent : baseColor;
+    const color = variant ? variant.accent : (ALT_COLOR[type] || baseColor);
     const cx = x + size / 2, cy = y + size / 2;
     // electric / income don't track targets — their sprite is blitted
     // unrotated (the old code rotated then counter-rotated).

@@ -90,6 +90,7 @@ class Game {
         // M3: Tower loadout (base → variant) drives buildTower resolution.
         this.towerLoadout = this.loadout.towerLoadout || {};
         this.applyBackpack();
+        this.applyMetaPassives();
     }
 
     // Backpack items → existing balance-safe run hooks. An empty backpack
@@ -115,6 +116,29 @@ class Game {
         if (s.regen)       this.boonRegen        += s.regen;
     }
 
+    // Tech-tree passive nodes → the SAME balance-safe run hooks as
+    // applyBackpack. NeonTree.computeStats sums every owned node's `effect`;
+    // a fresh save / the auto-tune bot owns none, so this is a strict no-op
+    // and the difficulty curve is untouched. Skipped in MP fair-play exactly
+    // like the backpack, so a veteran's tree never outclasses a newbie's empty
+    // one. Negative effect values (keystone downsides) flip a buff to a nerf.
+    applyMetaPassives() {
+        if (typeof window !== 'undefined' && window.__neonMPFairPlay === true) return;
+        const save = (typeof window !== 'undefined') ? window.save : null;
+        if (!save || typeof NeonTree === 'undefined') return;
+        const s = NeonTree.computeStats(save);
+        if (s.damage)      this.boonDamageMult   *= (1 + s.damage);
+        if (s.fireRate)    this.boonFireRateMult *= Math.max(0.4, 1 - s.fireRate);
+        if (s.payout)      this.boonPayoutMult   *= Math.max(0, 1 + s.payout);
+        if (s.kill)        this.boonKillMult     *= Math.max(0, 1 + s.kill);
+        if (s.maxHP)     { this.maxHealth += s.maxHP; this.health += s.maxHP; }
+        if (s.interest)    this.boonInterest     += s.interest;
+        if (s.towerCost)   this.towerCostMult    *= Math.max(0.4, 1 - s.towerCost);
+        if (s.upgradeCost) this.upgradeCostMult  *= Math.max(0.4, 1 - s.upgradeCost);
+        if (s.startMoney)  this.money            += Math.floor(s.startMoney);
+        if (s.regen)       this.boonRegen        += s.regen;
+    }
+
     // M3: Given a base tower type (e.g. 'basic'), return the effective type
     // to build — either the base or its variant — based on this.towerLoadout.
     // Also handles pass-through of variant ids directly.
@@ -122,11 +146,17 @@ class Game {
         // If caller already passed a variant id, use it.
         if (requestedType && requestedType.includes('_')) return requestedType;
         const chosen = this.towerLoadout[requestedType];
-        const variantUnlocked = window.save
+        // A variant is available either via the per-tower mastery m1 grind OR
+        // the Arsenal tree node "Variant Protocols" (grants 'variant.all').
+        const masteryM1 = window.save
             && window.save.towerMastery
             && window.save.towerMastery[requestedType]
             && window.save.towerMastery[requestedType].milestones
             && window.save.towerMastery[requestedType].milestones.m1;
+        const treeAll = window.save
+            && Array.isArray(window.save.unlockedNodes)
+            && window.save.unlockedNodes.includes('variant.all');
+        const variantUnlocked = masteryM1 || treeAll;
         if (chosen && TOWERS[chosen] && chosen === TOWER_VARIANTS[requestedType] && variantUnlocked) return chosen;
         return requestedType;
     }
@@ -910,6 +940,26 @@ class Game {
         return segs;
     }
 
+    // The road centerline as a pixel polyline (waypoint tile centers, ordered
+    // spawn→base — the way the mobs go), plus its total length. Cached on the
+    // same map._rev as the edge segments so a digger reroute refreshes both.
+    _pathCenterline() {
+        const path = this.map && this.map.path;
+        if (!path || path.length < 2) return null;
+        const rev = (this.map._rev || 0);
+        const key = rev + ':' + path.length;
+        if (this._pathLineKey === key && this._pathLine) return this._pathLine;
+        const T = TILE_SIZE;
+        const pts = path.map(p => ({ x: (p.c + 0.5) * T, y: (p.r + 0.5) * T }));
+        let len = 0;
+        for (let i = 1; i < pts.length; i++) {
+            len += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+        }
+        this._pathLineKey = key;
+        this._pathLine = { pts, len };
+        return this._pathLine;
+    }
+
     // Near-death warning: the outline reads yellow normally, ramps to orange
     // at ≤6 health and red at ≤3 so the threat registers at a glance.
     _pathOutlineColor() {
@@ -944,17 +994,37 @@ class Game {
         ctx.lineJoin = 'round';
         // Glow halo.
         ctx.shadowColor = col.glow;
-        ctx.shadowBlur = reduced ? 5 : 5 + 5 * pulse;
+        ctx.shadowBlur = reduced ? 4 : 4 + 4 * pulse;
         ctx.strokeStyle = col.glow;
-        ctx.globalAlpha = 0.5 * pulse;
-        ctx.lineWidth = 2.4;
+        ctx.globalAlpha = 0.45 * pulse;
+        ctx.lineWidth = 1.4;
         ctx.stroke();
-        // Bright, super-thin core tube.
-        ctx.shadowBlur = reduced ? 3 : 3 + 3 * pulse;
+        // Bright, hair-thin core tube.
+        ctx.shadowBlur = reduced ? 2 : 2 + 2 * pulse;
         ctx.strokeStyle = col.core;
         ctx.globalAlpha = pulse;
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 0.6;
         ctx.stroke();
+        // Super-subtle shimmer flowing spawn→base, the way the mobs travel: a
+        // short bright dash sweeping the centerline (dash = on-segment, gap =
+        // rest of the path, so only one band shows; negative offset advances it
+        // forward along the draw direction). Skipped under reduced motion.
+        const line = this._pathCenterline();
+        if (!reduced && line && typeof ctx.setLineDash === 'function') {
+            const band = TILE_SIZE * 1.6;
+            ctx.beginPath();
+            ctx.moveTo(line.pts[0].x, line.pts[0].y);
+            for (let i = 1; i < line.pts.length; i++) ctx.lineTo(line.pts[i].x, line.pts[i].y);
+            ctx.setLineDash([band, line.len]);
+            ctx.lineDashOffset = -((t * 0.12) % (band + line.len));
+            ctx.shadowColor = col.glow;
+            ctx.shadowBlur = 6;
+            ctx.strokeStyle = col.core;
+            ctx.globalAlpha = 0.18 + 0.07 * Math.sin(t / 300);
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
         ctx.restore();
     }
 

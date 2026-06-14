@@ -455,7 +455,11 @@ function _treeNodeName(node) {
         : node.id;
 }
 // Glyph per node kind — a quick read of what a node is before reading it.
-const TREE_KIND_GLYPH = { hero: '☗', kit: '🜲', ability: '✦', qol: '⚙' };
+const TREE_KIND_GLYPH = {
+    damage: '⚔', rate: '»', payout: '$', kill: '☠', interest: '%',
+    money: '◈', hp: '✛', regen: '✚', cost: '⚒', ability: '✦',
+    hero: '☗', kit: '🜲', qol: '⚙', variant: '⎔', tower: '⌖', keystone: '★', mixed: '✸'
+};
 
 // The tech tree as a wired GRAPH: a central CORE feeds the first ring of
 // nodes; each tier connects to the next through a gate junction that
@@ -469,122 +473,155 @@ function renderTechTree() {
     if (!svg) return;
     while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-    const VBW = 1040, VBH = 660, MIDY = VBH / 2;
-    const tiers = ['tier1', 'tier2', 'tier3'];
-    const colX = { tier1: 250, tier2: 560, tier3: 870 };
-    const gateX = { tier2: 405, tier3: 715 };   // junction before tier 2 / 3
-    const ROOT = { x: 70, y: MIDY };
+    const VBW = 1040, VBH = 660;
 
-    // Position every node, vertically centred per tier column.
-    const pos = {};
-    for (const tk of tiers) {
-        const nodes = TECH_TREE[tk].nodes;
-        const span = 116;
-        const top = MIDY - ((nodes.length - 1) * span) / 2;
-        nodes.forEach((n, i) => { pos[n.id] = { x: colX[tk], y: top + i * span, tier: tk, node: n }; });
+    // Depth = longest prerequisite chain from a root (memoized).
+    const depthCache = {};
+    function depthOf(id) {
+        if (depthCache[id] !== undefined) return depthCache[id];
+        const node = TECH_TREE[id];
+        const req = (node && node.requires) || [];
+        depthCache[id] = req.length === 0 ? 0 : 1 + Math.max(...req.map(depthOf));
+        return depthCache[id];
     }
-    const gatePos = { tier2: { x: gateX.tier2, y: MIDY }, tier3: { x: gateX.tier3, y: MIDY } };
+
+    const branchKeys = Object.keys(TREE_BRANCHES);
+    const ids = Object.keys(TECH_TREE);
+    let maxDepth = 0;
+    for (const id of ids) maxDepth = Math.max(maxDepth, depthOf(id));
+
+    // Columns: CORE at far left, then one column per depth.
+    const CORE_X = 46;
+    const colLeft = 132, colRight = VBW - 56;
+    const colStep = maxDepth > 0 ? (colRight - colLeft) / maxDepth : 0;
+    const colX = d => colLeft + d * colStep;
+
+    // Lanes: one horizontal band per branch.
+    const laneH = VBH / branchKeys.length;
+    const laneTop = bi => bi * laneH;
+    const laneCenter = bi => bi * laneH + laneH / 2;
+
+    // Position every node within its lane: x by depth, y stacked per
+    // (lane, depth) bucket and spread evenly across the lane band.
+    const pos = {};
+    const buckets = {};                       // `${bi}|${depth}` -> [ids]
+    for (const id of ids) {
+        const bi = branchKeys.indexOf(TECH_TREE[id].branch);
+        const d = depthOf(id);
+        const key = bi + '|' + d;
+        (buckets[key] || (buckets[key] = [])).push(id);
+    }
+    for (const key of Object.keys(buckets)) {
+        const [biStr, dStr] = key.split('|');
+        const bi = +biStr, d = +dStr;
+        const list = buckets[key];
+        list.forEach((id, k) => {
+            const y = laneTop(bi) + laneH * (k + 1) / (list.length + 1);
+            pos[id] = { x: colX(d), y, bi };
+        });
+    }
 
     const edgesG = _svg('g', {});  const nodesG = _svg('g', {});
     svg.appendChild(edgesG); svg.appendChild(nodesG);
 
-    const edge = (x1, y1, x2, y2, lit) => edgesG.appendChild(_svg('path', {
+    const edge = (x1, y1, x2, y2, color, lit) => edgesG.appendChild(_svg('path', {
         d: `M ${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}`,
         class: 'tt-edge' + (lit ? ' tt-edge-lit' : ''), fill: 'none',
+        stroke: lit ? color : '',
     }));
 
-    // Wire it: CORE → tier1 nodes; tier1 nodes → gate1 → tier2; etc.
-    for (const n of TECH_TREE.tier1.nodes) {
-        const p = pos[n.id];
-        edge(ROOT.x, ROOT.y, p.x, p.y, NeonSave.hasUnlocked(save, n.id));
-    }
-    for (const tk of ['tier2', 'tier3']) {
-        const prior = tk === 'tier2' ? 'tier1' : 'tier2';
-        const open = NeonTree.isTierOpen(save, tk);
-        const g = gatePos[tk];
-        for (const n of TECH_TREE[prior].nodes) {
-            edge(pos[n.id].x, pos[n.id].y, g.x, g.y, NeonSave.hasUnlocked(save, n.id));
+    const CORE_Y = VBH / 2;
+
+    // Edges: CORE → each root; otherwise prereq → node. Lit when the
+    // upstream end is owned (so a path lights up as you buy along it).
+    for (const id of ids) {
+        const node = TECH_TREE[id];
+        const p = pos[id];
+        const color = (TREE_BRANCHES[node.branch] || {}).color || '#38bdf8';
+        const req = node.requires || [];
+        if (req.length === 0) {
+            edge(CORE_X, CORE_Y, p.x, p.y, color, NeonSave.hasUnlocked(save, id));
+        } else {
+            for (const r of req) {
+                if (!pos[r]) continue;
+                edge(pos[r].x, pos[r].y, p.x, p.y, color, NeonSave.hasUnlocked(save, r));
+            }
         }
-        for (const n of TECH_TREE[tk].nodes) {
-            edge(g.x, g.y, pos[n.id].x, pos[n.id].y, open);
-        }
     }
+
+    // Branch labels at the left edge of each lane.
+    branchKeys.forEach((bk, bi) => {
+        const t = _svg('text', { x: 6, y: laneTop(bi) + 14, class: 'tt-branch-label' });
+        t.setAttribute('fill', TREE_BRANCHES[bk].color);
+        t.textContent = TREE_BRANCHES[bk].name;
+        nodesG.appendChild(t);
+    });
 
     // CORE node.
     const core = _svg('g', { class: 'tt-core' });
-    core.appendChild(_svg('circle', { cx: ROOT.x, cy: ROOT.y, r: 26, class: 'tt-core-disc' }));
-    const coreLabel = _svg('text', { x: ROOT.x, y: ROOT.y + 5, class: 'tt-core-label', 'text-anchor': 'middle' });
+    core.appendChild(_svg('circle', { cx: CORE_X, cy: CORE_Y, r: 24, class: 'tt-core-disc' }));
+    const coreLabel = _svg('text', { x: CORE_X, y: CORE_Y + 5, class: 'tt-core-label', 'text-anchor': 'middle' });
     coreLabel.textContent = 'CORE';
     core.appendChild(coreLabel);
     nodesG.appendChild(core);
 
-    // Gate junctions (diamonds) with the unlock requirement.
-    for (const tk of ['tier2', 'tier3']) {
-        const g = gatePos[tk], open = NeonTree.isTierOpen(save, tk);
-        const gg = _svg('g', { class: 'tt-gate' + (open ? ' tt-gate-open' : '') });
-        gg.appendChild(_svg('rect', { x: g.x - 11, y: g.y - 11, width: 22, height: 22,
-            transform: `rotate(45 ${g.x} ${g.y})`, class: 'tt-gate-shape' }));
-        gg.appendChild((() => { const t = _svg('title', {}); t.textContent =
-            open ? 'Unlocked' : 'Unlock 2 nodes in the previous tier'; return t; })());
-        nodesG.appendChild(gg);
-    }
-
     // Nodes.
-    for (const tk of tiers) {
-        const tierOpen = NeonTree.isTierOpen(save, tk);
-        const cost = TECH_TREE[tk].cost;
-        for (const node of TECH_TREE[tk].nodes) {
-            const p = pos[node.id];
-            const owned = NeonSave.hasUnlocked(save, node.id);
-            const afford = save.metaXP >= cost;
-            let state = 'locked';
-            if (owned) state = 'owned';
-            else if (!tierOpen) state = 'locked';
-            else if (afford) state = 'available';
-            else state = 'poor';
+    for (const id of ids) {
+        const node = TECH_TREE[id];
+        const p = pos[id];
+        const owned = NeonSave.hasUnlocked(save, id);
+        const reqMet = NeonTree.prereqsMet(save, id);
+        const cost = NeonTree.effectiveCost(save, id);
+        const afford = save.metaXP >= cost;
+        let state = 'locked';
+        if (owned) state = 'owned';
+        else if (!reqMet) state = 'locked';
+        else if (afford) state = 'available';
+        else state = 'poor';
 
-            const g = _svg('g', {
-                class: 'tt-node tt-' + state,
-                tabindex: '0', role: 'button',
-                'aria-label': _treeNodeName(node) + ' — ' + (owned ? 'owned' : state === 'available' ? `costs ${cost} XP` : state),
-            });
-            g.appendChild(_svg('circle', { cx: p.x, cy: p.y, r: 24, class: 'tt-disc' }));
-            const glyph = _svg('text', { x: p.x, y: p.y + 7, 'text-anchor': 'middle', class: 'tt-glyph' });
-            glyph.textContent = owned ? '✓' : (TREE_KIND_GLYPH[node.kind] || '●');
-            g.appendChild(glyph);
-            const label = _svg('text', { x: p.x, y: p.y + 42, 'text-anchor': 'middle', class: 'tt-label' });
-            label.textContent = _treeNodeName(node);
-            g.appendChild(label);
+        const r = node.keystone ? 19 : 15;
+        const g = _svg('g', {
+            class: 'tt-node tt-' + state + (node.keystone ? ' tt-keystone' : ''),
+            tabindex: '0', role: 'button',
+            'aria-label': node.name + ' — ' + (owned ? 'owned' : state === 'available' ? ('costs ' + cost + ' XP') : state),
+        });
+        const disc = _svg('circle', { cx: p.x, cy: p.y, r, class: 'tt-disc' });
+        if (!owned) disc.setAttribute('stroke', (TREE_BRANCHES[node.branch] || {}).color || '#38bdf8');
+        g.appendChild(disc);
+        const glyph = _svg('text', { x: p.x, y: p.y + 5, 'text-anchor': 'middle', class: 'tt-glyph' });
+        glyph.textContent = owned ? '✓' : (TREE_KIND_GLYPH[node.kind] || '●');
+        g.appendChild(glyph);
+        const title = _svg('title', {}); title.textContent = node.name + ' — ' + node.desc;
+        g.appendChild(title);
 
-            const showDetail = () => {
-                const detail = document.getElementById('tree-node-detail');
-                if (!detail) return;
-                const status = owned ? 'OWNED'
-                    : !tierOpen ? 'LOCKED — unlock 2 nodes in the previous tier'
-                    : afford ? `${cost} XP — click to unlock`
-                    : `${cost} XP — need ${cost - save.metaXP} more`;
-                detail.innerHTML = `<strong>${_treeNodeName(node)}</strong> <span class="tt-detail-status">${status}</span><br>${node.desc}`;
-            };
-            g.addEventListener('pointerenter', showDetail);
-            g.addEventListener('focus', showDetail);
-            const tryBuy = () => {
-                if (NeonSave.hasUnlocked(save, node.id)) { showDetail(); return; }
-                if (NeonTree.purchase(save, node.id)) {
-                    renderTechTree();
-                    renderLoadoutDropdowns();
-                    updateMainMenuState();
-                } else { showDetail(); }
-            };
-            g.addEventListener('click', tryBuy);
-            g.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    e.stopPropagation();   // don't also hit the global role=button handler
-                    tryBuy();
-                }
-            });
-            nodesG.appendChild(g);
-        }
+        const showDetail = () => {
+            const detail = document.getElementById('tree-node-detail');
+            if (!detail) return;
+            const status = owned ? 'OWNED'
+                : !reqMet ? 'LOCKED — unlock its prerequisites first'
+                : afford ? (cost + ' XP — click to unlock')
+                : (cost + ' XP — need ' + (cost - save.metaXP) + ' more');
+            detail.innerHTML = '<strong>' + node.name + '</strong> <span class="tt-detail-status">' + status + '</span><br>' + node.desc;
+        };
+        g.addEventListener('pointerenter', showDetail);
+        g.addEventListener('focus', showDetail);
+        const tryBuy = () => {
+            if (NeonSave.hasUnlocked(save, id)) { showDetail(); return; }
+            if (NeonTree.purchase(save, id)) {
+                renderTechTree();
+                renderLoadoutDropdowns();
+                updateMainMenuState();
+            } else { showDetail(); }
+        };
+        g.addEventListener('click', tryBuy);
+        g.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                tryBuy();
+            }
+        });
+        nodesG.appendChild(g);
     }
 }
 
@@ -2186,6 +2223,33 @@ function init() {
     // M2: Run Setup BACK button goes to Main Menu.
     document.getElementById('setup-back-btn').addEventListener('click', uiGoBack);
     document.getElementById('tree-back-btn').addEventListener('click',  uiGoBack);
+
+    // Tech-tree RESPEC — refunds only TREE_RESPEC_REFUND of XP spent, behind
+    // the same typed-phrase guard as RESET SAVE (a yes/no confirm() is one
+    // mis-tap away from wiping a hand-built tree). Phrase exposed for the e2e.
+    window.__neonRespecPhrase = 'respec tree';
+    const respecBtn = document.getElementById('tree-respec-btn');
+    if (respecBtn) respecBtn.addEventListener('click', () => {
+        const PHRASE = window.__neonRespecPhrase;
+        const spent = Math.max(0, Math.floor(save.treeSpent || 0));
+        if (spent <= 0) { alert('You have not spent any XP in the tree yet.'); return; }
+        const refund = Math.floor(spent * TREE_RESPEC_REFUND);
+        const typed = prompt(
+            'RESPEC clears every tech-tree skill you bought and refunds only ' +
+            Math.round(TREE_RESPEC_REFUND * 100) + '% of the XP spent.\n\n' +
+            'You spent ' + spent + ' XP — you would get back ' + refund + ' XP. This cannot be undone.\n\n' +
+            'Type "' + PHRASE + '" to confirm:');
+        if (typed === null) return;                          // cancelled
+        if (typed.trim().toLowerCase() !== PHRASE) {
+            alert('Phrase did not match — your tree is unchanged.');
+            return;
+        }
+        const res = NeonTree.respec(save);
+        renderTechTree();
+        renderLoadoutDropdowns();
+        updateMainMenuState();
+        alert('Respec complete — refunded ' + res.refund + ' XP and cleared ' + res.cleared + ' skills.');
+    });
 
     // M2: Loadout dropdown change handlers.
     document.getElementById('run-hero-select').addEventListener('change', e => {
@@ -5398,6 +5462,12 @@ function init() {
 function updateBuildMenuForLoadout(towerLoadout) {
     document.querySelectorAll('.tower-option[data-type]').forEach(el => {
         const baseType = el.dataset.type;
+        // Tech-tree extra towers stay hidden until their Arsenal node is owned.
+        if (baseType === 'mortar' || baseType === 'disruptor') {
+            const unlocked = NeonSave.hasUnlocked(save, 'tower.' + baseType);
+            el.style.display = unlocked ? '' : 'none';
+            if (!unlocked) return;
+        }
         const variantId = towerLoadout && towerLoadout[baseType];
         const effectiveType = (variantId && TOWERS[variantId]) ? variantId : baseType;
         const cfg = TOWERS[effectiveType];

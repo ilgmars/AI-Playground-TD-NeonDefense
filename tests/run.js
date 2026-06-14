@@ -17,6 +17,7 @@ const SUITES = [
     { name: 'multiplayer',     file: 'tests/multiplayer.test.js' },
     { name: 'backpack',        file: 'tests/backpack.test.js' },
     { name: 'backpack-items',  file: 'tests/backpack-items.test.js' },
+    { name: 'tree-logic',      file: 'tests/tree-logic.test.js' },
     { name: 'ascension',       file: 'tests/ascension.test.js' },
     { name: 'perf',            file: 'tests/perf.test.js' },
 

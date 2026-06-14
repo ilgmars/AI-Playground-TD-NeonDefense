@@ -55,27 +55,44 @@ const path = require('path');
         const segs = g._pathOutlineSegments();
         const ctx = g.ctx;
         const strokes = [];
+        const dashes = [];
         let moveCount = 0;
         const oStroke = ctx.stroke.bind(ctx);
         const oMove = ctx.moveTo.bind(ctx);
+        const oDash = ctx.setLineDash.bind(ctx);
         ctx.moveTo = (...a) => { moveCount++; return oMove(...a); };
-        ctx.stroke = () => { strokes.push({ color: String(ctx.strokeStyle), width: ctx.lineWidth }); return oStroke(); };
-        g._drawPathOutline(ctx);
-        ctx.stroke = oStroke; ctx.moveTo = oMove;
+        ctx.stroke = () => { strokes.push({ color: String(ctx.strokeStyle), width: ctx.lineWidth, alpha: ctx.globalAlpha, dashed: ctx.getLineDash().length > 0, offset: ctx.lineDashOffset }); return oStroke(); };
+        ctx.setLineDash = (a) => { if (a && a.length) dashes.push(a.slice()); return oDash(a); };
+        // Two frames apart so the shimmer's dash offset is observably animated.
+        // (Captured at stroke time — ctx.restore() resets lineDashOffset.)
+        g._animClock = 0;    g._drawPathOutline(ctx);
+        g._animClock = 1000; g._drawPathOutline(ctx);
+        ctx.stroke = oStroke; ctx.moveTo = oMove; ctx.setLineDash = oDash;
+        const dashedOffsets = strokes.filter(s => s.dashed).map(s => s.offset);
+        const centerline = g._pathCenterline();
         return {
             segCount: segs.length,
-            moveCount,
+            moveCount,                                // both calls: 2×(segs + 1 centerline)
             strokeCount: strokes.length,
             hasThinCore: strokes.some(s => s.width <= 1),
             coreColor: (strokes.find(s => s.width <= 1) || {}).color,
+            shimmerDashed: dashes.length > 0,
+            shimmerSubtle: strokes.filter(s => s.dashed).every(s => s.alpha <= 0.3),
+            shimmerMoves: dashedOffsets.length >= 2 && dashedOffsets[0] !== dashedOffsets[1],
+            hasCenterline: !!(centerline && centerline.pts.length >= 2 && centerline.len > 0),
         };
     });
     ok('outline produces road-edge segments', drawn.segCount > 4, JSON.stringify(drawn));
-    ok('every segment is traced (moveTo per segment)', drawn.moveCount === drawn.segCount, JSON.stringify(drawn));
-    ok('strokes a glow pass AND a core pass', drawn.strokeCount >= 2, JSON.stringify(drawn));
+    ok('every edge segment is traced, plus one centerline pass',
+        drawn.moveCount === 2 * (drawn.segCount + 1), JSON.stringify(drawn));
+    ok('strokes glow + core + shimmer passes', drawn.strokeCount >= 3, JSON.stringify(drawn));
     ok('core tube is super thin (lineWidth ≤ 1)', drawn.hasThinCore, JSON.stringify(drawn));
     ok('thin core uses the yellow colour at full health',
         (drawn.coreColor || '').toLowerCase() === '#ffe23b', drawn.coreColor);
+    // Shimmer flows along the mob path (ordered centerline) and is super subtle.
+    ok('centerline polyline exists (spawn→base)', drawn.hasCenterline, JSON.stringify(drawn));
+    ok('shimmer is a dashed sweep that animates', drawn.shimmerDashed && drawn.shimmerMoves, JSON.stringify(drawn));
+    ok('shimmer pass is super subtle (alpha ≤ 0.3)', drawn.shimmerSubtle, JSON.stringify(drawn));
 
     // 3) Boss re-route: bumping map._rev (what digReroute does) must rebuild
     //    the outline geometry so the new road is outlined.
