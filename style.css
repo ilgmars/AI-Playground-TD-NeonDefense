@@ -3033,6 +3033,12 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     outline: 2px solid var(--accent-2);
     outline-offset: 2px;
 }
+/* Muted hint text on OPTIONS toggles (class, not inline style — keeps the
+   index.html inline-style budget down). */
+#options-menu .opt-hint { color: var(--text-muted); }
+/* Auto-flip: rotate the canvas 180° when the device is upside-down. 90°/180°
+   rotations are pixel-lossless; pointer input is negated in flipClient. */
+#game-canvas.flip-180 { transform: rotate(180deg); }
 
 .scoreboard-cheats-toggle {
     display: flex;

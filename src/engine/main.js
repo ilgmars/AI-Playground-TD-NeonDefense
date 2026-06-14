@@ -1670,7 +1670,11 @@ function resizeCanvas() {
     // High-DPI display scaling — cap at 2× so mobile WebView doesn't render
     // 9× the pixels (3× DPR² = 9×) and tank frame rate.
     const rawDpr = window.devicePixelRatio || 1;
-    const dpr = Math.min(rawDpr, 2);
+    // "Crisp graphics" OPTION supersamples (2× backing, capped at 4× effective)
+    // so the view sharpens even on DPR-1 desktops where raising the cap alone
+    // does nothing; off, cap at 2× to protect mobile frame rate.
+    let hiQ = false; try { hiQ = localStorage.getItem('neonHiQuality') === '1'; } catch (_) {}
+    const dpr = hiQ ? Math.min(rawDpr * 2, 4) : Math.min(rawDpr, 2);
     canvas.width = cssWidth * dpr;
     canvas.height = cssHeight * dpr;
 
@@ -1697,15 +1701,41 @@ function resizeCanvas() {
     }
 }
 
+// True when the device is held in the "secondary" (180°-from-primary)
+// orientation — landscape-secondary / portrait-secondary.
+function isDeviceSecondaryOrientation() {
+    try {
+        const t = (screen.orientation && screen.orientation.type) || '';
+        if (t) return /secondary/.test(t);
+    } catch (_) {}
+    const o = window.orientation;            // deprecated fallback
+    return o === 180 || o === -90 || o === 270;
+}
+// "Auto-flip orientation" OPTION (default on): when enabled AND the device is
+// upside-down (secondary orientation), rotate the canvas 180° so the field
+// stays upright. 180° is pixel-lossless; pointer input is negated around the
+// canvas centre (see flipClient). Pure no-op on desktop / primary orientation.
+function applyAutoFlip() {
+    const canvas = document.getElementById('game-canvas');
+    let enabled = true;
+    try { enabled = localStorage.getItem('neonAutoFlip') !== '0'; } catch (_) {}
+    const flip = enabled && isDeviceSecondaryOrientation();
+    window.__neonFlip180 = flip;
+    if (canvas) canvas.classList.toggle('flip-180', flip);
+}
+
 window.addEventListener('resize', resizeCanvas);
 // iOS Safari sometimes fires `orientationchange` without a subsequent
 // `resize`, and landscape-portrait switches reshape the layout. Re-run the
 // DPR-aware sizing after the browser has committed the new orientation.
 window.addEventListener('orientationchange', () => {
+    applyAutoFlip();
     setTimeout(resizeCanvas, 50);
     setTimeout(resizeCanvas, 250);
     setTimeout(resizeCanvas, 600); // extra pass after flex layout settles
 });
+try { if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', applyAutoFlip); } catch (_) {}
+applyAutoFlip();   // initial state at load
 // Also catch resize events that follow orientation changes on Android
 window.addEventListener('resize', () => {
     clearTimeout(window._resizeDebounce);
@@ -2145,6 +2175,25 @@ function init() {
         fieldChk.checked = localStorage.getItem('neonFieldTall') === '1';
         fieldChk.addEventListener('change', () => {
             try { localStorage.setItem('neonFieldTall', fieldChk.checked ? '1' : '0'); } catch (_) {}
+        });
+    }
+    // Crisp graphics — supersample the canvas (sharper, more GPU). Applied live.
+    const hiqChk = document.getElementById('opt-hi-quality');
+    if (hiqChk) {
+        hiqChk.checked = localStorage.getItem('neonHiQuality') === '1';
+        hiqChk.addEventListener('change', () => {
+            try { localStorage.setItem('neonHiQuality', hiqChk.checked ? '1' : '0'); } catch (_) {}
+            if (typeof resizeCanvas === 'function') { try { resizeCanvas(); } catch (_) {} }
+        });
+    }
+    // Auto-flip orientation — rotate 180° when the device is upside-down.
+    // Default ON (null treated as enabled).
+    const flipChk = document.getElementById('opt-auto-flip');
+    if (flipChk) {
+        flipChk.checked = localStorage.getItem('neonAutoFlip') !== '0';
+        flipChk.addEventListener('change', () => {
+            try { localStorage.setItem('neonAutoFlip', flipChk.checked ? '1' : '0'); } catch (_) {}
+            if (typeof applyAutoFlip === 'function') { try { applyAutoFlip(); } catch (_) {} }
         });
     }
 
@@ -3833,8 +3882,19 @@ function init() {
         }
     });
 
+    // When auto-flip has rotated the canvas 180° (device held upside-down), a
+    // screen point maps to the un-rotated frame by negating around the canvas
+    // centre (180° is its own inverse; the bounding rect is unchanged). One
+    // helper used by every game-canvas pointer read.
+    function flipClient(clientX, clientY) {
+        if (!window.__neonFlip180) return { x: clientX, y: clientY };
+        const r = canvas.getBoundingClientRect();
+        return { x: 2 * (r.left + r.width / 2) - clientX, y: 2 * (r.top + r.height / 2) - clientY };
+    }
+
     function getCanvasPos(e) {
         const rect = canvas.getBoundingClientRect();
+        const p = flipClient(e.clientX, e.clientY);
         const logicalWidth = window.COLS * window.TILE_SIZE;
         const logicalHeight = window.ROWS * window.TILE_SIZE;
 
@@ -3846,8 +3906,8 @@ function init() {
         // explicitly before mapping CSS px to logical units.
         const Z = window.__neonZoom || { scale: 1, tx: 0, ty: 0 };
         return {
-            x: ((e.clientX - rect.left - Z.tx) / Z.scale) * scaleX,
-            y: ((e.clientY - rect.top  - Z.ty) / Z.scale) * scaleY
+            x: ((p.x - rect.left - Z.tx) / Z.scale) * scaleX,
+            y: ((p.y - rect.top  - Z.ty) / Z.scale) * scaleY
         };
     }
 
@@ -3912,8 +3972,9 @@ function init() {
     function touchCentroid(touches) {
         let x = 0, y = 0;
         for (let i = 0; i < touches.length; i++) {
-            x += touches[i].clientX;
-            y += touches[i].clientY;
+            const p = flipClient(touches[i].clientX, touches[i].clientY);   // 180°-aware
+            x += p.x;
+            y += p.y;
         }
         return { x: x / touches.length, y: y / touches.length };
     }
@@ -3947,8 +4008,9 @@ function init() {
         // zoomed in (otherwise the canvas already fits the screen).
         if (e.touches.length === 1 && _zoom.scale > 1) {
             const t = e.touches[0];
+            const sp = flipClient(t.clientX, t.clientY);   // 180°-aware
             _spanPan = {
-                startX: t.clientX, startY: t.clientY,
+                startX: sp.x, startY: sp.y,
                 tx0: _zoom.tx, ty0: _zoom.ty,
                 active: false,
             };
@@ -3984,8 +4046,9 @@ function init() {
         // tower / selects, per the existing pointerdown handler).
         if (_spanPan && e.touches.length === 1 && _zoom.scale > 1) {
             const t = e.touches[0];
-            const dx = t.clientX - _spanPan.startX;
-            const dy = t.clientY - _spanPan.startY;
+            const cp = flipClient(t.clientX, t.clientY);   // 180°-aware; startX/Y are stored flipped too
+            const dx = cp.x - _spanPan.startX;
+            const dy = cp.y - _spanPan.startY;
             if (!_spanPan.active && Math.hypot(dx, dy) >= PAN_THRESHOLD_PX) {
                 _spanPan.active = true;
             }
