@@ -2099,13 +2099,42 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
     margin-bottom: 10px;
 }
 .tree-balance-row {
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
     font-size: 0.9rem;
     color: var(--accent);
     letter-spacing: 2px;
-    margin-bottom: 18px;
+    margin-bottom: 8px;
     font-family: monospace;
 }
+/* Zoom controls (right side of the balance row). */
+.tt-zoom-controls { display: flex; gap: 6px; flex: 0 0 auto; }
+.tt-zoom-btn {
+    width: 30px; height: 30px; padding: 0;
+    font-size: 1.1rem; line-height: 1; font-family: monospace;
+    background: rgba(20, 17, 36, 0.8);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    border-radius: 6px; cursor: pointer;
+}
+.tt-zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
+.tt-zoom-btn#tt-zoom-fit { width: auto; padding: 0 8px; font-size: 0.7rem; letter-spacing: 1px; }
+/* Glyph legend — decodes the node symbols at a glance. */
+.tt-legend {
+    display: flex; flex-wrap: wrap; justify-content: center;
+    gap: 4px 12px;
+    font-size: 0.72rem; line-height: 1.4;
+    color: var(--text-muted);
+    margin: 0 auto 8px; max-width: 760px;
+    padding: 6px 10px;
+    border: 1px solid var(--border-color); border-radius: 6px;
+    background: rgba(20, 17, 36, 0.5);
+}
+.tt-legend .tt-leg-item { white-space: nowrap; }
+.tt-legend .tt-leg-glyph { color: var(--text-main); font-weight: bold; margin-right: 3px; }
+.tt-legend .tt-leg-note { opacity: 0.7; }
 .tech-tree-grid {
     display: flex;
     flex-wrap: wrap;
@@ -3258,13 +3287,15 @@ body.menu-open #build-menu {
     overflow: auto;
 }
 #tech-tree-svg {
-    width: 100%;
-    aspect-ratio: 1040 / 860;  /* reliable height; matches renderTechTree's viewBox so the view fills, not collapses */
+    /* Zoom: width is driven by --tt-zoom (1 = fit-to-view). >1 scrolls the
+       view, <1 shrinks to an overview. height follows via aspect-ratio. */
+    width: calc(100% * var(--tt-zoom, 1));
+    aspect-ratio: 1040 / 860;
     height: auto;
     display: block;
-    min-width: 720px;          /* keep nodes legible; view scrolls on phones */
+    margin: 0 auto;
 }
-.tt-edge { stroke: rgba(150, 130, 210, 0.22); stroke-width: 2; }
+.tt-edge { stroke: rgba(150, 130, 210, 0.16); stroke-width: 1.5; }
 .tt-edge-lit {
     stroke: var(--accent);
     stroke-width: 2.5;

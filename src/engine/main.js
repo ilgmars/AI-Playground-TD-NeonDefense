@@ -444,6 +444,16 @@ function navigateToTechTree() {
     hideScreen('game-over');
     showScreen('tech-tree');
     renderTechTree();
+    // Default to a readable zoom: enlarge the fitted tree until it's ~760px
+    // wide (legible) on narrow screens; desktops that already fit stay at 1.
+    // The player can zoom out to an overview or in for detail from there.
+    if (typeof setTreeZoom === 'function') {
+        requestAnimationFrame(() => {
+            const view = document.getElementById('tech-tree-view');
+            const w = view ? view.clientWidth : 0;
+            setTreeZoom(w > 0 ? Math.max(1, Math.min(2.4, 760 / w)) : 1);
+        });
+    }
 }
 
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -466,6 +476,15 @@ const TREE_KIND_GLYPH = {
     hero: '☗', kit: '🜲', qol: '⚙', variant: '⎔', tower: '⌖', keystone: '★', mixed: '✸'
 };
 
+// Friendly legend: glyph → what the node gives you, so the symbols read at a
+// glance. Order roughly groups offense / economy / defense / unlocks.
+const TREE_LEGEND = [
+    ['⚔', 'Damage'], ['»', 'Fire rate'], ['$', 'Payout'], ['☠', 'Bounty'],
+    ['%', 'Interest'], ['✛', 'Max HP'], ['✚', 'Regen'], ['⚒', 'Cheaper'],
+    ['⌖', 'New tower'], ['⎔', 'Variant'], ['✦', 'Ability'], ['☗', 'Hero'],
+    ['🜲', 'Kit'], ['⚙', 'QoL'], ['★', 'Keystone'], ['✓', 'Owned'],
+];
+
 // The tech tree as a wired GRAPH: a central CORE feeds the first ring of
 // nodes; each tier connects to the next through a gate junction that
 // lights once the prior tier has its 2 unlocks (the real isTierOpen
@@ -474,6 +493,23 @@ const TREE_KIND_GLYPH = {
 function renderTechTree() {
     const bal = document.getElementById('tree-xp-balance');
     if (bal) bal.textContent = formatCompact(save.metaXP);
+
+    // Glyph legend (built once; the colour of a node = its branch, shown by
+    // the lane labels). Lets players read what a node grants at a glance.
+    const legend = document.getElementById('tt-legend');
+    if (legend && !legend.childElementCount) {
+        for (const [gl, label] of TREE_LEGEND) {
+            const item = document.createElement('span');
+            item.className = 'tt-leg-item';
+            item.innerHTML = '<span class="tt-leg-glyph">' + gl + '</span>' + label;
+            legend.appendChild(item);
+        }
+        const note = document.createElement('span');
+        note.className = 'tt-leg-item tt-leg-note';
+        note.textContent = '· colour = branch';
+        legend.appendChild(note);
+    }
+
     const svg = document.getElementById('tech-tree-svg');
     if (!svg) return;
     while (svg.firstChild) svg.removeChild(svg.firstChild);
@@ -508,9 +544,9 @@ function renderTechTree() {
     // element's aspect-ratio are sized to the content; the view scrolls on
     // small screens. CORE sits at the far left, vertically centred, a full
     // column clear of every lane node.
-    const NODE_VSPACE = 58;     // min vertical gap between stacked nodes
-    const LANE_PAD = 28;        // padding above/below a lane's nodes
-    const COL_STEP = 150;       // horizontal gap between depth columns
+    const NODE_VSPACE = 66;     // min vertical gap between stacked nodes
+    const LANE_PAD = 32;        // padding above/below a lane's nodes
+    const COL_STEP = 168;       // horizontal gap between depth columns
     const laneHeights = branchKeys.map((_, bi) => {
         let maxStack = 1;
         for (let d = 0; d <= maxDepth; d++) {
@@ -2305,6 +2341,47 @@ function init() {
     // M2: Run Setup BACK button goes to Main Menu.
     document.getElementById('setup-back-btn').addEventListener('click', uiGoBack);
     document.getElementById('tree-back-btn').addEventListener('click',  uiGoBack);
+
+    // ── Tech-tree zoom: buttons + pinch + ctrl/⌘-wheel ───────────────────
+    // The SVG width is driven by the --tt-zoom custom property on the view
+    // (1 = fit). >1 enlarges + scrolls; <1 shrinks to an overview.
+    let ttZoom = 1;
+    const TT_ZOOM_MIN = 0.5, TT_ZOOM_MAX = 4;
+    function setTreeZoom(z) {
+        ttZoom = Math.max(TT_ZOOM_MIN, Math.min(TT_ZOOM_MAX, z));
+        const view = document.getElementById('tech-tree-view');
+        if (view) view.style.setProperty('--tt-zoom', ttZoom.toFixed(3));
+    }
+    window.setTreeZoom = setTreeZoom;
+    const _zin = document.getElementById('tt-zoom-in');
+    const _zout = document.getElementById('tt-zoom-out');
+    const _zfit = document.getElementById('tt-zoom-fit');
+    if (_zin)  _zin.addEventListener('click',  () => setTreeZoom(ttZoom * 1.25));
+    if (_zout) _zout.addEventListener('click', () => setTreeZoom(ttZoom / 1.25));
+    if (_zfit) _zfit.addEventListener('click', () => setTreeZoom(1));
+    const _ttView = document.getElementById('tech-tree-view');
+    if (_ttView) {
+        // ctrl/⌘+wheel (and trackpad pinch, delivered as ctrl+wheel) zooms;
+        // a plain wheel keeps scrolling the view.
+        _ttView.addEventListener('wheel', (e) => {
+            if (!e.ctrlKey && !e.metaKey) return;
+            e.preventDefault();
+            setTreeZoom(ttZoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1));
+        }, { passive: false });
+        // Two-finger pinch.
+        let pinchStart = 0, zoomStart = 1;
+        const _dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+        _ttView.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) { pinchStart = _dist(e.touches); zoomStart = ttZoom; }
+        }, { passive: true });
+        _ttView.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2 && pinchStart > 0) {
+                e.preventDefault();
+                setTreeZoom(zoomStart * (_dist(e.touches) / pinchStart));
+            }
+        }, { passive: false });
+        _ttView.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinchStart = 0; });
+    }
 
     // Tech-tree RESPEC — refunds only TREE_RESPEC_REFUND of XP spent, behind
     // the same typed-phrase guard as RESET SAVE (a yes/no confirm() is one
