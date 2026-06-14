@@ -56,8 +56,7 @@ const path = require('path');
             insideApk: f({ hostname: 'appassets.androidplatform.net', ua: 'Mozilla/5.0 (Linux; Android 13) Mobile', coarse: true }),
         };
     });
-    ok('get-app link element exists with the APK href', link.exists && link.hrefIsApk, JSON.stringify(link));
-    ok('link hidden on this (desktop) test browser', link.hiddenOnDesktop === true);
+    ok('redundant corner download link removed (footer carries it now)', link.exists === false, JSON.stringify(link));
     ok('shouldShowLink: false on desktop', link.desktop === false);
     ok('shouldShowLink: true on mobile web', link.mobileWeb === true);
     ok('shouldShowLink: false inside the APK', link.insideApk === false);
@@ -125,27 +124,8 @@ const path = require('path');
     ok('evaluateUpdate: already-dismissed version → no show', upd.dDismissed === false);
     ok('evaluateUpdate: same version → no show', upd.dSame === false);
 
-    // ---- 3b2) APK "Download latest" corner link ------------------------
-    // In the APK, applyUpdateDecision(decision, inApk=true) also reveals the
-    // shared corner link, re-labelled "Download latest", and hides it again
-    // when nothing newer exists. inApk is passed explicitly so this is
-    // exercisable off-device.
-    const dl = await page.evaluate(() => {
-        const apply = window.applyUpdateDecision;
-        const el = document.getElementById('get-app-link');
-        apply({ show: true, liveBuild: '20260601000000' }, true);
-        const shown = {
-            visible: !el.classList.contains('hidden'),
-            text: el.textContent.trim(),
-            href: el.getAttribute('href') || '',
-        };
-        apply({ show: false, liveBuild: '20260601000000' }, true);
-        return { shown, hidden: el.classList.contains('hidden') };
-    });
-    ok('APK update reveals a "Download latest" corner link',
-        dl.shown.visible && /download latest/i.test(dl.shown.text) && /NeonDefense\.apk$/.test(dl.shown.href),
-        JSON.stringify(dl.shown));
-    ok('no newer build → corner link hidden', dl.hidden === true);
+    // (The "Download latest" corner link was removed — the main-menu footer
+    // carries the download link + update state now; covered by section 4.)
 
     // ---- 3c) checkForApkUpdate is a no-op outside the APK --------------
     const guard = await page.evaluate(async () => {

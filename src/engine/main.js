@@ -5688,17 +5688,6 @@ document.addEventListener('DOMContentLoaded', init);
 
     function isApk() { return location.hostname === APK_HOST; }
 
-    function maybeShowAppLink() {
-        const el = document.getElementById('get-app-link');
-        if (!el) return;
-        const show = appDistShouldShowLink({
-            hostname: location.hostname,
-            ua: navigator.userAgent,
-            coarse: !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches),
-        });
-        el.classList.toggle('hidden', !show);
-        if (show) el.href = APK_URL;
-    }
 
     async function fetchBuildToken(url, fetchImpl) {
         const f = fetchImpl || window.fetch;
@@ -5748,22 +5737,8 @@ document.addEventListener('DOMContentLoaded', init);
                 banner.classList.add('hidden');
             }
         }
-        // Inside the APK, also surface the same subtle corner link the web
-        // uses to "get the app" — here labelled "Download latest" — so there's
-        // a persistent download path even after the banner is dismissed. Shown
-        // only when a newer build actually exists.
-        if (inApk) {
-            const dl = document.getElementById('get-app-link');
-            if (dl) {
-                if (show) {
-                    dl.textContent = 'Download latest ▸';
-                    dl.href = APK_URL;
-                    dl.classList.remove('hidden');
-                } else {
-                    dl.classList.add('hidden');
-                }
-            }
-        }
+        // (The persistent download path now lives in the main-menu footer —
+        // populateMainMenuVersion — so there's no separate corner link here.)
         return show;
     }
 
@@ -5838,12 +5813,10 @@ document.addEventListener('DOMContentLoaded', init);
     window.appDistIsNewerBuild = appDistIsNewerBuild;
     window.appDistEvaluateUpdate = appDistEvaluateUpdate;
     window.applyUpdateDecision = applyUpdateDecision;
-    window.maybeShowAppLink = maybeShowAppLink;
     window.checkForApkUpdate = checkForApkUpdate;
     window.populateMainMenuVersion = populateMainMenuVersion;
 
     document.addEventListener('DOMContentLoaded', () => {
-        maybeShowAppLink();
         populateMainMenuVersion();
 
         const dismiss = document.getElementById('app-update-dismiss');

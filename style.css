@@ -3338,40 +3338,17 @@ body.menu-open #build-menu {
 /* ---- "Get the app" link (mobile web only) + APK update banner ---- */
 /* Tiny, subtle, pinned to a corner. Revealed by main.js only in the
    right context; .hidden keeps them out of the way everywhere else. */
-#get-app-link {
-    position: fixed;
-    right: 10px;
-    bottom: 8px;
-    z-index: 1001;            /* above the menu overlays (z 1000) */
-    padding: 4px 8px;
-    font-size: 0.62rem;
-    letter-spacing: 0.5px;
-    font-weight: 300;
-    color: var(--text-muted);
-    text-decoration: none;
-    background: rgba(10, 9, 19, 0.55);
-    border: 1px solid var(--border-color);
-    border-radius: 5px;
-    opacity: 0.55;
-    transition: opacity 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-    -webkit-tap-highlight-color: transparent;
-}
-#get-app-link:hover,
-#get-app-link:focus-visible {
-    opacity: 1;
-    color: var(--accent);
-    border-color: var(--accent);
-}
-#get-app-link.hidden { display: none; }
-
-/* Main-menu footer: current build (left) + APK download link (right). */
+/* Main-menu footer: pinned to the BOTTOM of the menu — current build (left)
+   + APK download link (right). The overlay is position:absolute, so this
+   anchors to its bottom edge regardless of the centred buttons above. */
 #mm-footer {
+    position: absolute;
+    bottom: 14px;
+    left: 18px;
+    right: 18px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    width: 100%;
-    max-width: 340px;
-    margin: 16px auto 0;
     gap: 10px;
     font-size: 0.7rem;
     color: var(--text-muted);
