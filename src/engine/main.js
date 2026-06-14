@@ -5465,7 +5465,7 @@ function updateBuildMenuForLoadout(towerLoadout) {
         // Tech-tree extra towers stay hidden until their Arsenal node is owned.
         if (baseType === 'mortar' || baseType === 'disruptor') {
             const unlocked = NeonSave.hasUnlocked(save, 'tower.' + baseType);
-            el.style.display = unlocked ? '' : 'none';
+            el.classList.toggle('tt-tower-locked', !unlocked);   // CSS hide, no inline style
             if (!unlocked) return;
         }
         const variantId = towerLoadout && towerLoadout[baseType];

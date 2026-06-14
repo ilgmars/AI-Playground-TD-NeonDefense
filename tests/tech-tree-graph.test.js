@@ -107,12 +107,13 @@ const path = require('path');
 
     // ── Tree-unlocked extra tower is gated in the build menu ───────────────
     const gate = await page.evaluate(() => {
+        const el = document.querySelector('.tower-option[data-type="mortar"]');
         save.unlockedNodes = save.unlockedNodes.filter(n => n !== 'tower.mortar');
         updateBuildMenuForLoadout({});
-        const hidden = document.querySelector('.tower-option[data-type="mortar"]').style.display === 'none';
+        const hidden = el.classList.contains('tt-tower-locked');
         save.unlockedNodes.push('tower.mortar');
         updateBuildMenuForLoadout({});
-        const shown = document.querySelector('.tower-option[data-type="mortar"]').style.display !== 'none';
+        const shown = !el.classList.contains('tt-tower-locked');
         return { hidden, shown };
     });
     ok('extra tower hidden until its node is owned', gate.hidden, gate);

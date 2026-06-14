@@ -312,6 +312,10 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
 .income-icon { border-color: #fbbf24; background: #92400e; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); border-radius: 0; border: none; }
 .mortar-icon { border-color: #fb923c; background: #9a3412; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); border-radius: 0; border: none; }
 .disruptor-icon { border-color: #2dd4bf; background: #0f766e; border-radius: 50%; outline: 2px dashed #99f6e4; outline-offset: -4px; }
+/* Tech-tree extra towers hidden until their Arsenal node is owned — toggled
+   by updateBuildMenuForLoadout. A class (not an inline style) keeps the
+   index.html inline-style budget in check. */
+.tower-option.tt-tower-locked { display: none; }
 .potion-icon { border-color: #2bff88; background: #166534; border-radius: 50% 50% 40% 40%; }
 
 .tower-info {
