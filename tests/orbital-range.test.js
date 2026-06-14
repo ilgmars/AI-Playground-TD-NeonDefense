@@ -110,5 +110,25 @@ ok('a target BEYOND the field bound is never reached (sane upper bound)',
         JSON.stringify({ r0: Math.round(r0), r1: Math.round(r1), r2: Math.round(r2) }));
 }
 
+// Base silo: a long-range SWARM. Its seeker now reaches 3× tower range
+// (was 1.5×), so distant targets the old cap missed are hit — but it stays
+// FINITE (unlike orbital), so a target past 3× is never reached.
+function siloFireFrame(distPx, frames = 8000) {
+    const t = new Tower(5, 5, 'silo');
+    const e = { x: cx + distPx, y: cy, active: true, hp: 1e9, maxHp: 1e9,
+        radius: 12, isAir: false, takeDamage(d) { return d; } };
+    const proj = [];
+    for (let f = 0; f < frames; f++) {
+        t.update([e], proj, []);
+        if (proj.length > 0) return f;
+    }
+    return -1;
+}
+const siloRange = TOWERS.silo.range;
+ok('base silo FIRES at a distant target beyond the old 1.5× cap',
+    siloFireFrame(siloRange * 2) > 0, `range=${siloRange}`);
+ok('base silo stays finite — a target past 3× range is never reached (distinct from orbital)',
+    siloFireFrame(siloRange * 3 + 200, 4000) === -1);
+
 console.log(`\nORBITAL RANGE: ${pass} pass, ${fail} fail`);
 process.exit(fail === 0 ? 0 : 1);

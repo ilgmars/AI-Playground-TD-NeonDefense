@@ -394,9 +394,11 @@ class Tower {
             }
 
             // Seeker range grows the longer a rocket hovers.
-            //   Base silo:  fast growth to a 1.5× cap — rockets are
-            //               ammo, they should engage promptly (and the
-            //               cap stops them firing at absurd distances).
+            //   Base silo:  a SWARM that reaches LONG range — grows to a 3×
+            //               cap (finite, so idle rockets can't accumulate
+            //               absurd range between waves — the original
+            //               unbounded-growth bug). Distinct from orbital's
+            //               single, UNLIMITED-range sniper below.
             //   Orbital:    deploys at 1.0× tower range, then gains
             //               range every IDLE frame (1.0/frame) with NO
             //               fixed multiple cap — a rocket left circling
@@ -416,9 +418,9 @@ class Tower {
                 const rows = (typeof window !== 'undefined' && window.ROWS) || 16;
                 seekerCap = Math.hypot(cols * TILE_SIZE, rows * TILE_SIZE) + 8 * TILE_SIZE;
             } else {
-                seekerCap = this.range * 1.5;
+                seekerCap = this.range * 3;
             }
-            const seekerGrowth = isOrbitalSilo ? 1.0 : 0.5;
+            const seekerGrowth = 1.0;   // reach the extended range promptly
             for (let i = this.hoverRockets.length - 1; i >= 0; i--) {
                 let r = this.hoverRockets[i];
                 r.angle += isOrbitalSilo ? 0.007 : 0.02;

@@ -26,19 +26,19 @@ function ok(name, c, extra) {
 // rocket reaches anywhere on the map.
 const FIELD_BOUND = Math.hypot(24 * 40, 16 * 40) + 8 * 40;   // ≈1474px
 function tick(rocket, towerRange, frames, isOrbital = false) {
-    const seekerCap = isOrbital ? FIELD_BOUND : towerRange * 1.5;
-    const growth = isOrbital ? 1.0 : 0.5;
+    const seekerCap = isOrbital ? FIELD_BOUND : towerRange * 3;   // base silo: long but FINITE
+    const growth = 1.0;
     for (let i = 0; i < frames; i++) {
         if (rocket.range < seekerCap) rocket.range += growth;
     }
 }
 
 // Silo (range 110) idle for 10K frames — without the cap r.range would
-// have hit 5000+. With the cap it should hold at 165.
+// have hit 5000+. With the long-range cap (3×) it holds at 330.
 const r1 = { range: 100 };
 tick(r1, 110, 10000);
-ok('silo seeker capped at 1.5x range', r1.range <= 110 * 1.5 + 0.0001, `range=${r1.range}`);
-ok('silo seeker reaches cap',          Math.abs(r1.range - 165) < 1, `range=${r1.range}`);
+ok('silo seeker capped at 3x range (long but finite)', r1.range <= 110 * 3 + 0.0001, `range=${r1.range}`);
+ok('silo seeker reaches the 3x cap',                   Math.abs(r1.range - 330) < 1, `range=${r1.range}`);
 
 // Orbital (range 120): deploys at 1.0× = 120 and gains range
 // INDEFINITELY while idle — bounded only by the field diagonal so it
@@ -59,10 +59,11 @@ tick(r2b, 120, 1200, true);
 ok('20 s idle keeps gaining range past the old 720 ceiling',
     r2b.range > 720, `range=${r2b.range}`);
 
-// Below-cap rocket still grows by 0.5 per frame.
+// Below-cap rocket grows by 1.0 per frame (faster, to reach the extended
+// long range promptly): 50 + 100×1.0 = 150.
 const r3 = { range: 50 };
 tick(r3, 110, 100);
-ok('rocket grows by 0.5/frame below cap', Math.abs(r3.range - 100) < 0.001,
+ok('rocket grows by 1.0/frame below cap', Math.abs(r3.range - 150) < 0.001,
     `range=${r3.range}`);
 
 // Config sanity: Silo damage/splash buffed so the base tower is not strictly

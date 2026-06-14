@@ -137,7 +137,7 @@ const TOWERS = {
     electric: { cost: 300, range: 120, damage: 25,  fireRate: 60,
                 displayName: 'Tesla',     defaultTargetMode: 'leastHp',
                 chainCount: 3 },
-    silo:     { cost: 400, range: 110, damage: 140, fireRate: 80,
+    silo:     { cost: 400, range: 150, damage: 140, fireRate: 80,
                 displayName: 'Silo',      defaultTargetMode: 'mostHp',
                 maxHover: 4, splash: 55 },
     income:   { cost: 200, range: 0,   damage: 0,   fireRate: 0,
