@@ -93,6 +93,7 @@ const SUITES = [
     { name: 'reset-save-confirm',     file: 'tests/reset-save-confirm.test.js' },
     { name: 'field-orientation',      file: 'tests/field-orientation.test.js' },
     { name: 'options-gfx-flip',       file: 'tests/options-graphics-flip.test.js' },
+    { name: 'menu-layout-audit',      file: 'tests/menu-layout-audit.test.js' },
     { name: 'cutter-enemy',           file: 'tests/cutter-enemy.test.js' },
     { name: 'digger-boss',            file: 'tests/digger-boss.test.js' },
     { name: 'backpack-held-in-place', file: 'tests/backpack-held-in-place.test.js' },

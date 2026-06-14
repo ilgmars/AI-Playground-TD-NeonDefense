@@ -2056,6 +2056,8 @@ body.touch-ui #tower-tooltip { max-width: min(260px, calc(100vw - 16px)); }
 }
 .setup-actions {
     display: flex;
+    flex-wrap: wrap;            /* narrow phones: buttons stack instead of clipping off-screen */
+    justify-content: center;
     gap: 14px;
     margin-top: 14px;
 }
@@ -2717,6 +2719,7 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
 }
 #mp-lobby input[type="text"] {
     flex: 1;
+    min-width: 0;                 /* let the field shrink so NEW CODE stays in-row on narrow phones */
     padding: 8px 10px;
     background: rgba(0, 0, 0, 0.5);
     color: var(--text-main);
@@ -3341,11 +3344,27 @@ body.menu-open #build-menu {
 /* Main-menu footer: pinned to the BOTTOM of the menu — current build (left)
    + APK download link (right). The overlay is position:absolute, so this
    anchors to its bottom edge regardless of the centred buttons above. */
+/* Main menu lays out as: centred content (logo + buttons) that scrolls if
+   the viewport is too short (e.g. landscape phones), with the footer in
+   normal flow at the very bottom — so the build/download line can never
+   overlap the lowest menu button the way an absolutely-pinned footer did. */
+#main-menu { justify-content: flex-start; }
+.mm-main {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow-y: auto;
+}
 #mm-footer {
-    position: absolute;
-    bottom: 14px;
-    left: 18px;
-    right: 18px;
+    flex: 0 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0 18px;
+    margin-bottom: 14px;
     display: flex;
     justify-content: space-between;
     align-items: center;
