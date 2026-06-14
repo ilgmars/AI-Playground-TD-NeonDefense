@@ -246,6 +246,44 @@ function _paintEnemyBody(ctx, type, radius, color) {
     clearGlow(ctx);
 }
 
+// Persistent enemy markers (shield ring / splitter dot / boss glow ring),
+// painted at the origin so they can be BAKED into the cached sprite alongside
+// the body. Drawn live each frame, these vector strokes re-antialiased at
+// sub-pixel positions and shimmered as the enemy moved — special mobs looked
+// jittery even after the body went sub-pixel-smooth. Baked = blit-smooth.
+function _paintEnemyMarkers(ctx, radius, shielded, splitter, isBoss) {
+    if (shielded) {
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = '#60e5ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius + 4, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
+    if (splitter) {
+        ctx.save();
+        ctx.fillStyle = '#f97316';
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+    if (isBoss) {
+        ctx.save();
+        ctx.globalAlpha = 0.6;
+        setGlow(ctx, '#a855f7', 14);
+        ctx.strokeStyle = '#a855f7';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius + 6, 0, Math.PI * 2);
+        ctx.stroke();
+        clearGlow(ctx);
+        ctx.restore();
+    }
+}
+
 function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burning = false, shielded = false, splitter = false, isBoss = false) {
     // Neon glow
     let color = type === 'fast' ? '#fde047' : type === 'tank' ? '#f87171' : type === 'air' ? '#60a5fa' : type === 'cutter' ? '#fb923c' : '#a7f3d0';
@@ -255,14 +293,19 @@ function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burni
     // a shadowBlur'd path per enemy per frame. Box is sized to cover
     // the air silhouette (±1.5r) + ground shadow (y≈20) + glow bleed.
     const side = radius * 3 + 44;
-    const sprite = getSprite('e|' + type + '|' + color + '|' + radius, side, side,
-        (sctx) => _paintEnemyBody(sctx, type, radius, color));
+    // Bake the persistent markers into the cached sprite (keyed by their flags)
+    // so they blit sub-pixel-smooth with the body instead of shimmering as
+    // live per-frame vector strokes.
+    const flags = (shielded ? 'S' : '') + (splitter ? 'P' : '') + (isBoss ? 'B' : '');
+    const sprite = getSprite('e|' + type + '|' + color + '|' + radius + '|' + flags, side, side,
+        (sctx) => { _paintEnemyBody(sctx, type, radius, color); _paintEnemyMarkers(sctx, radius, shielded, splitter, isBoss); });
     if (sprite) {
         blitSprite(ctx, sprite, x, y, 0, true);   // smooth=true: enemies move, so blit sub-pixel (no jitter)
     } else {
         ctx.save();
         ctx.translate(x, y);
         _paintEnemyBody(ctx, type, radius, color);
+        _paintEnemyMarkers(ctx, radius, shielded, splitter, isBoss);
         ctx.restore();
     }
 
@@ -286,40 +329,8 @@ function drawEnemy(ctx, x, y, radius, type, healthRatio, isSlowed = false, burni
         ctx.restore();
     }
 
-    // M3: Shielded enemy — cyan ring overlay when shield is intact.
-    if (shielded) {
-        ctx.save();
-        ctx.globalAlpha = 0.7;
-        ctx.strokeStyle = '#60e5ff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(x, y, radius + 4, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-    }
-
-    // M3: Splitter marker — orange inner dot.
-    if (splitter) {
-        ctx.save();
-        ctx.fillStyle = '#f97316';
-        ctx.beginPath();
-        ctx.arc(x, y, radius * 0.3, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-    }
-
-    // M3: Boss enemy — purple glow ring overlay.
-    if (isBoss) {
-        ctx.save();
-        ctx.globalAlpha = 0.6;
-        setGlow(ctx, '#a855f7', 14);
-        ctx.strokeStyle = '#a855f7';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(x, y, radius + 6, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-    }
+    // Shield / splitter / boss markers are now BAKED into the cached sprite
+    // (see _paintEnemyMarkers) so they move sub-pixel-smooth with the body.
 }
 
 // Variant types share their base's silhouette but get a different accent
