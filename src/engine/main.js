@@ -473,7 +473,12 @@ function renderTechTree() {
     if (!svg) return;
     while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-    const VBW = 1040, VBH = 660;
+    // Taller-than-wide viewBox so the six branch lanes get vertical room — a
+    // depth bucket can hold up to 4 stacked nodes, which overlapped at 660.
+    // Set on the element so CSS aspect-ratio matches and the view never
+    // collapses to a thin band (the "deformed on mobile" report).
+    const VBW = 1040, VBH = 860;
+    svg.setAttribute('viewBox', '0 0 ' + VBW + ' ' + VBH);
 
     // Depth = longest prerequisite chain from a root (memoized).
     const depthCache = {};
@@ -579,7 +584,7 @@ function renderTechTree() {
         else if (afford) state = 'available';
         else state = 'poor';
 
-        const r = node.keystone ? 19 : 15;
+        const r = node.keystone ? 16 : 12;
         const g = _svg('g', {
             class: 'tt-node tt-' + state + (node.keystone ? ' tt-keystone' : ''),
             tabindex: '0', role: 'button',
@@ -607,6 +612,11 @@ function renderTechTree() {
         g.addEventListener('focus', showDetail);
         const tryBuy = () => {
             if (NeonSave.hasUnlocked(save, id)) { showDetail(); return; }
+            const check = NeonTree.canPurchase(save, id);
+            if (!check.ok) { showDetail(); return; }   // locked / too poor — panel explains why
+            // Confirm before spending — XP is hard-earned and the escalating
+            // cost means a mis-tap is expensive.
+            if (!confirm('Unlock "' + node.name + '" for ' + check.cost + ' XP?\n\n' + node.desc)) return;
             if (NeonTree.purchase(save, id)) {
                 renderTechTree();
                 renderLoadoutDropdowns();

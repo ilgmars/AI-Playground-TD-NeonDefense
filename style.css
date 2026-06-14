@@ -2982,12 +2982,11 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     width: 14px; height: 14px;
 }
 
-/* OPTIONS-menu toggles are sliding switches (label left, slider right).
-   Scoped to #options-menu so the scoreboard filter checkboxes are untouched.
-   Keeps the <input type=checkbox> so the .checked JS is unchanged. */
+/* OPTIONS-menu toggles are square checkboxes with the label beside them
+   (accent-filled with a ✓ when on). Scoped to #options-menu so the scoreboard
+   filter checkboxes are untouched. Keeps <input type=checkbox> so the .checked
+   JS is unchanged. */
 #options-menu .sb-filter-toggle {
-    flex-direction: row-reverse;
-    justify-content: space-between;
     gap: 12px;
     font-size: 0.9rem;
     color: var(--text);
@@ -2997,29 +2996,28 @@ body.bp-holding #backpack { overscroll-behavior: contain; }
     -webkit-appearance: none;
     position: relative;
     flex: 0 0 auto;
-    width: 46px; height: 26px;
+    width: 26px; height: 26px;
     margin: 0;
-    border-radius: 13px;
-    background: rgba(255, 255, 255, 0.18);
-    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 2px solid var(--border-color);
     cursor: pointer;
-    transition: background 0.2s ease;
-}
-#options-menu .sb-filter-toggle input[type=checkbox]::before {
-    content: "";
-    position: absolute;
-    top: 2px; left: 2px;
-    width: 20px; height: 20px;
-    border-radius: 50%;
-    background: #fff;
-    transition: transform 0.2s ease;
+    transition: background 0.15s ease, border-color 0.15s ease;
 }
 #options-menu .sb-filter-toggle input[type=checkbox]:checked {
     background: var(--accent);
     border-color: var(--accent);
 }
 #options-menu .sb-filter-toggle input[type=checkbox]:checked::before {
-    transform: translateX(20px);
+    content: "✓";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #04110a;
+    font-size: 18px;
+    font-weight: bold;
 }
 #options-menu .sb-filter-toggle input[type=checkbox]:focus-visible {
     outline: 2px solid var(--accent-2);
@@ -3232,9 +3230,10 @@ body.menu-open #build-menu {
 }
 #tech-tree-svg {
     width: 100%;
+    aspect-ratio: 1040 / 860;  /* reliable height; matches renderTechTree's viewBox so the view fills, not collapses */
     height: auto;
     display: block;
-    min-width: 680px;          /* keep nodes legible; view scrolls on phones */
+    min-width: 720px;          /* keep nodes legible; view scrolls on phones */
 }
 .tt-edge { stroke: rgba(150, 130, 210, 0.22); stroke-width: 2; }
 .tt-edge-lit {
@@ -3247,7 +3246,7 @@ body.menu-open #build-menu {
     stroke: var(--border-color);
     stroke-width: 2;
 }
-.tt-glyph { fill: var(--text-muted); font-size: 20px; font-family: inherit; }
+.tt-glyph { fill: var(--text-muted); font-size: 14px; font-family: inherit; }
 .tt-label { fill: var(--text-muted); font-size: 13px; font-family: inherit; letter-spacing: 0.5px; }
 .tt-node { cursor: default; }
 .tt-node:focus { outline: none; }
@@ -3294,7 +3293,7 @@ body.menu-open #build-menu {
 .tt-branch-label { font-size: 11px; font-family: inherit; letter-spacing: 1px; opacity: 0.85; font-weight: bold; }
 /* Keystones read as bigger, heavier nodes. */
 .tt-keystone .tt-disc { stroke-width: 3; }
-.tt-keystone .tt-glyph { font-size: 17px; }
+.tt-keystone .tt-glyph { font-size: 15px; }
 
 /* RESPEC + BACK action row in the tech-tree overlay. */
 .tree-actions { display: flex; gap: 10px; justify-content: center; align-items: center; }

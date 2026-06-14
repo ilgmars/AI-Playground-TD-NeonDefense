@@ -75,7 +75,18 @@ const path = require('path');
     ok('prereq-gated nodes show locked state', states.locked >= 1, states);
 
     // ── Purchase + escalating cost ─────────────────────────────────────────
+    // Declining the purchase confirm must spend nothing.
+    const declined = await page.evaluate(() => {
+        window.confirm = () => false;
+        const xpBefore = save.metaXP, ownBefore = save.unlockedNodes.length;
+        document.querySelector('#tech-tree-svg .tt-available').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        return { unchanged: save.metaXP === xpBefore && save.unlockedNodes.length === ownBefore };
+    });
+    ok('declining the purchase confirm spends nothing', declined.unchanged, declined);
+
+    // Confirming spends XP, owns the node, re-renders, and the next skill costs more.
     const buy = await page.evaluate(() => {
+        window.confirm = () => true;                                          // accept the spend
         const costBefore = NeonTree.effectiveCost(save, 'asc_singularity');   // deep node, 0 owned
         const xpBefore = save.metaXP, ownBefore = save.unlockedNodes.length;
         const node = [...document.querySelectorAll('#tech-tree-svg .tt-node.tt-available')]
@@ -90,7 +101,7 @@ const path = require('path');
             costAfter: NeonTree.effectiveCost(save, 'asc_singularity'),       // 1 owned → pricier
         };
     });
-    ok('clicking an available node spends XP', buy.xpDropped, buy);
+    ok('confirming an available node spends XP', buy.xpDropped, buy);
     ok('purchase adds the node to unlocks', buy.ownGrew, buy);
     ok('graph re-renders with the new node owned', buy.ownedNow >= 1, buy);
     ok('each skill makes the next more expensive (escalation)', buy.costAfter > buy.costBefore, buy);
