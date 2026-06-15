@@ -1,11 +1,11 @@
-// Feature: the "Screen orientation" option rotates the whole game view 90°
-// (portrait ⇄ landscape), independent of the board shape. Touch/pointer input
-// is un-rotated so towers still place where you tap.
-//
-// Proven by an input invariant that needs no exact pixel math:
-//   • rotation OFF → a horizontal screen move changes the logical X coord.
-//   • rotation ON (90°) → the SAME horizontal screen move changes the logical
-//     Y coord instead (the field is turned a quarter-turn).
+// Feature: the "Screen orientation" option (Portrait ⇄ Landscape) locks the
+// DEVICE orientation via screen.orientation.lock(), so the OS rotates the WHOLE
+// UI natively to match how the player holds the phone. It does NOT rotate the
+// canvas or remap input (that approach was rejected — only the field turned,
+// leaving black bars). Verified by spying on screen.orientation.lock:
+//   • saved '0' (Landscape) → applyScreenRotation() locks 'landscape'.
+//   • saved '1' (Portrait)  → applyScreenRotation() locks 'portrait'.
+//   • canvas is never rotated by this toggle (canvasRotationDeg stays 0).
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -17,7 +17,23 @@ const path = require('path');
     await new Promise(r => setTimeout(r, 600));
     const browser = await chromium.launch({ headless: true });
     const ctx = await browser.newContext({ viewport: { width: 900, height: 700 } });
-    await ctx.addInitScript(() => { window.__neonAegisDev = true; });
+    // Stub screen.orientation.lock so we can observe what the toggle requests
+    // regardless of whether the headless browser can actually lock.
+    await ctx.addInitScript(() => {
+        window.__neonAegisDev = true;
+        window.__lockCalls = [];
+        try {
+            Object.defineProperty(screen, 'orientation', {
+                configurable: true,
+                value: {
+                    type: 'landscape-primary',
+                    lock(t) { window.__lockCalls.push(t); return Promise.resolve(); },
+                    unlock() {},
+                    addEventListener() {}
+                }
+            });
+        } catch (_) {}
+    });
     const page = await ctx.newPage();
     const errs = [];
     page.on('pageerror', e => errs.push(e.message));
@@ -27,51 +43,40 @@ const path = require('path');
 
     await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(700);
-    await page.evaluate(() => {
-        localStorage.setItem('neonPlayerName', 'ROT');
+
+    // Landscape (default / saved '0').
+    const land = await page.evaluate(() => {
+        window.__lockCalls.length = 0;
         localStorage.setItem('neonScreenRotate', '0');
-        localStorage.setItem('neonAutoFlip', '0');   // isolate the 90° rotation
+        localStorage.setItem('neonAutoFlip', '0');   // isolate from the 180° flip
+        applyScreenRotation();
+        return { calls: window.__lockCalls.slice(), deg: canvasRotationDeg(),
+                 xform: document.getElementById('game-canvas').style.transform };
     });
-    await page.click('#menu-start-btn'); await page.waitForTimeout(200);
-    await page.click('#start-btn');     await page.waitForTimeout(700);
+    ok('landscape: locks the device to "landscape"', land.calls[land.calls.length - 1] === 'landscape', JSON.stringify(land));
+    ok('landscape: toggle does not rotate the canvas', land.deg === 0 && !/rotate/.test(land.xform), JSON.stringify(land));
 
-    // Move the pointer to a canvas-relative fraction of its bounding box and
-    // read the resulting logical mousePos.
-    const probe = (fx, fy) => page.evaluate(({ fx, fy }) => {
-        const c = document.getElementById('game-canvas');
-        const r = c.getBoundingClientRect();
-        c.dispatchEvent(new PointerEvent('pointermove',
-            { clientX: r.left + r.width * fx, clientY: r.top + r.height * fy, bubbles: true }));
-        return { x: mousePos.x, y: mousePos.y };
-    }, { fx, fy });
-
-    // ── rotation OFF: horizontal screen move → horizontal logical ─────────
-    const offC = await probe(0.5, 0.5);
-    const offR = await probe(0.75, 0.5);
-    const offDx = Math.abs(offR.x - offC.x), offDy = Math.abs(offR.y - offC.y);
-    ok('rotation off: horizontal screen move maps to logical X', offDx > offDy * 3 && offDx > 5,
-        JSON.stringify({ offC, offR }));
-
-    // ── rotation ON (90°) ─────────────────────────────────────────────────
-    const rot = await page.evaluate(() => {
+    // Portrait (saved '1').
+    const port = await page.evaluate(() => {
+        window.__lockCalls.length = 0;
         localStorage.setItem('neonScreenRotate', '1');
         applyScreenRotation();
-        const c = document.getElementById('game-canvas');
-        return { transform: c.style.transform, deg: canvasRotationDeg() };
+        return { calls: window.__lockCalls.slice(), deg: canvasRotationDeg(),
+                 xform: document.getElementById('game-canvas').style.transform };
     });
-    await page.waitForTimeout(150);
-    ok('rotation on: canvas is rotate(90deg)', /rotate\(90deg\)/.test(rot.transform) && rot.deg === 90, JSON.stringify(rot));
+    ok('portrait: locks the device to "portrait"', port.calls[port.calls.length - 1] === 'portrait', JSON.stringify(port));
+    ok('portrait: still does not rotate the canvas (whole UI turns, not the field)',
+        port.deg === 0 && !/rotate/.test(port.xform), JSON.stringify(port));
 
-    const onC = await probe(0.5, 0.5);
-    const onR = await probe(0.75, 0.5);
-    const onDx = Math.abs(onR.x - onC.x), onDy = Math.abs(onR.y - onC.y);
-    ok('rotation on: horizontal screen move maps to logical Y (view turned 90°)',
-        onDy > onDx * 3 && onDy > 5, JSON.stringify({ onC, onR }));
-    ok('rotated mapping is finite and on-field', isFinite(onR.x) && isFinite(onR.y) && onR.x >= -40 && onR.y >= -40,
-        JSON.stringify(onR));
-    // Centre maps to ~field centre regardless of rotation (rotation is about it).
-    ok('canvas centre still maps to field centre when rotated',
-        Math.abs(onC.x - offC.x) < 30 && Math.abs(onC.y - offC.y) < 30, JSON.stringify({ offC, onC }));
+    // Robustness: a platform without orientation.lock must not throw.
+    const safe = await page.evaluate(() => {
+        try {
+            Object.defineProperty(screen, 'orientation', { configurable: true, value: undefined });
+            applyScreenRotation();
+            return 'ok';
+        } catch (e) { return String(e); }
+    });
+    ok('no-op safe when orientation.lock is unavailable', safe === 'ok', safe);
 
     ok('no JS errors', errs.length === 0, errs.join(' / '));
     await browser.close();

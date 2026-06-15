@@ -1783,16 +1783,12 @@ function isDeviceSecondaryOrientation() {
     const o = window.orientation;            // deprecated fallback
     return o === 180 || o === -90 || o === 270;
 }
-// Total canvas display rotation = the "Screen orientation" 90° toggle PLUS the
-// 180° auto-flip, combined into one CSS rotation (0 / 90 / 180 / 270). Pointer
-// input is un-rotated around the canvas centre (see flipClient + getCanvasPos),
-// so towers still place where you tap. The board SHAPE (field transpose) is a
-// separate setting — this only turns the rendered view.
+// Canvas display rotation = the 180° auto-flip only. The portrait/landscape
+// "Screen orientation" toggle no longer rotates the canvas — it rotates the
+// WHOLE device UI natively via screen.orientation.lock() (see
+// applyScreenRotation), so there's nothing to un-rotate in input handling.
 function canvasRotationDeg() {
-    let d = 0;
-    if (window.__neonScreenRotate) d += 90;
-    if (window.__neonFlip180) d += 180;
-    return ((d % 360) + 360) % 360;
+    return window.__neonFlip180 ? 180 : 0;
 }
 function applyCanvasTransform() {
     const canvas = document.getElementById('game-canvas');
@@ -1810,13 +1806,22 @@ function applyAutoFlip() {
     window.__neonFlip180 = enabled && isDeviceSecondaryOrientation();
     applyCanvasTransform();
 }
-// "Screen orientation" OPTION: rotate the whole view 90° (portrait ⇄ landscape)
-// independent of the board shape. Display-only, so it applies live.
+// "Screen orientation" OPTION (Portrait ⇄ Landscape): lock the DEVICE
+// orientation so the player can hold the phone whichever way they like and the
+// OS rotates the WHOLE UI — top bar, dock, canvas — natively, filling the
+// screen. No canvas transform, no input remap. No-op where the platform won't
+// lock (desktop browsers outside fullscreen); harmless there.
 function applyScreenRotation() {
-    let on = false;
-    try { on = localStorage.getItem('neonScreenRotate') === '1'; } catch (_) {}
-    window.__neonScreenRotate = on;
-    applyCanvasTransform();
+    let portrait = false;
+    try { portrait = localStorage.getItem('neonScreenRotate') === '1'; } catch (_) {}
+    window.__neonScreenRotate = portrait;
+    try {
+        const orient = screen.orientation;
+        if (orient && typeof orient.lock === 'function') {
+            const p = orient.lock(portrait ? 'portrait' : 'landscape');
+            if (p && typeof p.catch === 'function') p.catch(() => {}); // ponytail: desktop rejects; fine
+        }
+    } catch (_) {}
     if (typeof resizeCanvas === 'function') { try { resizeCanvas(); } catch (_) {} }
 }
 
@@ -2286,15 +2291,15 @@ function init() {
             syncFieldLabel();
         });
     }
-    // Screen orientation — rotate the whole view 90° (portrait ⇄ landscape),
-    // independent of the board shape. Display-only, so it applies live.
+    // Screen orientation — lock the device Portrait/Landscape so the whole UI
+    // rotates natively to fit how you hold the phone. Applies live.
     const rotChk = document.getElementById('opt-screen-rotate');
     if (rotChk) {
         const syncRotLabel = () => {
             const lbl = document.getElementById('opt-screen-rotate-label');
             if (!lbl) return;
-            lbl.innerHTML = 'Screen orientation: <strong>' + (rotChk.checked ? 'Portrait (rotated 90°)' : 'Landscape') +
-                '</strong> <span class="opt-hint">turn the whole view 90° to fit how you hold the device — separate from board shape</span>';
+            lbl.innerHTML = 'Screen orientation: <strong>' + (rotChk.checked ? 'Portrait' : 'Landscape') +
+                '</strong> <span class="opt-hint">hold the phone vertical or horizontal — the whole screen rotates to match</span>';
         };
         rotChk.checked = localStorage.getItem('neonScreenRotate') === '1';
         syncRotLabel();
