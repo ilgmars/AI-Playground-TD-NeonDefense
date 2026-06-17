@@ -22,6 +22,10 @@ const path = require('path');
     await ctx.addInitScript(() => {
         window.__neonAegisDev = true;
         window.__lockCalls = [];
+        // Stand in for the APK's native JS bridge so we can prove the
+        // load-bearing on-device path (setRequestedOrientation) is driven.
+        window.__nativeCalls = [];
+        window.NeonAndroid = { setPortrait(p) { window.__nativeCalls.push(p); } };
         try {
             Object.defineProperty(screen, 'orientation', {
                 configurable: true,
@@ -46,25 +50,27 @@ const path = require('path');
 
     // Landscape (default / saved '0').
     const land = await page.evaluate(() => {
-        window.__lockCalls.length = 0;
+        window.__lockCalls.length = 0; window.__nativeCalls.length = 0;
         localStorage.setItem('neonScreenRotate', '0');
         localStorage.setItem('neonAutoFlip', '0');   // isolate from the 180° flip
         applyScreenRotation();
-        return { calls: window.__lockCalls.slice(), deg: canvasRotationDeg(),
-                 xform: document.getElementById('game-canvas').style.transform };
+        return { calls: window.__lockCalls.slice(), native: window.__nativeCalls.slice(),
+                 deg: canvasRotationDeg(), xform: document.getElementById('game-canvas').style.transform };
     });
-    ok('landscape: locks the device to "landscape"', land.calls[land.calls.length - 1] === 'landscape', JSON.stringify(land));
+    ok('landscape: drives the native APK bridge with portrait=false', land.native[land.native.length - 1] === false, JSON.stringify(land));
+    ok('landscape: locks the web orientation to "landscape"', land.calls[land.calls.length - 1] === 'landscape', JSON.stringify(land));
     ok('landscape: toggle does not rotate the canvas', land.deg === 0 && !/rotate/.test(land.xform), JSON.stringify(land));
 
     // Portrait (saved '1').
     const port = await page.evaluate(() => {
-        window.__lockCalls.length = 0;
+        window.__lockCalls.length = 0; window.__nativeCalls.length = 0;
         localStorage.setItem('neonScreenRotate', '1');
         applyScreenRotation();
-        return { calls: window.__lockCalls.slice(), deg: canvasRotationDeg(),
-                 xform: document.getElementById('game-canvas').style.transform };
+        return { calls: window.__lockCalls.slice(), native: window.__nativeCalls.slice(),
+                 deg: canvasRotationDeg(), xform: document.getElementById('game-canvas').style.transform };
     });
-    ok('portrait: locks the device to "portrait"', port.calls[port.calls.length - 1] === 'portrait', JSON.stringify(port));
+    ok('portrait: drives the native APK bridge with portrait=true', port.native[port.native.length - 1] === true, JSON.stringify(port));
+    ok('portrait: locks the web orientation to "portrait"', port.calls[port.calls.length - 1] === 'portrait', JSON.stringify(port));
     ok('portrait: still does not rotate the canvas (whole UI turns, not the field)',
         port.deg === 0 && !/rotate/.test(port.xform), JSON.stringify(port));
 

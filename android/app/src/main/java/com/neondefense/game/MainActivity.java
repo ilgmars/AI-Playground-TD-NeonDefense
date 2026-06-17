@@ -68,17 +68,19 @@ public class MainActivity extends AppCompatActivity {
         webView = new WebView(this);
         setContentView(webView);
 
-        // Bridge for the OPTIONS "Vertical rotation" toggle. The manifest
-        // locks the activity to sensorLandscape; the game calls this at boot
-        // and on toggle to unlock/relock portrait so the app turns with the
-        // device, matching how the web build already behaves.
+        // Bridge for the OPTIONS "Screen orientation" toggle (Portrait ⇄
+        // Landscape). setRequestedOrientation overrides the manifest's default
+        // sensorLandscape at runtime, so the WHOLE native UI rotates — far more
+        // reliable than screen.orientation.lock() inside a WebView. The game
+        // calls this at boot and on every toggle. SENSOR_* variants let the OS
+        // still flip between the two ways-up within the chosen axis.
         webView.addJavascriptInterface(new Object() {
             @android.webkit.JavascriptInterface
-            public void setAllowPortrait(final boolean allow) {
+            public void setPortrait(final boolean portrait) {
                 runOnUiThread(new Runnable() {
                     @Override public void run() {
-                        setRequestedOrientation(allow
-                                ? ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+                        setRequestedOrientation(portrait
+                                ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                                 : ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
                     }
                 });

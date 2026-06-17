@@ -1815,6 +1815,14 @@ function applyScreenRotation() {
     let portrait = false;
     try { portrait = localStorage.getItem('neonScreenRotate') === '1'; } catch (_) {}
     window.__neonScreenRotate = portrait;
+    // APK: native setRequestedOrientation — overrides the manifest reliably,
+    // rotates the whole native UI. This is the load-bearing path on device.
+    try {
+        if (window.NeonAndroid && typeof window.NeonAndroid.setPortrait === 'function') {
+            window.NeonAndroid.setPortrait(portrait);
+        }
+    } catch (_) {}
+    // Web/PWA: screen.orientation.lock (rejects outside fullscreen → ignored).
     try {
         const orient = screen.orientation;
         if (orient && typeof orient.lock === 'function') {
