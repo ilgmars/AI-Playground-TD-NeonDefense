@@ -138,6 +138,19 @@ if (process.env.NEON_RUN_SUITES) {
     try { suites = JSON.parse(process.env.NEON_RUN_SUITES); } catch (_) {}
 }
 
+// --shard=N/M runs only the Nth of M slices (1-indexed) so CI can fan the
+// suite across parallel jobs. Round-robin (stride) rather than contiguous
+// chunks keeps the slow browser suites spread evenly across shards, so wall
+// time = the slowest shard stays low. Ignored under the NEON_RUN_SUITES seam.
+const shardArg = process.argv.find(a => a.startsWith('--shard='));
+if (shardArg && !process.env.NEON_RUN_SUITES) {
+    const [n, m] = shardArg.slice('--shard='.length).split('/').map(Number);
+    if (n >= 1 && m >= 1 && n <= m) {
+        suites = suites.filter((_, i) => i % m === (n - 1));
+        console.log(`(shard ${n}/${m}: ${suites.length} suites)`);
+    }
+}
+
 const root = path.resolve(__dirname, '..');
 const startedAt = Date.now();
 const results = [];
