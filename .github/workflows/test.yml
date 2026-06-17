@@ -21,7 +21,9 @@ jobs:
   test:
     name: Run test suite
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    # ~9.5m locally; GitHub's 2-core runners are slower and the suite keeps
+    # growing — 12m was too tight (jobs hit 12m17s and got killed mid-run).
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
