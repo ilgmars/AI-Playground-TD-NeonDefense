@@ -1747,22 +1747,33 @@ function resizeCanvas() {
     // does nothing; off, cap at 2× to protect mobile frame rate.
     let hiQ = false; try { hiQ = localStorage.getItem('neonHiQuality') === '1'; } catch (_) {}
     const dpr = hiQ ? Math.min(rawDpr * 2, 4) : Math.min(rawDpr, 2);
-    canvas.width = cssWidth * dpr;
-    canvas.height = cssHeight * dpr;
+    const newW = Math.round(cssWidth * dpr);
+    const newH = Math.round(cssHeight * dpr);
+    // Assigning canvas.width/height CLEARS and reallocates the bitmap even when
+    // the value is unchanged. On mobile web the URL bar collapses during a drag
+    // → fires visualViewport/resize with the SAME size → without this guard the
+    // canvas was reallocated every frame mid-pan ("web laggy, APK smooth": the
+    // APK has no URL bar). Only touch the backing when the size truly changes.
+    const backingChanged = canvas.width !== newW || canvas.height !== newH;
+    if (backingChanged) {
+        canvas.width = newW;
+        canvas.height = newH;
+    }
 
     // Expose performance flag: true when the device pixel ratio was capped.
     // Used by draw code to skip expensive shadow/glow effects on low-power paths.
     window.NEON_LOW_PERF = rawDpr > 2;
 
     const logicalWidth = window.COLS * window.TILE_SIZE;
-    window.RENDER_SCALE = (cssWidth * dpr) / logicalWidth;
+    window.RENDER_SCALE = newW / logicalWidth;
     // CSS-px → device-px factor; game.draw uses it to convert the
     // pinch-zoom pan offset (kept in CSS px) into the render transform.
     window.RENDER_DPR = dpr;
 
     // Backing size or scale changed → the cached static map layer no
-    // longer matches; force a re-rasterization on the next draw.
-    if (typeof game !== 'undefined' && game) game._mapLayerKey = null;
+    // longer matches; force a re-rasterization on the next draw. Unchanged
+    // backing → keep the cache (avoids a full vector redraw on no-op resizes).
+    if (backingChanged && typeof game !== 'undefined' && game) game._mapLayerKey = null;
 
     // Force immediate redraw if paused. Guarded: during a FIELD
     // orientation change this can run on a game built for the OLD

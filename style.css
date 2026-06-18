@@ -204,7 +204,16 @@ body {
 
 #game-container {
     position: relative;
-    background-color: var(--bg-color);
+    /* The canvas keeps its fixed board aspect, so on most phones it
+       letterboxes. Fill the dead space with the same faint neon grid the
+       playfield uses (drawGridTile: #0f172a + cyan lines) so the bars read
+       as backdrop, not a broken black void. The canvas' box-shadow layers
+       it cleanly on top. Cosmetic only — no effect on the field. */
+    background-color: #0f172a;
+    background-image:
+        linear-gradient(rgba(56, 189, 248, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56, 189, 248, 0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
     flex-grow: 1;
     display: flex;
     justify-content: center;
