@@ -939,15 +939,34 @@ class Game {
         if (this._pathOutlineKey === key && this._pathOutlineSegs) return this._pathOutlineSegs;
         const T = TILE_SIZE;
         const isRoad = (r, c) => (r >= 0 && r < rows && c >= 0 && c < cols && grid[r][c] !== 0);
+        // Leave the spawn entrance and the base exit OPEN (no end cap) so the
+        // track reads like a tube open at both ends. The cap is the outward
+        // edge of the first/last path cell — the side pointing away from the
+        // path's interior. Keyed "r,c,side" so only that one edge is skipped;
+        // the side walls of those cells still draw.
+        const skip = new Set();
+        const path = this.map && this.map.path;
+        if (path && path.length >= 2) {
+            const capSide = (cell, inner) => {
+                const dr = cell.r - inner.r, dc = cell.c - inner.c;   // points outward
+                if (dr < 0) return 't'; if (dr > 0) return 'b';
+                if (dc < 0) return 'l'; if (dc > 0) return 'r';
+                return '';
+            };
+            const s = path[0], e = path[path.length - 1];
+            skip.add(s.r + ',' + s.c + ',' + capSide(s, path[1]));
+            skip.add(e.r + ',' + e.c + ',' + capSide(e, path[path.length - 2]));
+        }
         const segs = [];
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 if (grid[r][c] === 0) continue;          // buildable, not road
                 const x = c * T, y = r * T;
-                if (!isRoad(r - 1, c)) segs.push([x, y, x + T, y]);             // top
-                if (!isRoad(r + 1, c)) segs.push([x, y + T, x + T, y + T]);     // bottom
-                if (!isRoad(r, c - 1)) segs.push([x, y, x, y + T]);             // left
-                if (!isRoad(r, c + 1)) segs.push([x + T, y, x + T, y + T]);     // right
+                const k = r + ',' + c + ',';
+                if (!isRoad(r - 1, c) && !skip.has(k + 't')) segs.push([x, y, x + T, y]);             // top
+                if (!isRoad(r + 1, c) && !skip.has(k + 'b')) segs.push([x, y + T, x + T, y + T]);     // bottom
+                if (!isRoad(r, c - 1) && !skip.has(k + 'l')) segs.push([x, y, x, y + T]);             // left
+                if (!isRoad(r, c + 1) && !skip.has(k + 'r')) segs.push([x + T, y, x + T, y + T]);     // right
             }
         }
         this._pathOutlineKey = key;

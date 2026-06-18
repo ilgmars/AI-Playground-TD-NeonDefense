@@ -88,6 +88,42 @@ const path = require('path');
     // The moving centerline "shimmer" was removed by request — outline only.
     ok('no animated centerline / shimmer pass (removed)', drawn.dashedStrokes === 0, JSON.stringify(drawn));
 
+    // 2b) Open tube: the spawn entrance and the base exit have NO end cap, so
+    //     the track reads as a tube open at both ends — but the side walls of
+    //     those cells are still outlined.
+    const ends = await page.evaluate(() => {
+        const g = window.game;
+        g._pathOutlineKey = null;
+        const segs = g._pathOutlineSegments();
+        const T = window.TILE_SIZE;
+        const path = g.map.path;
+        const eq = (s, a) => s[0] === a[0] && s[1] === a[1] && s[2] === a[2] && s[3] === a[3];
+        const has = a => segs.some(s => eq(s, a));
+        const capSeg = (cell, inner) => {
+            const x = cell.c * T, y = cell.r * T;
+            const dr = cell.r - inner.r, dc = cell.c - inner.c;       // points outward
+            if (dr < 0) return [x, y, x + T, y];                     // top
+            if (dr > 0) return [x, y + T, x + T, y + T];             // bottom
+            if (dc < 0) return [x, y, x, y + T];                     // left
+            return [x + T, y, x + T, y + T];                         // right
+        };
+        const cellEdges = cell => {
+            const x = cell.c * T, y = cell.r * T;
+            return segs.filter(s => s[0] >= x && s[2] <= x + T && s[1] >= y && s[3] <= y + T).length;
+        };
+        const s = path[0], e = path[path.length - 1];
+        return {
+            startCapPresent: has(capSeg(s, path[1])),
+            endCapPresent:   has(capSeg(e, path[path.length - 2])),
+            startWalls: cellEdges(s),
+            endWalls:   cellEdges(e),
+        };
+    });
+    ok('spawn entrance has no outline cap (open tube end)', ends.startCapPresent === false, JSON.stringify(ends));
+    ok('base exit has no outline cap (open tube end)',      ends.endCapPresent === false, JSON.stringify(ends));
+    ok('spawn cell still has its tube side walls outlined',  ends.startWalls >= 1, JSON.stringify(ends));
+    ok('base cell still has its tube side walls outlined',   ends.endWalls >= 1, JSON.stringify(ends));
+
     // 3) Boss re-route: bumping map._rev (what digReroute does) must rebuild
     //    the outline geometry so the new road is outlined.
     const reroute = await page.evaluate(() => {
