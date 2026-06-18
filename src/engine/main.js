@@ -1712,6 +1712,35 @@ function showWavePreview(count) {
     panel.querySelector('#wave-preview-close').addEventListener('click', () => panel.classList.add('hidden'));
 }
 
+// Seamless letterbox: the board keeps its fixed aspect (NOT stretched or
+// cropped — same shape/size/path), so it letterboxes. Paint the container's
+// grid backdrop at the SAME displayed cell size and alignment as the canvas
+// tiles so the neon grid flows continuously out of the field into the bars.
+// Crucially this tracks the pinch/wheel ZOOM too: the zoom is a render
+// transform INSIDE the canvas (window.__neonZoom = {scale,tx,ty}, applied as
+// translate-then-scale, origin 0,0), so a field tile boundary at canvas-local
+// p displays at p·scale + t. We mirror that here — cell = baseCell·scale,
+// phase = (offset + pan) mod cell — so the bars stay seamless at any zoom.
+// Cosmetic; never touches field geometry.
+function updateLetterboxGrid() {
+    const canvas = document.getElementById('game-canvas');
+    const container = document.getElementById('game-container');
+    if (!canvas || !container) return;
+    const cssW = parseFloat(canvas.style.width) || 0;
+    const cssH = parseFloat(canvas.style.height) || 0;
+    if (!(cssW > 0) || !window.COLS) return;
+    const Z = window.__neonZoom || { scale: 1, tx: 0, ty: 0 };
+    const cell = (cssW / window.COLS) * (Z.scale || 1);
+    if (!(cell > 0) || !isFinite(cell)) return;
+    const offX = Math.max(0, (container.clientWidth  - cssW) / 2);
+    const offY = Math.max(0, (container.clientHeight - cssH) / 2);
+    const wrap = (v, n) => ((v % n) + n) % n;
+    container.style.backgroundSize = cell + 'px ' + cell + 'px';
+    container.style.backgroundPosition =
+        wrap(offX + (Z.tx || 0), cell) + 'px ' + wrap(offY + (Z.ty || 0), cell) + 'px';
+}
+if (typeof window !== 'undefined') window.updateLetterboxGrid = updateLetterboxGrid;
+
 function resizeCanvas() {
     const canvas = document.getElementById('game-canvas');
     const container = document.getElementById('game-container');
@@ -1739,20 +1768,8 @@ function resizeCanvas() {
     canvas.style.width = cssWidth + 'px';
     canvas.style.height = cssHeight + 'px';
 
-    // Seamless letterbox: the board keeps its fixed aspect (it is NOT stretched
-    // or cropped — same shape, same size), so it letterboxes. Paint the
-    // container's grid backdrop at the SAME displayed cell size and alignment
-    // as the canvas tiles, so the neon grid flows continuously out of the field
-    // into the bars with no scale jump and no seam. Cosmetic; never touches the
-    // field geometry. cssWidth/COLS == cssHeight/ROWS (square cells, aspect
-    // preserved above).
-    const cellPx = cssWidth / window.COLS;
-    if (cellPx > 0 && isFinite(cellPx)) {
-        const offX = Math.max(0, (container.clientWidth  - cssWidth)  / 2);
-        const offY = Math.max(0, (container.clientHeight - cssHeight) / 2);
-        container.style.backgroundSize = cellPx + 'px ' + cellPx + 'px';
-        container.style.backgroundPosition = (offX % cellPx) + 'px ' + (offY % cellPx) + 'px';
-    }
+    // Seamless letterbox grid — see updateLetterboxGrid. Tracks pinch/zoom too.
+    updateLetterboxGrid();
 
     // High-DPI display scaling — cap at 2× so mobile WebView doesn't render
     // 9× the pixels (3× DPR² = 9×) and tank frame rate.
@@ -4157,6 +4174,9 @@ function init() {
     const ZOOM_MIN = 1;       // never zoom out below natural size
     const ZOOM_MAX = 4;
     function applyZoom() {
+        // Keep the letterbox grid backdrop locked to the (now-changed) zoom/pan
+        // so the bars stay seamless with the field at any zoom level.
+        if (typeof updateLetterboxGrid === 'function') { try { updateLetterboxGrid(); } catch (_) {} }
         // The render loop picks the new state up on its next frame.
         // While paused / on overlays the loop doesn't tick, so force
         // one draw to commit the new view immediately.

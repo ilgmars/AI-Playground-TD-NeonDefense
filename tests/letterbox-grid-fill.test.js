@@ -92,6 +92,35 @@ const path = require('path');
         near(wrap(m.bgPos[1] - wrap(m.offY, cell), cell), 0, 0.5),
         JSON.stringify({ bgPos: m.bgPos, offX: m.offX, offY: m.offY, cell }));
 
+    // 4b) SEAMLESS UNDER ZOOM: pinch-zoom is a render transform inside the
+    //     canvas (window.__neonZoom), so the backdrop must scale + pan with it
+    //     or the bars stop matching the field the moment you zoom.
+    const zoom = await page.evaluate(() => {
+        const canvas = document.getElementById('game-canvas');
+        const cont = document.getElementById('game-container');
+        // Mutate the live zoom object (keeps the input closure's ref intact).
+        window.__neonZoom.scale = 2; window.__neonZoom.tx = -37; window.__neonZoom.ty = -24;
+        updateLetterboxGrid();
+        const cs = getComputedStyle(cont);
+        const parsePair = s => (s || '').split(' ').map(parseFloat);
+        const cr = canvas.getBoundingClientRect(), kr = cont.getBoundingClientRect();
+        return {
+            cssW: parseFloat(canvas.style.width), COLS: window.COLS,
+            offX: cr.left - kr.left, offY: cr.top - kr.top,
+            bgSize: parsePair(cs.backgroundSize), bgPos: parsePair(cs.backgroundPosition),
+            tx: window.__neonZoom.tx, ty: window.__neonZoom.ty, scale: window.__neonZoom.scale,
+        };
+    });
+    const zCell = (zoom.cssW / zoom.COLS) * zoom.scale;
+    ok('zoom: backdrop cell scales with the field (baseCell × zoom)', near(zoom.bgSize[0], zCell, 0.5),
+        JSON.stringify({ bgSize: zoom.bgSize, zCell }));
+    ok('zoom: backdrop stays phase-aligned with the panned+zoomed field',
+        near(wrap(zoom.bgPos[0] - wrap(zoom.offX + zoom.tx, zCell), zCell), 0, 0.5) &&
+        near(wrap(zoom.bgPos[1] - wrap(zoom.offY + zoom.ty, zCell), zCell), 0, 0.5),
+        JSON.stringify({ bgPos: zoom.bgPos, offX: zoom.offX, offY: zoom.offY, tx: zoom.tx, ty: zoom.ty, zCell }));
+    // Reset zoom so the cosmetic-strip check below runs at the base view.
+    await page.evaluate(() => { window.__neonZoom.scale = 1; window.__neonZoom.tx = 0; window.__neonZoom.ty = 0; });
+
     // 5) The fill is purely cosmetic — removing the container background must
     //    not change the canvas backing or the map path (same shape & size).
     const stable = await page.evaluate(() => {
