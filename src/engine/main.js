@@ -1712,64 +1712,36 @@ function showWavePreview(count) {
     panel.querySelector('#wave-preview-close').addEventListener('click', () => panel.classList.add('hidden'));
 }
 
-// Seamless letterbox: the board keeps its fixed aspect (NOT stretched or
-// cropped — same shape/size/path), so it letterboxes. Paint the container's
-// grid backdrop at the SAME displayed cell size and alignment as the canvas
-// tiles so the neon grid flows continuously out of the field into the bars.
-// Crucially this tracks the pinch/wheel ZOOM too: the zoom is a render
-// transform INSIDE the canvas (window.__neonZoom = {scale,tx,ty}, applied as
-// translate-then-scale, origin 0,0), so a field tile boundary at canvas-local
-// p displays at p·scale + t. We mirror that here — cell = baseCell·scale,
-// phase = (offset + pan) mod cell — so the bars stay seamless at any zoom.
-// Cosmetic; never touches field geometry.
-function updateLetterboxGrid() {
-    const canvas = document.getElementById('game-canvas');
-    const container = document.getElementById('game-container');
-    if (!canvas || !container) return;
-    const cssW = parseFloat(canvas.style.width) || 0;
-    const cssH = parseFloat(canvas.style.height) || 0;
-    if (!(cssW > 0) || !window.COLS) return;
-    const Z = window.__neonZoom || { scale: 1, tx: 0, ty: 0 };
-    const cell = (cssW / window.COLS) * (Z.scale || 1);
-    if (!(cell > 0) || !isFinite(cell)) return;
-    const offX = Math.max(0, (container.clientWidth  - cssW) / 2);
-    const offY = Math.max(0, (container.clientHeight - cssH) / 2);
-    const wrap = (v, n) => ((v % n) + n) % n;
-    container.style.backgroundSize = cell + 'px ' + cell + 'px';
-    container.style.backgroundPosition =
-        wrap(offX + (Z.tx || 0), cell) + 'px ' + wrap(offY + (Z.ty || 0), cell) + 'px';
-}
-if (typeof window !== 'undefined') window.updateLetterboxGrid = updateLetterboxGrid;
-
 function resizeCanvas() {
     const canvas = document.getElementById('game-canvas');
     const container = document.getElementById('game-container');
     if (!canvas || !container) return;
 
-    // When the view is rotated 90°/270° (Screen-orientation toggle), the canvas
-    // is fitted against the SWAPPED container dimensions so the rotated bitmap
-    // fills the screen instead of overflowing it.
-    const rotated = (typeof canvasRotationDeg === 'function') && (canvasRotationDeg() % 180 === 90);
-    const availW = rotated ? container.clientHeight : container.clientWidth;
-    const availH = rotated ? container.clientWidth : container.clientHeight;
-    const containerAspect = availW / availH;
+    // The CANVAS fills the whole container — no letterbox element, no black
+    // bars. The fixed-aspect playfield is drawn CENTRED inside it at contain
+    // scale (so the path is always fully on-screen, same shape + size), and the
+    // surrounding area is filled by EXTENDING the grass grid past the field
+    // edges (Game._drawMapLayer). The extension is the same grid drawn in the
+    // same render transform, so it's seamless and zooms with the field — no
+    // separate backdrop to keep in sync.
+    const canvasCssW = container.clientWidth;
+    const canvasCssH = container.clientHeight;
+    const containerAspect = canvasCssW / canvasCssH;
     const gameAspect = window.COLS / window.ROWS;
 
-    let cssWidth, cssHeight;
-
+    // Contain-fit the field within the container (preserves board aspect —
+    // never stretched or cropped).
+    let fieldCssW, fieldCssH;
     if (containerAspect > gameAspect) {
-        cssHeight = availH;
-        cssWidth = availH * gameAspect;
+        fieldCssH = canvasCssH;
+        fieldCssW = canvasCssH * gameAspect;
     } else {
-        cssWidth = availW;
-        cssHeight = availW / gameAspect;
+        fieldCssW = canvasCssW;
+        fieldCssH = canvasCssW / gameAspect;
     }
 
-    canvas.style.width = cssWidth + 'px';
-    canvas.style.height = cssHeight + 'px';
-
-    // Seamless letterbox grid — see updateLetterboxGrid. Tracks pinch/zoom too.
-    updateLetterboxGrid();
+    canvas.style.width = canvasCssW + 'px';
+    canvas.style.height = canvasCssH + 'px';
 
     // High-DPI display scaling — cap at 2× so mobile WebView doesn't render
     // 9× the pixels (3× DPR² = 9×) and tank frame rate.
@@ -1779,8 +1751,8 @@ function resizeCanvas() {
     // does nothing; off, cap at 2× to protect mobile frame rate.
     let hiQ = false; try { hiQ = localStorage.getItem('neonHiQuality') === '1'; } catch (_) {}
     const dpr = hiQ ? Math.min(rawDpr * 2, 4) : Math.min(rawDpr, 2);
-    const newW = Math.round(cssWidth * dpr);
-    const newH = Math.round(cssHeight * dpr);
+    const newW = Math.round(canvasCssW * dpr);
+    const newH = Math.round(canvasCssH * dpr);
     // Assigning canvas.width/height CLEARS and reallocates the bitmap even when
     // the value is unchanged. On mobile web the URL bar collapses during a drag
     // → fires visualViewport/resize with the SAME size → without this guard the
@@ -1797,10 +1769,18 @@ function resizeCanvas() {
     window.NEON_LOW_PERF = rawDpr > 2;
 
     const logicalWidth = window.COLS * window.TILE_SIZE;
-    window.RENDER_SCALE = newW / logicalWidth;
+    // device px per logical unit at zoom 1 — driven by the FIELD size (the
+    // field keeps its aspect; only the surround is extended), NOT the canvas.
+    window.RENDER_SCALE = (fieldCssW * dpr) / logicalWidth;
     // CSS-px → device-px factor; game.draw uses it to convert the
     // pinch-zoom pan offset (kept in CSS px) into the render transform.
     window.RENDER_DPR = dpr;
+    // Field origin offset (CSS px) that centres the field in the full canvas.
+    // game.draw adds it to the render transform; getCanvasPos subtracts it.
+    window.FIELD_OFFX_CSS = Math.max(0, (canvasCssW - fieldCssW) / 2);
+    window.FIELD_OFFY_CSS = Math.max(0, (canvasCssH - fieldCssH) / 2);
+    window.FIELD_CSS_W = fieldCssW;
+    window.FIELD_CSS_H = fieldCssH;
 
     // Backing size or scale changed → the cached static map layer no
     // longer matches; force a re-rasterization on the next draw. Unchanged
@@ -4134,18 +4114,23 @@ function init() {
         const cssH = parseFloat(canvas.style.height) || rect.height;
         const localX = p.x - cx + cssW / 2;       // 0..cssW in the un-rotated canvas
         const localY = p.y - cy + cssH / 2;
-        const logicalWidth = window.COLS * window.TILE_SIZE;
-        const logicalHeight = window.ROWS * window.TILE_SIZE;
-        const scaleX = logicalWidth / cssW;
-        const scaleY = logicalHeight / cssH;
+        // The canvas now fills the container; the field is drawn centred inside
+        // it (offset FIELD_OFF*_CSS) at its own size (FIELD_CSS_*). Map into the
+        // FIELD's coordinate space, mirroring game.draw's transform exactly.
+        const fieldW = window.FIELD_CSS_W || cssW;
+        const fieldH = window.FIELD_CSS_H || cssH;
+        const offX = window.FIELD_OFFX_CSS || 0;
+        const offY = window.FIELD_OFFY_CSS || 0;
+        const scaleX = (window.COLS * window.TILE_SIZE) / fieldW;
+        const scaleY = (window.ROWS * window.TILE_SIZE) / fieldH;
         // Invert the pinch-zoom view transform. Zoom lives in the
         // render transform now (not on the element), so the bounding
-        // rect no longer reflects it — undo translate-then-scale
+        // rect no longer reflects it — undo field-offset + translate-then-scale
         // explicitly before mapping CSS px to logical units.
         const Z = window.__neonZoom || { scale: 1, tx: 0, ty: 0 };
         return {
-            x: ((localX - Z.tx) / Z.scale) * scaleX,
-            y: ((localY - Z.ty) / Z.scale) * scaleY
+            x: ((localX - offX - Z.tx) / Z.scale) * scaleX,
+            y: ((localY - offY - Z.ty) / Z.scale) * scaleY
         };
     }
 
@@ -4174,9 +4159,6 @@ function init() {
     const ZOOM_MIN = 1;       // never zoom out below natural size
     const ZOOM_MAX = 4;
     function applyZoom() {
-        // Keep the letterbox grid backdrop locked to the (now-changed) zoom/pan
-        // so the bars stay seamless with the field at any zoom level.
-        if (typeof updateLetterboxGrid === 'function') { try { updateLetterboxGrid(); } catch (_) {} }
         // The render loop picks the new state up on its next frame.
         // While paused / on overlays the loop doesn't tick, so force
         // one draw to commit the new view immediately.
@@ -4469,21 +4451,25 @@ function init() {
         // Use a thumb-sized offset (~80-100px) that adapts to orientation.
         e.preventDefault();
         const rect = canvas.getBoundingClientRect();
-        const logicalWidth  = window.COLS * window.TILE_SIZE;
-        const logicalHeight = window.ROWS * window.TILE_SIZE;
-        const scaleX = logicalWidth / rect.width;
-        const scaleY = logicalHeight / rect.height;
-        
+        // The field is drawn centred inside the full-container canvas (offset
+        // FIELD_OFF*_CSS, size FIELD_CSS_*) — map into FIELD space like getCanvasPos.
+        const fieldW = window.FIELD_CSS_W || rect.width;
+        const fieldH = window.FIELD_CSS_H || rect.height;
+        const offX = window.FIELD_OFFX_CSS || 0;
+        const offY = window.FIELD_OFFY_CSS || 0;
+        const scaleX = (window.COLS * window.TILE_SIZE) / fieldW;
+        const scaleY = (window.ROWS * window.TILE_SIZE) / fieldH;
+
         // Thumb offset: larger in portrait (more vertical space), smaller in landscape
         const isLandscape = window.innerWidth > window.innerHeight;
         const GHOST_OFFSET_PX = isLandscape ? 70 : 100;
-        
-        // Apply offset in screen space, undo the pinch-zoom view
+
+        // Apply offset in screen space, undo the field offset + pinch-zoom view
         // transform (it lives in the render transform now, not on the
         // element), then scale to logical coordinates.
         const Zg = window.__neonZoom || { scale: 1, tx: 0, ty: 0 };
-        mousePos.x = ((t.clientX - rect.left - Zg.tx) / Zg.scale) * scaleX;
-        mousePos.y = (((t.clientY - GHOST_OFFSET_PX) - rect.top - Zg.ty) / Zg.scale) * scaleY;
+        mousePos.x = ((t.clientX - rect.left - offX - Zg.tx) / Zg.scale) * scaleX;
+        mousePos.y = (((t.clientY - GHOST_OFFSET_PX) - rect.top - offY - Zg.ty) / Zg.scale) * scaleY;
     }, { passive: false });
 
     // Pending placement state: set when finger lifts over canvas, cleared on confirm/cancel.
@@ -4538,20 +4524,22 @@ function init() {
             const t = e.changedTouches[0];
             const rect = canvas.getBoundingClientRect();
 
-            const logicalWidth  = window.COLS * window.TILE_SIZE;
-            const logicalHeight = window.ROWS * window.TILE_SIZE;
-            const scaleX = logicalWidth / rect.width;
-            const scaleY = logicalHeight / rect.height;
+            const fieldW = window.FIELD_CSS_W || rect.width;
+            const fieldH = window.FIELD_CSS_H || rect.height;
+            const offX = window.FIELD_OFFX_CSS || 0;
+            const offY = window.FIELD_OFFY_CSS || 0;
+            const scaleX = (window.COLS * window.TILE_SIZE) / fieldW;
+            const scaleY = (window.ROWS * window.TILE_SIZE) / fieldH;
 
             // Same thumb offset as touchmove so the ghost the user sees is
             // also the position we test for placement on release.
             const isLandscape = window.innerWidth > window.innerHeight;
             const GHOST_OFFSET_PX = isLandscape ? 70 : 100;
 
-            // Same zoom-inverse as the touchmove ghost above.
+            // Same field-offset + zoom-inverse as the touchmove ghost above.
             const Zd = window.__neonZoom || { scale: 1, tx: 0, ty: 0 };
-            const lx = ((t.clientX - rect.left - Zd.tx) / Zd.scale) * scaleX;
-            const ly = (((t.clientY - GHOST_OFFSET_PX) - rect.top - Zd.ty) / Zd.scale) * scaleY;
+            const lx = ((t.clientX - rect.left - offX - Zd.tx) / Zd.scale) * scaleX;
+            const ly = (((t.clientY - GHOST_OFFSET_PX) - rect.top - offY - Zd.ty) / Zd.scale) * scaleY;
             const col = Math.floor(lx / window.TILE_SIZE);
             const row = Math.floor(ly / window.TILE_SIZE);
 
@@ -4567,8 +4555,8 @@ function init() {
                 // button positioning (forward zoom view transform).
                 const tileCentreLogX = col * window.TILE_SIZE + window.TILE_SIZE / 2;
                 const tileCentreLogY = row * window.TILE_SIZE + window.TILE_SIZE / 2;
-                const sx = rect.left + Zd.tx + (tileCentreLogX / scaleX) * Zd.scale;
-                const sy = rect.top  + Zd.ty + (tileCentreLogY / scaleY) * Zd.scale;
+                const sx = rect.left + offX + Zd.tx + (tileCentreLogX / scaleX) * Zd.scale;
+                const sy = rect.top  + offY + Zd.ty + (tileCentreLogY / scaleY) * Zd.scale;
                 showPlaceConfirm(col, row, state.type, sx, sy);
             } else {
                 // Not buildable, off the map, or can't afford — cancel silently.

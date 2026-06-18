@@ -58,10 +58,6 @@ const fs = require('fs');
         /\.neon-green\s*\{/.test(css) && /\.neon-magenta\s*\{/.test(css));
     ok('glow present on key chrome (drop/box/text shadow in accent)',
         /drop-shadow\(/.test(css) && /menu-open/.test(css));
-    // The board letterboxes on most phones; the dead space must read as the
-    // neon grid backdrop, not a flat black void (regression guard).
-    ok('letterbox bars filled with the neon grid (game-container has a grid background-image)',
-        /#game-container\s*\{[^}]*background-image:\s*[\s\S]*?linear-gradient/.test(css));
 
     // ── Menu transitions ─────────────────────────────────────────────
     ok('overlays animate in (menu transition)',

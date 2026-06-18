@@ -137,8 +137,12 @@ const path = require('path');
         }));
         const logicalW = window.COLS * window.TILE_SIZE;
         const logicalH = window.ROWS * window.TILE_SIZE;
-        const wantX = ((px - r.left - Z.tx) / Z.scale) * (logicalW / r.width);
-        const wantY = ((py - r.top  - Z.ty) / Z.scale) * (logicalH / r.height);
+        // Field is drawn centred in the full-container canvas (offset
+        // FIELD_OFF*, size FIELD_CSS_*) — mirror that in the expected mapping.
+        const fieldW = window.FIELD_CSS_W, fieldH = window.FIELD_CSS_H;
+        const offX = window.FIELD_OFFX_CSS, offY = window.FIELD_OFFY_CSS;
+        const wantX = ((px - r.left - offX - Z.tx) / Z.scale) * (logicalW / fieldW);
+        const wantY = ((py - r.top  - offY - Z.ty) / Z.scale) * (logicalH / fieldH);
         const got = { x: mousePos.x, y: mousePos.y };
         const wantCol = Math.floor(wantX / window.TILE_SIZE);
         const wantRow = Math.floor(wantY / window.TILE_SIZE);

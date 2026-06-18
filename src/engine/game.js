@@ -863,6 +863,33 @@ class Game {
     // layer warped by the delta between its cached transform and the
     // current one — momentarily soft, exactly like the old CSS zoom —
     // and re-rasterize crisp on the first frame after the fingers lift.
+    // Fill the area AROUND the fixed-aspect field with the same grass grid,
+    // extending it past the field edges so the full-container canvas has no
+    // black bars. Draws only the out-of-field cells visible under the current
+    // render transform (in-field cells are drawn by map.draw); same tile fn,
+    // same transform → seamless with the field and zooms with it. ox/oy are the
+    // device-px translate of the target ctx, devW/devH its pixel extent.
+    _drawExtendedGrass(ctx, A, ox, oy, devW, devH) {
+        if (typeof drawGridTile !== 'function' || !(A > 0)) return;
+        const T = TILE_SIZE;
+        const grid = this.map && this.map.grid;
+        const rows = grid ? grid.length : (window.ROWS || 0);
+        const cols = grid && grid[0] ? grid[0].length : (window.COLS || 0);
+        const cMin = Math.floor((0 - ox) / A / T) - 1;
+        const cMax = Math.ceil((devW - ox) / A / T) + 1;
+        const rMin = Math.floor((0 - oy) / A / T) - 1;
+        const rMax = Math.ceil((devH - oy) / A / T) + 1;
+        // Guard against a pathological range (zoom is clamped ≥1, so this is
+        // bounded in practice — belt and braces).
+        if (cMax - cMin > 2000 || rMax - rMin > 2000) return;
+        for (let r = rMin; r <= rMax; r++) {
+            for (let c = cMin; c <= cMax; c++) {
+                if (r >= 0 && r < rows && c >= 0 && c < cols) continue; // in-field
+                drawGridTile(ctx, c * T, r * T, T);
+            }
+        }
+    }
+
     _drawMapLayer(A, OX, OY) {
         if (typeof document === 'undefined' || !document.createElement) {
             this.map.draw(this.ctx);                  // node test stubs
@@ -895,6 +922,7 @@ class Game {
             // Shift by +M so the layer's (0,0) pixel sits at device (-M,-M):
             // the layer spans device [-M, canvas+M] on each axis.
             mctx.setTransform(A, 0, 0, A, OX + M, OY + M);
+            this._drawExtendedGrass(mctx, A, OX + M, OY + M, layerW, layerH); // fill the surround
             this.map.draw(mctx);
             this._drawPathOutline(mctx);   // bake the static outline into the cached layer (zero per-frame cost)
             this._mapLayerKey = key;
@@ -915,6 +943,7 @@ class Game {
             ex + k * this._mapLayer.width  >= this.canvas.width &&
             ey + k * this._mapLayer.height >= this.canvas.height;
         if (!covers) {
+            this._drawExtendedGrass(this.ctx, A, OX, OY, this.canvas.width, this.canvas.height);
             this.map.draw(this.ctx);
             this._drawPathOutline(this.ctx);   // gesture fallback: outline isn't in this direct (uncached) draw
             return;
@@ -1060,9 +1089,15 @@ class Game {
             ? window.__neonZoom : { scale: 1, tx: 0, ty: 0 };
         const RS  = window.RENDER_SCALE || 1;
         const DPR = window.RENDER_DPR || 1;
+        // Field origin offset (device px) that centres the fixed-aspect field
+        // in the full-container canvas; the surround is filled with extended
+        // grass (see _drawMapLayer). Folded into the pan offset so zoom/pan
+        // compose normally; getCanvasPos subtracts the same offset.
+        const FOX = (window.FIELD_OFFX_CSS || 0) * DPR;
+        const FOY = (window.FIELD_OFFY_CSS || 0) * DPR;
         const A   = RS * Z.scale;          // device px per logical unit
-        const OX  = Z.tx * DPR;            // device-px pan offset
-        const OY  = Z.ty * DPR;
+        const OX  = FOX + Z.tx * DPR;      // device-px field origin + pan offset
+        const OY  = FOY + Z.ty * DPR;
         this.ctx.setTransform(A, 0, 0, A, OX, OY);
         // Publish the live render transform for blitSprite — it blits
         // in DEVICE space snapped to whole pixels (sub-pixel bitmap

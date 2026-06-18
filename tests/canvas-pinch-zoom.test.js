@@ -114,8 +114,12 @@ const path = require('path');
         }));
         const logicalW = window.COLS * window.TILE_SIZE;
         const logicalH = window.ROWS * window.TILE_SIZE;
-        const ex = ((px - r.left - Z.tx) / Z.scale) * (logicalW / r.width);
-        const ey = ((py - r.top  - Z.ty) / Z.scale) * (logicalH / r.height);
+        // The canvas fills the container; the field is drawn centred inside it
+        // (offset FIELD_OFF*, size FIELD_CSS_*). Invert that too.
+        const fieldW = window.FIELD_CSS_W, fieldH = window.FIELD_CSS_H;
+        const offX = window.FIELD_OFFX_CSS, offY = window.FIELD_OFFY_CSS;
+        const ex = ((px - r.left - offX - Z.tx) / Z.scale) * (logicalW / fieldW);
+        const ey = ((py - r.top  - offY - Z.ty) / Z.scale) * (logicalH / fieldH);
         return { gotX: mousePos.x, gotY: mousePos.y, ex, ey };
     });
     ok('getCanvasPos inverts the zoom transform',

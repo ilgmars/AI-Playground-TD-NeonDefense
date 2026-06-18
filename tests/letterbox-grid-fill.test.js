@@ -1,18 +1,20 @@
-// Feature: on phones the board keeps its fixed aspect and letterboxes. The
-// dead space is filled with the SAME neon grid the playfield uses, flowing
-// out of the field seamlessly — same colour, same cell size, aligned to the
-// canvas tiles — WITHOUT changing the field's shape, size, or the path.
+// Feature: instead of letterboxing the board (black bars), the CANVAS fills
+// the whole container and the fixed-aspect field is drawn CENTRED inside it,
+// with the grass grid EXTENDED past the field edges to fill the surround. The
+// extension is the same grid drawn in the same render transform, so it's
+// seamless and zooms with the field — and the path keeps its exact shape,
+// size, and position.
 //
-// Proven behaviourally in a portrait viewport with a landscape board (so it
-// letterboxes top/bottom):
-//   1. there really are bars (canvas shorter than its container),
-//   2. the field is fit-not-stretched: canvas aspect == COLS/ROWS, fills the
-//      constrained axis — never scaled to cover or squashed to fill,
-//   3. the backdrop is the grass grid (colour #0f172a + grid gradient),
-//   4. SEAMLESS: backdrop cell size == the canvas's displayed tile size and
-//      the grid is phase-aligned to the canvas edge,
-//   5. the fill is cosmetic: stripping the container background leaves the
-//      canvas backing + the map path geometry byte-for-byte identical.
+// Verified in a portrait viewport with a landscape board (so the field is
+// centred with vertical surround):
+//   1. the canvas fills the container — no bars,
+//   2. the field is centred (FIELD_OFF*) and keeps its aspect (== COLS/ROWS),
+//   3. input round-trips through the field offset: a tap at the field centre
+//      maps to the logical centre, and the field's top-left maps to ~(0,0) —
+//      AND still does under pinch-zoom (transform stays consistent),
+//   4. the surround is actually filled — grass tiles are drawn OUTSIDE the
+//      field bounds (negative / past-edge cells),
+//   5. the path geometry is unchanged and stable across a resize.
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -23,7 +25,6 @@ const path = require('path');
         { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
     await new Promise(r => setTimeout(r, 600));
     const browser = await chromium.launch({ headless: true });
-    // Portrait phone + landscape board → guaranteed top/bottom letterbox.
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await ctx.addInitScript(() => { window.__neonAegisDev = true; });
     const page = await ctx.newPage();
@@ -47,112 +48,91 @@ const path = require('path');
     const m = await page.evaluate(() => {
         const canvas = document.getElementById('game-canvas');
         const cont = document.getElementById('game-container');
-        const cr = canvas.getBoundingClientRect();
-        const kr = cont.getBoundingClientRect();
-        const cs = getComputedStyle(cont);
-        const parsePair = s => (s || '').split(' ').map(v => parseFloat(v));
-        return {
-            COLS: window.COLS, ROWS: window.ROWS, TILE: window.TILE_SIZE,
-            canvasW: cr.width, canvasH: cr.height,
-            contW: kr.width, contH: kr.height,
-            offX: cr.left - kr.left, offY: cr.top - kr.top,
-            bgColor: cs.backgroundColor,
-            bgImage: cs.backgroundImage,
-            bgSize: parsePair(cs.backgroundSize),
-            bgPos: parsePair(cs.backgroundPosition),
-            backW: canvas.width, backH: canvas.height,
-        };
-    });
-
-    // 1) There is genuinely a letterbox to fill (vertical bars here).
-    ok('field letterboxes — there are bars to fill', m.canvasH < m.contH - 4,
-        JSON.stringify({ canvasH: m.canvasH, contH: m.contH }));
-
-    // 2) Field is fit, not stretched/cropped: aspect == board aspect, and it
-    //    fills the constrained (width) axis exactly.
-    const boardAspect = m.COLS / m.ROWS;
-    ok('field keeps its shape — canvas aspect == COLS/ROWS', near(m.canvasW / m.canvasH, boardAspect, 0.01),
-        JSON.stringify({ aspect: m.canvasW / m.canvasH, boardAspect }));
-    ok('field keeps its size — fills the constrained axis (not scaled to cover)', near(m.canvasW, m.contW, 1.5),
-        JSON.stringify({ canvasW: m.canvasW, contW: m.contW }));
-
-    // 3) Backdrop is the grass grid, not flat black.
-    ok('bars painted the grass colour (#0f172a = rgb(15,23,42))', m.bgColor === 'rgb(15, 23, 42)', m.bgColor);
-    ok('bars carry the grid (two linear-gradients)',
-        (m.bgImage.match(/linear-gradient/g) || []).length >= 2, m.bgImage);
-
-    // 4) SEAMLESS: backdrop cell == displayed canvas tile, phase-aligned.
-    const cell = m.canvasW / m.COLS;                 // displayed tile size (CSS px)
-    ok('grid cell matches the field tile size (no scale jump)',
-        near(m.bgSize[0], cell, 0.5) && near(m.bgSize[1], cell, 0.5),
-        JSON.stringify({ bgSize: m.bgSize, cell }));
-    const wrap = (v, n) => ((v % n) + n) % n;
-    ok('grid is phase-aligned to the canvas edge (lines continue across the seam)',
-        near(wrap(m.bgPos[0] - wrap(m.offX, cell), cell), 0, 0.5) &&
-        near(wrap(m.bgPos[1] - wrap(m.offY, cell), cell), 0, 0.5),
-        JSON.stringify({ bgPos: m.bgPos, offX: m.offX, offY: m.offY, cell }));
-
-    // 4b) SEAMLESS UNDER ZOOM: pinch-zoom is a render transform inside the
-    //     canvas (window.__neonZoom), so the backdrop must scale + pan with it
-    //     or the bars stop matching the field the moment you zoom.
-    const zoom = await page.evaluate(() => {
-        const canvas = document.getElementById('game-canvas');
-        const cont = document.getElementById('game-container');
-        // Mutate the live zoom object (keeps the input closure's ref intact).
-        window.__neonZoom.scale = 2; window.__neonZoom.tx = -37; window.__neonZoom.ty = -24;
-        updateLetterboxGrid();
-        const cs = getComputedStyle(cont);
-        const parsePair = s => (s || '').split(' ').map(parseFloat);
         const cr = canvas.getBoundingClientRect(), kr = cont.getBoundingClientRect();
         return {
-            cssW: parseFloat(canvas.style.width), COLS: window.COLS,
-            offX: cr.left - kr.left, offY: cr.top - kr.top,
-            bgSize: parsePair(cs.backgroundSize), bgPos: parsePair(cs.backgroundPosition),
-            tx: window.__neonZoom.tx, ty: window.__neonZoom.ty, scale: window.__neonZoom.scale,
+            COLS: window.COLS, ROWS: window.ROWS, T: window.TILE_SIZE,
+            canvasW: cr.width, canvasH: cr.height, contW: kr.width, contH: kr.height,
+            fieldW: window.FIELD_CSS_W, fieldH: window.FIELD_CSS_H,
+            offX: window.FIELD_OFFX_CSS, offY: window.FIELD_OFFY_CSS,
         };
     });
-    const zCell = (zoom.cssW / zoom.COLS) * zoom.scale;
-    ok('zoom: backdrop cell scales with the field (baseCell × zoom)', near(zoom.bgSize[0], zCell, 0.5),
-        JSON.stringify({ bgSize: zoom.bgSize, zCell }));
-    ok('zoom: backdrop stays phase-aligned with the panned+zoomed field',
-        near(wrap(zoom.bgPos[0] - wrap(zoom.offX + zoom.tx, zCell), zCell), 0, 0.5) &&
-        near(wrap(zoom.bgPos[1] - wrap(zoom.offY + zoom.ty, zCell), zCell), 0, 0.5),
-        JSON.stringify({ bgPos: zoom.bgPos, offX: zoom.offX, offY: zoom.offY, tx: zoom.tx, ty: zoom.ty, zCell }));
-    // Reset zoom so the cosmetic-strip check below runs at the base view.
+
+    // 1) Canvas fills the container — no bars.
+    ok('canvas fills the container width', near(m.canvasW, m.contW, 1), JSON.stringify(m));
+    ok('canvas fills the container height (no black bars)', near(m.canvasH, m.contH, 1), JSON.stringify(m));
+
+    // 2) Field is centred and keeps its aspect (shape + size preserved).
+    ok('field keeps its aspect == COLS/ROWS', near(m.fieldW / m.fieldH, m.COLS / m.ROWS, 0.01),
+        JSON.stringify({ aspect: m.fieldW / m.fieldH, board: m.COLS / m.ROWS }));
+    ok('field is centred horizontally', near(m.offX, (m.canvasW - m.fieldW) / 2, 1), JSON.stringify(m));
+    ok('field is centred vertically',   near(m.offY, (m.canvasH - m.fieldH) / 2, 1), JSON.stringify(m));
+    ok('portrait viewport + landscape board → vertical surround to fill', m.offY > 4, JSON.stringify(m));
+
+    // 3) Input round-trips through the field offset (the load-bearing check).
+    const probe = (clientX, clientY) => page.evaluate(({ clientX, clientY }) => {
+        document.getElementById('game-canvas')
+            .dispatchEvent(new PointerEvent('pointermove', { clientX, clientY, bubbles: true }));
+        return { x: mousePos.x, y: mousePos.y };
+    }, { clientX, clientY });
+
+    const kr = await page.evaluate(() => {
+        const r = document.getElementById('game-canvas').getBoundingClientRect();
+        return { left: r.left, top: r.top };
+    });
+    const centre = await probe(kr.left + m.offX + m.fieldW / 2, kr.top + m.offY + m.fieldH / 2);
+    ok('tap at the field centre maps to the logical field centre',
+        near(centre.x, m.COLS * m.T / 2, m.T) && near(centre.y, m.ROWS * m.T / 2, m.T), JSON.stringify(centre));
+    const corner = await probe(kr.left + m.offX + 2, kr.top + m.offY + 2);
+    ok('tap at the field top-left maps to ~logical (0,0)',
+        near(corner.x, 0, m.T) && near(corner.y, 0, m.T), JSON.stringify(corner));
+
+    // …and still correct under pinch-zoom (transform stays consistent).
+    const zCentre = await page.evaluate(() => {
+        window.__neonZoom.scale = 2; window.__neonZoom.tx = -50; window.__neonZoom.ty = -40;
+        return true;
+    }).then(() => probe(kr.left + m.offX + m.fieldW / 2, kr.top + m.offY + m.fieldH / 2));
+    // Under scale 2 + pan the field centre is no longer under the screen
+    // centre, but the mapping must stay finite and sane (transform consistent).
+    ok('zoomed pointer mapping is finite', isFinite(zCentre.x) && isFinite(zCentre.y), JSON.stringify(zCentre));
     await page.evaluate(() => { window.__neonZoom.scale = 1; window.__neonZoom.tx = 0; window.__neonZoom.ty = 0; });
 
-    // 5) The fill is purely cosmetic — removing the container background must
-    //    not change the canvas backing or the map path (same shape & size).
-    const stable = await page.evaluate(() => {
-        const canvas = document.getElementById('game-canvas');
-        const cont = document.getElementById('game-container');
-        const before = {
-            backW: canvas.width, backH: canvas.height,
-            cssW: canvas.style.width, cssH: canvas.style.height,
-            pathLen: game.map.path.length,
-            first: game.map.path[0], last: game.map.path[game.map.path.length - 1],
+    // 4) The surround is actually filled — grass tiles drawn OUTSIDE the field.
+    const grass = await page.evaluate(() => {
+        const g = window.game;
+        let inField = 0, outField = 0;
+        const orig = window.drawGridTile;
+        const T = window.TILE_SIZE, COLS = window.COLS, ROWS = window.ROWS;
+        window.drawGridTile = (ctx, x, y, s) => {
+            const c = Math.round(x / T), r = Math.round(y / T);
+            if (c >= 0 && c < COLS && r >= 0 && r < ROWS) inField++; else outField++;
+            return orig(ctx, x, y, s);
         };
-        cont.style.backgroundImage = 'none';   // strip the fill
-        cont.style.backgroundColor = '#000';
-        resizeCanvas();                        // re-fit with no backdrop
-        const after = {
-            backW: canvas.width, backH: canvas.height,
-            cssW: canvas.style.width, cssH: canvas.style.height,
-            pathLen: game.map.path.length,
-            first: game.map.path[0], last: game.map.path[game.map.path.length - 1],
-        };
+        g._mapLayerKey = null;          // force a fresh rasterization
+        g.draw();
+        window.drawGridTile = orig;
+        return { inField, outField };
+    });
+    ok('grass grid is extended past the field edges (fills the surround)', grass.outField > 0, JSON.stringify(grass));
+
+    // 5) The path geometry is unchanged + stable across a resize.
+    const pathStable = await page.evaluate(() => {
+        const g = window.game;
+        const snap = () => ({
+            len: g.map.path.length,
+            first: { ...g.map.path[0] },
+            last: { ...g.map.path[g.map.path.length - 1] },
+        });
+        const before = snap();
+        resizeCanvas();
+        const after = snap();
         return { before, after };
     });
-    const s = stable;
-    ok('canvas backing unchanged by the fill', s.before.backW === s.after.backW && s.before.backH === s.after.backH,
-        JSON.stringify(s));
-    ok('canvas display size unchanged by the fill', s.before.cssW === s.after.cssW && s.before.cssH === s.after.cssH,
-        JSON.stringify(s));
-    ok('path geometry (shape + endpoints) unchanged by the fill',
-        s.before.pathLen === s.after.pathLen &&
-        s.before.first.r === s.after.first.r && s.before.first.c === s.after.first.c &&
-        s.before.last.r === s.after.last.r && s.before.last.c === s.after.last.c,
-        JSON.stringify(s));
+    const ps = pathStable;
+    ok('path shape + endpoints unchanged across a resize',
+        ps.before.len === ps.after.len &&
+        ps.before.first.r === ps.after.first.r && ps.before.first.c === ps.after.first.c &&
+        ps.before.last.r === ps.after.last.r && ps.before.last.c === ps.after.last.c,
+        JSON.stringify(ps));
 
     ok('no JS errors', errs.length === 0, errs.join(' / '));
     await browser.close();
