@@ -28,7 +28,9 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3]
-    timeout-minutes: 12
+    # Bin-packed shards run ~3-4m of tests; 20m absorbs slow-runner setup
+    # (npm ci + playwright install --with-deps can balloon on a cold runner).
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -78,7 +80,9 @@ jobs:
   smoke:
     name: Autopilot smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # The smoke loop self-caps at MAX_WAIT_MS=5m; 20m absorbs slow-runner setup
+    # (it hit the old 15m on setup variance, not a hang).
+    timeout-minutes: 20
 
     steps:
       - name: Checkout

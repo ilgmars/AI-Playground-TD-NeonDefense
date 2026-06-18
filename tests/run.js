@@ -139,16 +139,38 @@ if (process.env.NEON_RUN_SUITES) {
     try { suites = JSON.parse(process.env.NEON_RUN_SUITES); } catch (_) {}
 }
 
-// --shard=N/M runs only the Nth of M slices (1-indexed) so CI can fan the
-// suite across parallel jobs. Round-robin (stride) rather than contiguous
-// chunks keeps the slow browser suites spread evenly across shards, so wall
-// time = the slowest shard stays low. Ignored under the NEON_RUN_SUITES seam.
+// --shard=N/M runs only the Nth of M shards (1-indexed) so CI can fan the
+// suite across parallel jobs. Round-robin striding clustered the heavy browser
+// suites into one shard (it hit the timeout while another sat idle at 2m), so
+// instead assign by greedy longest-processing-time bin-packing: sort suites by
+// (coarse, measured-second) weight desc, drop each onto the lightest shard.
+// Deterministic, so every job computes the same split. Ignored under the
+// NEON_RUN_SUITES seam.
+const SHARD_WEIGHTS = {   // approx seconds on CI; unlisted → typical browser cost
+    'backpack-mobile-real': 125, 'menu-layout-audit': 47, 'aegis': 34,
+    'mp-lobby-act': 18, 'backpack-touch': 17, 'extra': 16, 'backpack-ui': 16,
+    'auto-save-score': 14, 'mp-connectivity': 12, 'mp-peer-id': 12,
+    'backpack-iter2': 10, 'mqtt-direct': 8, 'field-orientation': 8,
+    'mobile-pagehide-xp': 8, 'hold-spend': 6, 'coop-fairplay-stats': 6,
+    'upgrades-menu': 6, 'mp-browser': 4, 'sp-mp-isolation': 5,
+};
 const shardArg = process.argv.find(a => a.startsWith('--shard='));
 if (shardArg && !process.env.NEON_RUN_SUITES) {
     const [n, m] = shardArg.slice('--shard='.length).split('/').map(Number);
     if (n >= 1 && m >= 1 && n <= m) {
-        suites = suites.filter((_, i) => i % m === (n - 1));
-        console.log(`(shard ${n}/${m}: ${suites.length} suites)`);
+        const wt = s => (SHARD_WEIGHTS[s.name] != null ? SHARD_WEIGHTS[s.name] : 2.5);
+        const order = suites.map((_, i) => i)
+            .sort((a, b) => (wt(suites[b]) - wt(suites[a])) || (a - b));
+        const load = new Array(m).fill(0);
+        const shardOf = new Array(suites.length).fill(0);
+        for (const i of order) {
+            let best = 0;
+            for (let s = 1; s < m; s++) if (load[s] < load[best]) best = s;
+            shardOf[i] = best;
+            load[best] += wt(suites[i]);
+        }
+        suites = suites.filter((_, i) => shardOf[i] === (n - 1));
+        console.log(`(shard ${n}/${m}: ${suites.length} suites, ~${Math.round(load[n - 1])}s)`);
     }
 }
 
