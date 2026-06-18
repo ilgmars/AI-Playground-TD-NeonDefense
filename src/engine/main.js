@@ -1739,6 +1739,21 @@ function resizeCanvas() {
     canvas.style.width = cssWidth + 'px';
     canvas.style.height = cssHeight + 'px';
 
+    // Seamless letterbox: the board keeps its fixed aspect (it is NOT stretched
+    // or cropped — same shape, same size), so it letterboxes. Paint the
+    // container's grid backdrop at the SAME displayed cell size and alignment
+    // as the canvas tiles, so the neon grid flows continuously out of the field
+    // into the bars with no scale jump and no seam. Cosmetic; never touches the
+    // field geometry. cssWidth/COLS == cssHeight/ROWS (square cells, aspect
+    // preserved above).
+    const cellPx = cssWidth / window.COLS;
+    if (cellPx > 0 && isFinite(cellPx)) {
+        const offX = Math.max(0, (container.clientWidth  - cssWidth)  / 2);
+        const offY = Math.max(0, (container.clientHeight - cssHeight) / 2);
+        container.style.backgroundSize = cellPx + 'px ' + cellPx + 'px';
+        container.style.backgroundPosition = (offX % cellPx) + 'px ' + (offY % cellPx) + 'px';
+    }
+
     // High-DPI display scaling — cap at 2× so mobile WebView doesn't render
     // 9× the pixels (3× DPR² = 9×) and tank frame rate.
     const rawDpr = window.devicePixelRatio || 1;

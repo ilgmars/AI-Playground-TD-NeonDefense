@@ -225,7 +225,9 @@ canvas {
     max-width: 100%;
     max-height: 100%;
     touch-action: none;
-    box-shadow: 0 0 50px rgba(0,0,0,0.5);
+    /* No box-shadow: the canvas grass (#0f172a) and the letterbox grid backdrop
+       share the same colour + cell size + alignment, so the field blends
+       seamlessly into the bars. A drop shadow here would re-draw the seam. */
 }
 
 #build-menu {
