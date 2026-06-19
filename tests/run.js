@@ -101,6 +101,7 @@ const SUITES = [
     { name: 'letterbox-grid-fill',    file: 'tests/letterbox-grid-fill.test.js' },
     { name: 'mobile-back-keeps-run',  file: 'tests/mobile-back-keeps-run.test.js' },
     { name: 'gesture-draw-cheap',     file: 'tests/gesture-draw-cheap.test.js' },
+    { name: 'menu-demo',              file: 'tests/menu-demo.test.js' },
     { name: 'cutter-enemy',           file: 'tests/cutter-enemy.test.js' },
     { name: 'digger-boss',            file: 'tests/digger-boss.test.js' },
     { name: 'backpack-held-in-place', file: 'tests/backpack-held-in-place.test.js' },

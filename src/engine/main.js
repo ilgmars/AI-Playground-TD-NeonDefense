@@ -6118,3 +6118,120 @@ document.addEventListener('DOMContentLoaded', init);
         }
     });
 })();
+
+// ── Ambient main-menu backdrop ───────────────────────────────────────────
+// A faint, self-contained tower-defense vignette behind the main menu: ONE
+// random tower defending a short lane on the right edge (if it's the AA tower,
+// the lane carries AIR enemies). Purely decorative — its own canvas + rAF,
+// reuses the game's draw helpers, and NEVER touches the global `game`. It only
+// animates while the menu is visible, and re-seeds (new tower, fresh enemies)
+// each time the menu (re)opens — so it keeps working after a run ends and the
+// player returns to the menu. Hidden entirely under prefers-reduced-motion.
+(function setupMenuDemo() {
+    if (typeof document === 'undefined') return;
+    const canvas = document.getElementById('menu-demo');
+    if (!canvas || !canvas.getContext) return;
+    const ctx = canvas.getContext('2d');
+    const GROUND = ['normal', 'fast', 'tank'];
+    let W = 0, H = 0, dpr = 1;
+    let type = 'basic', isAir = false;
+    let tower = null, enemies = [], shots = [], frames = 0;
+    let spawnT = 0, shotT = 0, lastVisible = false, lastTs = 0;
+
+    function reducedMotion() {
+        try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+        catch (_) { return false; }
+    }
+    function resize() {
+        const r = canvas.getBoundingClientRect();
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        W = r.width || canvas.clientWidth; H = r.height || canvas.clientHeight;
+        canvas.width = Math.max(1, Math.round(W * dpr));
+        canvas.height = Math.max(1, Math.round(H * dpr));
+    }
+    function seed() {
+        resize();
+        const keys = (typeof TOWERS !== 'undefined' && TOWERS) ? Object.keys(TOWERS) : ['basic'];
+        type = keys[Math.floor(Math.random() * keys.length)] || 'basic';
+        isAir = (type === 'flak' || type === 'flak_emp');   // AA tower → air lane
+        const laneX = W * 0.80;                              // lane hugs the right edge
+        tower = { x: W * 0.60, y: H * 0.52, angle: 0, laneX };
+        enemies = []; shots = []; spawnT = 0; shotT = 0; frames = 0;
+    }
+    function spawn() {
+        const t = isAir ? 'air' : GROUND[Math.floor(Math.random() * GROUND.length)];
+        enemies.push({ x: tower.laneX, y: -28, type: t, hp: 3, flash: 0 });
+    }
+    function nearest() {
+        let best = null, bd = Infinity;
+        for (const e of enemies) {
+            const d = Math.hypot(e.x - tower.x, e.y - tower.y);
+            if (d < bd) { bd = d; best = e; }
+        }
+        return best;
+    }
+    function update(dt) {
+        if (!tower) seed();
+        frames++;
+        const speed = H * 0.06;                  // slow, calm drift
+        spawnT -= dt; shotT -= dt;
+        if (spawnT <= 0 && enemies.length < 5) { spawn(); spawnT = 1.3; }
+        for (const e of enemies) { e.y += speed * dt; if (e.flash > 0) e.flash -= dt; }
+        enemies = enemies.filter(e => e.y < H + 40 && e.hp > 0);
+        const tgt = nearest();
+        if (tgt) {
+            tower.angle = Math.atan2(tgt.y - tower.y, tgt.x - tower.x);
+            if (shotT <= 0) { shots.push({ x: tower.x, y: tower.y, tgt }); shotT = 0.55; }
+        }
+        const ps = W * 0.9;                       // projectile speed (px/sec)
+        for (const s of shots) {
+            const a = Math.atan2(s.tgt.y - s.y, s.tgt.x - s.x);
+            s.x += Math.cos(a) * ps * dt; s.y += Math.sin(a) * ps * dt;
+            if (Math.hypot(s.tgt.x - s.x, s.tgt.y - s.y) < 14) { s.hit = true; s.tgt.hp -= 1; s.tgt.flash = 0.18; }
+        }
+        shots = shots.filter(s => !s.hit && s.x > -20 && s.x < W + 20 && s.y > -20 && s.y < H + 20);
+    }
+    function draw() {
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, W, H);
+        for (const e of enemies) {
+            const r = e.type === 'tank' ? 16 : e.type === 'air' ? 13 : 12;
+            try { drawEnemy(ctx, e.x, e.y, r, e.type, 1, false, false, false, false, false); } catch (_) {}
+            if (e.flash > 0) {
+                ctx.save(); ctx.globalAlpha = Math.min(1, e.flash * 3); ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+            }
+        }
+        for (const s of shots) { try { drawProjectile(ctx, s.x, s.y, type, Math.atan2(s.tgt.y - s.y, s.tgt.x - s.x)); } catch (_) {} }
+        if (tower) { try { drawTower(ctx, tower.x, tower.y, type, 44, tower.angle, 1); } catch (_) {} }
+    }
+    function visible() {
+        const m = document.getElementById('main-menu');
+        return !!(m && !m.classList.contains('hidden') && canvas.offsetParent !== null);
+    }
+    function frame(ts) {
+        requestAnimationFrame(frame);
+        const vis = visible();
+        if (vis && !lastVisible) { seed(); lastTs = ts; }   // menu (re)opened → fresh scene
+        lastVisible = vis;
+        if (!vis) return;
+        let dt = (ts - lastTs) / 1000; lastTs = ts;
+        if (!(dt > 0) || dt > 0.1) dt = 0.016;               // clamp big gaps (tab switch)
+        update(dt);
+        draw();
+    }
+    window.addEventListener('resize', () => { if (visible()) resize(); });
+    requestAnimationFrame(frame);
+
+    // Test / diagnostic hooks (deterministic stepping, forced type).
+    window.__neonMenuDemo = {
+        restart: seed,
+        _tick: (dt) => { if (!tower) seed(); update(dt || 0.05); draw(); },
+        _setType: (t) => { if (!tower) seed(); type = t; isAir = (t === 'flak' || t === 'flak_emp'); enemies = []; shots = []; spawnT = 0; },
+        get state() {
+            return { type, isAir, towerX: tower && tower.x, W, H,
+                enemies: enemies.length, enemyTypes: enemies.map(e => e.type),
+                shots: shots.length, frames };
+        },
+    };
+})();

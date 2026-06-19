@@ -493,6 +493,25 @@ body.touch-ui .tower-option[data-hotkey]::after { display: none; }
     display: none;
 }
 
+/* Ambient main-menu backdrop: a faint, slow tower-defense vignette painted on
+   the right edge, sitting UNDER the menu's violet-black filter so it reads as
+   atmosphere, not UI. Behind all menu content; never interactive. */
+#menu-demo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    opacity: 0.14;            /* deliberately faint — must not distract */
+    pointer-events: none;
+    mix-blend-mode: screen;   /* glow adds onto the dark filter, no hard edges */
+}
+/* All real menu content stays above the backdrop. */
+#main-menu > :not(#menu-demo) { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce) {
+    #menu-demo { display: none; }   /* no ambient motion when motion is reduced */
+}
+
 .overlay h1 {
     font-size: 4.4rem;
     margin-bottom: 12px;
