@@ -87,6 +87,56 @@ const path = require('path');
     });
     ok('enemies march in', sim.enemies >= 1, JSON.stringify(sim));
     ok('the tower fires (projectiles in flight at some point)', sim.frames >= 40, JSON.stringify(sim));
+    // Nothing clips off-screen: tower and every enemy stay within the canvas.
+    ok('tower stays within bounds', sim.towerX > 30 && sim.towerX < sim.W - 30, JSON.stringify(sim));
+    ok('every enemy stays within bounds (no off-screen clipping)',
+        sim.enemyXs.every(x => x >= 0 && x <= sim.W), JSON.stringify(sim));
+    // The random tower is a canonical PLAYER tower (matches in-game art), not
+    // an internal variant.
+    const canon = ['basic','sniper','rapid','rocket','flak'];   // discrete-projectile towers only
+    ok('tower type is a projectile player tower (turret + shot match the game)', canon.includes(sim.type), JSON.stringify(sim));
+
+    // 4b) RENDER DECOUPLING: even with the GAME's render transform + zoom set
+    //     (left over from a run), the tower must draw at ITS OWN position, not
+    //     displaced by the game's pan/zoom — that displacement WAS the
+    //     "deformed/misplaced turret" the earlier tests missed.
+    const decoupled = await page.evaluate(() => {
+        window.__neonZoom = { scale: 3, tx: -300, ty: -250 };
+        window.__neonRenderT = { a: 6, ox: -1800, oy: -1500 };
+        const d = window.__neonMenuDemo;
+        d.restart();
+        for (let i = 0; i < 6; i++) d._tick(0.05);
+        const s = d.state;
+        const c = document.getElementById('menu-demo');
+        const b = c.getContext('2d');
+        const dpr = c.width / c.getBoundingClientRect().width;
+        // Scan a box around the tower (its centre pixel can be transparent) and
+        // count opaque pixels — if the game transform had leaked, the sprite
+        // would be drawn far off and the box would be empty.
+        const cx = Math.round(s.towerX * dpr), cy = Math.round(s.towerY * dpr), R = Math.round(16 * dpr);
+        const img = b.getImageData(cx - R, cy - R, 2 * R, 2 * R).data;
+        let opaque = 0;
+        for (let i = 3; i < img.length; i += 4) if (img[i] > 0) opaque++;
+        window.__neonZoom = { scale: 1, tx: 0, ty: 0 };   // reset
+        return { opaque, towerX: s.towerX, towerY: s.towerY };
+    });
+    ok('tower renders at its own position despite a game zoom/pan transform', decoupled.opaque > 0, JSON.stringify(decoupled));
+
+    // 4c) LANDSCAPE: at a short, wide viewport the scene must stay on-screen
+    //     (clamped), not clip away — the "missing elements in horizontal" bug.
+    await page.setViewportSize({ width: 760, height: 360 });
+    await page.waitForTimeout(120);
+    const land = await page.evaluate(() => {
+        const d = window.__neonMenuDemo;
+        d.restart();
+        for (let i = 0; i < 20; i++) d._tick(0.05);
+        return d.state;
+    });
+    ok('landscape: tower stays on-screen (within canvas)',
+        land.towerY > 0 && land.towerY < land.H && land.towerX > 30 && land.towerX < land.W - 30, JSON.stringify(land));
+    ok('landscape: enemies stay on-screen', land.enemyXs.length > 0 && land.enemyXs.every(x => x >= 0 && x <= land.W), JSON.stringify(land));
+    await page.setViewportSize({ width: 1024, height: 720 });
+    await page.waitForTimeout(120);
 
     // 5) AA tower → AIR enemies; a ground tower → ground enemies.
     const air = await page.evaluate(() => {

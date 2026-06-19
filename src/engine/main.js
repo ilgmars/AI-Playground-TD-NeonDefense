@@ -6133,19 +6133,27 @@ document.addEventListener('DOMContentLoaded', init);
 })();
 
 // ── Ambient main-menu backdrop ───────────────────────────────────────────
-// A faint, self-contained tower-defense vignette behind the main menu: ONE
-// random tower defending a short lane on the right edge (if it's the AA tower,
-// the lane carries AIR enemies). Purely decorative — its own canvas + rAF,
-// reuses the game's draw helpers, and NEVER touches the global `game`. It only
-// animates while the menu is visible, and re-seeds (new tower, fresh enemies)
-// each time the menu (re)opens — so it keeps working after a run ends and the
-// player returns to the menu. Hidden entirely under prefers-reduced-motion.
+// A faint, self-contained tower-defense vignette above the menu title: ONE
+// random PLAYER tower defending a short, centred lane (if it's the AA tower,
+// the lane carries AIR enemies). Everything is kept within margins so nothing
+// clips off-screen, and enemies fade in/out at the lane ends. Purely
+// decorative — its own canvas + rAF, reuses the game's draw helpers at the
+// game's tile size so it matches in-game art, and NEVER touches the global
+// `game`. Animates only while the menu is visible and re-seeds each time the
+// menu (re)opens. Hidden entirely under prefers-reduced-motion.
 (function setupMenuDemo() {
     if (typeof document === 'undefined') return;
     const canvas = document.getElementById('menu-demo');
     if (!canvas || !canvas.getContext) return;
     const ctx = canvas.getContext('2d');
     const GROUND = ['normal', 'fast', 'tank'];
+    // Discrete-PROJECTILE towers only: drawProjectile styles a matching shot
+    // for each (cyan/pink/green/orange/blue). Beam/chain/support towers (laser,
+    // electric, income, disruptor, beacon) and internal variants are excluded —
+    // they have no discrete projectile, so they'd render a generic ball that
+    // "doesn't match the game".
+    const CANON = ['basic', 'sniper', 'rapid', 'rocket', 'flak'];
+    const TILE = (typeof TILE_SIZE !== 'undefined') ? TILE_SIZE : 40;
     let W = 0, H = 0, dpr = 1;
     let type = 'basic', isAir = false;
     let tower = null, enemies = [], shots = [], frames = 0;
@@ -6162,34 +6170,43 @@ document.addEventListener('DOMContentLoaded', init);
         canvas.width = Math.max(1, Math.round(W * dpr));
         canvas.height = Math.max(1, Math.round(H * dpr));
     }
-    function seed() {
-        resize();
-        const keys = (typeof TOWERS !== 'undefined' && TOWERS) ? Object.keys(TOWERS) : ['basic'];
-        type = keys[Math.floor(Math.random() * keys.length)] || 'basic';
-        isAir = (type === 'flak' || type === 'flak_emp');   // AA tower → air lane
-        // Anchor the scene just ABOVE the title: a horizontal lane the tower
-        // defends, sitting in the empty band over the logo. Measured off the
-        // real title element so it stays near it on any layout, then the draw
-        // pass dissolves everything below the tower so it never touches the
-        // title text or the buttons.
-        let titleTop = H * 0.18;
+    // Place a CENTRED lane comfortably ABOVE the title and clamp it inside the
+    // canvas. Re-run EVERY frame so it tracks the title as the menu scrolls
+    // (landscape menus are taller than the viewport) — that scroll drift was
+    // why elements went missing. Everything stays within margins so nothing
+    // clips off-screen.
+    function placeScene() {
+        if (!tower) return;
+        let titleTop = H * 0.2;
         try {
             const tEl = document.querySelector('#main-menu .neon-logo');
             const cr = canvas.getBoundingClientRect();
             if (tEl) titleTop = tEl.getBoundingClientRect().top - cr.top;
         } catch (_) {}
-        const towerY = Math.min(Math.max(titleTop - 38, 44), H * 0.34);
-        const laneY = Math.max(towerY - 30, 16);
-        tower = { x: W * 0.5, y: towerY, angle: 0, laneY };
+        const towerY = Math.max(58, Math.min(titleTop - 64, H * 0.34));
+        tower.x = tower.laneCx = W * 0.5;
+        tower.laneHalf = Math.min(W * 0.30, 150);
+        tower.y = towerY;
+        tower.laneY = Math.max(towerY - 36, 30);
+        for (const e of enemies) e.y = tower.laneY;   // keep the column on the lane as it tracks
+    }
+    function seed() {
+        resize();
+        const avail = (typeof TOWERS !== 'undefined' && TOWERS)
+            ? CANON.filter(t => TOWERS[t]) : ['basic'];
+        const list = avail.length ? avail : ['basic'];
+        type = list[Math.floor(Math.random() * list.length)];
+        isAir = (type === 'flak');                       // AA tower → air lane
+        tower = { x: W * 0.5, y: 80, angle: 0, laneY: 44, laneCx: W * 0.5, laneHalf: Math.min(W * 0.30, 150) };
         enemies = []; shots = []; spawnT = 0; shotT = 0; frames = 0;
+        placeScene();
     }
     function spawn() {
         const t = isAir ? 'air' : GROUND[Math.floor(Math.random() * GROUND.length)];
-        // March horizontally across the lane (alternate sides) so the tower in
-        // the middle has targets coming and going — a calm defensive line.
-        const fromRight = enemies.length % 2 === 0;
-        enemies.push({ x: fromRight ? W + 28 : -28, y: tower.laneY,
-            vx: (fromRight ? -1 : 1) * W * 0.085, type: t, hp: 3, flash: 0 });
+        // Enter at the RIGHT end of the short lane, march left, exit at the left
+        // end — all on-screen (they fade in/out at the ends in draw()).
+        enemies.push({ x: tower.laneCx + tower.laneHalf, y: tower.laneY,
+            vx: -tower.laneHalf * 0.45, type: t, hp: 3, flash: 0 });
     }
     function nearest() {
         let best = null, bd = Infinity;
@@ -6201,17 +6218,20 @@ document.addEventListener('DOMContentLoaded', init);
     }
     function update(dt) {
         if (!tower) seed();
+        placeScene();                              // track the title (handles scroll/landscape)
         frames++;
         spawnT -= dt; shotT -= dt;
         if (spawnT <= 0 && enemies.length < 5) { spawn(); spawnT = 1.4; }
         for (const e of enemies) { e.x += e.vx * dt; if (e.flash > 0) e.flash -= dt; }
-        enemies = enemies.filter(e => e.x > -40 && e.x < W + 40 && e.hp > 0);
+        // Despawn at the LEFT end of the lane (stays on-screen, never clips).
+        const leftEnd = tower.laneCx - tower.laneHalf;
+        enemies = enemies.filter(e => e.x > leftEnd - 6 && e.hp > 0);
         const tgt = nearest();
         if (tgt) {
             tower.angle = Math.atan2(tgt.y - tower.y, tgt.x - tower.x);
             if (shotT <= 0) { shots.push({ x: tower.x, y: tower.y, tgt }); shotT = 0.55; }
         }
-        const ps = W * 0.9;                       // projectile speed (px/sec)
+        const ps = Math.max(180, W * 0.9);        // projectile speed (px/sec)
         for (const s of shots) {
             const a = Math.atan2(s.tgt.y - s.y, s.tgt.x - s.x);
             s.x += Math.cos(a) * ps * dt; s.y += Math.sin(a) * ps * dt;
@@ -6222,16 +6242,36 @@ document.addEventListener('DOMContentLoaded', init);
     function draw() {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, W, H);
+        // drawTower/drawEnemy/drawProjectile blit cached sprites keyed to the
+        // GAME's render state: __neonRenderT (zoom+pan) drove POSITION, and
+        // RENDER_SCALE×zoom drove the raster RESOLUTION. The game's scale is
+        // often <1, so menu sprites were rasterized small and upscaled —
+        // blurry/deformed — and the game's pan displaced them. For the duration
+        // of the sprite draws, pin BOTH to the menu's own display: transform =
+        // plain dpr (no pan), and raster scale = dpr (crisp 1:1). Restore after
+        // so the game is untouched.
+        const savedT = window.__neonRenderT, savedRS = window.RENDER_SCALE, savedZ = window.__neonZoom;
+        window.__neonRenderT = { a: dpr, ox: 0, oy: 0 };
+        window.RENDER_SCALE = dpr;
+        window.__neonZoom = { scale: 1, tx: 0, ty: 0 };
         for (const e of enemies) {
             const r = e.type === 'tank' ? 16 : e.type === 'air' ? 13 : 12;
+            // Fade in/out near the lane ends so enemies appear/vanish smoothly
+            // instead of hard-cutting at an edge.
+            const edge = tower ? Math.min(1, (tower.laneHalf - Math.abs(e.x - tower.laneCx)) / (tower.laneHalf * 0.4)) : 1;
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, edge);
             try { drawEnemy(ctx, e.x, e.y, r, e.type, 1, false, false, false, false, false); } catch (_) {}
             if (e.flash > 0) {
-                ctx.save(); ctx.globalAlpha = Math.min(1, e.flash * 3); ctx.fillStyle = '#fff';
-                ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+                ctx.globalAlpha = Math.min(1, e.flash * 3) * Math.max(0, edge); ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, Math.PI * 2); ctx.fill();
             }
+            ctx.restore();
         }
         for (const s of shots) { try { drawProjectile(ctx, s.x, s.y, type, Math.atan2(s.tgt.y - s.y, s.tgt.x - s.x)); } catch (_) {} }
-        if (tower) { try { drawTower(ctx, tower.x, tower.y, type, 44, tower.angle, 1); } catch (_) {} }
+        // Drawn at the game's tile size so the turret matches in-game art exactly.
+        if (tower) { try { drawTower(ctx, tower.x, tower.y, type, TILE, tower.angle, 1); } catch (_) {} }
+        window.__neonRenderT = savedT; window.RENDER_SCALE = savedRS; window.__neonZoom = savedZ;  // restore game state
         // GRADIENT dissolve: keep the scene in the band above the title and fade
         // it to nothing below the tower, so it never overlaps the title text or
         // the buttons (and there's no hard rectangular edge).
@@ -6274,6 +6314,7 @@ document.addEventListener('DOMContentLoaded', init);
         get state() {
             return { type, isAir, towerX: tower && tower.x, towerY: tower && tower.y, W, H,
                 enemies: enemies.length, enemyTypes: enemies.map(e => e.type),
+                enemyXs: enemies.map(e => e.x), laneHalf: tower && tower.laneHalf,
                 shots: shots.length, frames };
         },
     };
