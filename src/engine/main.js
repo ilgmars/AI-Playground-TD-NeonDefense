@@ -6042,6 +6042,35 @@ document.addEventListener('DOMContentLoaded', init);
         return s.slice(2, 8) + '.' + s.slice(8, 14);
     }
 
+    // Build a cache-busted copy of a URL: a fresh `u=` query makes the browser
+    // re-fetch index.html (GitHub Pages caches it ~10 min) instead of reusing
+    // the stale copy that still references the OLD ?v= asset tokens. Preserves
+    // the hash (the run seed).
+    function freshReloadUrl(href) {
+        try {
+            const u = new URL(href, location.href);
+            u.searchParams.set('u', Date.now().toString(36));
+            return u.toString();
+        } catch (_) {
+            const base = String(href).split('#')[0], hash = String(href).indexOf('#') !== -1 ? '#' + String(href).split('#')[1] : '';
+            return base + (base.indexOf('?') === -1 ? '?' : '&') + 'u=' + Date.now().toString(36) + hash;
+        }
+    }
+    // A reload that actually pulls the LATEST deploy: plain location.reload()
+    // can reuse the cached HTML (→ old assets), so clear any Cache Storage and
+    // navigate to a cache-busted URL.
+    async function hardReload() {
+        try {
+            if (window.caches && caches.keys) {
+                const keys = await caches.keys();
+                await Promise.all(keys.map(k => caches.delete(k)));
+            }
+        } catch (_) {}
+        try { location.replace(freshReloadUrl(location.href)); }
+        catch (_) { location.reload(); }
+    }
+    if (typeof window !== 'undefined') { window.__neonFreshReloadUrl = freshReloadUrl; window.__neonHardReload = hardReload; }
+
     // Main-menu footer: show the current build (bottom-left) + an APK download
     // link (bottom-right) that lights green when a newer build exists on main.
     // Runs on web AND in the APK — `local` is the page's bundled version.json,
@@ -6072,7 +6101,7 @@ document.addEventListener('DOMContentLoaded', init);
                 dlEl.textContent = 'Reload for update ▸';
                 dlEl.removeAttribute('href');
                 dlEl.classList.add('update');
-                dlEl.onclick = (e) => { if (e) e.preventDefault(); location.reload(); };
+                dlEl.onclick = (e) => { if (e) e.preventDefault(); hardReload(); };
             } else {
                 // No update (or the APK download path): a plain link. Without
                 // `.update` it renders gray/muted — the "no update" state the

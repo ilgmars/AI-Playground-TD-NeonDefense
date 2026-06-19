@@ -236,6 +236,34 @@ const path = require('path');
     ok('returning to the main menu re-checks the live build',
         recheck.after > recheck.before, JSON.stringify(recheck));
 
+    // The web "Reload for update" must bust the cache, not just reload (a plain
+    // reload can reuse the cached HTML → old ?v= assets). freshReloadUrl adds a
+    // unique ?u= and preserves the hash; clicking the button navigates there.
+    const fresh = await page.evaluate(() => {
+        const a = window.__neonFreshReloadUrl('https://x.test/app/#seed42');
+        const b = window.__neonFreshReloadUrl('https://x.test/app/?foo=1#seed42');
+        return { a, b, hasHard: typeof window.__neonHardReload === 'function' };
+    });
+    ok('freshReloadUrl adds a cache-bust param', /[?&]u=/.test(fresh.a), fresh.a);
+    ok('freshReloadUrl preserves the run-seed hash', /#seed42$/.test(fresh.a) && /#seed42$/.test(fresh.b), JSON.stringify(fresh));
+    ok('hardReload entry point is wired', fresh.hasHard === true, JSON.stringify(fresh));
+
+    // Real click: set up web+newer so the footer becomes a Reload button, click
+    // it, and confirm the page navigates to a cache-busted URL. (Done LAST — it
+    // navigates the page.)
+    await page.evaluate(async () => {
+        const make = (o) => ({ ok: true, json: async () => o });
+        const stub = (url) => String(url).indexOf('raw.githubusercontent') !== -1
+            ? Promise.resolve(make({ build: '20990101000000' }))
+            : Promise.resolve(make({ version: '1.1', build: '20000101000000' }));
+        await window.populateMainMenuVersion(stub);
+    });
+    await Promise.all([
+        page.waitForURL(/[?&]u=/, { timeout: 5000 }),
+        page.click('#mm-download'),
+    ]);
+    ok('clicking Reload navigates to a cache-busted URL (fresh load)', /[?&]u=/.test(page.url()), page.url());
+
     ok('no JS errors', errs.length === 0, errs.join(' / '));
 
     await browser.close();
