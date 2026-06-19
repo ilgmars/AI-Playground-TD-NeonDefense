@@ -132,6 +132,28 @@ const path = require('path');
     });
     ok('monsters move at 0.5× speed', spd.expected !== null && Math.abs(spd.got - spd.expected) < 1e-6, JSON.stringify(spd));
 
+    // 7e) Tower fires at 2× rate (fireRate halved vs an unmodified Tower).
+    const fr = await page.evaluate(() => {
+        const d = window.__neonMenuDemo; d._setType('sniper');
+        const ref = new Tower(0, 0, 'sniper').fireRate;     // base (same mastery), un-halved
+        return { demo: d.state.towerFireRate, ref, expected: Math.max(1, Math.round(ref / 2)) };
+    });
+    ok('tower fires at 2× rate (fireRate halved)', fr.demo === fr.expected && fr.demo < fr.ref, JSON.stringify(fr));
+
+    // 7f) Swarmed → the tower explodes, wipes all mobs, and a NEW tower appears.
+    const swarm = await page.evaluate(() => { window.__neonMenuDemo.restart(); return window.__neonMenuDemo._swarm(); });
+    ok('swarmed tower explodes, wipes mobs, and a new tower appears',
+        swarm.exploded === true && swarm.enemies === 0 && swarm.boom === true, JSON.stringify(swarm));
+
+    // 7g) …and the swarm→explode→respawn cycle actually occurs during play.
+    const cadence = await page.evaluate(() => {
+        const d = window.__neonMenuDemo; d.restart();
+        const s0 = d.state.towerSerial;
+        for (let i = 0; i < 700; i++) d._tick();
+        return { changed: d.state.towerSerial > s0 };
+    });
+    ok('the swarm→explode→respawn cycle happens during normal play', cadence.changed, JSON.stringify(cadence));
+
     // 8) Render decoupling: the tower draws at ITS position even when the GAME's
     //    render transform/zoom is set (left over from a run).
     const decoupled = await page.evaluate(() => {

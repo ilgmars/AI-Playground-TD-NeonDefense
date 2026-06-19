@@ -6177,6 +6177,9 @@ document.addEventListener('DOMContentLoaded', init);
     const ctx = canvas.getContext('2d');
     const GROUND = ['normal', 'fast', 'tank'];
     const DEMO_ENEMY_SPEED = 0.5;     // monsters move at half speed in the demo
+    const DEMO_FIRE_MULT = 2;         // tower shoots twice as fast in the demo
+    const SWARM_BREACHES = 6;         // mobs that reach the tower before it's overwhelmed
+    const SWARM_COUNT = 11;           // …or this many alive at once → swarmed
     // Tower pool = every base COMBAT tower, derived from the canonical
     // NeonSave.TOWER_TYPES so it stays in sync as towers are added. Utility
     // towers that don't attack (income / beacon: range 0, damage 0) are excluded.
@@ -6191,6 +6194,7 @@ document.addEventListener('DOMContentLoaded', init);
     let W = 0, H = 0, dpr = 1;
     let tower = null, type = 'basic', isAir = false;
     let enemies = [], projectiles = [], particles = [], frames = 0, spawnT = 0;
+    let breaches = 0, towerSerial = 0;
     let lastVisible = false, lastTs = 0, acc = 0;
 
     function reducedMotion() {
@@ -6222,17 +6226,41 @@ document.addEventListener('DOMContentLoaded', init);
 
     // A fresh RANDOM tower each time the menu (re)opens (seed runs on open).
     function makeTower(t) {
-        try { const tw = new Tower(0, 0, t); tw.targetMode = 'closest'; return tw; }   // always shoot the NEAREST monster
-        catch (_) { return null; }
+        try {
+            const tw = new Tower(0, 0, t);
+            tw.targetMode = 'closest';                              // always shoot the NEAREST monster
+            if (tw.fireRate > 0) tw.fireRate = Math.max(1, Math.round(tw.fireRate / DEMO_FIRE_MULT));  // ×2 fire rate
+            towerSerial++;
+            return tw;
+        } catch (_) { return null; }
     }
-    function seed() {
-        resize();
+    function pickType() {
         const pool = combatPool();
         type = pool[Math.floor(Math.random() * pool.length)];
         isAir = (type === 'flak');
+    }
+    function seed() {
+        resize();
+        pickType();
         tower = makeTower(type);
-        enemies = []; projectiles = []; particles = []; frames = 0; spawnT = 0;
+        enemies = []; projectiles = []; particles = []; frames = 0; spawnT = 0; breaches = 0;
         placeTower();
+    }
+    // The tower is overwhelmed: a big blast kills every mob, then a NEW random
+    // tower takes its place. Keeps the particle explosions playing through.
+    function explode() {
+        const c = center();
+        try {
+            if (typeof Explosion !== 'undefined') {
+                particles.push(new Explosion(c.cx, c.cy, 64));               // tower blast
+                for (const e of enemies) particles.push(new Explosion(e.x, e.y, (e.radius || 12) * 1.6));
+            }
+        } catch (_) {}
+        enemies = []; projectiles = []; breaches = 0;
+        pickType();
+        tower = makeTower(type);                                             // a new tower appears in its place
+        placeTower();
+        spawnT = 36;                                                         // brief lull before the next wave
     }
     function spawnEnemy() {
         const c = center();
@@ -6257,7 +6285,7 @@ document.addEventListener('DOMContentLoaded', init);
         if (!tower) { seed(); if (!tower) return; }
         placeTower();
         frames++;
-        if (--spawnT <= 0 && enemies.length < 9) { spawnEnemy(); spawnT = 32; }
+        if (--spawnT <= 0 && enemies.length < 14) { spawnEnemy(); spawnT = 20; }
         const savedSound = soundEnabled; soundEnabled = false;   // the demo never beeps
         try {
             for (const e of enemies) e.update();
@@ -6265,10 +6293,13 @@ document.addEventListener('DOMContentLoaded', init);
             for (const p of projectiles) p.update(enemies, particles, projectiles);
             for (const pa of particles) pa.update();
         } catch (_) {} finally { soundEnabled = savedSound; }
+        for (const e of enemies) if (e.reachedEnd) breaches++;   // a mob got to the tower
         enemies = enemies.filter(e => e.active && !e.reachedEnd);
         projectiles = projectiles.filter(p => p.active);
         particles = particles.filter(p => p.active);
-        if (particles.length > 120) particles.length = 120;
+        if (particles.length > 160) particles.length = 160;
+        // Swarmed → the tower explodes, wipes the mobs, and a new one appears.
+        if (breaches >= SWARM_BREACHES || enemies.length >= SWARM_COUNT) explode();
     }
     function draw() {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -6336,10 +6367,19 @@ document.addEventListener('DOMContentLoaded', init);
             enemies = [];
             return out;
         },
+        // Drive a swarm: send a wave of mobs that all reach the tower, then step
+        // → triggers the overwhelmed explosion + new tower.
+        _swarm: () => {
+            if (!tower) seed();
+            const serial0 = towerSerial, partBefore = particles.length;
+            for (let i = 0; i < SWARM_BREACHES + 2; i++) { spawnEnemy(); const e = enemies[enemies.length - 1]; if (e) { e.active = false; e.reachedEnd = true; } }
+            step();
+            return { exploded: towerSerial > serial0, enemies: enemies.length, boom: particles.length > partBefore };
+        },
         get state() {
             const cx = tower ? tower.x + TILE / 2 : 0, cy = tower ? tower.y + TILE / 2 : 0;
             return { type, isAir, towerX: cx, towerY: cy, W, H, pool: combatPool(),
-                targetMode: tower && tower.targetMode,
+                targetMode: tower && tower.targetMode, towerFireRate: tower && tower.fireRate, towerSerial,
                 enemies: enemies.length, enemyTypes: enemies.map(e => e.type),
                 enemySpeeds: enemies.map(e => e.speed),
                 projectiles: projectiles.length, frames };
