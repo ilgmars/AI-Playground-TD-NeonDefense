@@ -138,6 +138,29 @@ const path = require('path');
     await page.setViewportSize({ width: 1024, height: 720 });
     await page.waitForTimeout(120);
 
+    // 4d) MATCH the game's rendering exactly: drawTower takes the tile CORNER
+    //     (centre = corner + size/2) at the game TILE size, and a rocket tower
+    //     fires a 'rocket' projectile — i.e. the same drawTower/drawProjectile
+    //     calls the game makes. (This is the "turret/projectile don't match the
+    //     game / rocket not shooting rockets" report.)
+    const match = await page.evaluate(() => {
+        const d = window.__neonMenuDemo;
+        d._setType('rocket');
+        const tw = [], pj = [];
+        const oT = window.drawTower, oP = window.drawProjectile;
+        window.drawTower = (c, x, y, t, s, a, l) => { tw.push({ x, y, t, s }); return oT(c, x, y, t, s, a, l); };
+        window.drawProjectile = (c, x, y, t, a) => { pj.push({ t }); return oP(c, x, y, t, a); };
+        for (let i = 0; i < 60 && pj.length === 0; i++) d._tick(0.05);
+        window.drawTower = oT; window.drawProjectile = oP;
+        return { st: d.state, tw: tw[tw.length - 1], pj: pj[0], TILE: window.TILE_SIZE };
+    });
+    ok('tower uses the game CORNER convention (centre = corner + size/2)',
+        match.tw && Math.abs((match.tw.x + match.tw.s / 2) - match.st.towerX) < 1 &&
+        Math.abs((match.tw.y + match.tw.s / 2) - match.st.towerY) < 1, JSON.stringify(match));
+    ok('tower drawn at the game tile size', match.tw && match.tw.s === match.TILE, JSON.stringify(match));
+    ok('tower drawn with the selected type (rocket)', match.tw && match.tw.t === 'rocket', JSON.stringify(match));
+    ok('rocket tower fires a ROCKET projectile (matches the game)', match.pj && match.pj.t === 'rocket', JSON.stringify(match));
+
     // 5) AA tower → AIR enemies; a ground tower → ground enemies.
     const air = await page.evaluate(() => {
         const d = window.__neonMenuDemo;

@@ -6269,14 +6269,16 @@ document.addEventListener('DOMContentLoaded', init);
             ctx.restore();
         }
         for (const s of shots) { try { drawProjectile(ctx, s.x, s.y, type, Math.atan2(s.tgt.y - s.y, s.tgt.x - s.x)); } catch (_) {} }
-        // Drawn at the game's tile size so the turret matches in-game art exactly.
-        if (tower) { try { drawTower(ctx, tower.x, tower.y, type, TILE, tower.angle, 1); } catch (_) {} }
+        // Drawn EXACTLY as the game does: drawTower takes the tile CORNER
+        // (it centres at x+size/2, y+size/2), at the game tile size. Passing the
+        // centre offset the turret by half a tile from where the shots spawned.
+        if (tower) { try { drawTower(ctx, tower.x - TILE / 2, tower.y - TILE / 2, type, TILE, tower.angle, 1); } catch (_) {} }
         window.__neonRenderT = savedT; window.RENDER_SCALE = savedRS; window.__neonZoom = savedZ;  // restore game state
         // GRADIENT dissolve: keep the scene in the band above the title and fade
         // it to nothing below the tower, so it never overlaps the title text or
         // the buttons (and there's no hard rectangular edge).
         if (tower) {
-            const fy0 = tower.y + 16, fy1 = tower.y + 96;
+            const fy0 = tower.y + TILE / 2 + 8, fy1 = tower.y + TILE / 2 + 88;
             ctx.globalCompositeOperation = 'destination-out';
             const g = ctx.createLinearGradient(0, fy0, 0, fy1);
             g.addColorStop(0, 'rgba(0,0,0,0)');
