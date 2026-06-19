@@ -24,9 +24,16 @@ permissions:
 
 jobs:
   test:
-    name: Tests (gate)
+    name: Tests (gate, shard ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    # Sharded + 20m to match test.yml — the un-sharded full suite hit the old
+    # 12m wall here and cancelled the APK gate (the timeout fix had only been
+    # applied to test.yml). `build` needs ALL shards to pass.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -44,12 +51,12 @@ jobs:
           NEON_TURN_CONFIG: ${{ secrets.NEON_TURN_CONFIG }}
         run: ./tools/install-turn-config.sh
       - name: Run tests
-        run: npm test
+        run: npm test -- --shard=${{ matrix.shard }}/3
         env:
           CI: 'true'
 
   build:
-    needs: test           # APK only builds if the test suite passes
+    needs: test           # APK only builds if ALL test shards pass
     runs-on: ubuntu-latest
 
     steps:
