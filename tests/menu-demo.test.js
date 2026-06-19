@@ -37,7 +37,7 @@ const path = require('path');
                  w: c.getBoundingClientRect().width, h: c.getBoundingClientRect().height };
     });
     ok('backdrop canvas exists', style.exists, JSON.stringify(style));
-    ok('backdrop is faint (opacity ≤ 0.25)', style.opacity > 0 && style.opacity <= 0.25, JSON.stringify(style));
+    ok('backdrop is soft but visible (0.3 ≤ opacity ≤ 0.65)', style.opacity >= 0.3 && style.opacity <= 0.65, JSON.stringify(style));
     ok('backdrop is non-interactive (pointer-events:none)', style.pointer === 'none', JSON.stringify(style));
     ok('backdrop sits BEHIND the menu content', style.demoZ < style.contentZ, JSON.stringify(style));
     ok('backdrop has a real size', style.w > 50 && style.h > 50, JSON.stringify(style));
@@ -48,9 +48,35 @@ const path = require('path');
     const f2 = await page.evaluate(() => window.__neonMenuDemo.state.frames);
     ok('demo animates on the menu (frame counter advances)', f2 > f1, JSON.stringify({ f1, f2 }));
 
-    // 3) Side placement: the tower lives on the right half.
-    const place = await page.evaluate(() => window.__neonMenuDemo.state);
-    ok('tower is placed on the side (right half)', place.towerX > place.W * 0.5, JSON.stringify(place));
+    // 3) Placement: the tower sits just ABOVE the title (near it) and is NOT
+    //    obstructed by — nor obstructing — any menu button.
+    const place = await page.evaluate(() => {
+        const d = window.__neonMenuDemo.state;
+        const cr = document.getElementById('menu-demo').getBoundingClientRect();
+        const sx = cr.left + d.towerX, sy = cr.top + d.towerY;   // tower in screen px
+        const tr = document.querySelector('#main-menu .neon-logo').getBoundingClientRect();
+        const btns = [...document.querySelectorAll('.menu-buttons button')].map(b => b.getBoundingClientRect());
+        const inside = (r) => sx >= r.left && sx <= r.right && sy >= r.top && sy <= r.bottom;
+        return { sx, sy, titleTop: tr.top, titleBottom: tr.bottom,
+            overButton: btns.some(inside), nBtns: btns.length };
+    });
+    ok('tower sits just above the title (near it, clear of the text)',
+        place.sy < place.titleTop && (place.titleTop - place.sy) < 160, JSON.stringify(place));
+    ok('tower is not obstructed by any menu button', place.nBtns > 0 && place.overButton === false, JSON.stringify(place));
+
+    // The gradient must keep the scene OUT of the button region: sample the
+    // backdrop's own pixels at the button stack — they must be fully erased.
+    const confined = await page.evaluate(() => {
+        const c = document.getElementById('menu-demo');
+        const b = c.getContext('2d');
+        const btn = document.querySelector('.menu-buttons button').getBoundingClientRect();
+        const cr = c.getBoundingClientRect();
+        const sxDev = Math.round((btn.left + btn.width / 2 - cr.left) * (c.width / cr.width));
+        const syDev = Math.round((btn.top + btn.height / 2 - cr.top) * (c.height / cr.height));
+        const px = b.getImageData(sxDev, syDev, 1, 1).data;
+        return { alpha: px[3] };
+    });
+    ok('gradient confines the scene — nothing drawn over the buttons', confined.alpha === 0, JSON.stringify(confined));
 
     // 4) A single tower shoots: deterministic steps spawn enemies + fire shots.
     const sim = await page.evaluate(() => {

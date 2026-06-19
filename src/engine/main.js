@@ -5941,16 +5941,16 @@ document.addEventListener('DOMContentLoaded', init);
 
     async function fetchBuildToken(url, fetchImpl) {
         const f = fetchImpl || window.fetch;
-        // Hard 5s cap via AbortController so the update probe can never
-        // linger on a slow/captive network. The whole check is already
-        // fire-and-forget (never awaited by boot), so the game stays
-        // fully playable offline regardless — this just frees the socket.
+        // Hard cap via AbortController so the update probe can never linger on a
+        // slow/captive network. Fire-and-forget (never awaited by boot), so the
+        // game stays fully playable offline regardless. 8s tolerates a cold TLS
+        // handshake to the CDN on mobile.
         let signal, timer;
         try {
             if (typeof AbortController === 'function') {
                 const ac = new AbortController();
                 signal = ac.signal;
-                timer = setTimeout(() => ac.abort(), 5000);
+                timer = setTimeout(() => ac.abort(), 8000);
             }
             const res = await f(url, { cache: 'no-store', signal });
             if (!res || !res.ok) throw new Error('version fetch failed: ' + url);
@@ -5959,6 +5959,19 @@ document.addEventListener('DOMContentLoaded', init);
         } finally {
             if (timer) clearTimeout(timer);
         }
+    }
+
+    // The LIVE build token (main's version.json). Order of trust:
+    //  1) window.__neonNativeLiveBuild — fetched by the native APK shell, which
+    //     has unrestricted network (no WebView cross-origin/cache quirks; the
+    //     WebView's own fetch to raw.githubusercontent proved unreliable on
+    //     some devices, so the update never surfaced).
+    //  2) a cache-BUSTED JS fetch (unique ?t= defeats the CDN/WebView cache).
+    async function fetchLiveBuild(fetchImpl) {
+        const nat = (typeof window !== 'undefined') && window.__neonNativeLiveBuild;
+        if (nat && /^\d{6,}$/.test(String(nat))) return String(nat);
+        const bust = LIVE_VERSION_URL + (LIVE_VERSION_URL.indexOf('?') === -1 ? '?' : '&') + 't=' + Date.now();
+        return fetchBuildToken(bust, fetchImpl);
     }
 
     // Pure decision: given the bundled + live build tokens and any prior
@@ -6001,7 +6014,7 @@ document.addEventListener('DOMContentLoaded', init);
         // newer build exists. If it's unreachable (offline/blocked), stay quiet.
         let live;
         try {
-            live = await fetchBuildToken(LIVE_VERSION_URL, fetchImpl);
+            live = await fetchLiveBuild(fetchImpl);
         } catch (_) {
             return false;
         }
@@ -6044,7 +6057,7 @@ document.addEventListener('DOMContentLoaded', init);
         } catch (_) {}
         const localBuild = local && local.build;
         let live = null;
-        try { live = await fetchBuildToken(LIVE_VERSION_URL, fetchImpl); } catch (_) {}
+        try { live = await fetchLiveBuild(fetchImpl); } catch (_) {}
         const newer = !!live && appDistIsNewerBuild(localBuild, live);
         if (verEl) {
             verEl.textContent = formatBuild(localBuild) + (newer ? ' • update available' : '');
@@ -6154,13 +6167,29 @@ document.addEventListener('DOMContentLoaded', init);
         const keys = (typeof TOWERS !== 'undefined' && TOWERS) ? Object.keys(TOWERS) : ['basic'];
         type = keys[Math.floor(Math.random() * keys.length)] || 'basic';
         isAir = (type === 'flak' || type === 'flak_emp');   // AA tower → air lane
-        const laneX = W * 0.80;                              // lane hugs the right edge
-        tower = { x: W * 0.60, y: H * 0.52, angle: 0, laneX };
+        // Anchor the scene just ABOVE the title: a horizontal lane the tower
+        // defends, sitting in the empty band over the logo. Measured off the
+        // real title element so it stays near it on any layout, then the draw
+        // pass dissolves everything below the tower so it never touches the
+        // title text or the buttons.
+        let titleTop = H * 0.18;
+        try {
+            const tEl = document.querySelector('#main-menu .neon-logo');
+            const cr = canvas.getBoundingClientRect();
+            if (tEl) titleTop = tEl.getBoundingClientRect().top - cr.top;
+        } catch (_) {}
+        const towerY = Math.min(Math.max(titleTop - 38, 44), H * 0.34);
+        const laneY = Math.max(towerY - 30, 16);
+        tower = { x: W * 0.5, y: towerY, angle: 0, laneY };
         enemies = []; shots = []; spawnT = 0; shotT = 0; frames = 0;
     }
     function spawn() {
         const t = isAir ? 'air' : GROUND[Math.floor(Math.random() * GROUND.length)];
-        enemies.push({ x: tower.laneX, y: -28, type: t, hp: 3, flash: 0 });
+        // March horizontally across the lane (alternate sides) so the tower in
+        // the middle has targets coming and going — a calm defensive line.
+        const fromRight = enemies.length % 2 === 0;
+        enemies.push({ x: fromRight ? W + 28 : -28, y: tower.laneY,
+            vx: (fromRight ? -1 : 1) * W * 0.085, type: t, hp: 3, flash: 0 });
     }
     function nearest() {
         let best = null, bd = Infinity;
@@ -6173,11 +6202,10 @@ document.addEventListener('DOMContentLoaded', init);
     function update(dt) {
         if (!tower) seed();
         frames++;
-        const speed = H * 0.06;                  // slow, calm drift
         spawnT -= dt; shotT -= dt;
-        if (spawnT <= 0 && enemies.length < 5) { spawn(); spawnT = 1.3; }
-        for (const e of enemies) { e.y += speed * dt; if (e.flash > 0) e.flash -= dt; }
-        enemies = enemies.filter(e => e.y < H + 40 && e.hp > 0);
+        if (spawnT <= 0 && enemies.length < 5) { spawn(); spawnT = 1.4; }
+        for (const e of enemies) { e.x += e.vx * dt; if (e.flash > 0) e.flash -= dt; }
+        enemies = enemies.filter(e => e.x > -40 && e.x < W + 40 && e.hp > 0);
         const tgt = nearest();
         if (tgt) {
             tower.angle = Math.atan2(tgt.y - tower.y, tgt.x - tower.x);
@@ -6204,6 +6232,21 @@ document.addEventListener('DOMContentLoaded', init);
         }
         for (const s of shots) { try { drawProjectile(ctx, s.x, s.y, type, Math.atan2(s.tgt.y - s.y, s.tgt.x - s.x)); } catch (_) {} }
         if (tower) { try { drawTower(ctx, tower.x, tower.y, type, 44, tower.angle, 1); } catch (_) {} }
+        // GRADIENT dissolve: keep the scene in the band above the title and fade
+        // it to nothing below the tower, so it never overlaps the title text or
+        // the buttons (and there's no hard rectangular edge).
+        if (tower) {
+            const fy0 = tower.y + 16, fy1 = tower.y + 96;
+            ctx.globalCompositeOperation = 'destination-out';
+            const g = ctx.createLinearGradient(0, fy0, 0, fy1);
+            g.addColorStop(0, 'rgba(0,0,0,0)');
+            g.addColorStop(1, 'rgba(0,0,0,1)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, fy0, W, fy1 - fy0);
+            ctx.fillStyle = 'rgba(0,0,0,1)';
+            ctx.fillRect(0, fy1, W, Math.max(0, H - fy1));   // fully clear below
+            ctx.globalCompositeOperation = 'source-over';
+        }
     }
     function visible() {
         const m = document.getElementById('main-menu');
@@ -6229,7 +6272,7 @@ document.addEventListener('DOMContentLoaded', init);
         _tick: (dt) => { if (!tower) seed(); update(dt || 0.05); draw(); },
         _setType: (t) => { if (!tower) seed(); type = t; isAir = (t === 'flak' || t === 'flak_emp'); enemies = []; shots = []; spawnT = 0; },
         get state() {
-            return { type, isAir, towerX: tower && tower.x, W, H,
+            return { type, isAir, towerX: tower && tower.x, towerY: tower && tower.y, W, H,
                 enemies: enemies.length, enemyTypes: enemies.map(e => e.type),
                 shots: shots.length, frames };
         },

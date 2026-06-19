@@ -189,6 +189,22 @@ const path = require('path');
     ok('web + no update → gray download link (href present, not green)',
         mmCur.dlHasHref === true && mmCur.dlGreen === false && /get the app/i.test(mmCur.dlText), JSON.stringify(mmCur));
 
+    // APK native fallback: when the native shell injects __neonNativeLiveBuild
+    // (because the WebView's own cross-origin fetch is unreliable), it is
+    // TRUSTED over the JS fetch — even if that fetch reports an older build.
+    const nativeLive = await page.evaluate(async () => {
+        window.__neonNativeLiveBuild = '20990101000000';   // native: a newer build exists
+        const make = (o) => ({ ok: true, json: async () => o });
+        const stub = (url) => String(url).indexOf('raw.githubusercontent') !== -1
+            ? Promise.resolve(make({ build: '20000101000000' }))            // stale JS fetch — must be ignored
+            : Promise.resolve(make({ version: '1.1', build: '20000101000000' }));
+        const r = await window.populateMainMenuVersion(stub);
+        delete window.__neonNativeLiveBuild;
+        return { newer: r.newer, live: r.live };
+    });
+    ok('native-injected live build is trusted over the WebView fetch',
+        nativeLive.newer === true && /^2099/.test(nativeLive.live), JSON.stringify(nativeLive));
+
     // 5. The version check re-runs every time the player returns to the main
     //    menu (so a freshly-deployed build is noticed without relaunching),
     //    and an hourly timer keeps it fresh while the menu sits open.

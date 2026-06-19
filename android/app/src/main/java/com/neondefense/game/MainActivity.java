@@ -175,6 +175,15 @@ public class MainActivity extends AppCompatActivity {
                 recreate();
                 return true;
             }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                // The WebView's own cross-origin fetch to raw.githubusercontent
+                // proved unreliable on some devices, so the in-app update never
+                // surfaced. Fetch the live manifest NATIVELY (unrestricted
+                // network) and hand it to the page.
+                fetchLiveVersion();
+            }
         });
 
         webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html");
@@ -253,6 +262,60 @@ public class MainActivity extends AppCompatActivity {
 
         root.setGravity(Gravity.TOP);
         setContentView(root);
+    }
+
+    /**
+     * Fetch main's version.json natively (off the UI thread, unrestricted
+     * network — no WebView cross-origin/cache quirks) and inject the build
+     * token into the page, then nudge the in-app update check. Crash-safe:
+     * any failure is swallowed and the JS-side fetch remains the fallback.
+     */
+    private void fetchLiveVersion() {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                java.net.HttpURLConnection conn = null;
+                try {
+                    java.net.URL u = new java.net.URL(
+                        "https://raw.githubusercontent.com/ilgmars/AI-Playground-TD-NeonDefense/main/version.json?t="
+                            + System.currentTimeMillis());
+                    conn = (java.net.HttpURLConnection) u.openConnection();
+                    conn.setConnectTimeout(8000);
+                    conn.setReadTimeout(8000);
+                    conn.setRequestProperty("Cache-Control", "no-cache");
+                    java.io.BufferedReader br = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(conn.getInputStream()));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) sb.append(line);
+                    br.close();
+                    java.util.regex.Matcher m = java.util.regex.Pattern
+                        .compile("\"build\"\\s*:\\s*\"(\\d+)\"").matcher(sb.toString());
+                    if (m.find()) {
+                        final String build = m.group(1);
+                        runOnUiThread(new Runnable() {
+                            @Override public void run() {
+                                if (webView != null) {
+                                    webView.evaluateJavascript(
+                                        "window.__neonNativeLiveBuild='" + build + "';"
+                                        + "window.refreshVersionInfo&&window.refreshVersionInfo(true);", null);
+                                }
+                            }
+                        });
+                    }
+                } catch (Throwable t) {
+                    // Offline / blocked / parse error — ignore; JS fetch is the fallback.
+                } finally {
+                    if (conn != null) try { conn.disconnect(); } catch (Throwable ignored) {}
+                }
+            }
+        }).start();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Re-check for a new release each time the app comes to the foreground.
+        if (webView != null) fetchLiveVersion();
     }
 
     @Override
