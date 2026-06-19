@@ -99,6 +99,8 @@ const SUITES = [
     { name: 'tech-tree-zoom',         file: 'tests/tech-tree-zoom.test.js' },
     { name: 'screen-orientation',     file: 'tests/screen-orientation-rotate.test.js' },
     { name: 'letterbox-grid-fill',    file: 'tests/letterbox-grid-fill.test.js' },
+    { name: 'mobile-back-keeps-run',  file: 'tests/mobile-back-keeps-run.test.js' },
+    { name: 'gesture-draw-cheap',     file: 'tests/gesture-draw-cheap.test.js' },
     { name: 'cutter-enemy',           file: 'tests/cutter-enemy.test.js' },
     { name: 'digger-boss',            file: 'tests/digger-boss.test.js' },
     { name: 'backpack-held-in-place', file: 'tests/backpack-held-in-place.test.js' },

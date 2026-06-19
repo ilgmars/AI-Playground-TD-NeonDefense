@@ -318,6 +318,16 @@ function _exitSubScreenState() {
 if (typeof window !== 'undefined' && !window.__neonHistoryWired) {
     window.__neonHistoryWired = true;
     window.addEventListener('popstate', () => {
+        // System Back during an ACTIVE RUN must NOT drop the run (it used to
+        // fall through to navigateToMainMenu and quit the game). Re-arm a
+        // history entry so Back is consumed and the run keeps going — the
+        // in-game EXIT button is the only intentional way out. Applies on web
+        // and in the APK (its hardware Back calls webView.goBack()).
+        if (typeof game !== 'undefined' && game &&
+            (game.state === 'playing' || game.state === 'paused')) {
+            try { history.pushState({ ndRun: true }, ''); } catch (_) {}
+            return;
+        }
         if (_subScreenOpen) {
             _suppressPush = true;
             navigateToMainMenu();
@@ -6041,9 +6051,24 @@ document.addEventListener('DOMContentLoaded', init);
             verEl.classList.toggle('update', newer);
         }
         if (dlEl) {
-            dlEl.href = APK_URL;
-            dlEl.textContent = newer ? 'Download latest ▸' : 'Get the app ▸';
-            dlEl.classList.toggle('update', newer);
+            const apk = isApk();
+            if (!apk && newer) {
+                // WEB: a newer build is a new DEPLOY, not a new APK — reloading
+                // fetches it (the ?v= cache-bust pulls the fresh JS/CSS). So
+                // show a Reload button instead of an APK download link.
+                dlEl.textContent = 'Reload for update ▸';
+                dlEl.removeAttribute('href');
+                dlEl.classList.add('update');
+                dlEl.onclick = (e) => { if (e) e.preventDefault(); location.reload(); };
+            } else {
+                // No update (or the APK download path): a plain link. Without
+                // `.update` it renders gray/muted — the "no update" state the
+                // footer should show on web.
+                dlEl.href = APK_URL;
+                dlEl.onclick = null;
+                dlEl.textContent = (apk && newer) ? 'Download latest ▸' : 'Get the app ▸';
+                dlEl.classList.toggle('update', apk && newer);
+            }
         }
         return { localBuild: String(localBuild), live: String(live), newer };
     }

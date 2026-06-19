@@ -161,13 +161,18 @@ const path = require('path');
             ? Promise.resolve(make({ build: '20990101000000' }))            // live = far future (newer)
             : Promise.resolve(make({ version: '1.1', build: '20000101000000' })); // local = old
         const r = await window.populateMainMenuVersion(stub);
+        const dl = document.getElementById('mm-download');
         return { newer: r.newer,
             ver: document.getElementById('mm-version').textContent,
-            dlGreen: document.getElementById('mm-download').classList.contains('update') };
+            dlGreen: dl.classList.contains('update'),
+            dlText: dl.textContent, dlHasHref: dl.hasAttribute('href') };
     });
     ok('main-menu shows the build as a yymmdd.hhmmss timestamp', /000101\.000000/.test(mmNew.ver), JSON.stringify(mmNew));
-    ok('newer build → "update available" + green download link',
-        mmNew.newer === true && /update available/.test(mmNew.ver) && mmNew.dlGreen === true, JSON.stringify(mmNew));
+    ok('newer build → "update available" + green link', mmNew.newer === true && /update available/.test(mmNew.ver) && mmNew.dlGreen === true, JSON.stringify(mmNew));
+    // WEB (not the APK host): a newer build = a new deploy → offer RELOAD, not
+    // an APK download. The link becomes a button (no href).
+    ok('web + newer → "Reload" button, not an APK download link',
+        /reload/i.test(mmNew.dlText) && mmNew.dlHasHref === false, JSON.stringify(mmNew));
 
     const mmCur = await page.evaluate(async () => {
         const make = (o) => ({ ok: true, json: async () => o });
@@ -175,9 +180,14 @@ const path = require('path');
             ? Promise.resolve(make({ build: '20000101000000' }))            // live == local
             : Promise.resolve(make({ version: '1.1', build: '20000101000000' }));
         const r = await window.populateMainMenuVersion(stub);
-        return { newer: r.newer, dlGreen: document.getElementById('mm-download').classList.contains('update') };
+        const dl = document.getElementById('mm-download');
+        return { newer: r.newer, dlGreen: dl.classList.contains('update'),
+            dlHasHref: dl.hasAttribute('href'), dlText: dl.textContent };
     });
     ok('up-to-date build → no update, neutral link', mmCur.newer === false && mmCur.dlGreen === false, JSON.stringify(mmCur));
+    // WEB + no update → a GRAY download link (href present, not lit green).
+    ok('web + no update → gray download link (href present, not green)',
+        mmCur.dlHasHref === true && mmCur.dlGreen === false && /get the app/i.test(mmCur.dlText), JSON.stringify(mmCur));
 
     // 5. The version check re-runs every time the player returns to the main
     //    menu (so a freshly-deployed build is noticed without relaunching),

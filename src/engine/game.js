@@ -943,9 +943,25 @@ class Game {
             ex + k * this._mapLayer.width  >= this.canvas.width &&
             ey + k * this._mapLayer.height >= this.canvas.height;
         if (!covers) {
+            if (gestureActive && this._mapLayer) {
+                // SMOOTH gesture path: re-vectoring the whole map + the
+                // per-tile extended-grass loop every frame is what made
+                // zoom/pan lag (worse now the canvas fills the container). So
+                // during a gesture just paint the grass base colour cheaply
+                // (keeps every pixel opaque — no blank patches) and warp-blit
+                // the stale layer over it. Crisp grid/outline return on the
+                // rebuild at gesture end.
+                this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+                this.ctx.fillStyle = '#0f172a';   // matches drawGridTile grass
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                this.ctx.setTransform(k, 0, 0, k, ex, ey);
+                this.ctx.drawImage(this._mapLayer, 0, 0);
+                this.ctx.setTransform(A, 0, 0, A, OX, OY);
+                return;
+            }
             this._drawExtendedGrass(this.ctx, A, OX, OY, this.canvas.width, this.canvas.height);
             this.map.draw(this.ctx);
-            this._drawPathOutline(this.ctx);   // gesture fallback: outline isn't in this direct (uncached) draw
+            this._drawPathOutline(this.ctx);   // non-gesture fallback (rare): full crisp redraw
             return;
         }
         this.ctx.setTransform(k, 0, 0, k, ex, ey);
