@@ -6175,8 +6175,18 @@ document.addEventListener('DOMContentLoaded', init);
     if (!canvas || !canvas.getContext) return;
     if (typeof Tower === 'undefined' || typeof Enemy === 'undefined') return;   // need the real entities
     const ctx = canvas.getContext('2d');
-    const CANON = ['basic', 'sniper', 'rapid', 'rocket', 'flak'];   // projectile towers
     const GROUND = ['normal', 'fast', 'tank'];
+    const DEMO_ENEMY_SPEED = 0.5;     // monsters move at half speed in the demo
+    // Tower pool = every base COMBAT tower, derived from the canonical
+    // NeonSave.TOWER_TYPES so it stays in sync as towers are added. Utility
+    // towers that don't attack (income / beacon: range 0, damage 0) are excluded.
+    function combatPool() {
+        const all = (typeof NeonSave !== 'undefined' && NeonSave.TOWER_TYPES && NeonSave.TOWER_TYPES.length)
+            ? NeonSave.TOWER_TYPES : ['basic', 'sniper', 'rapid', 'rocket', 'flak'];
+        const list = all.filter(t => (typeof TOWERS !== 'undefined') && TOWERS[t] &&
+            (TOWERS[t].range || 0) > 0 && (TOWERS[t].damage || 0) > 0);
+        return list.length ? list : ['basic'];
+    }
     const TILE = (typeof TILE_SIZE !== 'undefined') ? TILE_SIZE : 40;
     let W = 0, H = 0, dpr = 1;
     let tower = null, type = 'basic', isAir = false;
@@ -6210,12 +6220,17 @@ document.addEventListener('DOMContentLoaded', init);
     function placeTower() { const c = center(); if (tower) { tower.x = c.cx - TILE / 2; tower.y = c.cy - TILE / 2; } return c; }
     const toCell = (px, py) => ({ c: (px - TILE / 2) / TILE, r: (py - TILE / 2) / TILE });
 
+    // A fresh RANDOM tower each time the menu (re)opens (seed runs on open).
+    function makeTower(t) {
+        try { const tw = new Tower(0, 0, t); tw.targetMode = 'closest'; return tw; }   // always shoot the NEAREST monster
+        catch (_) { return null; }
+    }
     function seed() {
         resize();
-        const avail = (typeof TOWERS !== 'undefined' && TOWERS) ? CANON.filter(t => TOWERS[t]) : [];
-        type = (avail.length ? avail : ['basic'])[Math.floor(Math.random() * (avail.length || 1))];
+        const pool = combatPool();
+        type = pool[Math.floor(Math.random() * pool.length)];
         isAir = (type === 'flak');
-        try { tower = new Tower(0, 0, type); } catch (_) { tower = null; }
+        tower = makeTower(type);
         enemies = []; projectiles = []; particles = []; frames = 0; spawnT = 0;
         placeTower();
     }
@@ -6228,6 +6243,7 @@ document.addEventListener('DOMContentLoaded', init);
         try { e = new Enemy([toCell(sx, sy), toCell(c.cx, c.cy)], t, 0.8); }   // modest hp → live long enough to be seen converging
         catch (_) { return; }
         e.x = sx; e.y = sy;
+        e.speed *= DEMO_ENEMY_SPEED;                             // half speed — calmer approach
         if (e.isAir) {
             e.followsPath = false; e.endX = c.cx; e.endY = c.cy;
             const dx = c.cx - sx, dy = c.cy - sy, d = Math.hypot(dx, dy) || 1;
@@ -6310,7 +6326,7 @@ document.addEventListener('DOMContentLoaded', init);
     window.__neonMenuDemo = {
         restart: seed,
         _tick: () => { if (!tower) seed(); step(); draw(); },
-        _setType: (t) => { type = t; isAir = (t === 'flak'); try { tower = new Tower(0, 0, t); } catch (_) {} enemies = []; projectiles = []; particles = []; spawnT = 0; placeTower(); },
+        _setType: (t) => { type = t; isAir = (t === 'flak'); tower = makeTower(t); enemies = []; projectiles = []; particles = []; spawnT = 0; placeTower(); },
         // Spawn n enemies and return their approach angles (radians) for the
         // "from random directions" assertion; leaves no enemies behind.
         _sampleDirections: (n) => {
@@ -6322,8 +6338,10 @@ document.addEventListener('DOMContentLoaded', init);
         },
         get state() {
             const cx = tower ? tower.x + TILE / 2 : 0, cy = tower ? tower.y + TILE / 2 : 0;
-            return { type, isAir, towerX: cx, towerY: cy, W, H,
+            return { type, isAir, towerX: cx, towerY: cy, W, H, pool: combatPool(),
+                targetMode: tower && tower.targetMode,
                 enemies: enemies.length, enemyTypes: enemies.map(e => e.type),
+                enemySpeeds: enemies.map(e => e.speed),
                 projectiles: projectiles.length, frames };
         },
     };

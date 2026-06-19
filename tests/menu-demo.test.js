@@ -109,6 +109,29 @@ const path = require('path');
     const ground = await page.evaluate(() => { const d = window.__neonMenuDemo; d._setType('basic'); for (let i = 0; i < 4; i++) d._tick(); return d.state; });
     ok('ground tower → ground enemies (no air)', ground.enemyTypes.length > 0 && ground.enemyTypes.every(t => t !== 'air'), JSON.stringify(ground));
 
+    // 7b) Tower pool is IN SYNC with config: every base COMBAT tower (derived
+    //     from TOWER_TYPES), utility (income/beacon: range 0) excluded.
+    const pool = await page.evaluate(() => {
+        const expected = NeonSave.TOWER_TYPES.filter(t => TOWERS[t] && (TOWERS[t].range || 0) > 0 && (TOWERS[t].damage || 0) > 0).slice().sort();
+        const got = window.__neonMenuDemo.state.pool.slice().sort();
+        return { expected, got, hasIncome: got.includes('income'), hasBeacon: got.includes('beacon') };
+    });
+    ok('tower pool == all base COMBAT towers (in sync with TOWER_TYPES)',
+        JSON.stringify(pool.got) === JSON.stringify(pool.expected) && pool.expected.length >= 9, JSON.stringify(pool));
+    ok('utility towers (income/beacon) are excluded from the demo', !pool.hasIncome && !pool.hasBeacon, JSON.stringify(pool));
+
+    // 7c) Tower shoots the NEAREST monster.
+    const tm = await page.evaluate(() => { window.__neonMenuDemo._setType('sniper'); return window.__neonMenuDemo.state.targetMode; });
+    ok('tower targets the nearest monster (closest)', tm === 'closest', JSON.stringify({ tm }));
+
+    // 7d) Monsters move at HALF speed.
+    const spd = await page.evaluate(() => {
+        const d = window.__neonMenuDemo; d._setType('basic'); d._tick();
+        const s = d.state, t = s.enemyTypes[0];
+        return { t, got: s.enemySpeeds[0], expected: (typeof ENEMIES !== 'undefined' && ENEMIES[t]) ? ENEMIES[t].speed * 0.5 : null };
+    });
+    ok('monsters move at 0.5× speed', spd.expected !== null && Math.abs(spd.got - spd.expected) < 1e-6, JSON.stringify(spd));
+
     // 8) Render decoupling: the tower draws at ITS position even when the GAME's
     //    render transform/zoom is set (left over from a run).
     const decoupled = await page.evaluate(() => {
