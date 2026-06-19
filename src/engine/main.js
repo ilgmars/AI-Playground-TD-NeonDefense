@@ -6178,8 +6178,14 @@ document.addEventListener('DOMContentLoaded', init);
     const GROUND = ['normal', 'fast', 'tank'];
     const DEMO_ENEMY_SPEED = 0.5;     // monsters move at half speed in the demo
     const DEMO_FIRE_MULT = 2;         // tower shoots twice as fast in the demo
-    const SWARM_BREACHES = 6;         // mobs that reach the tower before it's overwhelmed
-    const SWARM_COUNT = 11;           // …or this many alive at once → swarmed
+    const SWARM_NEAR = 3;             // mobs touching the tower at once → overwhelmed
+    const SWARM_COUNT = 12;           // …or this many alive at once → overwhelmed
+    const REACH_LIMIT = 8;            // …or this many have reached it over the wave (fast fliers vs flak)
+    const MAX_WAVE = 840;             // …or ~14s max per wave (a too-strong tower still gets buried)
+    // Escalating pressure: as a wave runs, monsters spawn faster and the cap
+    // grows, so it builds toward a swarm; reset on each explosion.
+    const aliveCap = (s) => Math.min(18, 5 + Math.floor(s / 70));
+    const spawnInterval = (s) => Math.max(8, 26 - Math.floor(s / 70));
     // Tower pool = every base COMBAT tower, derived from the canonical
     // NeonSave.TOWER_TYPES so it stays in sync as towers are added. Utility
     // towers that don't attack (income / beacon: range 0, damage 0) are excluded.
@@ -6194,7 +6200,7 @@ document.addEventListener('DOMContentLoaded', init);
     let W = 0, H = 0, dpr = 1;
     let tower = null, type = 'basic', isAir = false;
     let enemies = [], projectiles = [], particles = [], frames = 0, spawnT = 0;
-    let breaches = 0, towerSerial = 0;
+    let since = 0, reached = 0, towerSerial = 0;   // `since` drives escalation; `reached` = cumulative mobs that got to the tower
     let lastVisible = false, lastTs = 0, acc = 0;
 
     function reducedMotion() {
@@ -6243,7 +6249,7 @@ document.addEventListener('DOMContentLoaded', init);
         resize();
         pickType();
         tower = makeTower(type);
-        enemies = []; projectiles = []; particles = []; frames = 0; spawnT = 0; breaches = 0;
+        enemies = []; projectiles = []; particles = []; frames = 0; spawnT = 0; since = 0; reached = 0;
         placeTower();
     }
     // The tower is overwhelmed: a big blast kills every mob, then a NEW random
@@ -6256,7 +6262,7 @@ document.addEventListener('DOMContentLoaded', init);
                 for (const e of enemies) particles.push(new Explosion(e.x, e.y, (e.radius || 12) * 1.6));
             }
         } catch (_) {}
-        enemies = []; projectiles = []; breaches = 0;
+        enemies = []; projectiles = []; since = 0; reached = 0;       // reset the escalation
         pickType();
         tower = makeTower(type);                                             // a new tower appears in its place
         placeTower();
@@ -6284,8 +6290,10 @@ document.addEventListener('DOMContentLoaded', init);
     function step() {
         if (!tower) { seed(); if (!tower) return; }
         placeTower();
-        frames++;
-        if (--spawnT <= 0 && enemies.length < 14) { spawnEnemy(); spawnT = 20; }
+        frames++; since++;
+        // Escalating waves: spawn faster + allow more on screen the longer the
+        // wave runs, so monsters pile up toward a swarm.
+        if (--spawnT <= 0 && enemies.length < aliveCap(since)) { spawnEnemy(); spawnT = spawnInterval(since); }
         const savedSound = soundEnabled; soundEnabled = false;   // the demo never beeps
         try {
             for (const e of enemies) e.update();
@@ -6293,13 +6301,20 @@ document.addEventListener('DOMContentLoaded', init);
             for (const p of projectiles) p.update(enemies, particles, projectiles);
             for (const pa of particles) pa.update();
         } catch (_) {} finally { soundEnabled = savedSound; }
-        for (const e of enemies) if (e.reachedEnd) breaches++;   // a mob got to the tower
+        // Swarmed? Count mobs that have REACHED or are TOUCHING the tower — so
+        // point-blank kills still count (with 2× fire they often die on contact,
+        // which is why a "reached the end" check alone never tripped).
+        const cx = tower.x + TILE / 2, cy = tower.y + TILE / 2;
+        let atTower = 0;
+        for (const e of enemies) {
+            if (e.reachedEnd) reached++;                          // cumulative reaches (fast fliers vs flak)
+            if (e.reachedEnd || Math.hypot(e.x - cx, e.y - cy) < TILE * 0.95) atTower++;
+        }
+        if (atTower >= SWARM_NEAR || enemies.length >= SWARM_COUNT || reached >= REACH_LIMIT || since >= MAX_WAVE) { explode(); return; }
         enemies = enemies.filter(e => e.active && !e.reachedEnd);
         projectiles = projectiles.filter(p => p.active);
         particles = particles.filter(p => p.active);
         if (particles.length > 160) particles.length = 160;
-        // Swarmed → the tower explodes, wipes the mobs, and a new one appears.
-        if (breaches >= SWARM_BREACHES || enemies.length >= SWARM_COUNT) explode();
     }
     function draw() {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -6372,10 +6387,14 @@ document.addEventListener('DOMContentLoaded', init);
         _swarm: () => {
             if (!tower) seed();
             const serial0 = towerSerial, partBefore = particles.length;
-            for (let i = 0; i < SWARM_BREACHES + 2; i++) { spawnEnemy(); const e = enemies[enemies.length - 1]; if (e) { e.active = false; e.reachedEnd = true; } }
+            const cx = tower.x + TILE / 2, cy = tower.y + TILE / 2;
+            for (let i = 0; i < SWARM_NEAR + 1; i++) { spawnEnemy(); const e = enemies[enemies.length - 1]; if (e) { e.x = cx; e.y = cy; } }  // mobs touching the tower
             step();
             return { exploded: towerSerial > serial0, enemies: enemies.length, boom: particles.length > partBefore };
         },
+        // Pure escalation plan for a given wave age (ticks): cap grows, spawn
+        // interval shrinks. Used to assert "increasingly more monsters".
+        _spawnPlan: (s) => ({ cap: aliveCap(s), interval: spawnInterval(s) }),
         get state() {
             const cx = tower ? tower.x + TILE / 2 : 0, cy = tower ? tower.y + TILE / 2 : 0;
             return { type, isAir, towerX: cx, towerY: cy, W, H, pool: combatPool(),

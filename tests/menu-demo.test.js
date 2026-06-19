@@ -145,11 +145,16 @@ const path = require('path');
     ok('swarmed tower explodes, wipes mobs, and a new tower appears',
         swarm.exploded === true && swarm.enemies === 0 && swarm.boom === true, JSON.stringify(swarm));
 
-    // 7g) …and the swarm→explode→respawn cycle actually occurs during play.
+    // 7g) Monsters escalate: cap grows + spawn interval shrinks as a wave runs.
+    const esc = await page.evaluate(() => { const d = window.__neonMenuDemo; return { a: d._spawnPlan(0), b: d._spawnPlan(700) }; });
+    ok('monster pressure escalates over time (cap grows, spawn faster)',
+        esc.b.cap > esc.a.cap && esc.b.interval < esc.a.interval, JSON.stringify(esc));
+
+    // 7h) …and the escalation drives a swarm→explode→respawn cycle during play.
     const cadence = await page.evaluate(() => {
         const d = window.__neonMenuDemo; d.restart();
         const s0 = d.state.towerSerial;
-        for (let i = 0; i < 700; i++) d._tick();
+        for (let i = 0; i < 900; i++) d._tick();
         return { changed: d.state.towerSerial > s0 };
     });
     ok('the swarm→explode→respawn cycle happens during normal play', cadence.changed, JSON.stringify(cadence));
