@@ -1,5 +1,10 @@
 // TOWER_UPGRADES moved to config.js — it's balance/content, not game logic.
 
+// Max turret rotation per update tick (radians). Turrets rotate toward their
+// target at this rate instead of snapping. ~0.22 rad ≈ 12.6°/tick (~750°/s at
+// 60fps): a 180° swing animates over ~0.25s; small tracking moves are instant.
+const TOWER_TURN_SPEED = 0.22;
+
 class Enemy {
     constructor(path, type, hpMultiplier) {
         this.path = path;
@@ -269,7 +274,8 @@ class Tower {
         this.y = r * TILE_SIZE;
         this.type = type;
 
-        this.angle = 0;
+        this.angle = 0;          // smoothed DISPLAY angle (turret rotates toward the target)
+        this.targetAngle = 0;    // the true aim angle; firing uses this, not the lagging display
         this.cooldown = 0;
         this.upgrades = [0, 0, 0];
 
@@ -376,6 +382,17 @@ class Tower {
     update(enemies, projectiles, particles) {
         if (this.type === 'income' || this.type === 'income_research' || this.type === 'beacon') return; // passive towers, no combat logic
         if (this.cooldown > 0) this.cooldown--;
+
+        // Ease the DISPLAY turret toward its last-known aim EVERY frame — the
+        // target scan below is staggered (every 5th frame between shots), so
+        // rotating there made the barrel jerk. targetAngle is the true aim
+        // (set by the scan / used by firing); this just animates the sprite.
+        if (this.angle !== this.targetAngle) {
+            let _da = this.targetAngle - this.angle;
+            while (_da > Math.PI) _da -= Math.PI * 2;
+            while (_da < -Math.PI) _da += Math.PI * 2;
+            this.angle += (Math.abs(_da) <= TOWER_TURN_SPEED) ? _da : Math.sign(_da) * TOWER_TURN_SPEED;
+        }
 
         if (this.type === 'silo' || this.type === 'silo_orbital') {
             if (this.cooldown === 0 && this.hoverRockets.length < (this.maxHover || 3)) {
@@ -518,8 +535,11 @@ class Tower {
         }
 
         if (target) {
-            this.angle = Math.atan2(target.y - (this.y + TILE_SIZE/2), target.x - (this.x + TILE_SIZE/2));
-            
+            // True aim — set immediately so firing/cone logic stays accurate.
+            // The DISPLAY turret (this.angle) eases toward it every frame above.
+            const desired = Math.atan2(target.y - (this.y + TILE_SIZE/2), target.x - (this.x + TILE_SIZE/2));
+            this.targetAngle = desired;
+
             if (this.type === 'laser_pulse') {
                 // M3: Pulse Laser — fires high-damage projectiles at fireRate cadence.
                 if (this.cooldown <= 0) {
@@ -617,7 +637,7 @@ class Tower {
                     const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
                     const effectiveBurnDamage = (this.burnDamage || 2) * (1 + (this.auraDamageBonus || 0));
                     const coneAngle = this.coneAngle || 0.6;
-                    const aimAngle = this.angle; // updated above: angle to current target
+                    const aimAngle = desired; // TRUE aim (display angle lags during the turn)
                     const tx = this.x + TILE_SIZE / 2;
                     const ty = this.y + TILE_SIZE / 2;
                     for (const e of enemies) {
@@ -642,7 +662,7 @@ class Tower {
                     }
                     // Cone visual: show for next 8 draw-frames
                     this._flameConeFrames = 8;
-                    this._flameConeAngle = this.angle;
+                    this._flameConeAngle = desired;
                     this.cooldown = this.fireRate;
                 } else if (this.type === 'rapid') {
                     const effectiveDamage = this.damage * (1 + (this.auraDamageBonus || 0));
