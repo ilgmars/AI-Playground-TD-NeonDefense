@@ -103,6 +103,7 @@ const SUITES = [
     { name: 'gesture-draw-cheap',     file: 'tests/gesture-draw-cheap.test.js' },
     { name: 'menu-demo',              file: 'tests/menu-demo.test.js' },
     { name: 'tower-rotation',         file: 'tests/tower-rotation.test.js' },
+    { name: 'landscape-menu-fit',     file: 'tests/landscape-menu-fit.test.js' },
     { name: 'cutter-enemy',           file: 'tests/cutter-enemy.test.js' },
     { name: 'digger-boss',            file: 'tests/digger-boss.test.js' },
     { name: 'backpack-held-in-place', file: 'tests/backpack-held-in-place.test.js' },
