@@ -6201,6 +6201,7 @@ document.addEventListener('DOMContentLoaded', init);
     let tower = null, type = 'basic', isAir = false;
     let enemies = [], projectiles = [], particles = [], frames = 0, spawnT = 0;
     let since = 0, reached = 0, towerSerial = 0;   // `since` drives escalation; `reached` = cumulative mobs that got to the tower
+    let _place = { cx: 0, cy: 0, R: 138, mode: 'above' };   // current battle placement (above the title or side margin)
     let lastVisible = false, lastTs = 0, acc = 0;
 
     function reducedMotion() {
@@ -6214,20 +6215,29 @@ document.addEventListener('DOMContentLoaded', init);
         canvas.width = Math.max(1, Math.round(W * dpr));
         canvas.height = Math.max(1, Math.round(H * dpr));
     }
-    // Tower centred just ABOVE the title; monsters approach from a ring around
-    // it. Measured each tick so it tracks the title as the menu scrolls
-    // (landscape menus are taller than the viewport).
+    // Where the battle sits, measured each tick (tracks the logo as the menu
+    // scrolls). PORTRAIT: a wide lane just ABOVE the title. LANDSCAPE: there's
+    // no room above the (top-aligned) logo, so tuck it into the wider SIDE
+    // margin, clear of the logo + button column — otherwise the tower drew
+    // behind the logo.
     function center() {
-        let titleTop = H * 0.2;
+        const cr = canvas.getBoundingClientRect();
+        let lt = H * 0.2, ll = W * 0.2, lr = W * 0.8;
         try {
             const tEl = document.querySelector('#main-menu .neon-logo');
-            const cr = canvas.getBoundingClientRect();
-            if (tEl) titleTop = tEl.getBoundingClientRect().top - cr.top;
+            if (tEl) { const b = tEl.getBoundingClientRect(); lt = b.top - cr.top; ll = b.left - cr.left; lr = b.right - cr.left; }
         } catch (_) {}
-        const cy = Math.max(64, Math.min(titleTop - 56, H * 0.32));
-        return { cx: W * 0.5, cy, R: Math.min(Math.max(W, H) * 0.46, 138) };
+        if (lt >= 104) {                                  // room above the logo
+            const cy = Math.max(64, Math.min(lt - 56, H * 0.34));
+            return { cx: W * 0.5, cy, R: Math.min(Math.max(W, H) * 0.46, 138), mode: 'above' };
+        }
+        const leftRoom = ll, rightRoom = W - lr;          // pick the wider side margin
+        const room = Math.max(leftRoom, rightRoom);
+        const cx = (leftRoom >= rightRoom) ? room * 0.5 : W - room * 0.5;
+        const R = Math.max(26, Math.min(room * 0.30, H * 0.32, 120));
+        return { cx, cy: H * 0.5, R, mode: 'side' };
     }
-    function placeTower() { const c = center(); if (tower) { tower.x = c.cx - TILE / 2; tower.y = c.cy - TILE / 2; } return c; }
+    function placeTower() { _place = center(); if (tower) { tower.x = _place.cx - TILE / 2; tower.y = _place.cy - TILE / 2; } return _place; }
     const toCell = (px, py) => ({ c: (px - TILE / 2) / TILE, r: (py - TILE / 2) / TILE });
 
     // A fresh RANDOM tower each time the menu (re)opens (seed runs on open).
@@ -6334,15 +6344,24 @@ document.addEventListener('DOMContentLoaded', init);
             if (tower) tower.draw(ctx);
         } catch (_) {}
         window.__neonRenderT = sT; window.RENDER_SCALE = sRS; window.__neonZoom = sZ;
-        // Dissolve below the tower so the scene never bleeds onto the title/buttons.
+        // Dissolve the scene so it never bleeds onto the logo/buttons.
         if (tower) {
-            const cy = tower.y + TILE / 2;
-            const fy0 = cy + TILE / 2 + 10, fy1 = cy + TILE / 2 + 94;
+            const cx = tower.x + TILE / 2, cy = tower.y + TILE / 2;
             ctx.globalCompositeOperation = 'destination-out';
-            const g = ctx.createLinearGradient(0, fy0, 0, fy1);
-            g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,1)');
-            ctx.fillStyle = g; ctx.fillRect(0, fy0, W, fy1 - fy0);
-            ctx.fillStyle = 'rgba(0,0,0,1)'; ctx.fillRect(0, fy1, W, Math.max(0, H - fy1));
+            if (_place.mode === 'side') {
+                // Radial vignette around the side tower (it's beside the content).
+                const Rin = _place.R * 1.05, Rout = _place.R * 1.4;
+                const g = ctx.createRadialGradient(cx, cy, Rin, cx, cy, Rout);
+                g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,1)');
+                ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+            } else {
+                // Vertical dissolve below the tower (it's above the title).
+                const fy0 = cy + TILE / 2 + 10, fy1 = cy + TILE / 2 + 94;
+                const g = ctx.createLinearGradient(0, fy0, 0, fy1);
+                g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,1)');
+                ctx.fillStyle = g; ctx.fillRect(0, fy0, W, fy1 - fy0);
+                ctx.fillStyle = 'rgba(0,0,0,1)'; ctx.fillRect(0, fy1, W, Math.max(0, H - fy1));
+            }
             ctx.globalCompositeOperation = 'source-over';
         }
     }
@@ -6398,7 +6417,7 @@ document.addEventListener('DOMContentLoaded', init);
         get state() {
             const cx = tower ? tower.x + TILE / 2 : 0, cy = tower ? tower.y + TILE / 2 : 0;
             return { type, isAir, towerX: cx, towerY: cy, W, H, pool: combatPool(),
-                targetMode: tower && tower.targetMode, towerFireRate: tower && tower.fireRate, towerSerial,
+                targetMode: tower && tower.targetMode, towerFireRate: tower && tower.fireRate, towerSerial, placeMode: _place.mode,
                 enemies: enemies.length, enemyTypes: enemies.map(e => e.type),
                 enemySpeeds: enemies.map(e => e.speed),
                 projectiles: projectiles.length, frames };

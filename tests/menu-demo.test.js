@@ -15,7 +15,7 @@ const path = require('path');
         { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
     await new Promise(r => setTimeout(r, 600));
     const browser = await chromium.launch({ headless: true });
-    const ctx = await browser.newContext({ viewport: { width: 1024, height: 720 }, reducedMotion: 'no-preference' });
+    const ctx = await browser.newContext({ viewport: { width: 420, height: 900 }, reducedMotion: 'no-preference' });
     await ctx.addInitScript(() => { window.__neonAegisDev = true; });
     const page = await ctx.newPage();
     const errs = [];
@@ -177,12 +177,24 @@ const path = require('path');
     });
     ok('tower renders at its own position despite a game zoom/pan transform', decoupled.opaque > 0, JSON.stringify(decoupled));
 
-    // 9) Landscape: scene stays on-screen.
-    await page.setViewportSize({ width: 760, height: 360 });
-    await page.waitForTimeout(120);
-    const land = await page.evaluate(() => { const d = window.__neonMenuDemo; d.restart(); for (let i = 0; i < 20; i++) d._tick(); return d.state; });
+    // 9) Landscape: scene stays on-screen AND clear of the logo (it used to
+    //    draw behind the logo — no room above the top-aligned title).
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.waitForTimeout(140);
+    const land = await page.evaluate(() => {
+        const d = window.__neonMenuDemo; d.restart(); for (let i = 0; i < 20; i++) d._tick();
+        const s = d.state, T = window.TILE_SIZE;
+        const cr = document.getElementById('menu-demo').getBoundingClientRect();
+        const lg = document.querySelector('#main-menu .neon-logo').getBoundingClientRect();
+        const t = { l: s.towerX - T / 2, r: s.towerX + T / 2, t: s.towerY - T / 2, b: s.towerY + T / 2 };
+        const L = { l: lg.left - cr.left, r: lg.right - cr.left, t: lg.top - cr.top, b: lg.bottom - cr.top };
+        const overlap = !(t.r < L.l || t.l > L.r || t.b < L.t || t.t > L.b);
+        return { ...s, overlapLogo: overlap };
+    });
     ok('landscape: tower stays on-screen', land.towerY > 0 && land.towerY < land.H && land.towerX > 30 && land.towerX < land.W - 30, JSON.stringify(land));
-    await page.setViewportSize({ width: 1024, height: 720 });
+    ok('landscape: battle moves to the side margin (no room above)', land.placeMode === 'side', JSON.stringify(land));
+    ok('landscape: tower does NOT overlap the logo', land.overlapLogo === false, JSON.stringify(land));
+    await page.setViewportSize({ width: 420, height: 900 });
     await page.waitForTimeout(120);
 
     // 10) Survives a run: re-seeds + resumes after returning to the menu.
