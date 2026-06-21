@@ -103,6 +103,7 @@ const SUITES = [
     { name: 'mobile-back-keeps-run',  file: 'tests/mobile-back-keeps-run.test.js' },
     { name: 'gesture-draw-cheap',     file: 'tests/gesture-draw-cheap.test.js' },
     { name: 'menu-demo',              file: 'tests/menu-demo.test.js' },
+    { name: 'menu-demo-round',        file: 'tests/menu-demo-round.test.js' },
     { name: 'tower-rotation',         file: 'tests/tower-rotation.test.js' },
     { name: 'landscape-menu-fit',     file: 'tests/landscape-menu-fit.test.js' },
     { name: 'cutter-enemy',           file: 'tests/cutter-enemy.test.js' },

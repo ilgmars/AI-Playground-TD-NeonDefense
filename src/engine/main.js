@@ -6384,6 +6384,17 @@ document.addEventListener('DOMContentLoaded', init);
         while (acc >= 1 / 60 && n < 4) { step(); acc -= 1 / 60; n++; }
         draw();
     }
+    // Keep the backing store synced to the canvas box. A plain 'resize' listener
+    // only catches WINDOW resizes — it misses LAYOUT-driven box changes (logo
+    // image loading, fonts/buttons reflowing, the mobile address bar showing or
+    // hiding) and the initial pre-layout-settle race. A stale backing store then
+    // gets stretched non-uniformly into the new box, so the round tower renders
+    // as an oval. ResizeObserver fires on first observe and on every box change.
+    if (typeof ResizeObserver !== 'undefined') {
+        try {
+            new ResizeObserver(() => { if (visible()) { resize(); placeTower(); } }).observe(canvas);
+        } catch (_) { /* fall back to the window listener below */ }
+    }
     window.addEventListener('resize', () => { if (visible()) resize(); });
     requestAnimationFrame(frame);
 
