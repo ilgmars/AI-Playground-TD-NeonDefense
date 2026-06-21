@@ -66,6 +66,11 @@
         const rawT    = raw.t;
         if (typeof rawName !== 'string') return null;
         const name = rawName
+            // Fold accents to ASCII first (ILGMÁRS → ILGMARS) so the same
+            // name typed with or without diacritics maps to ONE board key.
+            // Without NFKD, 'Á' was just stripped (→ ILGMRS), creating a
+            // phantom duplicate next to the plain 'ILGMARS' entry.
+            .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
             .toUpperCase()
             .replace(/[^A-Z0-9 \-]/g, '')
             .trim()

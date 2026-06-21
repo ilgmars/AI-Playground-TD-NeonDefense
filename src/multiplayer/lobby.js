@@ -61,7 +61,9 @@
     // Nicknames: 3-12 chars, A-Z and digits. Anything else gets folded
     // into '?'. Empty input falls back to a random-letter default.
     function sanitiseNick(raw) {
-        let s = typeof raw === 'string' ? raw.toUpperCase() : '';
+        let s = typeof raw === 'string'
+            ? raw.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toUpperCase()
+            : '';
         s = s.replace(/[^A-Z0-9]/g, '').slice(0, 12);
         if (s.length === 0) {
             // Stable fallback so tests don't have to inject crypto.

@@ -540,6 +540,20 @@ class Tower {
             const desired = Math.atan2(target.y - (this.y + TILE_SIZE/2), target.x - (this.x + TILE_SIZE/2));
             this.targetAngle = desired;
 
+            // Hold fire until the DISPLAY barrel (this.angle, eased above) has
+            // caught up to within one turn-step of the true aim — otherwise a
+            // shot/beam leaves the muzzle in the final direction while the
+            // sprite is still mid-rotation, which reads as "shooting sideways".
+            // Near firing time cooldown ≤ 1 forces an every-frame scan, so this
+            // fires the instant it aligns (only a few frames of acquisition lag).
+            let _aimGap = desired - this.angle;
+            while (_aimGap > Math.PI) _aimGap -= Math.PI * 2;
+            while (_aimGap < -Math.PI) _aimGap += Math.PI * 2;
+            if (Math.abs(_aimGap) > TOWER_TURN_SPEED) {
+                if (this.type === 'laser') this.laserTarget = null;
+                return; // still turning — no shot this frame
+            }
+
             if (this.type === 'laser_pulse') {
                 // M3: Pulse Laser — fires high-damage projectiles at fireRate cadence.
                 if (this.cooldown <= 0) {

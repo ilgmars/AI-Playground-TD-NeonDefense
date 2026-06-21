@@ -51,6 +51,38 @@ const path = require('path');
     ok('turret rotates GRADUALLY (takes many ticks, not instant)', r.convergeAt >= 8, JSON.stringify(r));
     ok('turret converges to the target angle', r.converged && r.convergeAt > 0, JSON.stringify(r));
 
+    // Fire-gate: a tower that is READY to fire must HOLD until its display
+    // barrel has caught up to the aim — otherwise the shot leaves the muzzle
+    // in the final direction while the sprite is still rotating ("shoots
+    // sideways"). With an enemy 180° behind, the first projectile must only
+    // appear once the aim gap is within one turn-step.
+    const fg = await page.evaluate(() => {
+        const T = window.TILE_SIZE;
+        const turn = TOWER_TURN_SPEED;
+        const norm = a => { let x = a; while (x > Math.PI) x -= 2 * Math.PI; while (x < -Math.PI) x += 2 * Math.PI; return x; };
+        const tower = new Tower(0, 0, 'sniper');   // long range so the enemy at 150px is targetable
+        tower.angle = 0; tower.targetAngle = 0;
+        const e = new Enemy([{ c: 0, r: 0 }, { c: 0, r: 0 }], 'normal', 1);
+        e.x = tower.x + T / 2 - 150; e.y = tower.y + T / 2; e.isAir = false; // directly behind
+        const enemies = [e];
+        let firstShotFrame = -1, gapAtFirstShot = null, shotsWhileTurning = 0;
+        for (let i = 0; i < 40; i++) {
+            e.active = true; e.hp = e.maxHp = 1e9;
+            tower.cooldown = 0;                  // always READY — only the aim gate can hold it
+            const proj = [];
+            tower.update(enemies, proj, []);
+            const gap = Math.abs(norm(tower.targetAngle - tower.angle));
+            if (proj.length > 0) {
+                if (firstShotFrame < 0) { firstShotFrame = i; gapAtFirstShot = gap; }
+                if (gap > turn + 1e-6) shotsWhileTurning++;
+            }
+        }
+        return { turn, firstShotFrame, gapAtFirstShot, shotsWhileTurning };
+    });
+    ok('turret holds fire while still turning (no sideways shots)', fg.shotsWhileTurning === 0, JSON.stringify(fg));
+    ok('turret DOES fire once it has turned to face the target', fg.firstShotFrame > 0, JSON.stringify(fg));
+    ok('first shot only leaves when aim gap is within one turn-step', fg.gapAtFirstShot != null && fg.gapAtFirstShot <= fg.turn + 1e-6, JSON.stringify(fg));
+
     ok('no JS errors', errs.length === 0, errs.join(' / '));
     await browser.close();
     server.kill();

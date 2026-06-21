@@ -124,6 +124,8 @@ const SUITES = [
     { name: 'boons',           file: 'tests/boons.test.js' },
     { name: 'extra',           file: 'tests/extra.test.js' },
     { name: 'run-retry',       file: 'tests/run-retry.test.js' },
+    { name: 'name-accent-fold', file: 'tests/name-accent-fold.test.js' },
+    { name: 'tooltip-dismiss',  file: 'tests/tooltip-dismiss.test.js' },
     // Meta: fails if any tests/*.test.js isn't registered above.
     { name: 'suite-coverage',  file: 'tests/suite-coverage.test.js' },
 ];

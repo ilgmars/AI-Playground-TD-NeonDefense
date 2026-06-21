@@ -3758,7 +3758,11 @@ function init() {
     // Names allow A-Z 0-9 + space + dash, up to 16 chars. Old saves with
     // 3-char names continue to render unchanged.
     submitScoreBtn.addEventListener('click', () => {
-        const raw = playerNameInput.value.toUpperCase().replace(/[^A-Z0-9 \-]/g, '').trim();
+        // Fold accents to ASCII (ILGMARS, not ILGMRS) BEFORE stripping, so the same
+        // name with or without diacritics is one scoreboard entry, not two.
+        const raw = playerNameInput.value
+            .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase().replace(/[^A-Z0-9 \-]/g, '').trim();
         const name = raw.slice(0, 16);
         if (name.length > 0 && game.state === 'gameover') {
             const tier = game.ascensionTier;
@@ -4410,6 +4414,16 @@ function init() {
             // horizontal scroll of the dock if the user pans sideways.
         }, { passive: true });
     });
+
+    // Any fresh touch dismisses a visible long-press tooltip at once, so the
+    // tip (which otherwise hangs ~1.2 s after release — see touchend) can't
+    // sit over the field while the player lines up the next placement. Capture
+    // phase so it beats the dock's own touchstart; if the finger then stays
+    // held on a dock button, the long-press timer simply re-shows a fresh tip.
+    document.addEventListener('touchstart', () => {
+        const tip = document.getElementById('tower-tooltip');
+        if (tip && !tip.classList.contains('hidden')) hideLongPressTooltip();
+    }, { capture: true, passive: true });
 
     document.addEventListener('touchmove', (e) => {
         if (!touchState) return;
