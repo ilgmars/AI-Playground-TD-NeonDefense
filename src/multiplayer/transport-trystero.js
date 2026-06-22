@@ -244,9 +244,14 @@
     async function joinRoom(roomCode, peerId, opts) {
         opts = opts || {};
         const status = typeof opts.onStatus === 'function' ? opts.onStatus : () => {};
+        // Self-hosted broker configured → signal over OUR broker only and drop
+        // the public Nostr tracker fallback. With no config (local dev / CI) the
+        // nostr safety net stays so peers can still find each other.
+        const _selfHosted = typeof window !== 'undefined'
+            && Array.isArray(window.__neonMqttRelayUrls) && window.__neonMqttRelayUrls.length > 0;
         const requested = Array.isArray(opts.strategies)
             ? opts.strategies
-            : (opts.strategies ? [opts.strategies] : ['mqtt', 'nostr']);
+            : (opts.strategies ? [opts.strategies] : (_selfHosted ? ['mqtt'] : ['mqtt', 'nostr']));
 
         // TURN-server usage costs real money (metered.live bills per
         // relayed byte). Most rooms don't need TURN — STUN alone

@@ -62,10 +62,15 @@
                 if (typeof u === 'string' && u) urls.push(u);
             }
         }
-        const httpOrigin = typeof location !== 'undefined' && location.protocol === 'http:';
-        urls.push(httpOrigin
-            ? 'ws://broker.emqx.io:8083/mqtt'
-            : 'wss://broker.emqx.io:8084/mqtt');
+        // Self-hosted broker configured → use ONLY it (drop the public trackers).
+        // The public EMQX broker remains the fallback ONLY when no self-hosted
+        // relay URL is set, i.e. local dev / CI with an empty config bundle.
+        if (urls.length === 0) {
+            const httpOrigin = typeof location !== 'undefined' && location.protocol === 'http:';
+            urls.push(httpOrigin
+                ? 'ws://broker.emqx.io:8083/mqtt'
+                : 'wss://broker.emqx.io:8084/mqtt');
+        }
         return urls;
     }
     function brokerUrl() { return brokerUrls()[0]; }
@@ -277,7 +282,7 @@
         });
     }
 
-    const api = { joinRoom, brokerUrl, TOPIC_PREFIX };
+    const api = { joinRoom, brokerUrl, brokerUrls, TOPIC_PREFIX };
     if (typeof window !== 'undefined') {
         window.NeonMP = Object.assign(window.NeonMP || {}, { mqttDirect: api });
     }
