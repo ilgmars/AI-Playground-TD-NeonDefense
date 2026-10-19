@@ -14,8 +14,8 @@ let currentNote = 0;
 let seqTimerID = null;
 
 function midiToFreq(m) {
-    if (m === 0) return 0;
-    return 440 * Math.pow(2, (m - 69) / 12);
+	if (m === 0) return 0;
+	return 440 * 2 ** ((m - 69) / 12);
 }
 
 function scheduleBGM() {

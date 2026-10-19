@@ -470,6 +470,7 @@ class Game {
             radius: 0,
             alpha: 1
         });
+        if (this.upgradeEffects.length > 200) this.upgradeEffects.shift();
     }
 
     runAutopilot() {

@@ -10,7 +10,9 @@
     "test":       "node tests/run.js",
     "test:smoke": "node tests/run.js --with-smoke",
     "test:logic": "node tests/aegis.test.js && node tests/backpack.test.js",
-    "test:perf":  "WRITE_PERF_HISTORY=1 node tests/perf.test.js"
+    "test:perf":  "WRITE_PERF_HISTORY=1 node tests/perf.test.js",
+    "lint":       "biome check .",
+    "format":     "biome format --write ."
   },
   "repository": {
     "type": "git",
@@ -23,7 +25,8 @@
     "url": "https://github.com/ilgmars/AI-Playground-TD-NeonDefense/issues"
   },
   "homepage": "https://github.com/ilgmars/AI-Playground-TD-NeonDefense#readme",
-  "dependencies": {
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
     "playwright": "^1.59.1"
   }
 }
